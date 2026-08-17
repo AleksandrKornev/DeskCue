@@ -1,0 +1,280 @@
+.markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6,
+.markdown pre,
+.markdown blockquote,
+.markdown table {
+  margin: 0;
+}
+
+.markdown p,
+.markdown li,
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6,
+.markdown blockquote,
+.markdown span,
+.markdown a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown p {
+  white-space: pre-wrap;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.45rem;
+}
+
+.markdown li > ul,
+.markdown li > ol {
+  margin-top: 0.35rem;
+  padding-left: 1.2rem;
+}
+
+.markdown li > p {
+  margin: 0;
+}
+
+.markdown li > p + p {
+  margin-top: 0.35rem;
+}
+
+.markdown li::marker {
+  color: #aeb2bc;
+}
+
+.markdown li + li {
+  margin-top: 0.3rem;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  color: #f1ede4;
+  font-weight: 700;
+  line-height: 1.24;
+}
+
+.markdown h1 {
+  font-size: 1.26rem;
+}
+
+.markdown h2 {
+  font-size: 1.16rem;
+}
+
+.markdown h3 {
+  font-size: 1.06rem;
+}
+
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-size: 0.98rem;
+}
+
+.markdown p + p,
+.markdown p + ul,
+.markdown p + ol,
+.markdown ul + p,
+.markdown ol + p,
+.markdown pre + p,
+.markdown p + h1,
+.markdown p + h2,
+.markdown p + h3,
+.markdown ul + h1,
+.markdown ul + h2,
+.markdown ul + h3,
+.markdown ol + h1,
+.markdown ol + h2,
+.markdown ol + h3,
+.markdown pre + h1,
+.markdown pre + h2,
+.markdown pre + h3 {
+  margin-top: 0.7rem;
+}
+
+.markdown h1 + p,
+.markdown h2 + p,
+.markdown h3 + p,
+.markdown h1 + ul,
+.markdown h2 + ul,
+.markdown h3 + ul,
+.markdown h1 + ol,
+.markdown h2 + ol,
+.markdown h3 + ol,
+.markdown h1 + pre,
+.markdown h2 + pre,
+.markdown h3 + pre {
+  margin-top: 0.45rem;
+}
+
+.markdown code {
+  padding: 0.12rem 0.42rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f6d59c;
+  font-size: 0.92em;
+  white-space: break-spaces;
+}
+
+.markdown pre {
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(7, 9, 14, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.markdown pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #ebe6dc;
+}
+
+.markdown table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-spacing: 0;
+  border-collapse: separate;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.markdown thead {
+  color: #b9c4d6;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.markdown th,
+.markdown td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown th + th,
+.markdown td + td {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.markdown tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown a {
+  color: #f6d59c;
+  text-decoration: underline;
+  text-decoration-color: rgba(246, 213, 156, 0.45);
+  text-underline-offset: 0.16em;
+}
+
+.localAssetButton {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #f6d59c;
+  cursor: pointer;
+  font: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(246, 213, 156, 0.45);
+  text-underline-offset: 0.16em;
+}
+
+.localLink {
+  color: #d7c7ad;
+  border-bottom: 1px dashed rgba(215, 199, 173, 0.45);
+  cursor: default;
+}
+
+@media (max-width: 720px) {
+  .markdown ul,
+  .markdown ol {
+    padding-left: 1.35rem;
+  }
+
+  .markdown li > ul,
+  .markdown li > ol {
+    padding-left: 1.1rem;
+  }
+
+  .markdown h1 {
+    font-size: 1.14rem;
+  }
+
+  .markdown h2 {
+    font-size: 1.06rem;
+  }
+
+  .markdown h3,
+  .markdown h4,
+  .markdown h5,
+  .markdown h6 {
+    font-size: 0.98rem;
+  }
+
+  .markdown code {
+    padding: 0.06rem 0.28rem;
+    border-radius: 6px;
+    font-size: 0.88em;
+    line-height: 1.25;
+  }
+
+  .markdown pre code {
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.88em;
+  }
+
+  .markdown table {
+    overflow-x: auto;
+    font-size: 0.84rem;
+  }
+
+  .markdown th,
+  .markdown td {
+    padding: 8px 9px;
+    white-space: nowrap;
+  }
+}

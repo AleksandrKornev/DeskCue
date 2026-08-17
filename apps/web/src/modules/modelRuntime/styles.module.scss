@@ -1,0 +1,187 @@
+@use "@assets/variables" as vars;
+@use "@components/BottomSheet/mixins" as bottom-sheet;
+
+.dragHandle {
+  @include bottom-sheet.drag-handle;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 6, 9, 0.66);
+  backdrop-filter: blur(6px);
+}
+
+.backdropDismiss {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: #17181d;
+  box-shadow: 0 22px 80px rgba(0, 0, 0, 0.42);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header h3 {
+  margin: 0;
+  color: #f3efe8;
+  font-size: 0.98rem;
+}
+
+.header p {
+  margin: 4px 0 0;
+  color: #9fa4af;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.summaryPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: min(280px, 42vw);
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(214, 164, 103, 0.14);
+  color: #f2dfbf;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.closeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f2ece1;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.item dt {
+  color: #838995;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.item dd {
+  min-width: 0;
+  margin: 0;
+  color: #e3ded5;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: vars.$breakpoint-mobile) {
+  .backdrop {
+    align-items: flex-end;
+    padding: max(12px, env(safe-area-inset-top, 0px)) 0 0;
+  }
+
+  .panel {
+    width: 100%;
+    max-height: 90dvh;
+    padding: 24px 16px max(16px, env(safe-area-inset-bottom, 0px));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -18px 54px rgba(0, 0, 0, 0.46);
+  }
+
+  .header {
+    display: grid;
+    gap: 10px;
+    padding-right: 0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  .headerActions {
+    justify-content: flex-start;
+  }
+
+  .closeButton {
+    display: none;
+  }
+
+  .summaryPill {
+    max-width: calc(100vw - 32px);
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding-right: 2px;
+  }
+}

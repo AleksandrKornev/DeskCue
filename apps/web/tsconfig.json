@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@api/*": ["src/api/*"],
+      "@assets/*": ["src/assets/*"],
+      "@components/*": ["src/components/*"],
+      "@lib/*": ["src/lib/*"],
+      "@models/*": ["src/models/*"],
+      "@modules/*": ["src/modules/*"],
+      "@pages/*": ["src/pages/*"],
+      "@runtime": ["src/runtime/index.ts"],
+      "@runtime/*": ["src/runtime/*"],
+      "@web/*": ["src/*"]
+    },
+    "noEmit": true
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vite.embed.config.ts",
+    "vitest.config.ts"
+  ]
+}

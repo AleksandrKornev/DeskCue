@@ -1,0 +1,322 @@
+@use "@assets/variables" as vars;
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(252px, 332px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-block-size: 0;
+  max-block-size: none;
+  height: 100%;
+}
+
+@media (min-width: 1800px) {
+  .layout {
+    grid-template-columns: clamp(360px, 23%, 480px) minmax(0, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (min-width: 3200px) {
+  .layout {
+    grid-template-columns: clamp(440px, 22%, 560px) minmax(0, 1fr);
+    gap: 22px;
+  }
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  max-height: none;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.listCards {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.listSummary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 0 2px 4px;
+  color: #9fa4af;
+  font-size: 0.84rem;
+}
+
+.listSummarySkeleton {
+  justify-content: flex-start;
+  padding-bottom: 6px;
+}
+
+.listCard {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+}
+
+.listCard span {
+  color: #a9adb7;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.listCardCompact {
+  padding: 12px;
+  gap: 4px;
+}
+
+.listCardRail {
+  padding: 12px 13px;
+  gap: 8px;
+}
+
+.listCardRail strong {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  line-height: 1.25;
+}
+
+.listCardSelected {
+  border-color: rgba(214, 164, 103, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(214, 164, 103, 0.45);
+}
+
+.listCardWithWork {
+  border-color: rgba(174, 184, 201, 0.22);
+  background:
+    linear-gradient(90deg, rgba(174, 184, 201, 0.08), rgba(174, 184, 201, 0) 34%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.listCardWithWork_active {
+  border-color: rgba(76, 217, 129, 0.36);
+  background:
+    linear-gradient(90deg, rgba(76, 217, 129, 0.14), rgba(76, 217, 129, 0) 34%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.listCardWithWork_waiting {
+  border-color: rgba(214, 164, 103, 0.42);
+  background:
+    linear-gradient(90deg, rgba(214, 164, 103, 0.14), rgba(214, 164, 103, 0) 34%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.listCardWithWork_review {
+  border-color: rgba(122, 159, 239, 0.38);
+  background:
+    linear-gradient(90deg, rgba(122, 159, 239, 0.14), rgba(122, 159, 239, 0) 34%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.listCardWithWork_readonly {
+  border-color: rgba(174, 184, 201, 0.24);
+  background:
+    linear-gradient(90deg, rgba(174, 184, 201, 0.08), rgba(174, 184, 201, 0) 34%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.listCardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 7px;
+  min-width: 0;
+}
+
+.listCardMeta {
+  display: grid;
+  gap: 5px;
+}
+
+.listCardContext,
+.listCardActivity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.listCardContext {
+  gap: 10px;
+}
+
+.listCardWorkspace {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listCardTitle {
+  color: vars.$color-text-primary;
+  font-size: inherit;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listCardActivity {
+  gap: 6px;
+  align-items: center;
+  min-height: 20px;
+  line-height: 20px;
+}
+
+.listCardDate {
+  min-width: 0;
+  color: #8f96a3;
+  font-size: 0.82rem;
+  line-height: 20px;
+}
+
+.listCardDateWithWork {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
+  color: #a9d7b8;
+  font-size: 0.82rem;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.listCardActivity > .workIndicator {
+  margin-left: 4px;
+}
+
+.workIndicator span {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.workIndicatorDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px rgba(169, 215, 184, 0.1);
+  position: relative;
+  top: 2px;
+}
+
+.workIndicatorCount {
+  min-width: 18px;
+  border-radius: 999px;
+  padding-inline: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #8f96a3;
+  text-align: center;
+}
+
+.listCard .workIndicator_active {
+  color: #7ee39d;
+}
+
+.listCard .workIndicator_active .workIndicatorDot {
+  box-shadow: 0 0 0 3px rgba(126, 227, 157, 0.15);
+}
+
+.listCard .workIndicator_waiting {
+  color: rgb(214, 164, 103);
+}
+
+.listCard .workIndicator_waiting .workIndicatorDot {
+  box-shadow: 0 0 0 3px rgba(214, 164, 103, 0.14);
+}
+
+.listCard .workIndicator_readonly {
+  color: #aeb8c9;
+}
+
+.listCard .workIndicator_readonly .workIndicatorDot {
+  box-shadow: 0 0 0 3px rgba(174, 184, 201, 0.11);
+}
+
+.listCard .workIndicator_attached {
+  color: #f2d5a8;
+}
+
+.listCard .workIndicator_attached .workIndicatorDot {
+  box-shadow: 0 0 0 3px rgba(214, 164, 103, 0.14);
+}
+
+.listCard .workIndicator_review {
+  color: #9fb7ff;
+}
+
+.listCard .workIndicator_review .workIndicatorDot {
+  box-shadow: 0 0 0 3px rgba(159, 183, 255, 0.14);
+}
+
+.sourcePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(174, 184, 201, 0.2);
+  border-radius: 999px;
+  background: rgba(174, 184, 201, 0.11);
+  color: #d3d8e2;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.sourcePill svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: #d8dde6;
+}
+
+.sourcePill[data-chat-runtime-icon="claude-code"] svg {
+  color: #d9916f;
+}
+
+.sourcePill[data-chat-runtime-icon="lm-studio"] svg,
+.sourcePill[data-chat-runtime-icon="ollama"] svg {
+  width: 14px;
+  height: 14px;
+}
+
+.listCardAttached {
+  border-color: rgba(214, 164, 103, 0.46);
+  background:
+    linear-gradient(90deg, rgba(214, 164, 103, 0.15), rgba(214, 164, 103, 0) 34%),
+    rgba(255, 255, 255, 0.035);
+}

@@ -1,0 +1,172 @@
+@use "@assets/variables" as vars;
+
+$tab-bottom-reserve: 48px;
+$tab-bottom-reserve-mobile: 72px;
+
+.activityFeed {
+  display: grid;
+  gap: 10px;
+  max-height: 560px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  padding-bottom: $tab-bottom-reserve;
+  scrollbar-gutter: stable;
+}
+
+.activityFeedFocused {
+  max-height: none;
+  overflow: hidden;
+  padding-bottom: 0;
+  scrollbar-gutter: auto;
+}
+
+.activityEntry {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.activityEntryCommentary {
+  background: rgba(214, 164, 103, 0.08);
+  border-color: rgba(214, 164, 103, 0.18);
+}
+
+.activityEntryTool {
+  background: rgba(28, 116, 88, 0.16);
+  border-color: rgba(74, 178, 140, 0.2);
+}
+
+.activityEntrySystem {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.activityEntryHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: #9fa4af;
+  font-size: 0.82rem;
+}
+
+.debugFeed {
+  display: grid;
+  gap: 10px;
+  max-height: 560px;
+  overflow: auto;
+  padding-right: 4px;
+  padding-bottom: $tab-bottom-reserve;
+}
+
+.debugEntry {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.debugEntrySystem {
+  background: rgba(214, 164, 103, 0.08);
+  border-color: rgba(214, 164, 103, 0.2);
+}
+
+.debugEntryStderr {
+  background: rgba(179, 63, 63, 0.1);
+  border-color: rgba(179, 63, 63, 0.22);
+}
+
+.debugEntryHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: #9fa4af;
+  font-size: 0.82rem;
+}
+
+.debugEntryStream {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d7c7ad;
+}
+
+.debugEntryStreamStdout {
+  background: rgba(49, 82, 181, 0.14);
+  color: #b8cbff;
+}
+
+.debugEntryStreamStderr {
+  background: rgba(179, 63, 63, 0.18);
+  color: #ffb2b2;
+}
+
+.debugEntryStreamSystem {
+  background: rgba(214, 164, 103, 0.16);
+  color: #f2dfbf;
+}
+
+.debugEntryText {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  color: #ebe6dc;
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 720px) {
+  .actionButton,
+  .smallGhostButton {
+    min-height: vars.$control-height-touch;
+  }
+
+  .panelHeader {
+    display: grid;
+    justify-items: start;
+  }
+
+  .tabPanel {
+    align-self: center;
+    width: calc(100dvw - 22px);
+    max-width: calc(100dvw - 22px);
+    margin-top: 8px;
+    padding-bottom: $tab-bottom-reserve-mobile;
+  }
+
+  .activityFeed,
+  .debugFeed,
+  .previewArtifacts {
+    padding-bottom: $tab-bottom-reserve-mobile;
+  }
+
+  .terminal {
+    padding-bottom: $tab-bottom-reserve-mobile;
+    max-height: min(46vh, 420px);
+  }
+
+  .inlineForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inlineForm .primaryButton {
+    width: 100%;
+  }
+}

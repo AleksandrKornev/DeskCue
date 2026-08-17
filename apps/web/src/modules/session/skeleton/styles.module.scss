@@ -1,0 +1,462 @@
+@use "@assets/variables" as vars;
+
+.sessionOpeningSkeleton {
+  --source-chat-toolbar-height: 0px;
+  --source-chat-toolbar-min-height: 132px;
+  --source-chat-composer-height: 0px;
+  --source-chat-composer-min-height: 144px;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding-top: 12px;
+}
+
+.sessionLoadError {
+  display: flex;
+  min-height: min(360px, calc(100dvh - 28px));
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 18px;
+  border: 1px solid rgba(255, 183, 77, 0.32);
+  border-radius: 16px;
+  background: rgba(43, 30, 16, 0.46);
+}
+
+.sessionLoadError p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.sessionLoadError span {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.sessionLoadError button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  cursor: pointer;
+}
+
+.skeletonBlock,
+.skeletonPill,
+.sessionOpeningTabs span,
+.sessionOpeningDay,
+.sessionOpeningMessage,
+.sessionOpeningMessageMeta,
+.sessionOpeningMessage > span {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.skeletonBlock::after,
+.skeletonPill::after,
+.sessionOpeningTabs span::after,
+.sessionOpeningDay::after,
+.sessionOpeningMessage::after,
+.sessionOpeningMessageMeta::after,
+.sessionOpeningMessage > span::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.07),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: sessionOpeningShimmer 1.5s ease-in-out infinite;
+}
+
+.toolbarShell {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 12px;
+  min-height: max-content;
+}
+
+.sessionOpeningHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sessionOpeningCopy {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sessionOpeningTitleRow,
+.sessionOpeningMetaRow,
+.sessionOpeningActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sessionOpeningTitleRow {
+  min-width: 0;
+}
+
+.sessionOpeningMetaRow,
+.sessionOpeningActions {
+  flex-wrap: wrap;
+}
+
+.sessionOpeningTitle {
+  width: min(360px, 70%);
+  min-height: 24px;
+  border-radius: 10px;
+}
+
+.sessionOpeningStatus {
+  width: 66px;
+  min-height: 22px;
+  border-radius: vars.$radius-pill;
+}
+
+.sessionOpeningPill {
+  width: 72px;
+  min-height: 22px;
+  border-radius: vars.$radius-pill;
+}
+
+.sessionOpeningPillWide {
+  width: 108px;
+  min-height: 22px;
+  border-radius: vars.$radius-pill;
+}
+
+.sessionOpeningMeta {
+  width: min(240px, 64%);
+  min-height: 18px;
+  border-radius: 9px;
+}
+
+.sessionOpeningAction {
+  width: 66px;
+  min-height: 44px;
+  border-radius: vars.$radius-md;
+}
+
+.sessionOpeningIcon {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: vars.$radius-md;
+}
+
+.sessionOpeningTabs {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 6px;
+  padding: 4px;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sessionOpeningTabs span {
+  width: 74px;
+  min-height: 32px;
+  border-radius: vars.$radius-pill;
+}
+
+.sessionOpeningTabs .sessionOpeningTabActive {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sessionOpeningWorkspace {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 220px;
+}
+
+.sessionOpeningThread {
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    rgba(8, 10, 15, 0.72);
+  overflow: hidden;
+}
+
+.sessionOpeningDay {
+  justify-self: center;
+  width: 160px;
+  min-height: 18px;
+  border-radius: vars.$radius-pill;
+}
+
+.sessionOpeningCluster {
+  display: grid;
+  gap: 18px;
+}
+
+.sessionOpeningClusterBottom {
+  align-self: end;
+}
+
+.sessionOpeningMessage {
+  display: grid;
+  gap: 10px;
+  width: min(720px, 82%);
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+}
+
+.sessionOpeningMessageUser {
+  justify-self: end;
+  width: min(520px, 72%);
+  border-color: rgba(82, 115, 217, 0.16);
+  background: rgba(49, 82, 181, 0.08);
+}
+
+.sessionOpeningMessageMeta {
+  width: 72px;
+  min-height: 16px;
+  border-radius: vars.$radius-pill;
+}
+
+.sessionOpeningMessage > span {
+  display: block;
+  min-height: 14px;
+  border-radius: vars.$radius-pill;
+}
+
+.sessionOpeningMessage > .sessionOpeningLineWide {
+  width: 86%;
+}
+
+.sessionOpeningMessage > .sessionOpeningLineMid {
+  width: 58%;
+}
+
+.sessionOpeningMessage > .sessionOpeningLineShort {
+  width: 34%;
+}
+
+.sessionOpeningComposerShell {
+  position: fixed;
+  z-index: 24;
+  right: auto;
+  bottom: 0;
+  left: 50%;
+  box-sizing: border-box;
+  width: min(1440px, calc(100vw - 40px));
+  max-width: calc(100vw - 40px);
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  background: #131418;
+  transform: translateX(-50%);
+}
+
+.sessionOpeningComposer {
+  position: relative;
+  display: grid;
+  padding: 10px 18px 18px;
+}
+
+.sessionOpeningComposerField {
+  min-height: 120px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: vars.$radius-md;
+}
+
+.sessionOpeningSendButton {
+  position: absolute;
+  right: 36px;
+  bottom: 36px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-md;
+}
+
+@media (max-width: 1120px) and (min-width: 721px) {
+  .sessionOpeningComposerShell {
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+  }
+}
+
+@media (max-width: 720px) {
+  .sessionOpeningSkeleton {
+    --source-chat-toolbar-min-height: 141px;
+    --source-chat-composer-min-height: 110px;
+    gap: 0;
+    padding-top: 0;
+  }
+
+  .toolbarShell {
+    position: fixed;
+    z-index: 18;
+    top: 0;
+    right: 0;
+    left: 0;
+    box-sizing: border-box;
+    width: 100%;
+    gap: 4px;
+    min-height: var(--source-chat-toolbar-min-height);
+    padding: calc(11px + env(safe-area-inset-top, 0px)) 18px 0;
+    background: vars.$color-surface-app;
+  }
+
+  .sessionOpeningHeader {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .sessionOpeningCopy {
+    gap: 7px;
+  }
+
+  .sessionOpeningTitle {
+    width: min(230px, 72%);
+    min-height: 19px;
+  }
+
+  .sessionOpeningStatus {
+    width: 58px;
+    min-height: 20px;
+  }
+
+  .sessionOpeningPill {
+    width: 58px;
+    min-height: 20px;
+  }
+
+  .sessionOpeningPillWide {
+    width: 86px;
+    min-height: 20px;
+  }
+
+  .sessionOpeningMeta {
+    width: min(200px, 76%);
+    min-height: 16px;
+  }
+
+  .sessionOpeningActions {
+    align-self: start;
+    flex-wrap: nowrap;
+  }
+
+  .sessionOpeningAction {
+    display: none;
+  }
+
+  .sessionOpeningTabs {
+    width: 100%;
+    max-width: none;
+    margin-top: 4px;
+    transform: translateY(28%);
+  }
+
+  .sessionOpeningTabs span {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    min-height: 38px;
+  }
+
+  .sessionOpeningWorkspace {
+    min-height: 0;
+    padding: 0;
+  }
+
+  .sessionOpeningThread {
+    position: fixed;
+    z-index: 1;
+    top: var(--source-chat-toolbar-min-height);
+    right: 0;
+    bottom: calc(var(--source-chat-composer-min-height) + 18px);
+    left: 0;
+    width: auto;
+    min-height: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .sessionOpeningMessage {
+    width: min(84%, 520px);
+  }
+
+  .sessionOpeningMessageUser {
+    width: min(76%, 420px);
+  }
+
+  .sessionOpeningComposerShell {
+    right: 0;
+    left: 0;
+    display: flex;
+    min-height: var(--source-chat-composer-min-height);
+    width: 100%;
+    max-width: 100%;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(19, 20, 24, 0), #131418 40%);
+    transform: none;
+  }
+
+  .sessionOpeningComposer {
+    width: 100%;
+    padding: 10px 14px 14px;
+  }
+
+  .sessionOpeningComposerField {
+    min-height: 84px;
+  }
+
+  .sessionOpeningSendButton {
+    right: 28px;
+    bottom: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonBlock::after,
+  .skeletonPill::after,
+  .sessionOpeningTabs span::after,
+  .sessionOpeningDay::after,
+  .sessionOpeningMessage::after,
+  .sessionOpeningMessageMeta::after,
+  .sessionOpeningMessage > span::after {
+    animation: none;
+  }
+}
+
+@keyframes sessionOpeningShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

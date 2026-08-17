@@ -1,0 +1,354 @@
+@use "@assets/variables" as vars;
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.inlineForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+
+.field {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-md;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  outline: none;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.fieldTextarea {
+  min-height: 132px;
+  line-height: 1.42;
+  resize: none;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.fieldTextarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fieldTextarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fieldTextarea::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: transparent;
+}
+
+.fieldTextarea:hover,
+.fieldTextarea:focus {
+  scrollbar-color: rgba(214, 164, 103, 0.42) transparent;
+}
+
+.fieldTextarea:hover::-webkit-scrollbar-thumb,
+.fieldTextarea:focus::-webkit-scrollbar-thumb {
+  background-color: rgba(214, 164, 103, 0.42);
+}
+
+.transcriptComposerWithButton {
+  min-height: 120px;
+  padding-right: 84px;
+  padding-bottom: 68px;
+}
+
+.primaryButton {
+  border: 0;
+  border-radius: vars.$radius-md;
+  padding: 12px 16px;
+  background: vars.$color-action-primary;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.nextMessageSubtle {
+  margin: 0;
+  color: vars.$color-text-muted;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.sharedSessionHint {
+  overflow-wrap: anywhere;
+}
+
+.actionDecisionPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(229, 184, 119, 0.34);
+  border-radius: vars.$radius-md;
+  background: rgba(229, 184, 119, 0.08);
+}
+
+.actionDecisionText {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: vars.$color-text-secondary;
+  font-size: 0.8rem;
+  line-height: 1.34;
+}
+
+.actionDecisionText strong {
+  color: #ffe0ad;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.actionDecisionReason {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.actionDecisionButtons {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.approveButton,
+.rejectButton {
+  min-height: 38px;
+  border: 0;
+  border-radius: vars.$radius-md;
+  padding: 0 16px;
+  color: vars.$color-text-primary;
+  font-weight: 600;
+}
+
+.approveButton {
+  background: vars.$color-action-primary;
+  color: #ffffff;
+}
+
+.rejectButton {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.approveButton:disabled,
+.rejectButton:disabled {
+  cursor: wait;
+  opacity: 0.74;
+}
+
+.chatComposerWithSharedHint {
+  gap: 8px;
+}
+
+.chatComposer > .actionDecisionPanel {
+  min-height: 84px;
+  border-radius: 16px;
+}
+
+.chatComposer {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border: 0;
+  border-top: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: vars.$color-surface-app;
+  transition: background-color 180ms ease;
+}
+
+.chatComposerInputWrap {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  border-radius: 18px;
+  transition: transform 180ms ease;
+}
+
+.chatComposerInputWrap:focus-within {
+  transform: translateY(-1px);
+}
+
+.chatComposerInputWrap:focus-within .transcriptComposerWithButton {
+  border-color: rgba(229, 184, 119, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.026)),
+    rgba(29, 30, 35, 0.96);
+  box-shadow:
+    0 0 0 2px rgba(229, 184, 119, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.chatComposerInputWrap:focus-within .transcriptComposerWithButton::placeholder {
+  color: #9aa1ad;
+}
+
+.chatComposerMinimal:not(.chatComposerFieldFocused) {
+  gap: 6px;
+  padding-top: 10px;
+  padding-bottom: 12px;
+  background: vars.$color-surface-app;
+}
+
+.chatComposerMinimal:not(.chatComposerFieldFocused) .sharedSessionHint {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #aeb4c0;
+  font-size: 0.74rem;
+  line-height: 1.28;
+}
+
+.chatComposerMinimal.chatComposerWithSharedHint:not(.chatComposerFieldFocused) .sharedSessionHint {
+  -webkit-line-clamp: 1;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.chatComposerMinimal.chatComposerWithSharedHint:not(.chatComposerFieldFocused) .transcriptComposerWithButton {
+  min-height: 64px;
+  padding-top: 13px;
+  padding-bottom: 14px;
+}
+
+.chatComposerMinimal:not(.chatComposerFieldFocused) .transcriptComposerWithButton {
+  min-height: 76px;
+  padding-top: 15px;
+  padding-bottom: 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.chatComposerMinimal:not(.chatComposerFieldFocused) .sendButtonInside {
+  right: 14px;
+  bottom: 12px;
+  width: vars.$control-height-touch;
+  min-width: vars.$control-height-touch;
+  height: vars.$control-height-touch;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.chatComposerCompactViewport.chatComposerFieldFocused {
+  gap: 8px;
+  padding-top: 10px;
+  padding-bottom: 12px;
+}
+
+.chatComposerCompactViewport {
+  align-content: end;
+  min-height: 96px;
+}
+
+.chatComposerCompactViewport.chatComposerFieldFocused {
+  min-height: 174px;
+}
+
+.chatComposerCompactViewport.chatComposerWithSharedHint.chatComposerFieldFocused {
+  gap: 6px;
+}
+
+.chatComposerCompactViewport.chatComposerFieldFocused .transcriptComposerWithButton {
+  min-height: clamp(104px, 22dvh, 148px);
+  padding-top: 14px;
+  padding-bottom: 64px;
+}
+
+.chatComposerCompactViewport.chatComposerWithSharedHint.chatComposerFieldFocused .transcriptComposerWithButton {
+  min-height: clamp(84px, 18dvh, 116px);
+}
+
+.chatComposerCompactViewport.chatComposerFieldFocused .sharedSessionHint {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.chatComposerCompactViewport.chatComposerFieldFocused .sendButtonInside {
+  right: 14px;
+  bottom: 14px;
+}
+
+.sendButtonInside {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: vars.$radius-md;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fffaf2;
+  font-size: 1.2rem;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 24px rgba(0, 0, 0, 0.22);
+}
+
+.sendButtonInside:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.sendButtonInside:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: #7f838d;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 720px) {
+  .inlineForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inlineForm .primaryButton {
+    width: 100%;
+  }
+
+  .actionDecisionPanel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actionDecisionButtons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+

@@ -1,0 +1,207 @@
+@use "@assets/variables" as vars;
+
+.managedSession {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspaceDialog {
+  display: grid;
+  gap: 14px;
+}
+
+.workspaceDialog label {
+  display: grid;
+  gap: 7px;
+  color: vars.$color-text-secondary;
+  font-size: 0.82rem;
+}
+
+.workspaceDialog select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: vars.$radius-sm;
+  background: rgba(255, 255, 255, 0.04);
+  color: vars.$color-text-primary;
+}
+
+.workspaceDialog p {
+  margin: 0;
+  color: vars.$color-text-muted;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.modeDialog {
+  display: grid;
+  gap: 8px;
+}
+
+.modeOption {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: vars.$radius-sm;
+  background: rgba(255, 255, 255, 0.025);
+  color: vars.$color-text-primary;
+  font: inherit;
+  text-align: left;
+}
+
+.modeOption:not(:disabled) {
+  cursor: pointer;
+}
+
+.modeOption:not(:disabled):hover {
+  border-color: rgba(100, 145, 238, 0.55);
+  background: rgba(61, 91, 153, 0.14);
+}
+
+.modeOptionSelected,
+.modeOption:disabled {
+  border-color: rgba(100, 145, 238, 0.62);
+  background: rgba(61, 91, 153, 0.2);
+  color: vars.$color-text-primary;
+  opacity: 1;
+}
+
+.modeOption strong {
+  font-size: 0.9rem;
+}
+
+.modeOption span {
+  color: vars.$color-text-muted;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.error {
+  margin: 10px 0 0;
+  color: #f1aaaa;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.lmStudioStartAction {
+  display: grid;
+  gap: 9px;
+  padding: 13px 16px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.lmStudioStartCopy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lmStudioStartTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.lmStudioStartIndicator {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d6a467;
+  box-shadow: 0 0 0 3px rgba(214, 164, 103, 0.1);
+}
+
+.lmStudioStartTitle strong {
+  font-size: 0.84rem;
+}
+
+.lmStudioStartAction p {
+  margin: 0;
+  color: vars.$color-text-muted;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.lmStudioModelSelect {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  color: vars.$color-text-muted;
+  font-size: 0.76rem;
+}
+
+.lmStudioModelSelect select {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: rgba(0, 0, 0, 0.18);
+  color: vars.$color-text-primary;
+  font: inherit;
+}
+
+.lmStudioStartActions {
+  display: grid;
+  gap: 6px;
+}
+
+.lmStudioStartActions button {
+  width: 100%;
+}
+
+.lmStudioDiscardButton {
+  border: 0;
+  padding: 3px 8px;
+  background: transparent;
+  color: vars.$color-text-muted;
+  font: inherit;
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.lmStudioDiscardButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 620px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    padding-right: 0;
+    padding-bottom: 12px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .chatList {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(150px, 72%);
+    grid-template-columns: none;
+    max-height: none;
+    overflow-x: auto;
+  }
+
+  .previewHeader,
+  .chatHeader {
+    display: grid;
+  }
+
+  .previewMeta,
+  .chatActions {
+    justify-content: flex-start;
+  }
+
+}
+

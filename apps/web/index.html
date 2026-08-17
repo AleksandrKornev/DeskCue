@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+    <meta name="description" content="DeskCue is a local-first control panel for AI agents running on your machine." />
+    <title>DeskCue</title>
+    <style>
+      html,
+      body,
+      #root {
+        min-height: 100%;
+        background: #141517;
+      }
+
+      html {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      #deskcue-preboot {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: #141517;
+        pointer-events: none;
+      }
+
+      #root:not(:empty) + #deskcue-preboot {
+        display: none;
+      }
+    </style>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/deskcue-icon.svg" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="deskcue-preboot" aria-hidden="true"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

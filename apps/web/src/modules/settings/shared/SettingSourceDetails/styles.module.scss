@@ -1,0 +1,94 @@
+@use "@assets/variables" as vars;
+
+.sourceDetails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: -4px 0 2px;
+}
+
+.sourceItem {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.sourceItemCurrent {
+  border-color: rgba(91, 122, 207, 0.28);
+  background: rgba(91, 122, 207, 0.06);
+}
+
+.sourceItem dt {
+  color: #8f96a2;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sourceItem dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: #f3efe8;
+  font-size: 0.86rem;
+  line-height: 1.32;
+}
+
+.sourceBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(214, 164, 103, 0.14);
+  color: #f0c78f;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .sourceDetails {
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+  .sourceItem {
+      border: 0;
+      border-radius: 0;
+      padding: 10px;
+      background: transparent;
+    }
+
+  .sourceItem + .sourceItem {
+      border-left: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+  .sourceItemCurrent {
+      border-color: transparent;
+      background: rgba(91, 122, 207, 0.08);
+    }
+
+  .sourceItem dt {
+      font-size: 0.68rem;
+    }
+
+  .sourceItem dd {
+      display: grid;
+      gap: 5px;
+      font-size: 0.82rem;
+    }
+
+  .sourceBadge {
+      justify-self: start;
+    }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@deskcue/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "deskcue": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { force: true, recursive: true });\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && npm run verify:build-output",
+    "start": "node dist/index.js",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify:build-output": "node --input-type=module -e \"import { readdirSync } from 'node:fs'; const files = readdirSync('dist', { recursive: true }); const tests = files.filter((file) => typeof file === 'string' && /(?:^|[\\\\/]).+\\.test\\.[^.]+$/.test(file)); if (tests.length) throw new Error('Production dist contains test files: ' + tests.join(', '));\""
+  },
+  "dependencies": {
+    "@deskcue/protocol": "file:../../packages/protocol",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3"
+  }
+}

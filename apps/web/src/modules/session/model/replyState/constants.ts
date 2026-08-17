@@ -1,0 +1,1 @@
+export const FINAL_REPLY_SYNC_BRIDGE_MS = 2_000;

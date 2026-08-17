@@ -1,0 +1,95 @@
+@use "@assets/variables" as vars;
+
+.toolList {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.toolRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto 12px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: vars.$radius-md;
+  background: rgba(255, 255, 255, 0.035);
+  color: inherit;
+  text-align: left;
+}
+
+.toolRowActive {
+  border-color: rgba(76, 217, 129, 0.28);
+  background:
+    linear-gradient(90deg, rgba(76, 217, 129, 0.1), rgba(76, 217, 129, 0) 42%),
+    rgba(255, 255, 255, 0.04);
+}
+
+.toolIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(76, 217, 129, 0.18);
+  border-radius: 10px;
+  background: rgba(76, 217, 129, 0.08);
+  color: #9fe8b5;
+}
+
+.toolIconSvg {
+  width: 18px;
+  height: 18px;
+}
+
+.toolText {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.toolText strong,
+.toolText span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolText strong {
+  color: vars.$color-text-primary;
+  font-size: 0.9rem;
+}
+
+.toolText span {
+  color: vars.$color-text-muted;
+  font-size: 0.78rem;
+}
+
+.toolBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 7px;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.075);
+  color: vars.$color-text-secondary;
+  font-size: 0.76rem;
+}
+
+.toolChevron {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid vars.$color-text-muted;
+  border-bottom: 1.5px solid vars.$color-text-muted;
+  transform: rotate(-45deg);
+}
+
+.toolRow[aria-expanded="true"] .toolChevron {
+  transform: rotate(45deg);
+}

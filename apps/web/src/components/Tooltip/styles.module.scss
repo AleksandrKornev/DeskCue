@@ -1,0 +1,149 @@
+@use "@assets/variables" as vars;
+
+.root {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: inherit;
+}
+
+.rootFitContent {
+  flex: 0 1 auto;
+  width: auto;
+}
+
+.trigger {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  text-align: inherit;
+  text-overflow: ellipsis;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: default;
+  user-select: text;
+  white-space: nowrap;
+  cursor: help;
+  outline: none;
+}
+
+.rootFitContent .trigger {
+  display: inline-flex;
+  width: auto;
+}
+
+.trigger:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(214, 164, 103, 0.42);
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  max-height: min(240px, 42vh);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-md;
+  background: vars.$color-surface-panel;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  animation: tooltipFadeInAbove 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform-origin: bottom left;
+  will-change: opacity, transform;
+}
+
+.tooltipBelow {
+  animation-name: tooltipFadeInBelow;
+  transform-origin: top left;
+}
+
+.tooltipLeft {
+  animation-name: tooltipFadeInLeft;
+  transform-origin: center right;
+}
+
+.tooltipRight {
+  animation-name: tooltipFadeInRight;
+  transform-origin: center left;
+}
+
+.tooltip[class] {
+  color: #ffffff;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+@keyframes tooltipFadeInAbove {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tooltipFadeInBelow {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tooltipFadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes tooltipFadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+}

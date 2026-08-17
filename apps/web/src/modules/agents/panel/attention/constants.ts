@@ -1,0 +1,1 @@
+export const ATTENTION_PREVIEW_LIMIT = 2;

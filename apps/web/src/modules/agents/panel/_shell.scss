@@ -1,0 +1,183 @@
+@use "@assets/variables" as vars;
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  border-radius: vars.$radius-lg;
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-panel;
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 18px 0;
+}
+
+.panelHeader h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.panelHeader p {
+  margin: 6px 0 0;
+  color: vars.$color-text-muted;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.panelBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 18px 18px;
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.stackLarge {
+  gap: 16px;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.panelToolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.sourceStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.sourceTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: vars.$control-height-touch;
+  padding: 0 vars.$control-padding-inline;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.03);
+  color: #d2ccc3;
+}
+
+.sourceTab span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d2ccc3;
+}
+
+.sourceTabActive {
+  border-color: rgba(214, 164, 103, 0.52);
+  background: rgba(214, 164, 103, 0.11);
+  color: #f2e0c2;
+}
+
+.sourceTabActive span {
+  background: rgba(214, 164, 103, 0.18);
+  color: #f2e0c2;
+}
+
+.sourceTabIcon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  color: #d8dbe2;
+}
+
+.sourceTabIcon[data-runtime-icon="claude-code"] {
+  color: #d9916f;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: vars.$radius-md;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+}
+
+.searchWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.agentSearch {
+  min-height: vars.$control-height-touch;
+  padding-block: 10px;
+  padding-right: 78px;
+}
+
+.searchStatus {
+  position: absolute;
+  top: 50%;
+  right: 17px;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border: 2px solid rgba(163, 178, 203, 0.32);
+  border-top-color: #c8d7f6;
+  border-radius: 999px;
+  animation: searchSpin 0.9s linear infinite;
+  pointer-events: none;
+}
+
+.searchStatusWithClear {
+  right: calc(vars.$control-height-touch + 8px);
+}
+
+.searchClear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: vars.$control-height-touch;
+  height: vars.$control-height-touch;
+  border: 0;
+  border-radius: vars.$radius-md;
+  background: transparent;
+  color: vars.$color-text-secondary;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.searchClear:hover {
+  color: vars.$color-text-primary;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@keyframes searchSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,194 @@
+@use "@assets/variables" as vars;
+
+.chatComposer {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-app;
+  transition: background-color 180ms ease;
+}
+
+
+.smallGhostButton {
+  border: 0;
+  border-radius: vars.$radius-sm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: min(260px, 100%);
+  min-height: 34px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: vars.$color-text-primary;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.smallGhostButton:disabled {
+  cursor: wait;
+  opacity: 0.9;
+}
+
+.chatHistoryGateButtonLoading {
+  background: rgba(214, 164, 103, 0.12);
+  color: #f0d4a4;
+}
+
+.chatHistoryGateSpinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(240, 212, 164, 0.28);
+  border-top-color: #f0d4a4;
+  border-radius: 999px;
+  animation: chatHistoryGateSpin 720ms linear infinite;
+}
+
+.skeletonPill,
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.skeletonPill::after,
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.6s infinite;
+}
+
+.skeletonPillSummary {
+  width: 152px;
+  min-height: 18px;
+}
+
+.activityEntry {
+  display: grid;
+  gap: 8px;
+  contain: layout paint;
+  padding: 12px 14px;
+  border-radius: vars.$radius-md;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.activityEntry.chatWaitingDetailEntry {
+  contain: none;
+  overflow: visible;
+}
+
+.activityEntryCommentary {
+  background: rgba(214, 164, 103, 0.08);
+  border-color: rgba(214, 164, 103, 0.18);
+}
+
+.activityEntryTool {
+  background: rgba(28, 116, 88, 0.16);
+  border-color: rgba(74, 178, 140, 0.2);
+}
+
+.activityEntrySystem {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.activityEntryHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: #9fa4af;
+  font-size: 0.82rem;
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes chatHistoryGateSpin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chatMessageFooter {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    margin-top: -4px;
+    pointer-events: none;
+    transition:
+      opacity 140ms ease,
+      max-height 140ms ease,
+      margin-top 140ms ease;
+  }
+
+  .chatMessage:hover .chatMessageFooter,
+  .chatMessage:focus-within .chatMessageFooter {
+    opacity: 1;
+    max-height: vars.$control-height-touch;
+    margin-top: 2px;
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .chatThread {
+    padding: 18px 18px 20px;
+    scrollbar-gutter: auto;
+  }
+
+  .chatMessage {
+    max-width: 90%;
+  }
+
+  .chatMessageUser {
+    max-width: 88%;
+  }
+
+  .chatMessageBubble {
+    padding: 12px;
+  }
+
+  .chatMessageActivityChip {
+    min-height: 24px;
+    padding-inline: 9px;
+    font-size: 0.7rem;
+  }
+
+  .chatMessageTurnStatus {
+    min-height: vars.$control-height-touch;
+    padding-inline: 12px;
+  }
+
+  .chatMessageFooter {
+    min-height: vars.$control-height-touch;
+  }
+
+  .chatMessageAction {
+    width: vars.$control-height-touch;
+    height: vars.$control-height-touch;
+  }
+
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+  .chatThread {
+    padding-bottom: calc(var(--chat-composer-height, 0px) + 18px);
+  }
+}
+

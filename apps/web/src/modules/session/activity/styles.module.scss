@@ -1,0 +1,83 @@
+.emptyState {
+  padding: 28px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  color: #a9adb7;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.emptyStateSoft {
+  padding: 20px;
+}
+
+.emptyState strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #f3efe8;
+}
+
+.emptyState p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.activityFeed {
+  display: grid;
+  gap: 10px;
+  max-height: 560px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.activityEntry {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.activityEntryCommentary {
+  background: rgba(214, 164, 103, 0.08);
+  border-color: rgba(214, 164, 103, 0.18);
+}
+
+.activityEntryTool {
+  background: rgba(28, 116, 88, 0.16);
+  border-color: rgba(74, 178, 140, 0.2);
+}
+
+.activityEntrySystem {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.activityEntryNotice {
+  padding: 10px 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #b7bdc9;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.activityEntryHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: #9fa4af;
+  font-size: 0.82rem;
+}
+
+.activityEntryTextFallback {
+  margin: 0;
+  color: #f4efe7;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+
+

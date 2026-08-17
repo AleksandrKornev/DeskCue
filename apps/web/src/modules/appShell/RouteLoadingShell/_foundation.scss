@@ -1,0 +1,131 @@
+@use "@assets/variables" as vars;
+
+.shell {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(214, 164, 103, 0.08), transparent 28%),
+    vars.$color-surface-app;
+  color: vars.$color-text-primary;
+}
+
+.shell_session {
+  grid-template-rows: minmax(0, 1fr);
+  padding: 32px 20px 24px;
+}
+
+.header {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 64px 14px 16px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-xl;
+  background: vars.$color-surface-panel-strong;
+}
+
+.headerCopy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wordmark {
+  width: 112px;
+  color: #fff5e1;
+}
+
+.headerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settingsButton {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: vars.$control-height-touch;
+  height: vars.$control-height-touch;
+  border-radius: vars.$radius-md;
+}
+
+.metaPill,
+.settingsButton,
+.tabPill,
+.listSummary,
+.searchField,
+.chatCard,
+.pageCard,
+.secondaryCard,
+.secondaryButton,
+.line,
+.backLine,
+.previewButton,
+.compactPill,
+.lineWorkspace,
+.actionPill,
+.iconPill,
+.segment,
+.messageLeft,
+.messageRight,
+.composerSkeleton,
+.sendButton {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.metaPill::after,
+.settingsButton::after,
+.tabPill::after,
+.listSummary::after,
+.searchField::after,
+.chatCard::after,
+.pageCard::after,
+.secondaryCard::after,
+.secondaryButton::after,
+.line::after,
+.backLine::after,
+.previewButton::after,
+.compactPill::after,
+.lineWorkspace::after,
+.actionPill::after,
+.iconPill::after,
+.segment::after,
+.messageLeft::after,
+.messageRight::after,
+.composerSkeleton::after,
+.sendButton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 48%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+.metaPill {
+  width: 108px;
+  min-height: 30px;
+  border-radius: vars.$radius-pill;
+}
+
+.dashboardGrid,
+.previewGrid,
+.pagePanel,
+.sessionPanel {
+  min-height: 0;
+}

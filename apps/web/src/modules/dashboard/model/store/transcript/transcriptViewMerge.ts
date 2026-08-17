@@ -1,0 +1,150 @@
+import type {
+  AgentSessionDetail,
+  AgentTranscriptViewItem,
+  AgentTranscriptViewResponse
+} from "@deskcue/protocol";
+
+import {
+  areAgentSessionSummariesEqual,
+  areTranscriptTurnStatusesEqual,
+  mergeTranscriptActivityGroup,
+  mergeTranscriptActivityGroups,
+  mergeTranscriptEntryReference
+} from "./transcriptMergeIdentity";
+
+function readTranscriptViewItemTimestamp(item: AgentTranscriptViewItem) {
+  return item.type === "message" ? item.timestamp : item.activity.timestamp;
+}
+
+function compareTranscriptViewItems(
+  left: AgentTranscriptViewItem,
+  right: AgentTranscriptViewItem
+) {
+  const leftTime = new Date(readTranscriptViewItemTimestamp(left)).getTime();
+  const rightTime = new Date(readTranscriptViewItemTimestamp(right)).getTime();
+  if (leftTime !== rightTime && !Number.isNaN(leftTime) && !Number.isNaN(rightTime)) {
+    return leftTime - rightTime;
+  }
+
+  return left.key.localeCompare(right.key);
+}
+
+export function mergeAgentTranscriptViewPage(
+  current: AgentSessionDetail["transcriptView"],
+  page: AgentTranscriptViewResponse | undefined
+) {
+  if (!page || page.items.length === 0) {
+    return current;
+  }
+
+  if (!current || current.sessionId !== page.sessionId) {
+    return page;
+  }
+
+  const itemsByKey = new Map<string, AgentTranscriptViewItem>();
+  for (const item of page.items) {
+    itemsByKey.set(item.key, item);
+  }
+  for (const item of current.items) {
+    itemsByKey.set(item.key, item);
+  }
+
+  return {
+    ...current,
+    items: Array.from(itemsByKey.values()).sort(compareTranscriptViewItems)
+  };
+}
+
+function mergeTranscriptViewItem(
+  current: AgentTranscriptViewItem | undefined,
+  next: AgentTranscriptViewItem
+): AgentTranscriptViewItem {
+  if (!current || current.type !== next.type || current.key !== next.key) {
+    return next;
+  }
+
+  if (next.type === "activity") {
+    if (current.type !== "activity") {
+      return next;
+    }
+
+    const activity = mergeTranscriptActivityGroup(current.activity, next.activity);
+    return activity === current.activity ? current : { ...next, activity };
+  }
+
+  if (current.type !== "message") {
+    return next;
+  }
+
+  const entry = mergeTranscriptEntryReference(current.entry, next.entry);
+  const activities = mergeTranscriptActivityGroups(current.activities, next.activities);
+  const changeActivities = mergeTranscriptActivityGroups(
+    current.changeActivities,
+    next.changeActivities
+  );
+  const turnStatus = areTranscriptTurnStatusesEqual(current.turnStatus, next.turnStatus)
+    ? current.turnStatus
+    : next.turnStatus;
+
+  if (
+    current.role === next.role &&
+    current.timestamp === next.timestamp &&
+    entry === current.entry &&
+    activities === current.activities &&
+    changeActivities === current.changeActivities &&
+    turnStatus === current.turnStatus
+  ) {
+    return current;
+  }
+
+  return {
+    ...next,
+    entry,
+    activities,
+    changeActivities,
+    turnStatus
+  };
+}
+
+export function mergeAgentTranscriptView(
+  current: AgentSessionDetail["transcriptView"],
+  next: AgentTranscriptViewResponse
+) {
+  if (!current || current.sessionId !== next.sessionId) {
+    return next;
+  }
+
+  const currentItemsByKey = new Map(
+    current.items.map((item) => [item.key, item])
+  );
+  const sessionUnchanged = areAgentSessionSummariesEqual(current.session, next.session);
+  const nextItemKeys = new Set(next.items.map((item) => item.key));
+  const retainedHistory = current.items.filter((item) => !nextItemKeys.has(item.key));
+  const refreshedItems = next.items.map((item) => {
+    const mergedItem = mergeTranscriptViewItem(currentItemsByKey.get(item.key), item);
+    return mergedItem;
+  });
+  const items = [...retainedHistory, ...refreshedItems].sort(compareTranscriptViewItems);
+  let hasChanges =
+    current.updatedAt !== next.updatedAt ||
+    !sessionUnchanged ||
+    items.length !== current.items.length ||
+    items.some((item, index) => item !== current.items[index]);
+  const latestWaitingDetailEntry = mergeTranscriptEntryReference(
+    current.latestWaitingDetailEntry,
+    next.latestWaitingDetailEntry
+  );
+
+  if (latestWaitingDetailEntry !== current.latestWaitingDetailEntry) {
+    hasChanges = true;
+  }
+
+  return hasChanges
+    ? {
+        ...next,
+        session: sessionUnchanged ? current.session : next.session,
+        items,
+        latestWaitingDetailEntry
+      }
+    : current;
+}

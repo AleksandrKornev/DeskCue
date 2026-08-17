@@ -1,0 +1,265 @@
+@use "@assets/variables" as vars;
+
+.mobileFlow {
+  display: contents;
+}
+
+.button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: #3152b5;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.ghostButton {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3efe8;
+}
+
+.emptyState {
+  padding: 28px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  color: #a9adb7;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.emptyStateSoft {
+  padding: 20px;
+}
+
+.selectionEmptyState {
+  display: grid;
+  place-content: center;
+  align-self: stretch;
+  min-height: 100%;
+  text-align: center;
+}
+
+.selectionEmptyState p {
+  max-width: 38ch;
+}
+
+.emptyState strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #f3efe8;
+}
+
+.emptyState p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.mobileDetail {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 0;
+}
+
+.mobileDetailToolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: #a9adb7;
+}
+
+.skeletonBlock,
+.skeletonPill {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.attentionSkeleton {
+  display: none;
+}
+
+.skeletonBlock::after,
+.skeletonPill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.6s infinite;
+}
+
+.skeletonTab {
+  width: 98px;
+  min-height: 38px;
+}
+
+.skeletonField {
+  min-height: 42px;
+}
+
+.skeletonSummary {
+  width: 152px;
+  min-height: 18px;
+  border-radius: 999px;
+}
+
+.skeletonList {
+  min-height: 108px;
+}
+
+.skeletonListTitle {
+  width: 76%;
+  min-height: 18px;
+  border-radius: 999px;
+}
+
+.skeletonListMeta {
+  width: 58%;
+  min-height: 18px;
+  border-radius: 999px;
+}
+
+.skeletonListDate {
+  width: 34%;
+  min-height: 16px;
+  border-radius: 999px;
+}
+
+.skeletonDetail {
+  min-height: 420px;
+  align-content: start;
+}
+
+.skeletonDetailHead {
+  min-height: 72px;
+  border-radius: 14px;
+}
+
+.skeletonDetailEntry {
+  min-height: 92px;
+  border-radius: 14px;
+}
+
+.skeletonDetailComposer {
+  min-height: 132px;
+  border-radius: 14px;
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 1120px) {
+  .attentionSkeleton {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+    min-height: 430px;
+    margin-bottom: 14px;
+  }
+
+  .attentionSkeletonSection {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+  }
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .list {
+    overflow: hidden;
+  }
+
+  .listCards {
+    min-height: clamp(300px, 46dvh, 520px);
+    max-height: clamp(300px, 46dvh, 520px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobileFlowEmbedded .listCards {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    padding-right: 0;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .listCards + .button {
+    margin-top: 8px;
+  }
+}
+
+@media (max-width: 900px) {
+  .panelHeader {
+    align-items: flex-start;
+  }
+
+  .sourceStrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .sourceTab {
+    gap: 5px;
+    min-height: 36px;
+    padding: 0 8px;
+    font-size: 0.82rem;
+  }
+
+  .sourceTab span {
+    min-width: 18px;
+    min-height: 18px;
+    padding: 0 5px;
+    font-size: 0.78rem;
+  }
+
+  .listCardHeader,
+  .listSummary,
+  .mobileDetailToolbar {
+    display: grid;
+    justify-items: start;
+  }
+
+  .layout {
+    min-block-size: auto;
+    height: auto;
+    max-block-size: none;
+  }
+
+  .listCards {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    padding-right: 0;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .panelBody {
+    min-height: 0;
+  }
+
+  .mobileDetail {
+    min-height: 0;
+  }
+}

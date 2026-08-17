@@ -1,0 +1,5 @@
+@use "@modules/settings/cards";
+@use "@modules/settings/forms";
+
+@include cards.styles;
+@include forms.styles;

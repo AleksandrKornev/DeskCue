@@ -1,0 +1,238 @@
+@use "@assets/variables" as vars;
+
+.entry {
+  padding: 12px 14px;
+  border-radius: vars.$radius-md;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.entryUser {
+  background: rgba(49, 82, 181, 0.14);
+  border-color: rgba(82, 115, 217, 0.24);
+}
+
+.entryAssistant {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.entry header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.entryMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.entry header span {
+  color: vars.$color-text-muted;
+  font-size: 0.82rem;
+}
+
+.richTranscript {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  max-height: min(46vh, 420px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 720px) {
+  .richTranscript {
+    max-height: 176px;
+    overflow: hidden;
+  }
+
+  .richTranscriptMarkdown ul,
+  .richTranscriptMarkdown ol {
+    padding-left: 1.35rem;
+  }
+
+  .richTranscriptMarkdown li > ul,
+  .richTranscriptMarkdown li > ol {
+    padding-left: 1.1rem;
+  }
+
+  .richTranscriptMarkdown h1 {
+    font-size: 1.14rem;
+  }
+
+  .richTranscriptMarkdown h2 {
+    font-size: 1.06rem;
+  }
+
+  .richTranscriptMarkdown h3,
+  .richTranscriptMarkdown h4,
+  .richTranscriptMarkdown h5,
+  .richTranscriptMarkdown h6 {
+    font-size: 0.98rem;
+  }
+}
+
+.richTranscriptMarkdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.richTranscriptMarkdown > :first-child {
+  margin-top: 0;
+}
+
+.richTranscriptMarkdown > :last-child {
+  margin-bottom: 0;
+}
+
+.richTranscriptMarkdown p,
+.richTranscriptMarkdown ul,
+.richTranscriptMarkdown ol,
+.richTranscriptMarkdown h1,
+.richTranscriptMarkdown h2,
+.richTranscriptMarkdown h3,
+.richTranscriptMarkdown h4,
+.richTranscriptMarkdown h5,
+.richTranscriptMarkdown h6,
+.richTranscriptMarkdown pre,
+.richTranscriptMarkdown blockquote {
+  margin: 0;
+}
+
+.richTranscriptMarkdown p,
+.richTranscriptMarkdown li,
+.richTranscriptMarkdown h1,
+.richTranscriptMarkdown h2,
+.richTranscriptMarkdown h3,
+.richTranscriptMarkdown h4,
+.richTranscriptMarkdown h5,
+.richTranscriptMarkdown h6,
+.richTranscriptMarkdown blockquote,
+.richTranscriptMarkdown span,
+.richTranscriptMarkdown a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.richTranscriptMarkdown ul,
+.richTranscriptMarkdown ol {
+  padding-left: 1.45rem;
+}
+
+.richTranscriptMarkdown li > ul,
+.richTranscriptMarkdown li > ol {
+  margin-top: 0.35rem;
+  padding-left: 1.2rem;
+}
+
+.richTranscriptMarkdown li > p {
+  margin: 0;
+}
+
+.richTranscriptMarkdown li > p + p {
+  margin-top: 0.35rem;
+}
+
+.richTranscriptMarkdown li::marker {
+  color: #aeb2bc;
+}
+
+.richTranscriptMarkdown li + li {
+  margin-top: 0.3rem;
+}
+
+.richTranscriptMarkdown h1,
+.richTranscriptMarkdown h2,
+.richTranscriptMarkdown h3,
+.richTranscriptMarkdown h4,
+.richTranscriptMarkdown h5,
+.richTranscriptMarkdown h6 {
+  color: #f1ede4;
+  font-weight: 700;
+  line-height: 1.24;
+}
+
+.richTranscriptMarkdown h1 {
+  font-size: 1.26rem;
+}
+
+.richTranscriptMarkdown h2 {
+  font-size: 1.16rem;
+}
+
+.richTranscriptMarkdown h3 {
+  font-size: 1.06rem;
+}
+
+.richTranscriptMarkdown h4,
+.richTranscriptMarkdown h5,
+.richTranscriptMarkdown h6 {
+  font-size: 0.98rem;
+}
+
+.richTranscriptMarkdown p + p,
+.richTranscriptMarkdown p + ul,
+.richTranscriptMarkdown p + ol,
+.richTranscriptMarkdown ul + p,
+.richTranscriptMarkdown ol + p,
+.richTranscriptMarkdown pre + p,
+.richTranscriptMarkdown p + h1,
+.richTranscriptMarkdown p + h2,
+.richTranscriptMarkdown p + h3,
+.richTranscriptMarkdown ul + h1,
+.richTranscriptMarkdown ul + h2,
+.richTranscriptMarkdown ul + h3,
+.richTranscriptMarkdown ol + h1,
+.richTranscriptMarkdown ol + h2,
+.richTranscriptMarkdown ol + h3,
+.richTranscriptMarkdown pre + h1,
+.richTranscriptMarkdown pre + h2,
+.richTranscriptMarkdown pre + h3 {
+  margin-top: 0.7rem;
+}
+
+.richTranscriptMarkdown h1 + p,
+.richTranscriptMarkdown h2 + p,
+.richTranscriptMarkdown h3 + p,
+.richTranscriptMarkdown h1 + ul,
+.richTranscriptMarkdown h2 + ul,
+.richTranscriptMarkdown h3 + ul,
+.richTranscriptMarkdown h1 + ol,
+.richTranscriptMarkdown h2 + ol,
+.richTranscriptMarkdown h3 + ol,
+.richTranscriptMarkdown h1 + pre,
+.richTranscriptMarkdown h2 + pre,
+.richTranscriptMarkdown h3 + pre {
+  margin-top: 0.45rem;
+}
+
+.richTranscriptMarkdown code {
+  padding: 0.12rem 0.42rem;
+  border-radius: vars.$radius-sm;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f6d59c;
+  font-size: 0.92em;
+  white-space: break-spaces;
+}
+
+.richTranscriptMarkdown pre {
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: vars.$radius-md;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(7, 9, 14, 0.82);
+}
+
+.richTranscriptMarkdown pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #ebe6dc;
+}

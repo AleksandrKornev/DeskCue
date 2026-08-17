@@ -1,0 +1,380 @@
+@use "@assets/variables" as vars;
+
+.trigger {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: vars.$control-height-dense;
+  border: 1px solid rgba(214, 164, 103, 0.34);
+  border-radius: vars.$radius-pill;
+  padding: 0 12px;
+  background: rgba(214, 164, 103, 0.1);
+  color: vars.$color-accent-strong;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: rgba(214, 164, 103, 0.58);
+  background: rgba(214, 164, 103, 0.16);
+}
+
+.trigger:focus-visible,
+.runtimeCard:has(input:focus-visible),
+.selectControl:has(select:focus-visible),
+.createButton:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.triggerIcon {
+  font-size: 1.08rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.dialog {
+  width: min(500px, 100%);
+}
+
+.modalBody {
+  padding: 0;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px 14px;
+}
+
+.runtimeFieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.fieldTitle {
+  display: block;
+  margin: 0 0 6px;
+  color: vars.$color-text-secondary;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.runtimeList {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-sm;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.runtimeCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 20px;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  min-height: 58px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 8px 10px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.runtimeCard:last-child {
+  border-bottom: 0;
+}
+
+.runtimeCard:hover:not(:has(input:disabled)) {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.runtimeCardSelected {
+  z-index: 1;
+  background: rgba(53, 182, 108, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(73, 206, 129, 0.35);
+}
+
+.runtimeCard:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.runtimeCard input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.runtimeIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+
+.runtimeIcon svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+
+.runtimeCardCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.runtimeCardCopy strong {
+  min-width: 0;
+  color: vars.$color-text-primary;
+  font-size: 0.9rem;
+}
+
+.runtimeStatus {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: vars.$color-text-secondary;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtimeSelection {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  color: #102218;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.runtimeCardSelected .runtimeSelection {
+  border-color: #62d993;
+  background: #62d993;
+}
+
+.runtimeCard[data-status="ready"] .runtimeStatus {
+  color: #7bdca4;
+}
+
+.runtimeCard[data-status="offline"] .runtimeStatus {
+  color: #e3bd83;
+}
+
+.runtimeCard[data-status="unavailable"] .runtimeStatus {
+  color: #db8e8e;
+}
+
+.runtimeCard[data-status="loading"] .runtimeStatus {
+  animation: statusPulse 0.9s ease-in-out infinite alternate;
+}
+
+.fieldLabel {
+  display: block;
+  min-width: 0;
+}
+
+.selectControl {
+  position: relative;
+  display: block;
+  margin: 0;
+  border-radius: vars.$radius-sm;
+}
+
+.fieldIcon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 12px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  color: vars.$color-text-muted;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.fieldIcon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.selectArrow {
+  position: absolute;
+  top: 50%;
+  right: 13px;
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  color: vars.$color-text-muted;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.selectControl select {
+  width: 100%;
+  min-width: 0;
+  min-height: vars.$control-height-touch;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-sm;
+  padding: 0 38px 0 41px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.035);
+  color: vars.$color-text-primary;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.selectControl select:disabled {
+  cursor: not-allowed;
+  color: vars.$color-text-muted;
+  opacity: 0.7;
+}
+
+.selectControl option {
+  background: #202126;
+  color: vars.$color-text-primary;
+}
+
+.fieldHelp {
+  display: block;
+  margin-top: 6px;
+  color: vars.$color-text-muted;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.modelError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 7px;
+  color: #e9a4a4;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.modelError button {
+  flex: 0 0 auto;
+  min-height: 28px;
+  border: 1px solid rgba(233, 164, 164, 0.32);
+  border-radius: vars.$radius-pill;
+  padding: 0 10px;
+  background: rgba(179, 63, 63, 0.11);
+  color: #efb4b4;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.modelError button:hover {
+  border-color: rgba(233, 164, 164, 0.56);
+  background: rgba(179, 63, 63, 0.18);
+}
+
+.formError {
+  border: 1px solid rgba(179, 63, 63, 0.45);
+  border-radius: vars.$radius-sm;
+  padding: 10px 11px;
+  background: rgba(179, 63, 63, 0.11);
+  color: #efb4b4;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.actions {
+  display: block;
+  padding-top: 1px;
+}
+
+.createButton {
+  width: 100%;
+  min-height: vars.$control-height-touch;
+  border: 0;
+  border-radius: vars.$radius-sm;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.createButton {
+  background: linear-gradient(100deg, #d6a467, #e6c486);
+  color: #21170c;
+  box-shadow: 0 7px 22px rgba(214, 164, 103, 0.13);
+}
+
+.createButton:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.createButton:disabled {
+  cursor: not-allowed;
+  color: rgba(243, 239, 232, 0.42);
+  opacity: 1;
+}
+
+.createButton:disabled {
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: none;
+}
+
+@keyframes statusPulse {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
+@media (max-width: vars.$breakpoint-mobile) {
+  .form {
+    gap: 10px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtimeCard[data-status="loading"] .runtimeStatus {
+    animation: none;
+  }
+}

@@ -1,0 +1,42 @@
+@mixin drag-handle {
+  display: none;
+
+  @media (max-width: 720px) {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 50%;
+    display: block;
+    width: 72px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: grab;
+    touch-action: none;
+    transform: translateX(-50%);
+    user-select: none;
+
+    &::before {
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      width: 42px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.24);
+      content: "";
+      transform: translateX(-50%);
+      transition: width 120ms ease, background 120ms ease;
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    &:active::before {
+      width: 52px;
+      background: rgba(255, 255, 255, 0.48);
+    }
+  }
+}

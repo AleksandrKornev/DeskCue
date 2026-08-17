@@ -1,0 +1,1 @@
+export const SESSION_DIAGNOSTICS_LOG_TAIL = 80;

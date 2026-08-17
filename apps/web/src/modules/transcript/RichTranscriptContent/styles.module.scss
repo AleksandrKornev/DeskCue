@@ -1,0 +1,110 @@
+.richTranscript {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.richTranscript :global(table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-spacing: 0;
+  border-collapse: separate;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.richTranscript :global(thead) {
+  color: #b9c4d6;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.richTranscript :global(th),
+.richTranscript :global(td) {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.richTranscript :global(th + th),
+.richTranscript :global(td + td) {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.richTranscript :global(tr:last-child td) {
+  border-bottom: 0;
+}
+
+.collapse {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.collapseToggle {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #d9d1c3;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.collapseToggle::-webkit-details-marker {
+  display: none;
+}
+
+.collapseRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 100%;
+  line-height: 1;
+}
+
+.collapseIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.collapse[open] .collapseIcon {
+  transform: rotate(180deg);
+}
+
+.collapseContent {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .richTranscript :global(table) {
+    overflow-x: auto;
+    font-size: 0.84rem;
+  }
+
+  .richTranscript :global(th),
+  .richTranscript :global(td) {
+    padding: 8px 9px;
+    white-space: nowrap;
+  }
+}
+

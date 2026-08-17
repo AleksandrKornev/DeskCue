@@ -1,0 +1,373 @@
+@use "@modules/settings/cards";
+@use "@modules/settings/forms";
+@use "@assets/variables" as vars;
+
+@include cards.styles;
+@include forms.styles;
+
+.devicePanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.devicePanel > div {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.devicePanel strong,
+.devicePanel span {
+  min-width: 0;
+}
+
+.devicePanel strong {
+  overflow-wrap: anywhere;
+  color: #f3efe8;
+}
+
+.devicePanel small {
+  overflow-wrap: anywhere;
+  color: #9da1ad;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.currentAccessDetail {
+  max-width: 48rem;
+}
+
+.deviceRenameForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.deviceRenameForm input {
+  min-width: 0;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #f3efe8;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.deviceRenameForm input:focus {
+  border-color: rgba(214, 164, 103, 0.72);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(214, 164, 103, 0.16);
+}
+
+.deviceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.deviceActions .deviceRenameForm {
+  flex: 1 1 100%;
+}
+
+.deviceList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deviceList li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.deviceList span {
+  overflow-wrap: anywhere;
+  color: #f3efe8;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.deviceListFooter {
+  margin-top: 14px;
+  padding: 8px 0 0;
+}
+
+.deviceList .deviceListFooter {
+  gap: 8px;
+}
+
+.deviceListFooter span {
+  color: #b9bdc7;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.deviceListActions {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  justify-items: stretch;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+.deviceListActions span {
+  color: #9da1ad;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.deviceGroupCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 0;
+  background: transparent;
+  color: #f3efe8;
+  text-align: left;
+}
+
+.deviceGroupCard small {
+  grid-column: 1;
+}
+
+.deviceList > li + li .deviceGroupCard {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.deviceGroupTitle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  grid-column: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.deviceGroupRole {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  border: 1px solid rgba(214, 164, 103, 0.2);
+  border-radius: 999px;
+  padding: 0 6px;
+  background: rgba(214, 164, 103, 0.1);
+  color: #d9bb8f;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.deviceGroupHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #bfd0ff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.deviceGroupChevron {
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.deviceGroupCard[aria-expanded="true"] .deviceGroupChevron {
+  transform: rotate(135deg);
+}
+
+.deviceGroupCard:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.devicePanel .inlineButton,
+.devicePanel .inlineDangerButton {
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+}
+
+.tokenList {
+  display: grid;
+  gap: 0;
+  max-height: 260px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.tokenList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.tokenList li + li {
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.tokenList span {
+  font-size: 0.8rem;
+}
+
+.tokenMain {
+  display: contents;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tokenMain span,
+.tokenMain small {
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+
+.tokenMain small {
+  grid-column: 1;
+  grid-row: 2;
+  color: #9da1ad;
+  font-size: 0.78rem;
+}
+
+.tokenMain span {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.tokenActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  grid-column: 2;
+  grid-row: 2;
+  justify-content: flex-end;
+  gap: 6px;
+  justify-self: end;
+  min-width: 0;
+}
+
+.tokenActions .deviceRenameForm {
+  min-width: min(100%, 260px);
+}
+
+@media (max-width: 720px) {
+  .devicePanel {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+  .devicePanel > div {
+      padding: 10px;
+    }
+
+  .deviceActions {
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+  .deviceGroupCard {
+      padding: 8px 9px;
+    }
+
+  .tokenList li {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 4px 10px;
+      padding: 10px 0;
+    }
+
+  .tokenActions {
+      justify-content: flex-end;
+    }
+
+  .tokenActions .deviceRenameForm {
+      width: 100%;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+    }
+}
+
+@media (max-width: 560px) {
+  .tokenList {
+      max-height: none;
+      overflow: visible;
+      padding: 8px;
+    }
+
+  .tokenList li {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 5px;
+      padding: 11px 0;
+    }
+
+  .tokenMain span {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+  .tokenMain small {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+  .tokenActions {
+      grid-column: 1;
+      grid-row: 3;
+      justify-self: end;
+      margin-top: 2px;
+    }
+}
+
+@media (max-width: 420px) {
+  .tokenActions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      width: 100%;
+    }
+
+  .tokenActions .inlineButton,
+  .tokenActions .inlineDangerButton {
+      width: 100%;
+    }
+
+  .tokenActions .deviceRenameForm {
+      grid-column: 1 / -1;
+    }
+}

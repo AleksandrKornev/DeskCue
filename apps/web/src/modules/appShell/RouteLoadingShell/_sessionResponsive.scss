@@ -1,0 +1,169 @@
+@use "@assets/variables" as vars;
+
+@media (min-width: 901px) and (max-width: 1120px) {
+  .shell_session {
+    padding: 30px 14px 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  .shell {
+    gap: 12px;
+    padding: 10px 14px 14px;
+  }
+
+  .header {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px 64px 14px 16px;
+  }
+
+  .headerMeta {
+    justify-content: start;
+  }
+
+  .metaPill {
+    width: 96px;
+  }
+
+  .previewGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .previewRail {
+    display: none;
+  }
+
+  .previewPanel {
+    padding: 16px;
+  }
+
+  .dashboardGrid {
+    padding: 18px;
+  }
+
+  .attentionSkeleton {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+    min-height: 430px;
+    margin-bottom: 4px;
+  }
+
+  .attentionSkeletonSection {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .sessionHeader {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .sessionActions {
+    justify-content: start;
+  }
+
+  .segmentedTabs {
+    width: 100%;
+  }
+
+  .segment {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .threadArea {
+    min-height: 260px;
+  }
+
+  .shell_session {
+    padding: 30px 14px 14px;
+  }
+}
+
+@media (max-width: 720px) {
+  .shell_session {
+    padding: 0 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  .shell {
+    padding-inline: 14px;
+  }
+
+  .headerMeta {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+  }
+
+  .metaPill {
+    width: 92px;
+    min-height: 30px;
+  }
+
+  .tabPill {
+    width: 86px;
+    min-height: 34px;
+  }
+
+  .chatCard {
+    min-height: 96px;
+  }
+
+  .dashboardGrid {
+    padding: 18px;
+  }
+
+  .lineTitleWide {
+    width: 92%;
+  }
+
+  .sessionMetaRow {
+    gap: 7px;
+  }
+
+  .compactPill {
+    width: 54px;
+    min-height: 20px;
+  }
+
+  .lineWorkspace {
+    width: 128px;
+  }
+
+  .actionPill {
+    width: 78px;
+    min-height: 34px;
+  }
+
+  .iconPill {
+    width: 34px;
+    min-height: 34px;
+  }
+
+  .threadArea {
+    min-height: 236px;
+    padding: 12px;
+  }
+
+  .messageLeft {
+    width: 88%;
+  }
+
+  .messageRight {
+    width: 78%;
+  }
+
+  .composerSkeleton {
+    min-height: 104px;
+  }
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

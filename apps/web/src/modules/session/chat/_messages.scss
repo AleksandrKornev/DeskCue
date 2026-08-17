@@ -1,0 +1,332 @@
+@use "@assets/variables" as vars;
+
+.chatMessage {
+  display: grid;
+  gap: 6px;
+  contain: layout paint;
+  max-width: min(880px, 94%);
+}
+
+.chatMessageUser {
+  margin-left: auto;
+  max-width: min(720px, 88%);
+}
+
+.chatMessageAssistant {
+  margin-right: auto;
+}
+
+.chatMessageContinued {
+  margin-top: -4px;
+}
+
+.chatMessageMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: vars.$color-text-muted;
+  font-size: 0.82rem;
+}
+
+.chatMessageMetaPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.chatMessageOrigin {
+  border: 1px solid rgba(118, 162, 255, 0.34);
+  border-radius: 999px;
+  color: #b9cbff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  padding: 0.2rem 0.38rem;
+  text-transform: uppercase;
+}
+
+.chatMessageMetaContinued {
+  justify-content: flex-end;
+  min-height: 16px;
+  font-size: 0.76rem;
+}
+
+.chatMessageActivityChip {
+  border: 0;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ddd4c6;
+}
+
+.chatMessageActivityChipTools {
+  background: rgba(28, 116, 88, 0.2);
+  color: #a9efcf;
+}
+
+.chatMessageActivityChipChanges {
+  background: rgba(78, 127, 255, 0.16);
+  color: #c9dcff;
+}
+
+.chatMessageActivityChipContext {
+  background: rgba(219, 174, 86, 0.14);
+  color: #f2d69a;
+}
+
+.chatMessageActivityChipModel {
+  background: rgba(132, 161, 255, 0.14);
+  color: #cbd8ff;
+}
+
+.chatMessageActivityChipDetails {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d2ccc3;
+}
+
+.chatMessageBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: vars.$radius-lg;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.chatMessageTextFallback {
+  margin: 0;
+  color: #f4efe7;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.chatMessageUser .chatMessageBubble {
+  background: rgba(49, 82, 181, 0.16);
+  border-color: rgba(82, 115, 217, 0.28);
+}
+
+.chatMessageContinued .chatMessageBubble {
+  padding-top: 10px;
+}
+
+.chatMessagePending .chatMessageBubble {
+  opacity: 0.9;
+  box-shadow: inset 0 0 0 1px rgba(214, 164, 103, 0.22);
+}
+
+.chatMessageTurnStatusRow {
+  display: flex;
+}
+
+.chatMessageUser .chatMessageTurnStatusRow {
+  justify-content: flex-end;
+}
+
+.chatMessageTurnStatus {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.chatMessageTurnStatusSuperseded {
+  background: rgba(214, 164, 103, 0.12);
+  border: 1px solid rgba(214, 164, 103, 0.22);
+  color: #f0c998;
+}
+
+.chatMessageTurnStatusFailed {
+  background: rgba(179, 63, 63, 0.14);
+  border: 1px solid rgba(179, 63, 63, 0.26);
+  color: #ffb2b2;
+}
+
+.chatMessageTurnStatusIncomplete {
+  background: rgba(132, 161, 255, 0.12);
+  border: 1px solid rgba(132, 161, 255, 0.24);
+  color: #cbd8ff;
+}
+
+.chatMessageFooter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  padding: 0 4px;
+}
+
+.chatMessageFooterAssistant {
+  justify-content: flex-start;
+}
+
+.chatMessageFooterUser {
+  justify-content: flex-end;
+}
+
+.chatMessageAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: vars.$control-height-touch;
+  height: vars.$control-height-touch;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8f96a3;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.chatMessageAction:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e7e0d5;
+}
+
+.chatMessageActionStatus {
+  color: #9da5b3;
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.chatWaiting {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: vars.$radius-md;
+  border: 1px dashed rgba(214, 164, 103, 0.26);
+  background: rgba(214, 164, 103, 0.08);
+  color: #dbc9a8;
+  max-width: 420px;
+}
+
+.chatWaitingDetail {
+  gap: 10px;
+  max-width: min(760px, 92%);
+}
+
+.chatWaitingReply {
+  gap: 10px;
+  max-width: min(760px, 92%);
+}
+
+.chatWaitingPending {
+  max-width: min(520px, 92%);
+}
+
+.chatRecoveryAction {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.chatWaitingPendingRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.chatWaitingSpinner {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 3px;
+  border: 2px solid rgba(214, 164, 103, 0.18);
+  border-top-color: #d6a467;
+  border-radius: 999px;
+  animation: chatHistoryGateSpin 720ms linear infinite;
+}
+
+.chatWaiting span {
+  color: #bfb39e;
+  line-height: 1.45;
+}
+
+.chatWaitingPrompt {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: vars.$radius-sm;
+  border: 1px solid rgba(82, 115, 217, 0.2);
+  background: rgba(49, 82, 181, 0.12);
+  color: #f1ede4;
+}
+
+.chatWaitingPrompt span {
+  color: #9ea8c7;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.chatWaitingDetailEntry {
+  margin-top: 2px;
+}
+
+.scrollButton {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 1;
+  width: vars.$control-height-touch;
+  height: vars.$control-height-touch;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: vars.$color-text-primary;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    visibility 180ms ease;
+}
+
+.scrollButtonHidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px) scale(0.92);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.scrollButtonVisible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.scrollButtonIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.chatMessageActionIcon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+}

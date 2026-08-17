@@ -1,0 +1,189 @@
+@use "@assets/variables" as vars;
+
+.chatInlineActivity {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  contain: layout paint;
+}
+
+.chatInlineActivityToggle {
+  list-style: none;
+  display: block;
+  width: min(820px, 100%);
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: vars.$radius-md;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ece6db;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.chatInlineActivityToggleChanges {
+  background: rgba(38, 58, 109, 0.36);
+  border-color: rgba(95, 138, 255, 0.24);
+}
+
+.chatInlineActivityToggleTools {
+  background: rgba(28, 116, 88, 0.18);
+  border-color: rgba(74, 178, 140, 0.2);
+}
+
+.chatInlineActivityToggleContext {
+  background: rgba(128, 105, 55, 0.18);
+  border-color: rgba(219, 174, 86, 0.24);
+}
+
+.chatInlineActivityToggleModel {
+  background: rgba(55, 70, 128, 0.18);
+  border-color: rgba(132, 161, 255, 0.24);
+}
+
+.chatInlineActivityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+}
+
+.chatInlineActivityLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chatInlineActivityBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.chatInlineActivityBadgeTools {
+  background: rgba(74, 178, 140, 0.18);
+  color: #a9efcf;
+}
+
+.chatInlineActivityBadgeChanges {
+  background: rgba(78, 127, 255, 0.16);
+  color: #c9dcff;
+}
+
+.chatInlineActivityBadgeContext {
+  background: rgba(219, 174, 86, 0.16);
+  color: #f2d69a;
+}
+
+.chatInlineActivityBadgeModel {
+  background: rgba(132, 161, 255, 0.16);
+  color: #cbd8ff;
+}
+
+.chatInlineActivityBadgeDetails {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d2ccc3;
+}
+
+.chatInlineActivityTime {
+  color: #969ba6;
+  white-space: nowrap;
+}
+
+.chatInlineActivityContent {
+  width: min(820px, 100%);
+  display: grid;
+  gap: 10px;
+}
+
+// The surrounding activity feed or chat transcript owns vertical scrolling.
+// Keeping this region in normal flow avoids a nested scroll trap while the
+// render window still bounds the number of hydrated entries.
+.chatInlineActivityContentDetails {
+  min-width: 0;
+}
+
+.chatInlineActivityContentScrollOwner {
+  height: min(440px, 48dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.chatContextActivity {
+  width: min(560px, calc(100% - 28px));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgba(219, 174, 86, 0.12);
+  border-radius: 14px;
+  background: rgba(219, 174, 86, 0.045);
+  color: #d8d0c0;
+  font-size: 0.76rem;
+}
+
+.chatContextActivityText {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chatContextActivityText span {
+  color: #aeb2bc;
+}
+
+.chatContextActivityTime {
+  color: #969ba6;
+  white-space: nowrap;
+}
+
+.chatInlineActivityFeed {
+  display: grid;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.chatMessageChanges {
+  display: grid;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.chatMessageChangesBlock {
+  display: grid;
+  gap: 8px;
+  contain: layout paint;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(95, 138, 255, 0.18);
+  background: rgba(38, 58, 109, 0.16);
+}
+
+.chatMessageChangesHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #cdd9f3;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.chatMessageChangesContent {
+  display: grid;
+  gap: 8px;
+}

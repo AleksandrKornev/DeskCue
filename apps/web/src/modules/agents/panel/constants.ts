@@ -1,0 +1,1 @@
+export const INITIAL_PANEL_SETTLE_MS = 350;

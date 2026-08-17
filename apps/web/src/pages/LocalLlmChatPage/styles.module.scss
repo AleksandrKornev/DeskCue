@@ -1,0 +1,38 @@
+.appShell {
+  max-width: 1480px;
+  min-height: 100vh;
+  height: 100dvh;
+  margin: 0 auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 1120px) {
+  .appShell {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    padding: 14px;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .appShell {
+    padding: 0;
+  }
+
+  .layout {
+    margin-top: 0;
+  }
+}

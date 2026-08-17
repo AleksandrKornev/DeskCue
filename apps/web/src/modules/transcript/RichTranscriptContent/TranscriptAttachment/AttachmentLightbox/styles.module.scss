@@ -1,0 +1,228 @@
+@use "@assets/variables" as vars;
+@use "@components/BottomSheet/mixins" as bottom-sheet;
+
+.dragHandle {
+  @include bottom-sheet.drag-handle;
+}
+
+.dialogHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.dialogHeaderCopy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dialogHeaderActions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.dialogIconClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f3eee5;
+}
+
+.dialogIconClose:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dialogCloseIcon {
+  display: block;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(4, 5, 8, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.lightboxBackdrop {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.lightboxCard {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  width: min(960px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  max-height: min(90vh, 920px);
+  padding: 18px;
+  border-radius: vars.$radius-lg;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 17, 23, 0.98);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+}
+
+.lightboxBar {
+  gap: 14px;
+}
+
+.lightboxBar strong {
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.lightboxBar span {
+  color: vars.$color-text-muted;
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.attachmentAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: vars.$control-height-dense;
+  padding: 0 12px;
+  border: 0;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2ecdf;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.lightboxActions {
+  align-self: flex-start;
+}
+
+.lightboxBody {
+  min-height: 0;
+  overflow: auto;
+  border-radius: 14px;
+  background: rgba(6, 8, 12, 0.74);
+}
+
+.lightboxBodyText,
+.lightboxBodyPdf {
+  min-height: min(62vh, 680px);
+}
+
+.lightboxBody img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.lightboxFrame {
+  width: 100%;
+  min-height: min(62vh, 680px);
+  border: 0;
+  background: white;
+}
+
+.lightboxText {
+  margin: 0;
+  min-height: 100%;
+  overflow: auto;
+  padding: 16px 18px;
+  color: #ebe6dc;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.lightboxState {
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  min-height: min(62vh, 680px);
+  padding: 28px;
+  text-align: center;
+}
+
+.lightboxState strong {
+  color: #f3eee5;
+}
+
+.lightboxState span {
+  color: #a7acb7;
+  line-height: 1.45;
+}
+
+@media (max-width: vars.$breakpoint-mobile) {
+  .lightbox {
+    place-items: end center;
+    padding: max(12px, env(safe-area-inset-top, 0px)) 0 0;
+  }
+
+  .lightboxCard {
+    width: 100%;
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top, 0px)));
+    padding: 24px 14px max(14px, env(safe-area-inset-bottom, 0px));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -18px 54px rgba(0, 0, 0, 0.46);
+  }
+
+  .lightboxBar {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  .dialogIconClose {
+    display: none;
+  }
+
+  .attachmentAction {
+    padding: 0 10px;
+  }
+
+  .lightboxBodyText,
+  .lightboxBodyPdf,
+  .lightboxFrame,
+  .lightboxState {
+    min-height: min(56vh, 520px);
+  }
+}

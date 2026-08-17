@@ -1,0 +1,116 @@
+@use "@assets/variables" as vars;
+
+.quickDetail {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: vars.$radius-lg;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.quickDetailStable {
+  min-height: 0;
+  align-content: start;
+  border: 0;
+  background: transparent;
+}
+
+.quickDetailLoading {
+  opacity: 0.86;
+}
+
+.quickDetailMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.quickDetailMetaRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.quickDetailDate {
+  flex-basis: 100%;
+  color: vars.$color-text-secondary;
+  font-size: 0.9rem;
+}
+
+.quickDetailMeta div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.quickDetailMeta strong,
+.quickDetailMeta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickDetailMeta strong {
+  color: vars.$color-text-primary;
+}
+
+.quickDetailMeta span {
+  color: vars.$color-text-muted;
+  font-size: 0.88rem;
+}
+
+.quickDetailAction {
+  display: grid;
+  gap: 8px;
+}
+
+.quickDetailAction p {
+  margin: 0;
+  color: vars.$color-text-muted;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.sourcePill,
+.capability {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 18px;
+  padding: 0 6px;
+  border: 1px solid rgba(174, 184, 201, 0.12);
+  border-radius: 999px;
+  background: rgba(174, 184, 201, 0.08);
+  color: #b9c1cf;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.capability {
+  color: vars.$color-text-secondary;
+}
+
+.button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: #3152b5;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.accentButton {
+  background: linear-gradient(120deg, #d86f34, #cb5643);
+  color: #ffffff;
+}
+
+.buttonLoading {
+  cursor: progress;
+  opacity: 0.72;
+}

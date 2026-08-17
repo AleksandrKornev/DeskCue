@@ -1,0 +1,108 @@
+{
+  "name": "@deskcue/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "imports": {
+    "#access/*": {
+      "deskcue-source": "./src/access/*.ts",
+      "default": "./dist/access/*.js"
+    },
+    "#agents/*": {
+      "deskcue-source": "./src/agents/*.ts",
+      "default": "./dist/agents/*.js"
+    },
+    "#application/*": {
+      "deskcue-source": "./src/application/*.ts",
+      "default": "./dist/application/*.js"
+    },
+    "#backend/*": {
+      "deskcue-source": "./src/backend/*.ts",
+      "default": "./dist/backend/*.js"
+    },
+    "#config/*": {
+      "deskcue-source": "./src/config/*.ts",
+      "default": "./dist/config/*.js"
+    },
+    "#http/*": {
+      "deskcue-source": "./src/http/*.ts",
+      "default": "./dist/http/*.js"
+    },
+    "#infrastructure/*": {
+      "deskcue-source": "./src/infrastructure/*.ts",
+      "default": "./dist/infrastructure/*.js"
+    },
+    "#localLlmChats/*": {
+      "deskcue-source": "./src/localLlmChats/*.ts",
+      "default": "./dist/localLlmChats/*.js"
+    },
+    "#persistence/*": {
+      "deskcue-source": "./src/persistence/*.ts",
+      "default": "./dist/persistence/*.js"
+    },
+    "#realtime/*": {
+      "deskcue-source": "./src/realtime/*.ts",
+      "default": "./dist/realtime/*.js"
+    },
+    "#runtimeDiagnostics/*": {
+      "deskcue-source": "./src/runtimeDiagnostics/*.ts",
+      "default": "./dist/runtimeDiagnostics/*.js"
+    },
+    "#security/*": {
+      "deskcue-source": "./src/security/*.ts",
+      "default": "./dist/security/*.js"
+    },
+    "#server/*": {
+      "deskcue-source": "./src/server/*.ts",
+      "default": "./dist/server/*.js"
+    },
+    "#sessions/*": {
+      "deskcue-source": "./src/sessions/*.ts",
+      "default": "./dist/sessions/*.js"
+    },
+    "#workspaces/*": {
+      "deskcue-source": "./src/workspaces/*.ts",
+      "default": "./dist/workspaces/*.js"
+    }
+  },
+  "scripts": {
+    "dev": "node --conditions=deskcue-source --import tsx src/index.ts",
+    "dev:watch": "node --conditions=deskcue-source --import tsx --watch --watch-path=src src/index.ts",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { force: true, recursive: true });\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && npm run verify:build-output",
+    "start": "node dist/index.js",
+    "test": "node ../../scripts/test/daemon.mjs",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify:build-output": "node --input-type=module -e \"import { readdirSync } from 'node:fs'; const files = readdirSync('dist', { recursive: true }); const tests = files.filter((file) => typeof file === 'string' && /(?:^|[\\\\/]).+\\.test\\.[^.]+$/.test(file)); if (tests.length) throw new Error('Production dist contains test files: ' + tests.join(', '));\""
+  },
+  "dependencies": {
+    "@deskcue/adapters": "file:../../packages/adapters",
+    "@deskcue/protocol": "file:../../packages/protocol",
+    "better-sqlite3": "^12.11.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^5.1.0",
+    "@lydell/node-pty": "1.2.0-beta.14",
+    "pino": "^10.3.1",
+    "undici": "^7.29.0",
+    "web-push": "^3.6.7",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/ws": "^8.18.1",
+    "eslint": "10.8.0",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-import-x": "4.17.1",
+    "globals": "16.2.0",
+    "typescript-eslint": "8.65.0",
+    "tsx": "^4.20.3"
+  }
+}

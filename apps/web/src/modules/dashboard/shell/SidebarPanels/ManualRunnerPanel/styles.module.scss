@@ -1,0 +1,45 @@
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: #3152b5;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(243, 239, 232, 0.48);
+}
+
+.ghostButton {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3efe8;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  color-scheme: dark;
+}
+
+.field option {
+  background: #17191f;
+  color: #f3efe8;
+}
+
+.formDivider {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

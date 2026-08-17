@@ -1,0 +1,61 @@
+{
+  "name": "deskcue",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first control panel for CLI AI agents.",
+  "license": "Apache-2.0",
+  "homepage": "https://deskcue.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AleksandrKornev/DeskCue.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AleksandrKornev/DeskCue/issues"
+  },
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "^22.22.0 || ^24.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "start": "npm run build && npm run start --workspace @deskcue/daemon",
+    "doctor": "npm run build:packages && npm run build --workspace @deskcue/cli && npm run start --workspace @deskcue/cli -- doctor",
+    "dev": "npm run build:packages && concurrently \"npm run dev:daemon\" \"npm run dev:web\"",
+    "dev:daemon": "npm run dev --workspace @deskcue/daemon",
+    "dev:daemon:watch": "nodemon --exitcrash --watch apps/daemon/src --watch packages/protocol/src --watch packages/adapters/src --ext ts,json --exec \"npm run build:packages && npm run dev:daemon\"",
+    "dev:watch": "concurrently --restart-tries -1 --restart-after 1000 \"npm run dev:daemon:watch\" \"npm run dev:web\"",
+    "dev:web": "npm run dev --workspace @deskcue/web",
+    "dev:cli": "npm run dev --workspace @deskcue/cli --",
+    "build": "npm run build:packages && npm run build:apps",
+    "build:packages": "npm run build --workspace @deskcue/protocol && npm run build --workspace @deskcue/adapters",
+    "build:apps": "npm run build --workspace @deskcue/daemon && npm run build --workspace @deskcue/cli && npm run build --workspace @deskcue/web",
+    "test:packages": "npm run test --workspace @deskcue/protocol && npm run test --workspace @deskcue/adapters",
+    "typecheck": "npm run build:packages && npm run typecheck --workspace @deskcue/daemon && npm run typecheck --workspace @deskcue/cli && npm run typecheck --workspace @deskcue/web",
+    "check:staged": "git diff --cached --check && lint-staged --no-stash --fail-on-changes",
+    "lint": "npm run lint --workspace @deskcue/daemon && npm run lint --workspace @deskcue/web",
+    "lint:fix": "npm run lint:fix --workspace @deskcue/daemon && npm run lint:fix --workspace @deskcue/web",
+    "verify": "npm run verify:packages && npm run verify:daemon && npm run verify:cli && npm run verify:web && npm run verify:repository",
+    "verify:packages": "npm run test --workspace @deskcue/protocol && npm run typecheck --workspace @deskcue/protocol && npm run test --workspace @deskcue/adapters && npm run typecheck --workspace @deskcue/adapters",
+    "verify:daemon": "npm run lint --workspace @deskcue/daemon && npm run typecheck --workspace @deskcue/daemon && npm run build --workspace @deskcue/daemon && npm run test --workspace @deskcue/daemon",
+    "verify:cli": "npm run test --workspace @deskcue/cli && npm run typecheck --workspace @deskcue/cli && npm run build --workspace @deskcue/cli",
+    "verify:web": "npm run test:release --workspace @deskcue/web && npm run build --workspace @deskcue/web && npm run build:embed --workspace @deskcue/web",
+    "verify:repository": "npm run audit:production && npm run audit:all && git diff --check",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
+    "audit:all": "npm audit --audit-level=high",
+    "smoke:daemon": "npm run build:packages && node scripts/smoke-daemon.mjs",
+    "smoke:web": "npm run build:packages && node scripts/smoke-web.mjs",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.3",
+    "concurrently": "^9.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "nodemon": "^3.1.10",
+    "typescript": "^5.8.3"
+  }
+}

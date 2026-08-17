@@ -1,0 +1,57 @@
+.panel {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(13, 14, 18, 0.88);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px 0;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.header p {
+  margin: 6px 0 0;
+  color: #999da8;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.body {
+  padding: 16px 18px 18px;
+}
+
+.secondaryPanel {
+  border-color: rgba(255, 255, 255, 0.05);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.016), rgba(255, 255, 255, 0.01)),
+    rgba(11, 12, 16, 0.76);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.secondaryHeader {
+  padding: 14px 16px 0;
+}
+
+.secondaryTitle {
+  font-size: 0.95rem;
+}
+
+.secondarySubtitle {
+  max-width: 28ch;
+  margin-top: 4px;
+  color: #8f96a2;
+  font-size: 0.86rem;
+}
+
+.secondaryBody {
+  padding: 14px 16px 16px;
+}

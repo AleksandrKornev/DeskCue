@@ -1,0 +1,448 @@
+@use "@modules/settings/cards";
+@use "@modules/settings/forms";
+@use "@assets/variables" as vars;
+
+@include cards.styles;
+@include forms.styles;
+
+.highWarning {
+  border-color: rgba(184, 72, 72, 0.26);
+  background: rgba(184, 72, 72, 0.1);
+}
+
+.highWarning p {
+  color: #ffcbc7;
+}
+
+.accessProtectionCard {
+  min-height: 560px;
+}
+
+.accessProtectionForm > .actions {
+  position: static;
+  z-index: auto;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.accessExposureNotice {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(214, 164, 103, 0.22);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(214, 164, 103, 0.08);
+}
+
+.accessExposureNotice strong {
+  color: #f7e1bd;
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.accessExposureNotice span {
+  color: #d7c9b2;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.lowExposureNotice {
+  border-color: rgba(64, 162, 104, 0.22);
+  background: rgba(64, 162, 104, 0.08);
+}
+
+.lowExposureNotice strong {
+  color: #b6f4c8;
+}
+
+.lowExposureNotice span {
+  color: #a8d8b8;
+}
+
+.highExposureNotice {
+  border-color: rgba(184, 72, 72, 0.28);
+  background: rgba(184, 72, 72, 0.12);
+}
+
+.highExposureNotice strong {
+  color: #ffcbc7;
+}
+
+.highExposureNotice span {
+  color: #e3b4ae;
+}
+
+.skeletonLine {
+  display: block;
+  width: min(100%, 180px);
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.skeletonLineTiny {
+  width: 72px;
+}
+
+.skeletonLineShort {
+  width: 92px;
+}
+
+.skeletonLineMedium {
+  width: 150px;
+}
+
+.skeletonLineWide {
+  width: min(100%, 340px);
+}
+
+.accessSkeletonGrid {
+  pointer-events: none;
+}
+
+.accessSkeletonGrid div {
+  min-height: 72px;
+}
+
+.accessSkeletonGrid dd {
+  margin-top: 12px;
+}
+
+.accessSkeletonWarning {
+  display: grid;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid rgba(214, 164, 103, 0.12);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(214, 164, 103, 0.04);
+}
+
+.accessSkeletonForm {
+  min-height: 252px;
+  pointer-events: none;
+}
+
+.accessSkeletonToggle {
+  min-height: 58px;
+}
+
+.accessSkeletonField {
+  box-sizing: border-box;
+  min-height: 92px;
+}
+
+.hostList {
+  display: grid;
+  gap: 8px;
+}
+
+.hostRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.hostRowButton,
+.hostAddButton {
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hostAddButton {
+  justify-self: start;
+  padding-inline: 12px;
+}
+
+.emptyHostList {
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #8f96a2;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.pairingActionPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.pairingActionPanel > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pairingActionPanel strong {
+  color: #f3efe8;
+  font-size: 1rem;
+}
+
+.pairingActionPanel small {
+  overflow-wrap: anywhere;
+  color: #c7ccd8;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.recoveryPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.recoveryPanel > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.recoveryPanel strong {
+  color: #f3efe8;
+  font-size: 1rem;
+}
+
+.recoveryPanel small {
+  overflow-wrap: anywhere;
+  color: #c7ccd8;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.recoveryCodePanel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.recoveryCodePanel code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #f3efe8;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.addressDisclosure {
+  display: grid;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.addressDisclosure summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 78px;
+  padding: 13px 14px;
+  cursor: pointer;
+  color: #f3efe8;
+  font-weight: 800;
+}
+
+.addressDisclosure summary::marker {
+  content: "";
+}
+
+.addressDisclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.addressDisclosure summary:hover,
+.addressDisclosure summary:focus-visible {
+  background: rgba(255, 255, 255, 0.035);
+  outline: none;
+}
+
+.addressDisclosureSummary {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.addressDisclosureEyebrow {
+  color: vars.$color-text-muted;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.addressDisclosure summary strong {
+  color: #f3f7ff;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.addressDisclosure summary small {
+  overflow-wrap: anywhere;
+  color: #b7c2d6;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.addressDisclosureAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  color: #bfd0ff;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.addressDisclosureChevron {
+  width: 9px;
+  height: 9px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.addressDisclosure[open] .addressDisclosureChevron {
+  transform: rotate(135deg);
+}
+
+.addressDisclosurePlaceholder {
+  pointer-events: none;
+}
+
+.addressDisclosureSkeletonSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 78px;
+  padding: 13px 14px;
+}
+
+.addressDisclosure .settingsForm {
+  border-top: 1px solid rgba(91, 122, 207, 0.14);
+  margin: 0;
+  padding: 12px;
+}
+
+.accessHelpPanel {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.accessHelpPanel strong {
+  color: #f3efe8;
+}
+
+.accessHelpPanel small {
+  color: #9da1ad;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.accessHelpPanel code {
+  overflow-wrap: anywhere;
+  color: #dfe7ff;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.accessStatus {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.accessStatusSuccess {
+  border-color: rgba(64, 162, 104, 0.22);
+  background: rgba(64, 162, 104, 0.1);
+  color: #91d9ad;
+}
+
+.accessStatusError {
+  border-color: rgba(184, 72, 72, 0.28);
+  background: rgba(184, 72, 72, 0.12);
+  color: #ffb7b2;
+}
+
+@media (max-width: 720px) {
+  .accessProtectionCard {
+      min-height: 720px;
+    }
+
+  .pairingActionPanel,
+    .recoveryPanel {
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: 10px;
+    }
+
+  .addressDisclosure summary {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      padding: 10px 12px;
+    }
+
+  .addressDisclosureSkeletonSummary {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      padding: 10px 12px;
+    }
+
+  .addressDisclosureAction {
+      justify-self: start;
+    }
+
+  .addressDisclosure .settingsForm {
+      gap: 10px;
+      padding: 10px 12px 0;
+    }
+
+  .accessHelpPanel {
+      gap: 4px;
+      padding: 10px;
+    }
+
+  .accessExposureNotice {
+      padding: 10px;
+    }
+}

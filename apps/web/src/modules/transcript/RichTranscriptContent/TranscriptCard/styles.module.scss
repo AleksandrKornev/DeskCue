@@ -1,0 +1,65 @@
+.card {
+  display: grid;
+  gap: 8px;
+  contain: layout paint;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cardTool {
+  background: rgba(28, 116, 88, 0.14);
+  border-color: rgba(74, 178, 140, 0.22);
+}
+
+.cardResult {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.cardStatus {
+  background: rgba(214, 164, 103, 0.09);
+  border-color: rgba(214, 164, 103, 0.2);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  color: #9fa4af;
+  font-size: 0.81rem;
+}
+
+.cardHeader strong {
+  color: #f3eee5;
+  flex: 0 0 auto;
+}
+
+.cardHeader span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.cardCode {
+  margin: 0;
+  min-width: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(7, 9, 14, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #ebe6dc;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cardDetail {
+  color: #d0c5b5;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

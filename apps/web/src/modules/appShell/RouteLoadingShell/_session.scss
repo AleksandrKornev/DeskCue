@@ -1,0 +1,352 @@
+@use "@assets/variables" as vars;
+
+.sessionPanel {
+  min-height: 0;
+}
+
+.dashboardGrid {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-lg;
+  background: vars.$color-surface-panel;
+}
+
+.panelIntro {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.attentionSkeleton {
+  display: none;
+}
+
+.sourceStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tabPill {
+  width: 98px;
+  min-height: 38px;
+  border-radius: vars.$radius-pill;
+}
+
+.tabPillActive {
+  background: rgba(214, 164, 103, 0.09);
+}
+
+.listSummary {
+  width: 148px;
+  min-height: 18px;
+  border-radius: vars.$radius-pill;
+}
+
+.searchField {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: vars.$radius-md;
+}
+
+.chatList {
+  display: grid;
+  gap: 10px;
+}
+
+.chatCard {
+  display: grid;
+  gap: 12px;
+  min-height: 116px;
+  padding: 16px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.line {
+  display: block;
+  min-height: 14px;
+  border-radius: vars.$radius-pill;
+}
+
+.lineTitle {
+  width: 76%;
+  min-height: 18px;
+}
+
+.lineTitleWide {
+  width: min(420px, 82%);
+  min-height: 22px;
+}
+
+.linePanelTitle {
+  width: min(240px, 62%);
+  min-height: 20px;
+}
+
+.linePanelSubtitle {
+  width: min(520px, 92%);
+  min-height: 15px;
+}
+
+.lineMeta {
+  width: 46%;
+}
+
+.lineDate {
+  width: 34%;
+}
+
+.lineMetaWide {
+  width: min(320px, 64%);
+}
+
+.lineWide {
+  width: 86%;
+}
+
+.lineMid {
+  width: 58%;
+}
+
+.lineShort {
+  width: 34%;
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.previewRail {
+  min-width: 0;
+}
+
+.previewColumn {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.previewPanel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  align-self: start;
+  padding: 18px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-lg;
+  background: vars.$color-surface-panel;
+}
+
+.backLine {
+  width: 112px;
+  min-height: 20px;
+  border-radius: vars.$radius-pill;
+}
+
+.previewHeader {
+  display: grid;
+  gap: 10px;
+}
+
+.previewTurn {
+  display: grid;
+  gap: 12px;
+  min-height: 164px;
+  padding: 16px;
+  border-radius: vars.$radius-md;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.previewButton {
+  justify-self: start;
+  width: 148px;
+  min-height: 44px;
+  border-radius: vars.$radius-md;
+}
+
+.secondaryStack {
+  display: grid;
+  gap: 14px;
+}
+
+.secondaryCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-lg;
+  background: vars.$color-surface-panel;
+}
+
+.secondaryButton {
+  width: 100%;
+  min-height: 44px;
+  border-radius: vars.$radius-md;
+}
+
+.pagePanel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-lg;
+  background: vars.$color-surface-panel;
+}
+
+.pageCard {
+  display: grid;
+  gap: 10px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: vars.$radius-md;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sessionPanel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.sessionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-lg;
+  background: vars.$color-surface-panel;
+}
+
+.sessionCopy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sessionMetaRow,
+.sessionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.compactPill {
+  width: 62px;
+  min-height: 22px;
+  border-radius: vars.$radius-pill;
+}
+
+.lineWorkspace {
+  width: 148px;
+  min-height: 14px;
+  border-radius: vars.$radius-pill;
+}
+
+.actionPill {
+  width: 88px;
+  min-height: 38px;
+  border-radius: vars.$radius-md;
+}
+
+.iconPill {
+  width: 38px;
+  min-height: 38px;
+  border-radius: vars.$radius-md;
+}
+
+.segmentedTabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.04);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.segment {
+  width: 74px;
+  min-height: 32px;
+  border-radius: vars.$radius-pill;
+}
+
+.segmentActive {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.threadArea {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-height: 0;
+  padding: 16px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-lg;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.messageLeft,
+.messageRight {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+}
+
+.messageLeft {
+  width: min(720px, 82%);
+}
+
+.messageRight {
+  justify-self: end;
+  width: min(520px, 72%);
+}
+
+.composerSkeleton {
+  position: relative;
+  min-height: 112px;
+  padding: 16px 72px 16px 16px;
+  border: 1px solid rgba(214, 164, 103, 0.26);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.sendButton {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 44px;
+  min-height: 44px;
+  border-radius: vars.$radius-md;
+}
+
+.settingsButton {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+}
+
+.sendButton {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+}
+

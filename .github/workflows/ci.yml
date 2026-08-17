@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  checks:
+    # better-sqlite3 may compile from source for some Node versions. Pin to
+    # Windows 2022 until node-gyp reliably detects the Windows 2025 VS toolchain.
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 24.x
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run canonical verification gate
+        run: npm run verify

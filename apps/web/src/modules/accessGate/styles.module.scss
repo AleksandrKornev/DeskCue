@@ -1,0 +1,184 @@
+.page {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 18px;
+}
+
+.panel {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 560px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 24px;
+  background: rgba(13, 14, 18, 0.9);
+}
+
+.logo {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  color: #fff5e1;
+  text-decoration: none;
+}
+
+.logoWordmark {
+  width: 112px;
+}
+
+.label {
+  color: #8f96a2;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.panel h1 {
+  margin: -8px 0 0;
+  color: #f7f2ea;
+  font-size: clamp(2rem, 8vw, 3rem);
+  line-height: 1;
+}
+
+.panel p {
+  margin: 0;
+  color: #c7ccd8;
+  line-height: 1.45;
+}
+
+.originHint {
+  color: #9da1ad;
+  font-size: 0.92rem;
+}
+
+.steps {
+  display: grid;
+  gap: 8px;
+}
+
+.steps div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.steps span {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(214, 164, 103, 0.16);
+  color: #f4d0a0;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.returnHint {
+  color: #9da1ad;
+  font-size: 0.9rem;
+}
+
+.warning {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(214, 164, 103, 0.22);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(214, 164, 103, 0.1);
+}
+
+.warning strong {
+  color: #f4d0a0;
+}
+
+.warning span {
+  color: #d8c5aa;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.recoveryPanel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(80, 132, 255, 0.18);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(80, 132, 255, 0.08);
+}
+
+.recoveryPanel strong {
+  color: #d9e2ff;
+}
+
+.recoveryPanel p {
+  color: #bcc7e5;
+  font-size: 0.9rem;
+}
+
+.recoveryPanel code {
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f7ff;
+  font-size: 0.88em;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.primaryButton {
+  background: #3b5cc4;
+}
+
+.secondaryButton {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 520px) {
+  .page {
+    align-items: start;
+    padding: 12px;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .actions {
+    flex-wrap: nowrap;
+    justify-content: stretch;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 10px;
+    font-size: 0.94rem;
+  }
+}

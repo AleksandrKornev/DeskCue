@@ -1,0 +1,1 @@
+export const LOCAL_LLM_SUMMARY_REFRESH_DELAY_MS = 500;

@@ -1,0 +1,348 @@
+@use "@assets/variables" as vars;
+
+.card {
+  display: grid;
+  gap: 8px;
+  contain: layout paint;
+  padding: 12px 14px;
+  border-radius: vars.$radius-md;
+  border: 1px solid vars.$color-border-subtle;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cardAttachment {
+  background: rgba(49, 82, 181, 0.12);
+  border-color: rgba(82, 115, 217, 0.2);
+}
+
+.cardCompact {
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(7, 10, 18, 0.42);
+}
+
+.cardCompact .attachmentPreview {
+  border-radius: 10px;
+  background: rgba(7, 9, 14, 0.78);
+  max-height: 170px;
+}
+
+.cardCompact .attachmentPreview img,
+.cardCompact .attachmentPreviewPlaceholder {
+  object-fit: contain;
+}
+
+.cardCompact .cardHeader {
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.cardCompact .attachmentActions {
+  gap: 6px;
+}
+
+.cardCompact .attachmentAction {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding-inline: 0;
+  border-radius: 10px;
+  font-size: 0.76rem;
+}
+
+.cardCompact .attachmentActionLabel,
+.cardDense .attachmentActionLabel {
+  display: none;
+}
+
+.cardDense {
+  grid-template-columns: minmax(116px, 154px) minmax(0, 1fr);
+  gap: 7px 10px;
+  align-items: center;
+}
+
+.cardDense .attachmentPreview {
+  grid-row: 1 / span 3;
+  height: 86px;
+  min-height: 86px;
+}
+
+.cardDense .attachmentPreview img {
+  height: 86px;
+  max-height: 86px;
+  object-fit: cover;
+}
+
+.cardDense .cardHeader {
+  min-width: 0;
+}
+
+.cardDense .cardHeaderAttachment {
+  display: grid;
+  gap: 2px;
+  align-self: end;
+}
+
+.cardDense .cardHeader strong,
+.attachmentTitleTooltip,
+.attachmentSecondaryTooltip,
+.attachmentAddressTooltip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentTitleTooltip {
+  color: #f3eee5;
+  font-weight: 700;
+}
+
+.attachmentSecondaryTooltip,
+.attachmentAddressTooltip {
+  color: inherit;
+}
+
+.cardDense .cardMeta {
+  display: grid;
+  grid-column: 2;
+  align-self: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cardDense .attachmentActions {
+  grid-column: 2;
+  align-self: start;
+  flex-wrap: nowrap;
+  margin-top: 3px;
+}
+
+.cardDense .attachmentAction {
+  width: 30px;
+  min-width: 30px;
+  padding-inline: 0;
+}
+
+.cardDense .attachmentTile {
+  grid-column: 1 / -1;
+  min-height: 64px;
+  padding: 10px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: vars.$color-text-muted;
+  font-size: 0.81rem;
+}
+
+.cardHeader strong {
+  color: #f3eee5;
+}
+
+.cardHeaderAttachment {
+  align-items: start;
+}
+
+.cardMeta {
+  color: #d0c5b5;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cardMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.cardMetaAttachment {
+  gap: 4px;
+}
+
+.cardMetaSecondary {
+  min-width: 0;
+  overflow: hidden;
+  color: #98a0b4;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentPreview {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 220px;
+  min-height: 120px;
+  padding: 0;
+  border: 0;
+  border-radius: vars.$radius-sm;
+  overflow: hidden;
+  cursor: pointer;
+  background: transparent;
+}
+
+.attachmentPreview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachmentPreviewPlaceholder,
+.attachmentPreviewLoading {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: rgba(82, 115, 217, 0.14);
+  color: #c9d6ff;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.attachmentPreviewSpinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 2px solid rgba(201, 214, 255, 0.22);
+  border-top-color: rgba(214, 164, 103, 0.94);
+  animation: attachmentPreviewSpinner 0.8s linear infinite;
+}
+
+@keyframes attachmentPreviewSpinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attachmentPreviewSpinner {
+    animation: none;
+  }
+}
+
+.attachmentTile {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 0;
+  border-radius: vars.$radius-md;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+}
+
+.attachmentTile:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.attachmentTileBadge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 54px;
+  min-height: 54px;
+  padding: 0 10px;
+  border-radius: vars.$radius-md;
+  background: rgba(82, 115, 217, 0.14);
+  border: 1px solid rgba(82, 115, 217, 0.24);
+  color: #c9d6ff;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.attachmentTileCopy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.attachmentTileCopy strong {
+  color: #f3eee5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.attachmentTileCopy span {
+  color: #9fa8c4;
+  font-size: 0.84rem;
+}
+
+.attachmentActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.attachmentAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: vars.$control-height-dense;
+  padding: 0 12px;
+  border: 0;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2ecdf;
+  font-size: 0.82rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.attachmentActionIcon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+}
+
+@media (max-width: 720px) {
+  .cardDense {
+    grid-template-columns: minmax(112px, 40%) minmax(0, 1fr);
+  }
+
+  .cardDense .attachmentPreview img {
+    height: 92px;
+    max-height: 92px;
+  }
+
+  .cardDense .attachmentPreview {
+    height: 92px;
+    min-height: 92px;
+  }
+
+  .attachmentTile {
+    grid-template-columns: 1fr;
+  }
+
+  .attachmentTileBadge {
+    min-width: 48px;
+    min-height: 48px;
+    width: fit-content;
+  }
+
+  .attachmentActions {
+    gap: 6px;
+  }
+
+  .attachmentAction {
+    min-height: 30px;
+    padding: 0 9px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+}

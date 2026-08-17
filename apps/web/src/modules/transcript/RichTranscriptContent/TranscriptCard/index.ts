@@ -1,0 +1,1 @@
+export { TranscriptCardPart } from "./TranscriptCardPart";

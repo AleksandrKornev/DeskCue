@@ -1,0 +1,38 @@
+@use "@modules/settings/forms";
+@use "@assets/variables" as vars;
+
+@include forms.styles;
+
+.customStorageLimitForm {
+  display: grid;
+  gap: 16px;
+}
+
+.customStorageLimitInput {
+  position: relative;
+}
+
+.customStorageLimitInput input {
+  padding-right: 52px;
+}
+
+.customStorageLimitInput span {
+  position: absolute;
+  top: 50%;
+  right: 13px;
+  color: #c7ccd8;
+  font-size: 0.82rem;
+  font-weight: 700;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.customStorageLimitActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.customStorageLimitActions > button {
+  width: 100%;
+}

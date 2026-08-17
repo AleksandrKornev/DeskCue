@@ -1,0 +1,175 @@
+@use "@assets/variables" as vars;
+
+.modePanel,
+.actionCard,
+.changeEvidence {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: vars.$radius-md;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.modeHeading,
+.actionCardHeading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.modePanel p,
+.actionCard p,
+.changeEvidence span {
+  margin: 0;
+  color: vars.$color-text-secondary;
+  font-size: 0.82rem;
+  line-height: 1.42;
+}
+
+.modePill,
+.actionEyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(115, 135, 185, 0.18);
+  color: #c4d3ff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.mode_read_only {
+  background: rgba(113, 134, 182, 0.18);
+  color: #c4d3ff;
+}
+
+.mode_ask,
+.actionEyebrow {
+  background: rgba(229, 184, 119, 0.15);
+  color: #f4d39e;
+}
+
+.mode_auto_workspace {
+  background: rgba(84, 160, 126, 0.16);
+  color: #a9e4c4;
+}
+
+.mode_full_access {
+  background: rgba(191, 91, 85, 0.18);
+  color: #ffbbb4;
+}
+
+.modeFacts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 2px 0 0;
+}
+
+.modeFacts div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.modeFacts dt {
+  color: vars.$color-text-muted;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.modeFacts dd {
+  overflow: hidden;
+  margin: 0;
+  color: vars.$color-text-primary;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionCard {
+  border-color: rgba(229, 184, 119, 0.34);
+  background: rgba(229, 184, 119, 0.075);
+}
+
+.actionScope {
+  overflow: hidden;
+  padding: 7px 8px;
+  border-radius: vars.$radius-sm;
+  background: rgba(0, 0, 0, 0.18);
+  color: vars.$color-text-muted !important;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.75rem !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.actionButtons button {
+  min-height: 38px;
+  border: 0;
+  border-radius: vars.$radius-sm;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.09);
+  color: vars.$color-text-primary;
+  font-weight: 700;
+}
+
+.actionButtons .approveButton {
+  background: vars.$color-action-primary;
+  color: #fff;
+}
+
+.actionButtons button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.changeEvidence {
+  gap: 3px;
+}
+
+.changeEvidence strong {
+  font-size: 0.82rem;
+}
+
+.change_proposed {
+  border-color: rgba(117, 145, 224, 0.34);
+  background: rgba(68, 93, 169, 0.1);
+}
+
+.change_applied {
+  border-color: rgba(82, 169, 122, 0.36);
+  background: rgba(57, 135, 93, 0.1);
+}
+
+.change_observed {
+  border-color: rgba(229, 184, 119, 0.32);
+  background: rgba(229, 184, 119, 0.065);
+}
+
+@media (max-width: 520px) {
+  .modeFacts {
+    grid-template-columns: 1fr;
+  }
+
+  .actionButtons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "customConditions": ["deskcue-source"],
+    "paths": {
+      "#access/*": ["./src/access/*"],
+      "#agents/*": ["./src/agents/*"],
+      "#application/*": ["./src/application/*"],
+      "#backend/*": ["./src/backend/*"],
+      "#config/*": ["./src/config/*"],
+      "#http/*": ["./src/http/*"],
+      "#infrastructure/*": ["./src/infrastructure/*"],
+      "#localLlmChats/*": ["./src/localLlmChats/*"],
+      "#persistence/*": ["./src/persistence/*"],
+      "#realtime/*": ["./src/realtime/*"],
+      "#runtimeDiagnostics/*": ["./src/runtimeDiagnostics/*"],
+      "#security/*": ["./src/security/*"],
+      "#server/*": ["./src/server/*"],
+      "#sessions/*": ["./src/sessions/*"],
+      "#workspaces/*": ["./src/workspaces/*"]
+    },
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"]
+}

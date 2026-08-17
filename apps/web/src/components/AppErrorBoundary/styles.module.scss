@@ -1,0 +1,48 @@
+.page {
+  align-items: center;
+  background: var(--color-bg, #0d0f12);
+  color: var(--color-text, #f4f1eb);
+  display: flex;
+  min-height: 100dvh;
+  padding: 24px;
+}
+
+.card {
+  background: var(--color-surface, #17191d);
+  border: 1px solid var(--color-border, #30333a);
+  border-radius: 16px;
+  margin: 0 auto;
+  max-width: 520px;
+  padding: 24px;
+  width: 100%;
+
+  h1 {
+    font-size: 1.35rem;
+    margin: 6px 0 12px;
+  }
+
+  p {
+    color: var(--color-text-muted, #b9bbc2);
+    line-height: 1.5;
+    margin: 0 0 20px;
+  }
+
+  button {
+    background: var(--color-accent, #3d5dcc);
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    padding: 11px 16px;
+  }
+}
+
+.eyebrow {
+  color: var(--color-warning, #e2b76d) !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

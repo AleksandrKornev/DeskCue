@@ -1,0 +1,247 @@
+@use "@assets/variables" as vars;
+
+.diffList {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  border-radius: vars.$radius-md;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(20, 22, 28, 0.96);
+  overflow: hidden;
+}
+
+.diffListHeader {
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px 10px;
+  color: vars.$color-text-secondary;
+}
+
+.diffListHeader strong {
+  color: vars.$color-text-primary;
+}
+
+.diffListSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.diffListSummaryMeta,
+.diffListStats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.diffListItems {
+  display: grid;
+}
+
+.diffListItem {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 14px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.diffListItem:first-child {
+  border-top: 0;
+}
+
+.diffListItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.diffListMoreButton {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.035);
+  color: #c9dcff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.diffListMoreButton:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.diffListMoreIcon {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 140ms ease;
+}
+
+.diffListMoreIconExpanded {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.diffStatus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 7px;
+  border-radius: vars.$radius-pill;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.diffStatusAdd {
+  background: rgba(24, 94, 66, 0.24);
+  color: #9de2bc;
+}
+
+.diffStatusDelete {
+  background: rgba(117, 37, 37, 0.24);
+  color: #ffb4b4;
+}
+
+.diffStatusNeutral {
+  background: rgba(78, 127, 255, 0.16);
+  color: #c9dcff;
+}
+
+.diffPath {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  min-width: 0;
+  color: vars.$color-text-primary;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.diffPathDirectory {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: #c3bcb0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffPathFile {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  color: vars.$color-text-primary;
+  font-weight: 800;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.diffStat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: vars.$radius-pill;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.diffStatAdd {
+  background: rgba(24, 94, 66, 0.24);
+  color: #9de2bc;
+}
+
+.diffStatDelete {
+  background: rgba(117, 37, 37, 0.24);
+  color: #ffb4b4;
+}
+
+.diff {
+  display: grid;
+  align-content: start;
+  border-radius: vars.$radius-sm;
+  overflow: auto;
+  background: rgba(6, 9, 16, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.diffLine {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 0 12px;
+  min-height: 24px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 0.82rem;
+}
+
+.diffLine code {
+  display: block;
+  padding: 3px 0;
+  background: transparent;
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diffLineAdd {
+  background: rgba(24, 94, 66, 0.35);
+  color: #cdf3df;
+}
+
+.diffLineDelete {
+  background: rgba(117, 37, 37, 0.3);
+  color: #ffd8d8;
+}
+
+.diffLineMeta {
+  background: rgba(44, 54, 81, 0.42);
+  color: #d8def3;
+}
+
+.diffLineFile {
+  background: rgba(58, 65, 82, 0.46);
+  color: #f0e3be;
+}
+
+.diffLineContext {
+  background: transparent;
+}
+
+.diffMarker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 3px;
+  color: rgba(255, 255, 255, 0.42);
+  user-select: none;
+}
+

@@ -1,0 +1,1 @@
+export { DeskCueWordmark } from "./DeskCueWordmark";

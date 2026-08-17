@@ -1,0 +1,182 @@
+@use "@assets/variables" as vars;
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.button {
+  border: 0;
+  min-height: vars.$control-height-touch;
+  border-radius: vars.$radius-md;
+  padding: 12px 16px;
+  background: vars.$color-action-primary;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.ghostButton {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3efe8;
+}
+
+.smallButton {
+  min-height: vars.$control-height-touch;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.88rem;
+}
+
+.muted {
+  color: #9da1ad;
+}
+
+.runtimeCard {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.runtimeList {
+  display: grid;
+  gap: 6px;
+}
+
+.runtimeRow {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+  &:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  &:first-child {
+    padding-top: 0;
+  }
+}
+
+.runtimeRowHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.runtimeRowTitle {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px;
+}
+
+.runtimeRowTitle strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtimeStatus,
+.runtimeMeta {
+  color: #a9adb7;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.runtimeStatus {
+  flex: 0 0 auto;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.runtimeActions {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.chatButton {
+  min-height: 30px;
+  border: 1px solid rgba(214, 171, 92, 0.5);
+  border-radius: 7px;
+  padding: 4px 8px;
+  background: rgba(214, 171, 92, 0.09);
+  color: #f1cb87;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.runtimeMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtimeMetaTooltip {
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtimeDot {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(143, 151, 166, 0.82);
+  box-shadow: 0 0 0 3px rgba(143, 151, 166, 0.12);
+}
+
+.runtimeDotInstalled {
+  background: rgba(116, 146, 205, 0.9);
+  box-shadow: 0 0 0 3px rgba(116, 146, 205, 0.14);
+}
+
+.runtimeDotOnline {
+  background: rgba(44, 156, 92, 0.9);
+  box-shadow: 0 0 0 3px rgba(44, 156, 92, 0.14);
+}
+
+.runtimeDotUnavailable {
+  background: rgba(179, 63, 63, 0.8);
+  box-shadow: 0 0 0 3px rgba(179, 63, 63, 0.12);
+}
+
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  min-height: 120px;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.6s infinite;
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

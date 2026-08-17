@@ -1,0 +1,311 @@
+@use "@assets/variables" as vars;
+
+@media (max-width: 720px) {
+  .chatToolbarShell {
+    box-sizing: border-box;
+    position: sticky;
+    top: 0;
+    z-index: 18;
+    width: 100vw;
+    gap: 4px;
+    margin-left: calc(50% - 50vw);
+    margin-right: 0;
+    padding: calc(11px + env(safe-area-inset-top, 0px)) 18px 0;
+    background: vars.$color-surface-app;
+    backdrop-filter: blur(16px);
+    box-shadow: none;
+  }
+
+  .chatHeader {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: start;
+    padding-inline: 0;
+  }
+
+  .chatHeader > .actions {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    justify-content: flex-end;
+    align-self: start;
+    flex-wrap: nowrap;
+  }
+
+  .chatMain {
+    grid-column: 1;
+    grid-row: 1;
+    gap: 10px;
+  }
+
+  .command {
+    font-size: 1.08rem;
+    line-height: 1.08;
+  }
+
+  .titleRow {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .metaRow {
+    width: 100%;
+    gap: 6px;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .sourcePillMuted,
+  .headerStatusBadge[class] {
+    min-height: 20px;
+    padding-inline: 6px;
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+  }
+
+  .modelPill {
+    flex: 0 0 auto;
+    min-height: 20px;
+    max-width: 100%;
+    padding-inline: 6px;
+    font-size: 0.66rem;
+  }
+
+  .path {
+    margin-top: 2px;
+    font-size: 0.86rem;
+  }
+
+  .liveConnection {
+    flex: 0 0 auto;
+    min-width: max-content;
+    max-width: 100%;
+    min-height: 22px;
+    padding-inline: 7px;
+    font-size: 0.68rem;
+  }
+
+  .liveConnectionDetail {
+    display: none;
+  }
+
+  .liveConnectionCompactDetail {
+    display: inline;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .liveNav {
+    position: relative;
+    z-index: 1;
+    margin-top: 4px;
+    padding-inline: 0;
+    transform: translateY(34%);
+  }
+
+  .liveNav.liveNav :global([role="tablist"]) {
+    border-color: rgba(214, 164, 103, 0.18);
+    background: #1a1b1f;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.035),
+      0 10px 24px rgba(0, 0, 0, 0.26);
+  }
+
+  .liveNav :global([role="tab"]) {
+    background: #1a1b1f;
+  }
+
+  .liveNav :global([role="tab"][aria-selected="true"]) {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: #3b3c3f;
+  }
+
+  .ghostButton,
+  .dangerButton {
+    min-height: vars.$control-height-touch;
+    padding: 0 14px;
+    border-radius: 13px;
+  }
+
+  .iconUtilityButton {
+    width: vars.$control-height-touch;
+    min-width: vars.$control-height-touch;
+    height: vars.$control-height-touch;
+    border-radius: 13px;
+  }
+
+  .titleRow,
+  .path,
+  .chatHeader > .actions,
+  .liveNav {
+    transition:
+      opacity 160ms ease,
+      transform 180ms ease;
+  }
+
+  @media (max-width: 340px) {
+    .chatHeader {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+
+    .chatHeader > .actions {
+      justify-content: flex-end;
+    }
+
+    .command {
+      font-size: 1rem;
+      line-height: 1.06;
+    }
+
+    .chatToolbarShell {
+      padding-inline: 14px;
+    }
+
+    .liveConnectionLive .liveConnectionDetail {
+      display: none;
+    }
+
+    .titleRow {
+      flex-wrap: wrap;
+      row-gap: 4px;
+    }
+  }
+}
+
+@media (max-width: 520px) {
+  .chatToolbarShell {
+    top: 0;
+    gap: 0;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 0;
+    transition:
+      padding-top 180ms ease,
+      background-color 0s,
+      backdrop-filter 0s;
+  }
+
+  .chatHeader {
+    gap: 8px;
+    max-height: 65px;
+    opacity: 1;
+    overflow: visible;
+    visibility: visible;
+    transition:
+      max-height 180ms ease,
+      opacity 140ms ease,
+      visibility 0s;
+  }
+
+  .chatMain {
+    gap: 6px;
+  }
+
+  .titleRow {
+    min-height: 37px;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .command,
+  .commandTooltip {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .desktopMetaItem,
+  .path {
+    display: none;
+  }
+
+  .metaRow {
+    min-height: 22px;
+    overflow: visible;
+    flex-wrap: nowrap;
+  }
+
+  .metaRow > * {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .desktopCompactionLabel {
+    display: none;
+  }
+
+  .mobileCompactionLabel {
+    display: inline-flex;
+  }
+
+  .liveNav {
+    margin-top: 4px;
+  }
+
+  .chatToolbarCollapsed {
+    margin-bottom: -46px;
+    padding: 0 12px;
+    background: transparent;
+    backdrop-filter: none;
+    pointer-events: none;
+    transition:
+      padding-top 180ms ease,
+      background-color 0s 180ms,
+      backdrop-filter 0s 180ms;
+  }
+
+  .chatToolbarCollapsed .chatHeader {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      max-height 180ms ease,
+      opacity 140ms ease,
+      visibility 0s 180ms;
+  }
+
+  .chatToolbarCollapsed .liveNav {
+    margin-top: 0;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .chatToolbarShell + :global([role="tabpanel"]) :global([data-chat-surface]) {
+    transition: top 0s;
+  }
+
+  .chatToolbarCollapsed + :global([role="tabpanel"]) :global([data-chat-surface]) {
+    top: 0;
+    transition-delay: 180ms;
+  }
+
+  .liveConnection {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .liveConnectionDetail {
+    display: none;
+  }
+
+  .liveConnectionCompactDetail {
+    display: inline;
+    max-width: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .sourcePillMuted,
+  .liveConnection {
+    padding-inline: 6px;
+  }
+}

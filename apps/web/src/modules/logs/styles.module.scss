@@ -1,0 +1,225 @@
+.page {
+  display: grid;
+  height: 100dvh;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 18px;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  padding: 22px;
+  background: rgba(13, 14, 18, 0.88);
+}
+
+.header h1 {
+  margin: 12px 0 6px;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  line-height: 1;
+}
+
+.header p {
+  max-width: 760px;
+  margin: 0;
+  color: #c7ccd8;
+  line-height: 1.45;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  color: #fff5e1;
+  text-decoration: none;
+}
+
+.logoWordmark {
+  width: 112px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.autoRefreshControl {
+  display: grid;
+  gap: 6px;
+  color: #a9adb7;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.autoRefreshControl select {
+  min-width: 104px;
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #171920;
+  color: #f3efe8;
+  font: inherit;
+}
+
+.refreshButton {
+  min-width: 120px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  background: #3152b5;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.refreshButton:disabled {
+  opacity: 0.62;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(13, 14, 18, 0.72);
+}
+
+.summary > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.summary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #a9adb7;
+}
+
+.label {
+  color: #8f96a2;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.logSurface {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(10, 11, 15, 0.86);
+}
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  gap: 8px;
+  color: #a9adb7;
+  text-align: center;
+}
+
+.emptyState strong {
+  color: #f3efe8;
+}
+
+.logRow {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.logHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  color: #a9adb7;
+  font-size: 0.82rem;
+}
+
+.logLevel {
+  color: #f3efe8;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.timestamp {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.logMessage {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #f3efe8;
+  line-height: 1.45;
+}
+
+.context {
+  overflow: auto;
+  max-height: 260px;
+  margin: 0;
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.24);
+  color: #c9ced8;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .page {
+    height: 100dvh;
+    padding: 14px;
+  }
+
+  .header,
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    display: grid;
+  }
+
+  .refreshButton {
+    width: 100%;
+  }
+
+  .headerActions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+  }
+
+  .autoRefreshControl select {
+    width: 100%;
+  }
+}

@@ -1,0 +1,171 @@
+.sessionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.sessionHeader > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sessionHeader > .actions {
+  flex: 0 0 auto;
+}
+
+.sessionHeaderTitle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.sessionHeaderTitle h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sessionHeaderCommand {
+  margin: 6px 0 0;
+  color: #b6b1a8;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.summaryKeyValue {
+  min-width: 0;
+}
+
+.summaryKeyValueValue {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.summaryGridFour {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.terminalCompact {
+  max-height: 180px;
+}
+
+
+.ghostButton {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3efe8;
+  font-weight: 600;
+}
+
+.dangerButton {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: #b33f3f;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.stackLarge {
+  display: grid;
+  gap: 16px;
+}
+
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.6s infinite;
+}
+
+.skeletonPanel {
+  min-height: 240px;
+  border-radius: 18px;
+}
+
+.skeletonTerminal {
+  min-height: 220px;
+  border-radius: 18px;
+}
+
+.muted {
+  color: #9da1ad;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.plainList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.terminal {
+  margin: 0;
+  padding: 16px;
+  border-radius: 16px;
+  overflow: auto;
+  background: #090b0f;
+  color: #d7f0d0;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 720px) {
+  .summaryGridFour,
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .sessionHeader {
+    flex-direction: column;
+  }
+}
+

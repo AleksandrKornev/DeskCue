@@ -1,0 +1,326 @@
+@use "@assets/variables" as vars;
+
+.sourcePill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: vars.$radius-pill;
+  background: rgba(49, 82, 181, 0.16);
+  color: #b8cbff;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sourcePillMuted {
+  min-height: 22px;
+  padding: 0 7px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9b0a2;
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+}
+
+.skeletonPill {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.skeletonPill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.6s infinite;
+}
+
+.skeletonPillSummary {
+  width: 152px;
+  min-height: 18px;
+}
+
+
+.chatToolbarShell {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 12px;
+  min-height: max-content;
+  overflow: visible;
+}
+
+.chatHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.chatMain {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sourcePillMultiplier {
+  margin: 0 1px 0 3px;
+  font-size: 0.8em;
+  opacity: 0.72;
+}
+
+.contextCompactionPill {
+  display: inline-flex;
+}
+
+.desktopMetaItem,
+.desktopCompactionLabel {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mobileCompactionLabel {
+  display: none;
+}
+
+.mobileCompactionIcon {
+  width: 11px;
+  height: 11px;
+}
+
+.modelPill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: min(100%, 320px);
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: vars.$radius-pill;
+  background: rgba(132, 161, 255, 0.12);
+  color: #cbd8ff;
+  font-size: 0.68rem;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.command {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  margin: 0;
+  color: vars.$color-text-primary;
+  font-size: 1.24rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.commandTooltip {
+  color: vars.$color-text-primary;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metaRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.headerStatusBadge {
+  min-height: 22px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9b0a2;
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+}
+
+.headerStatusBadge[class] {
+  align-self: center;
+  flex-shrink: 0;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9b0a2;
+  font-size: 0.66rem;
+  line-height: 1;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  transform: translateY(1px);
+  white-space: nowrap;
+}
+
+.headerStatusBadgeRunning {
+  background: rgba(44, 156, 92, 0.16);
+  color: #8ac79d;
+}
+
+.headerStatusBadgeRunning[class] {
+  background: rgba(44, 156, 92, 0.16);
+  color: #8ac79d;
+}
+
+.headerStatusBadgeActionable[class] {
+  background: rgba(214, 164, 103, 0.16);
+  color: #f2dfbf;
+}
+
+.path {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  margin: 0;
+  color: vars.$color-text-muted;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.pathTooltip {
+  color: vars.$color-text-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.liveConnection {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-width: max-content;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9b0a2;
+  font-size: 0.7rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.liveConnectionDot {
+  width: 7px;
+  min-width: 7px;
+  height: 7px;
+  border-radius: vars.$radius-pill;
+  background: currentColor;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.035);
+}
+
+.liveConnectionLabel {
+  color: vars.$color-text-primary;
+  font-weight: 800;
+}
+
+.liveConnectionDetail {
+  min-width: 0;
+  overflow: hidden;
+  color: vars.$color-text-muted;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.liveConnectionCompactDetail {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  color: vars.$color-text-muted;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.liveConnectionLive {
+  background: rgba(44, 156, 92, 0.13);
+  color: #51d486;
+}
+
+.liveConnectionLive .liveConnectionDetail,
+.liveConnectionLive .liveConnectionCompactDetail {
+  color: #c8f6da;
+}
+
+.liveConnectionLive .liveConnectionLabel {
+  color: #51d486;
+}
+
+.liveConnectionLive .liveConnectionDot {
+  background: #51d486;
+}
+
+.liveConnectionConnecting {
+  background: rgba(49, 82, 181, 0.14);
+  color: #8fb6ff;
+}
+
+.liveConnectionReconnecting {
+  background: rgba(214, 164, 103, 0.14);
+  color: #ffb15e;
+}
+
+.liveConnectionReconnecting .liveConnectionLabel,
+.liveConnectionReconnecting .liveConnectionDot {
+  color: #ffb15e;
+}
+
+.liveConnectionReconnecting .liveConnectionDot {
+  background: #ffb15e;
+  box-shadow: 0 0 0 2px rgba(255, 177, 94, 0.14);
+}
+
+.liveConnectionOffline {
+  background: rgba(194, 69, 69, 0.16);
+  color: #ff6d7a;
+}
+
+.liveConnectionOffline .liveConnectionLabel,
+.liveConnectionOffline .liveConnectionDot {
+  color: #ff6d7a;
+}
+
+.liveConnectionOffline .liveConnectionDot {
+  background: #ff6d7a;
+  box-shadow: 0 0 0 2px rgba(255, 109, 122, 0.14);
+}
+
+.liveConnectionOffline .liveConnectionDetail,
+.liveConnectionReconnecting .liveConnectionDetail {
+  color: #f3c9b3;
+}
+
+.liveNav {
+  display: block;
+}
