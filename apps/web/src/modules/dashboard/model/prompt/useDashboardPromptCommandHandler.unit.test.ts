@@ -19,6 +19,7 @@ vi.mock("@modules/dashboard/model/timing", () => ({
 }));
 
 const originalAttach = agentSessionsApi.attach;
+const originalGetOne = agentSessionsApi.getOne;
 const originalSendInput = sessionsApi.sendInput;
 
 function createHarness(selectedSession: SessionDetail) {
@@ -111,6 +112,7 @@ function deferred<T>() {
 describe("useDashboardPromptCommandHandler", () => {
   beforeEach(() => {
     localStorage.clear();
+    agentSessionsApi.getOne = vi.fn(() => Promise.resolve(null));
     resetDeskCueRuntimeForTests();
     window.history.replaceState({}, "", "/machines/machine-1/deskcue/");
     initializeDeskCueRuntime(createCloudMachineDeskCueRuntime(window.location));
@@ -118,6 +120,7 @@ describe("useDashboardPromptCommandHandler", () => {
 
   afterEach(() => {
     agentSessionsApi.attach = originalAttach;
+    agentSessionsApi.getOne = originalGetOne;
     sessionsApi.sendInput = originalSendInput;
     requestConfirmation.mockReset();
     resetDeskCueRuntimeForTests();
@@ -164,6 +167,27 @@ describe("useDashboardPromptCommandHandler", () => {
     expect(sessionsApi.sendInput).toHaveBeenCalledTimes(1);
     const options = vi.mocked(sessionsApi.sendInput).mock.calls[0]?.[2];
     expect(options?.commandId).toMatch(/^deskcue-[a-z0-9-]{8,}$/u);
+  });
+
+  it("uses the replacement flow when fresh source metadata reports an active turn", async () => {
+    agentSessionsApi.getOne = vi.fn(() => Promise.resolve({
+      turnState: { phase: "active" },
+      workState: "running"
+    } as never));
+    sessionsApi.sendInput = vi.fn(() => Promise.resolve({
+      ok: true as const,
+      data: createSession({})
+    }));
+    const harness = createHarness(createSession({ canSendInput: true }));
+
+    await expect(harness.handleSendInput("continue")).resolves.toBe("session-a");
+
+    expect(agentSessionsApi.getOne).toHaveBeenCalledWith(
+      "codex:source-1",
+      { omitTranscript: true }
+    );
+    expect(harness.promptDelivery.interruptPromptBeforeSendingReplacement).toHaveBeenCalledTimes(1);
+    expect(sessionsApi.sendInput).toHaveBeenCalledTimes(1);
   });
 
   it("assigns one bounded command id to a source attach action", async () => {

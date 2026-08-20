@@ -5,6 +5,7 @@ import type {
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
+import { isActiveSourceTurn } from "@models/agentChatWorkState";
 import type { PendingChatPrompt } from "@models/promptDelivery";
 import {
   getSessionInterruptLifecycle,
@@ -15,7 +16,6 @@ import type { ChatTranscriptEntry } from "@modules/session/types";
 import {
   hasAssistantReplyAfterPrompt,
   hasShellWaitingPromptCompleted,
-  isActiveSourceTurn,
   resolveInputAvailability,
   resolvePendingChatPrompt,
   resolvePromptInFlight,

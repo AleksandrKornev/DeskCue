@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { SessionSummary } from "@deskcue/protocol";
+import type { AgentSessionDetail, SessionSummary } from "@deskcue/protocol";
 
-import { isManagedSessionActivelyAttached } from "./agentChatWorkState";
+import {
+  isActiveSourceTurn,
+  isManagedSessionActivelyAttached
+} from "./agentChatWorkState";
 
 function createSession(status: SessionSummary["status"]): SessionSummary {
   return {
@@ -35,4 +38,18 @@ test("counts only a running source session as actively attached", () => {
   assert.equal(isManagedSessionActivelyAttached(createSession("running")), true);
   assert.equal(isManagedSessionActivelyAttached(createSession("stopped")), false);
   assert.equal(isManagedSessionActivelyAttached(createSession("read_only")), false);
+});
+
+test("uses terminal turn state instead of stale running work state", () => {
+  assert.equal(isActiveSourceTurn({
+    workState: "running",
+    turnState: {
+      activityAt: "2026-07-31T10:00:05.000Z",
+      completedAt: "2026-07-31T10:00:05.000Z",
+      evidence: "terminal_lifecycle",
+      fingerprint: "turn-1",
+      phase: "completed",
+      startedAt: "2026-07-31T10:00:00.000Z"
+    }
+  } satisfies Pick<AgentSessionDetail, "turnState" | "workState">), false);
 });

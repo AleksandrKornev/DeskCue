@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { AgentSessionDetail, SessionSummary } from "@deskcue/protocol";
+import type { SessionSummary } from "@deskcue/protocol";
 
 import {
-  isActiveSourceTurn,
   resolveInputAvailability,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
@@ -221,20 +220,6 @@ describe("managed session reply state helpers", () => {
     assert.equal(resolveInputAvailability(localChatShell, {
       canSendInputWhenReadOnly: true
     }).canSendInput, true);
-  });
-
-  it("uses the terminal turn state instead of stale running work state", () => {
-    assert.equal(isActiveSourceTurn({
-      workState: "running",
-      turnState: {
-        activityAt: "2026-07-31T10:00:05.000Z",
-        completedAt: "2026-07-31T10:00:05.000Z",
-        evidence: "terminal_lifecycle",
-        fingerprint: "turn-1",
-        phase: "completed",
-        startedAt: "2026-07-31T10:00:00.000Z"
-      }
-    } satisfies Pick<AgentSessionDetail, "turnState" | "workState">), false);
   });
 
   it("keeps the transcript skeleton during reload even when a pending prompt is restored", () => {
