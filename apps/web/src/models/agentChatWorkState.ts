@@ -1,4 +1,8 @@
-import type { AgentSessionSummary, SessionSummary } from "@deskcue/protocol";
+import type {
+  AgentSessionDetail,
+  AgentSessionSummary,
+  SessionSummary
+} from "@deskcue/protocol";
 import type { PendingChatPrompt } from "@models/promptDelivery";
 
 export type AgentChatWorkIndicator = {
@@ -30,6 +34,18 @@ export function isManagedSessionRunningWork(session: SessionSummary) {
 
 export function isAgentSessionRunningWork(session: AgentSessionSummary) {
   return session.workState === "running";
+}
+
+export function isActiveSourceTurn(
+  session: Pick<AgentSessionDetail, "turnState" | "workState"> | null | undefined
+) {
+  if (!session) {
+    return false;
+  }
+
+  return session.turnState
+    ? session.turnState.phase === "active"
+    : session.workState === "running";
 }
 
 export function countRunningAgentChats({

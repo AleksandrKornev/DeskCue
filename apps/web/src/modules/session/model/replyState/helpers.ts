@@ -214,18 +214,6 @@ export function hasAssistantReplyAfterPrompt(
   });
 }
 
-export function isActiveSourceTurn(
-  session: Pick<AgentSessionDetail, "turnState" | "workState"> | null | undefined
-) {
-  if (!session) {
-    return false;
-  }
-
-  return session.turnState
-    ? session.turnState.phase === "active"
-    : session.workState === "running";
-}
-
 export function resolveInputAvailability(
   sessionShell: SessionShell,
   options: { canSendInputWhenReadOnly?: boolean } = {}
