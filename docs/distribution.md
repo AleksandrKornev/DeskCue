@@ -67,6 +67,22 @@ Chat, Changes, Files, Preview, follow-up input and interrupt. When a release
 changes the SQLite schema, also follow the
 [Release and Migration Playbook](./release-migrations.md).
 
+## Release Versioning
+
+DeskCue uses one fixed version for the root project and every private npm
+workspace. Prepare a release on a dedicated branch with:
+
+```bash
+npm version <version> --workspaces --include-workspace-root --no-git-tag-version
+npm run version:check
+```
+
+Move the relevant `Unreleased` changelog entries under the new version and
+date, then complete the alpha verification above. After the release PR is
+merged, tag the resulting `main` commit as `v<version>` and publish the tag.
+Package-specific independent versions can be introduced later if DeskCue starts
+publishing npm packages separately.
+
 ## Docker Compose Status
 
 Docker Compose is not the default distribution path yet. The daemon controls

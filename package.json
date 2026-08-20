@@ -1,6 +1,6 @@
 {
   "name": "deskcue",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Local-first control panel for CLI AI agents.",
   "license": "Apache-2.0",
@@ -43,9 +43,10 @@
     "verify:daemon": "npm run lint --workspace @deskcue/daemon && npm run typecheck --workspace @deskcue/daemon && npm run build --workspace @deskcue/daemon && npm run test --workspace @deskcue/daemon",
     "verify:cli": "npm run test --workspace @deskcue/cli && npm run typecheck --workspace @deskcue/cli && npm run build --workspace @deskcue/cli",
     "verify:web": "npm run test:release --workspace @deskcue/web && npm run build --workspace @deskcue/web && npm run build:embed --workspace @deskcue/web",
-    "verify:repository": "npm run audit:production && npm run audit:all && git diff --check",
+    "verify:repository": "npm run version:check && npm run audit:production && npm run audit:all && git diff --check",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "audit:all": "npm audit --audit-level=high",
+    "version:check": "node scripts/check-workspace-versions.mjs",
     "smoke:daemon": "npm run build:packages && node scripts/smoke-daemon.mjs",
     "smoke:web": "npm run build:packages && node scripts/smoke-web.mjs",
     "prepare": "husky"
