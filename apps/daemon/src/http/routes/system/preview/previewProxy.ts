@@ -23,7 +23,7 @@ import {
 } from "./egress/previewEgressTarget.ts";
 import type { PreviewEgressResolver } from "./egress/previewEgressTarget.ts";
 import { resolvePreviewWebSocketTargetUrls } from "./egress/previewWebSocketTarget.ts";
-import { discoverPreviewCandidates, probePreviewPort } from "./previewCandidateDiscovery.ts";
+import { discoverPreviewCandidates, waitForPreviewPort } from "./previewCandidateDiscovery.ts";
 import { PreviewHttpRelay } from "./previewHttpRelay.ts";
 import {
   buildPreviewRequestHeaders,
@@ -169,7 +169,7 @@ export class PreviewProxyController {
           response.status(409).json({ error: "Enable preview before opening it." });
           return;
         }
-        if (!await probePreviewPort(target.port)) {
+        if (!await waitForPreviewPort(target.port)) {
           response.status(409).json({ error: "The local preview server is unavailable." });
           return;
         }

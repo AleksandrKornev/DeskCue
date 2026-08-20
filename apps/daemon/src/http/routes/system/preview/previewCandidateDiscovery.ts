@@ -7,6 +7,20 @@ import { PREVIEW_LOOPBACK_HOSTNAME } from "./previewLoopback.ts";
 export const COMMON_PREVIEW_PORTS = [3000, 4173, 4200, 5173, 5174, 8000, 8080] as const;
 const PREVIEW_PROBE_TIMEOUT_MS = 600;
 const PREVIEW_PROBE_CONCURRENCY = 3;
+const PREVIEW_READINESS_TIMEOUT_MS = 5_000;
+const PREVIEW_READINESS_RETRY_DELAY_MS = 150;
+
+type PreviewReadinessOptions = {
+  delay?: (durationMs: number) => Promise<void>;
+  now?: () => number;
+  probe?: (port: number) => Promise<boolean>;
+  retryDelayMs?: number;
+  timeoutMs?: number;
+};
+
+function delay(durationMs: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, durationMs));
+}
 
 export function probePreviewPort(port: number) {
   return new Promise<boolean>((resolve) => {
@@ -34,6 +48,25 @@ export function probePreviewPort(port: number) {
     });
     request.end();
   });
+}
+
+export async function waitForPreviewPort(
+  port: number,
+  {
+    delay: wait = delay,
+    now = Date.now,
+    probe = probePreviewPort,
+    retryDelayMs = PREVIEW_READINESS_RETRY_DELAY_MS,
+    timeoutMs = PREVIEW_READINESS_TIMEOUT_MS
+  }: PreviewReadinessOptions = {}
+) {
+  const deadline = now() + Math.max(0, timeoutMs);
+  while (true) {
+    if (await probe(port)) return true;
+    const remainingMs = deadline - now();
+    if (remainingMs <= 0) return false;
+    await wait(Math.min(Math.max(1, retryDelayMs), remainingMs));
+  }
 }
 
 export async function discoverPreviewCandidates({
