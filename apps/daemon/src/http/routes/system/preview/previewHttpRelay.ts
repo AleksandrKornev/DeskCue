@@ -40,8 +40,11 @@ export type PreviewHttpContext = {
   viewerKey: string;
 };
 
-function shouldRewriteNextApplicationJavaScript(pathname: string) {
-  return /^\/_next\/static\/chunks\/(?:app(?:\/|-pages-internals)|main-app(?:\.|\/)|pages\/)/.test(pathname);
+function shouldRewriteApplicationJavaScript(pathname: string) {
+  return (
+    /^\/_next\/static\/chunks\/(?:app(?:\/|-pages-internals)|main-app(?:\.|\/)|pages\/)/.test(pathname) ||
+    /^\/(?:src\/|node_modules\/\.vite\/|@(?:vite|id|fs)\/|@react-refresh(?:\/|$))/.test(pathname)
+  );
 }
 
 function resolvePreviewDocumentUrl(
@@ -222,10 +225,10 @@ export class PreviewHttpRelay {
 
     const contentType = upstreamResponse.headers["content-type"];
     const javascript = isPreviewJavaScriptContent(contentType);
-    const rewriteNextApplicationJavaScript =
-      javascript && shouldRewriteNextApplicationJavaScript(context.targetUrl.pathname);
+    const rewriteApplicationJavaScript =
+      javascript && shouldRewriteApplicationJavaScript(context.targetUrl.pathname);
     if (
-      rewriteNextApplicationJavaScript &&
+      rewriteApplicationJavaScript &&
       contentLength !== null &&
       contentLength > MAX_REWRITABLE_PREVIEW_JAVASCRIPT_BYTES
     ) {
@@ -247,7 +250,7 @@ export class PreviewHttpRelay {
       rewriteLease?.release();
       rewriteLease = null;
     };
-    if (rewriteNextApplicationJavaScript) {
+    if (rewriteApplicationJavaScript) {
       const controller = new AbortController();
       const abort = () => controller.abort();
       request.once("aborted", abort);
@@ -301,7 +304,7 @@ export class PreviewHttpRelay {
             upstreamUrl: resolvePreviewDocumentUrl(request, context)
           }
         ));
-        if (rewriteNextApplicationJavaScript) {
+        if (rewriteApplicationJavaScript) {
           const cancelRewrite = () => {
             upstreamResponse.destroy();
           };

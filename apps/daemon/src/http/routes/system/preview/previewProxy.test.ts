@@ -576,6 +576,27 @@ test("rewrites only direct static asset literals in a Next page bundle", () => {
   assert.doesNotThrow(() => new Function(rewritten));
 });
 
+test("rewrites root-relative Vite module literals", () => {
+  const basePath = "/api/preview/sessions/session-1/__deskcue_ticket__/resource-token";
+  const source = [
+    'import "/src/issues.css";',
+    'import { IssueRow } from "/src/IssueRow.tsx";',
+    'import React from "/node_modules/.vite/deps/react.js?v=449c2f80";',
+    'import RefreshRuntime from "/@react-refresh";',
+    'const api = "/api/items";'
+  ].join("");
+  const rewritten = rewritePreviewJavaScriptAssetLiterals(
+    Buffer.from(source),
+    basePath
+  ).toString();
+
+  assert.match(rewritten, new RegExp(`import "${basePath}/src/issues\\.css"`));
+  assert.match(rewritten, new RegExp(`from "${basePath}/src/IssueRow\\.tsx"`));
+  assert.match(rewritten, new RegExp(`from "${basePath}/node_modules/\\.vite/deps/react\\.js\\?v=449c2f80"`));
+  assert.match(rewritten, new RegExp(`from "${basePath}/@react-refresh"`));
+  assert.match(rewritten, /api = "\/api\/items"/);
+});
+
 function listen(server: Server) {
   return new Promise<number>((resolve, reject) => {
     server.once("error", reject);
@@ -1074,6 +1095,34 @@ test("rejects oversized Next application JavaScript before buffering it for rewr
     assert.deepEqual(await response.json(), {
       error: "Preview JavaScript is too large to rewrite safely."
     });
+  } finally {
+    await fixture.close();
+    await close(target);
+  }
+});
+
+test("rewrites proxied Vite application modules", async () => {
+  const source = [
+    'import "/src/issues.css";',
+    'import { IssueRow } from "/src/IssueRow.tsx";',
+    'import React from "/node_modules/.vite/deps/react.js?v=449c2f80";'
+  ].join("");
+  const target = createServer((request, response) => {
+    assert.equal(request.url, "/src/main.tsx");
+    response.setHeader("content-type", "text/javascript; charset=utf-8");
+    response.end(source);
+  });
+  const targetPort = await listen(target);
+  const fixture = await createProxyFixture(targetPort, () => false);
+  const basePath = "/api/preview/sessions/session-1";
+
+  try {
+    const response = await fetch(`${fixture.baseUrl}${basePath}/src/main.tsx`);
+    assert.equal(response.status, 200);
+    const rewritten = readBootstrappedJavaScriptBody(await response.text());
+    assert.match(rewritten, new RegExp(`import "${basePath}/src/issues\\.css"`));
+    assert.match(rewritten, new RegExp(`from "${basePath}/src/IssueRow\\.tsx"`));
+    assert.match(rewritten, new RegExp(`from "${basePath}/node_modules/\\.vite/deps/react\\.js\\?v=449c2f80"`));
   } finally {
     await fixture.close();
     await close(target);

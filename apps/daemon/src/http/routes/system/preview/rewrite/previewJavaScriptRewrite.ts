@@ -1,5 +1,8 @@
 const STATIC_ASSET_EXTENSION_PATTERN =
-  /\.(?:svg|png|jpe?g|webp|gif|ico|css|js|woff2?|ttf|otf|json|manifest|webmanifest)$/i;
+  /\.(?:svg|png|jpe?g|webp|gif|ico|css|[cm]?[jt]sx?|woff2?|ttf|otf|json|manifest|webmanifest)$/i;
+
+const VITE_MODULE_PATH_PATTERN =
+  /^\/(?:src\/|node_modules\/\.vite\/|@(?:vite|id|fs)\/|@react-refresh(?:\/|$))/;
 
 const REGEX_PREFIX_KEYWORDS = new Set([
   "await",
@@ -39,7 +42,8 @@ export function isPreviewStaticAssetLiteral(value: string, basePath: string) {
     return false;
   }
   const pathname = value.split(/[?#]/, 1)[0];
-  return STATIC_ASSET_EXTENSION_PATTERN.test(pathname);
+  return STATIC_ASSET_EXTENSION_PATTERN.test(pathname) ||
+    VITE_MODULE_PATH_PATTERN.test(pathname);
 }
 
 export function serializePreviewScriptString(value: string) {
