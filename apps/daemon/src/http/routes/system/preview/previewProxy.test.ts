@@ -143,6 +143,34 @@ test("routes static resources and navigation through the credential resource pat
   assert.match(css, /https:\/\/cdn\.example\.test\/bg\.png/);
 });
 
+test("rewrites Vite runtime imports inside inline module scripts", () => {
+  const basePath = "/api/preview/sessions/session-1/__deskcue_ticket__/resource-token";
+  const source = [
+    '<script type="module">',
+    'import RefreshRuntime from "/@react-refresh";',
+    `import existing from "${basePath}/src/existing.ts";`,
+    'const applicationPath = "/settings";',
+    "</script>",
+    '<script>window.runtimePath = "/@react-refresh";</script>'
+  ].join("");
+
+  const html = rewritePreviewContent(
+    Buffer.from(source),
+    "text/html; charset=utf-8",
+    basePath,
+    {
+      localOrigin: "http://127.0.0.1:5173",
+      networkMode: "device-direct",
+      upstreamUrl: new URL("http://127.0.0.1:5173/")
+    }
+  ).toString();
+
+  assert.match(html, new RegExp(`from "${basePath}/@react-refresh"`));
+  assert.equal(html.match(new RegExp(`${basePath}/src/existing\\.ts`, "g"))?.length, 1);
+  assert.match(html, /const applicationPath = "\/settings"/);
+  assert.match(html, /<script>window\.runtimePath = "\/@react-refresh";<\/script>/);
+});
+
 test("rewrites escaped Next Flight resource URLs without inserting a hydration-visible head script", () => {
   const basePath = "/api/preview/sessions/session-1/__deskcue_ticket__/resource-token";
   const flight = [
@@ -200,12 +228,14 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
     upstreamUrl: new URL("http://127.0.0.1:3000/")
   });
   const calls: string[] = [];
+  const messages: string[] = [];
   const browserWindow = {
     EventSource: undefined,
     SharedWorker: undefined,
     Worker: undefined,
-    WebSocket: class {
+    WebSocket: class extends EventTarget {
       constructor(url: string | URL) {
+        super();
         calls.push(`ws:${url.toString()}`);
       }
     },
@@ -222,6 +252,7 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
 
   runInNewContext(script, {
     Request,
+    MessageEvent,
     URL,
     XMLHttpRequest: class { open() {} },
     btoa,
@@ -230,13 +261,42 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
     window: browserWindow
   });
   await browserWindow.fetch("/_next/static/chunks/app.js");
-  new browserWindow.WebSocket("ws://deskcue.test:4100/_next/webpack-hmr");
+  const socket = new browserWindow.WebSocket("ws://deskcue.test:4100/_next/webpack-hmr");
+  socket.addEventListener("message", (event) => {
+    messages.push((event as MessageEvent).data as string);
+  });
+  socket.dispatchEvent(new MessageEvent("message", {
+    data: JSON.stringify({
+      type: "update",
+      updates: [{
+        acceptedPath: "/src/app.css",
+        path: "/src/app.css",
+        timestamp: 1,
+        type: "js-update"
+      }]
+    })
+  }));
+  socket.dispatchEvent(new MessageEvent("message", {
+    data: '{"type":"application","path":"/unchanged"}'
+  }));
   await browserWindow.fetch("https://api.example.test/data");
 
   assert.deepEqual(calls, [
     `fetch:http://deskcue.test:4100${basePath}/_next/static/chunks/app.js`,
     `ws:ws://deskcue.test:4100${basePath}/_next/webpack-hmr`,
     "fetch:https://api.example.test/data"
+  ]);
+  assert.deepEqual(messages.map((message) => JSON.parse(message)), [
+    {
+      type: "update",
+      updates: [{
+        acceptedPath: `${basePath}/src/app.css`,
+        path: `${basePath}/src/app.css`,
+        timestamp: 1,
+        type: "js-update"
+      }]
+    },
+    { type: "application", path: "/unchanged" }
   ]);
 });
 
@@ -574,6 +634,27 @@ test("rewrites only direct static asset literals in a Next page bundle", () => {
   assert.match(rewritten, /matcher=\/\["'\]\\\/favicon\\\.svg\/g/);
   assert.match(readFirstEvalArgument(rewritten), new RegExp(`window\\.icon="${basePath}/icons/eval\\.svg"`));
   assert.doesNotThrow(() => new Function(rewritten));
+});
+
+test("rewrites root-relative Vite module literals", () => {
+  const basePath = "/api/preview/sessions/session-1/__deskcue_ticket__/resource-token";
+  const source = [
+    'import "/src/issues.css";',
+    'import { IssueRow } from "/src/IssueRow.tsx";',
+    'import React from "/node_modules/.vite/deps/react.js?v=449c2f80";',
+    'import RefreshRuntime from "/@react-refresh";',
+    'const api = "/api/items";'
+  ].join("");
+  const rewritten = rewritePreviewJavaScriptAssetLiterals(
+    Buffer.from(source),
+    basePath
+  ).toString();
+
+  assert.match(rewritten, new RegExp(`import "${basePath}/src/issues\\.css"`));
+  assert.match(rewritten, new RegExp(`from "${basePath}/src/IssueRow\\.tsx"`));
+  assert.match(rewritten, new RegExp(`from "${basePath}/node_modules/\\.vite/deps/react\\.js\\?v=449c2f80"`));
+  assert.match(rewritten, new RegExp(`from "${basePath}/@react-refresh"`));
+  assert.match(rewritten, /api = "\/api\/items"/);
 });
 
 function listen(server: Server) {
@@ -1074,6 +1155,34 @@ test("rejects oversized Next application JavaScript before buffering it for rewr
     assert.deepEqual(await response.json(), {
       error: "Preview JavaScript is too large to rewrite safely."
     });
+  } finally {
+    await fixture.close();
+    await close(target);
+  }
+});
+
+test("rewrites proxied Vite application modules", async () => {
+  const source = [
+    'import "/src/issues.css";',
+    'import { IssueRow } from "/src/IssueRow.tsx";',
+    'import React from "/node_modules/.vite/deps/react.js?v=449c2f80";'
+  ].join("");
+  const target = createServer((request, response) => {
+    assert.equal(request.url, "/src/main.tsx");
+    response.setHeader("content-type", "text/javascript; charset=utf-8");
+    response.end(source);
+  });
+  const targetPort = await listen(target);
+  const fixture = await createProxyFixture(targetPort, () => false);
+  const basePath = "/api/preview/sessions/session-1";
+
+  try {
+    const response = await fetch(`${fixture.baseUrl}${basePath}/src/main.tsx`);
+    assert.equal(response.status, 200);
+    const rewritten = readBootstrappedJavaScriptBody(await response.text());
+    assert.match(rewritten, new RegExp(`import "${basePath}/src/issues\\.css"`));
+    assert.match(rewritten, new RegExp(`from "${basePath}/src/IssueRow\\.tsx"`));
+    assert.match(rewritten, new RegExp(`from "${basePath}/node_modules/\\.vite/deps/react\\.js\\?v=449c2f80"`));
   } finally {
     await fixture.close();
     await close(target);

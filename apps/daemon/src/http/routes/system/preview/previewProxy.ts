@@ -23,7 +23,7 @@ import {
 } from "./egress/previewEgressTarget.ts";
 import type { PreviewEgressResolver } from "./egress/previewEgressTarget.ts";
 import { resolvePreviewWebSocketTargetUrls } from "./egress/previewWebSocketTarget.ts";
-import { discoverPreviewCandidates, probePreviewPort } from "./previewCandidateDiscovery.ts";
+import { discoverPreviewCandidates, waitForPreviewPort } from "./previewCandidateDiscovery.ts";
 import { PreviewHttpRelay } from "./previewHttpRelay.ts";
 import {
   buildPreviewRequestHeaders,
@@ -37,6 +37,7 @@ import type {
   PreviewTargetResolver,
   ResolvedPreviewTarget
 } from "./previewTargetResolver.ts";
+import { buildPreviewTargetUrl } from "./previewTargetUrl.ts";
 import {
   PREVIEW_TICKET_PATH_SEGMENT,
   PREVIEW_TICKET_QUERY_KEY,
@@ -58,6 +59,7 @@ import {
 import { PreviewProxyAdmission } from "./runtime/previewProxyAdmission.ts";
 import { PreviewProxyMetrics } from "./runtime/previewProxyMetrics.ts";
 import type { PreviewWebSocketMetricTracker } from "./runtime/previewProxyMetrics.ts";
+
 type PreviewProxyOptions = {
   authRequired?: () => boolean;
   previewProxyPort?: number;
@@ -66,20 +68,15 @@ type PreviewProxyOptions = {
   resolveTarget: PreviewTargetResolver;
 };
 
-function buildTargetUrl(requestUrl: string, origin: string, basePath?: string) {
-  const incoming = new URL(requestUrl || "/", "http://deskcue.local");
-  incoming.searchParams.delete(PREVIEW_TICKET_QUERY_KEY);
-  incoming.searchParams.delete("access_token");
-  incoming.searchParams.delete("token");
-  const sourcePath = basePath && incoming.pathname.startsWith(basePath)
-    ? incoming.pathname.slice(basePath.length)
-    : incoming.pathname;
-  const withoutTicketPath = sourcePath.replace(
-    new RegExp(`^/?${PREVIEW_TICKET_PATH_SEGMENT}/[^/]+`),
-    ""
-  );
-  const pathname = `/${withoutTicketPath.replace(/^\/+/, "")}`.replace(/\\/g, "/");
-  return new URL(`${pathname}${incoming.search}`, origin);
+type PreviewWebSocketContext = {
+  egress: boolean;
+  lookup?: LookupFunction;
+  targetUrl: URL;
+  viewerKey: string;
+};
+
+function isDeskCueAccessToken(value: string) {
+  return Boolean(accessDeviceStore.authenticateToken(value));
 }
 
 function readBrowserFacingProtocol(request: express.Request) {
@@ -169,7 +166,7 @@ export class PreviewProxyController {
           response.status(409).json({ error: "Enable preview before opening it." });
           return;
         }
-        if (!await probePreviewPort(target.port)) {
+        if (!await waitForPreviewPort(target.port)) {
           response.status(409).json({ error: "The local preview server is unavailable." });
           return;
         }
@@ -278,7 +275,11 @@ export class PreviewProxyController {
           : {
             egress: false as const,
             lookup: undefined,
-            url: buildTargetUrl(request.url, target.origin)
+            url: buildPreviewTargetUrl(request.url, target.origin, {
+              isDeskCueAccessToken,
+              ticketPathSegment: PREVIEW_TICKET_PATH_SEGMENT,
+              ticketQueryKey: PREVIEW_TICKET_QUERY_KEY
+            })
           };
         await this.httpRelay.proxy(request, response, {
           basePath,
@@ -370,7 +371,12 @@ export class PreviewProxyController {
           viewerKey
         };
       } else {
-        const targetUrl = buildTargetUrl(request.url ?? "/", target.origin, basePath);
+        const targetUrl = buildPreviewTargetUrl(request.url ?? "/", target.origin, {
+          basePath,
+          isDeskCueAccessToken,
+          ticketPathSegment: PREVIEW_TICKET_PATH_SEGMENT,
+          ticketQueryKey: PREVIEW_TICKET_QUERY_KEY
+        });
         targetUrl.protocol = "ws:";
         connection = {
           egress: false,
@@ -499,10 +505,3 @@ export class PreviewProxyController {
 
   private readAuthRequired() { return this.options.authRequired?.() ?? daemonConfig.authRequired; }
 }
-
-type PreviewWebSocketContext = {
-  egress: boolean;
-  lookup?: LookupFunction;
-  targetUrl: URL;
-  viewerKey: string;
-};
