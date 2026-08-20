@@ -143,6 +143,34 @@ test("routes static resources and navigation through the credential resource pat
   assert.match(css, /https:\/\/cdn\.example\.test\/bg\.png/);
 });
 
+test("rewrites Vite runtime imports inside inline module scripts", () => {
+  const basePath = "/api/preview/sessions/session-1/__deskcue_ticket__/resource-token";
+  const source = [
+    '<script type="module">',
+    'import RefreshRuntime from "/@react-refresh";',
+    `import existing from "${basePath}/src/existing.ts";`,
+    'const applicationPath = "/settings";',
+    "</script>",
+    '<script>window.runtimePath = "/@react-refresh";</script>'
+  ].join("");
+
+  const html = rewritePreviewContent(
+    Buffer.from(source),
+    "text/html; charset=utf-8",
+    basePath,
+    {
+      localOrigin: "http://127.0.0.1:5173",
+      networkMode: "device-direct",
+      upstreamUrl: new URL("http://127.0.0.1:5173/")
+    }
+  ).toString();
+
+  assert.match(html, new RegExp(`from "${basePath}/@react-refresh"`));
+  assert.equal(html.match(new RegExp(`${basePath}/src/existing\\.ts`, "g"))?.length, 1);
+  assert.match(html, /const applicationPath = "\/settings"/);
+  assert.match(html, /<script>window\.runtimePath = "\/@react-refresh";<\/script>/);
+});
+
 test("rewrites escaped Next Flight resource URLs without inserting a hydration-visible head script", () => {
   const basePath = "/api/preview/sessions/session-1/__deskcue_ticket__/resource-token";
   const flight = [
@@ -200,12 +228,14 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
     upstreamUrl: new URL("http://127.0.0.1:3000/")
   });
   const calls: string[] = [];
+  const messages: string[] = [];
   const browserWindow = {
     EventSource: undefined,
     SharedWorker: undefined,
     Worker: undefined,
-    WebSocket: class {
+    WebSocket: class extends EventTarget {
       constructor(url: string | URL) {
+        super();
         calls.push(`ws:${url.toString()}`);
       }
     },
@@ -222,6 +252,7 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
 
   runInNewContext(script, {
     Request,
+    MessageEvent,
     URL,
     XMLHttpRequest: class { open() {} },
     btoa,
@@ -230,13 +261,42 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
     window: browserWindow
   });
   await browserWindow.fetch("/_next/static/chunks/app.js");
-  new browserWindow.WebSocket("ws://deskcue.test:4100/_next/webpack-hmr");
+  const socket = new browserWindow.WebSocket("ws://deskcue.test:4100/_next/webpack-hmr");
+  socket.addEventListener("message", (event) => {
+    messages.push((event as MessageEvent).data as string);
+  });
+  socket.dispatchEvent(new MessageEvent("message", {
+    data: JSON.stringify({
+      type: "update",
+      updates: [{
+        acceptedPath: "/src/app.css",
+        path: "/src/app.css",
+        timestamp: 1,
+        type: "js-update"
+      }]
+    })
+  }));
+  socket.dispatchEvent(new MessageEvent("message", {
+    data: '{"type":"application","path":"/unchanged"}'
+  }));
   await browserWindow.fetch("https://api.example.test/data");
 
   assert.deepEqual(calls, [
     `fetch:http://deskcue.test:4100${basePath}/_next/static/chunks/app.js`,
     `ws:ws://deskcue.test:4100${basePath}/_next/webpack-hmr`,
     "fetch:https://api.example.test/data"
+  ]);
+  assert.deepEqual(messages.map((message) => JSON.parse(message)), [
+    {
+      type: "update",
+      updates: [{
+        acceptedPath: `${basePath}/src/app.css`,
+        path: `${basePath}/src/app.css`,
+        timestamp: 1,
+        type: "js-update"
+      }]
+    },
+    { type: "application", path: "/unchanged" }
   ]);
 });
 

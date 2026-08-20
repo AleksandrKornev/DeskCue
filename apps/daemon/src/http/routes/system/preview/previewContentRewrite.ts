@@ -1,6 +1,7 @@
 import { buildPreviewEgressPath } from "./egress/previewEgressTarget.ts";
 import {
   isPreviewStaticAssetLiteral,
+  rewritePreviewJavaScriptAssetLiterals,
   serializePreviewScriptString
 } from "./rewrite/previewJavaScriptRewrite.ts";
 import { createPreviewNavigationBootstrap } from "./rewrite/previewNavigationBootstrap.ts";
@@ -286,6 +287,21 @@ function rewriteHtmlUrls(
   });
 }
 
+function rewriteInlineModuleScripts(value: string, basePath: string) {
+  return value.replace(
+    /(<script\b[^>]*>)([\s\S]*?)(<\/script\s*>)/gi,
+    (script, openingTag: string, source: string, closingTag: string) => {
+      if (readQuotedHtmlAttribute(openingTag, "src") !== null) return script;
+      if (readQuotedHtmlAttribute(openingTag, "type")?.toLowerCase() !== "module") return script;
+      const rewritten = rewritePreviewJavaScriptAssetLiterals(
+        Buffer.from(source, "utf8"),
+        basePath
+      ).toString("utf8");
+      return `${openingTag}${rewritten}${closingTag}`;
+    }
+  );
+}
+
 export function rewritePreviewContent(
   body: Buffer,
   contentType: string,
@@ -317,14 +333,15 @@ export function rewritePreviewContent(
       hostRouted
     )
     : text;
+  const withInlineModules = rewriteInlineModuleScripts(withUrls, basePath);
   const rewritten = upstreamUrl && options.localOrigin
     ? rewriteNextFlightPayload(
-      withUrls,
+      withInlineModules,
       upstreamUrl,
       options.localOrigin,
       basePath,
       hostRouted
     )
-    : withUrls;
+    : withInlineModules;
   return Buffer.from(rewritten, "utf8");
 }

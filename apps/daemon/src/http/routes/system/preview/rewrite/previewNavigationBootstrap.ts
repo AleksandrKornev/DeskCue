@@ -219,6 +219,42 @@ function installRoutedPreviewNavigationShim(options: RoutedPreviewBootstrapOptio
       return parts.join(" ");
     })
     .join(", ");
+  const routeViteHmrPath = (value: unknown) => {
+    if (
+      typeof value !== "string" ||
+      !value.startsWith("/") ||
+      value.startsWith("//") ||
+      value.startsWith(`${basePath}/`) ||
+      value.startsWith("/api/preview/")
+    ) {
+      return value;
+    }
+    return `${basePath}${value}`;
+  };
+  const routeViteHmrMessage = (value: unknown) => {
+    if (typeof value !== "string") return value;
+    try {
+      const payload: unknown = JSON.parse(value);
+      if (!payload || typeof payload !== "object") return value;
+      const record = payload as Record<string, unknown>;
+      if (record.type !== "update" || !Array.isArray(record.updates)) return value;
+
+      let changed = false;
+      const updates = (record.updates as unknown[]).map((update): unknown => {
+        if (!update || typeof update !== "object") return update;
+        const current = update as Record<string, unknown>;
+        if (current.type !== "js-update" && current.type !== "css-update") return update;
+        const path = routeViteHmrPath(current.path);
+        const acceptedPath = routeViteHmrPath(current.acceptedPath);
+        if (path === current.path && acceptedPath === current.acceptedPath) return update;
+        changed = true;
+        return { ...current, path, acceptedPath };
+      });
+      return changed ? JSON.stringify({ ...record, updates }) : value;
+    } catch {
+      return value;
+    }
+  };
 
   globals.__deskcuePreviewRoute = route;
   globals.__deskcuePreviewDocumentUrl = stableDocumentUrl;
@@ -230,9 +266,26 @@ function installRoutedPreviewNavigationShim(options: RoutedPreviewBootstrapOptio
       : originalFetch(new Request(route(input.url), input), init);
 
   const OriginalWebSocket = window.WebSocket;
+  const routedMessageEvents = new WeakSet<MessageEvent>();
   window.WebSocket = class extends OriginalWebSocket {
     constructor(url: string | URL, protocols?: string | string[]) {
       super(route(url), protocols);
+      if (typeof this.addEventListener !== "function") return;
+      this.addEventListener("message", (event) => {
+        if (routedMessageEvents.has(event)) return;
+        const data = routeViteHmrMessage(event.data);
+        if (data === event.data) return;
+        event.stopImmediatePropagation();
+        const routedEvent = new MessageEvent("message", {
+          data,
+          lastEventId: event.lastEventId,
+          origin: event.origin,
+          ports: [...event.ports],
+          source: event.source
+        });
+        routedMessageEvents.add(routedEvent);
+        this.dispatchEvent(routedEvent);
+      });
     }
   };
 
