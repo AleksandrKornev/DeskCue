@@ -98,7 +98,7 @@ export async function restartCodexTransport(
   if (options.reason === "prompt") {
     const promptText = prompt as string;
     const updatedSession = await runSourcePromptProcessLifecycle(callbacks, {
-      beforeSessionCommit: async () => {
+      beforeProcessStart: async () => {
         await callbacks.killChild(session.id, currentChild, "restart");
       },
       command,

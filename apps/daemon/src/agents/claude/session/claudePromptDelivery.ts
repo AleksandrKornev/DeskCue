@@ -128,7 +128,6 @@ export async function restartClaudePromptTransport(
   const claudeHome = resolveClaudeHomeDirectory(session.sourceSessionFilePath);
   const configuredClaudeConfigDirectory = process.env.CLAUDE_CONFIG_DIR?.trim();
   const updatedSession = await runSourcePromptProcessLifecycle(callbacks, {
-    beforeSessionCommit: async () => {},
     command,
     env: {
       CLAUDE_CONFIG_DIR: configuredClaudeConfigDirectory || join(claudeHome, ".claude"),

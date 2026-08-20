@@ -30,7 +30,7 @@ export type SourcePromptProcessCallbacks = {
 };
 
 type SourcePromptProcessLifecycle = {
-  beforeSessionCommit: (child: RunningChild) => Promise<void>;
+  beforeProcessStart?: () => Promise<void>;
   command: string;
   env: Record<string, string | undefined>;
   logStarted: (child: RunningChild) => void;
@@ -48,6 +48,8 @@ export async function runSourcePromptProcessLifecycle(
 ): Promise<SessionDetail | null> {
   const { session, workspace } = lifecycle;
   callbacks.markPromptDispatching?.(session.id);
+  await lifecycle.beforeProcessStart?.();
+
   const child = callbacks.spawnProcess({
     command: lifecycle.command,
     cwd: workspace.path,
@@ -68,7 +70,6 @@ export async function runSourcePromptProcessLifecycle(
   callbacks.stopGitPolling(session.id);
   callbacks.startGitPolling(session.id, workspace.path);
 
-  await lifecycle.beforeSessionCommit(child);
   callbacks.updateSession(session.id, {
     command: lifecycle.command,
     status: "running",
