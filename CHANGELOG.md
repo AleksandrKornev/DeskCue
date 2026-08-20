@@ -7,6 +7,14 @@ releases.
 
 ## Unreleased
 
+## 0.1.1 - 2026-08-20
+
+### Fixed
+
+- Preserved Vite module loading and HMR through authenticated proxied Preview
+- Prevented prompt replacement decisions from using stale source-session state
+- Released the current Codex source process before starting a follow-up resume
+
 ## 0.1.0 - 2026-08-17
 
 ### Added

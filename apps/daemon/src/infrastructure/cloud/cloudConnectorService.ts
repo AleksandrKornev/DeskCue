@@ -16,6 +16,7 @@ import type {
 } from "@deskcue/protocol/cloud";
 import type { DaemonEventBus } from "#application/ports";
 import { daemonConfig } from "#config/daemonConfig";
+import { DESKCUE_VERSION } from "#config/deskCueVersion";
 import { logger } from "#infrastructure/logging/logger";
 import { SqliteCloudConnectorStore } from "#persistence/cloud/cloudConnectorStore";
 import type { CloudConnectorProfile } from "#persistence/cloud/cloudConnectorStore";
@@ -48,7 +49,6 @@ import {
 } from "./preview/cloudPreviewDataPlane.ts";
 import type { CloudPreviewTargetResolver } from "./preview/cloudPreviewRequestPolicy.ts";
 
-const DAEMON_VERSION = "0.1.0";
 const CLOUD_RECONNECT_MAX_MS = 30_000;
 const CLOUD_OUTBOUND_MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 
@@ -152,7 +152,7 @@ export class CloudConnectorService {
     const secrets = new EncryptedFileCloudSecretStore(dirname(sqliteContext.databaseFilePath));
     const httpClient = new CloudConnectorHttpClient(options.fetchImplementation);
     this.enrollment = new CloudEnrollmentCoordinator({
-      daemonVersion: DAEMON_VERSION,
+      daemonVersion: DESKCUE_VERSION,
       store: this.store,
       secrets,
       httpClient
@@ -514,7 +514,7 @@ export class CloudConnectorService {
         type: "relay.hello",
         protocolVersion: CLOUD_RELAY_PROTOCOL_VERSION,
         machineId: profile.machineId!,
-        daemonVersion: DAEMON_VERSION,
+        daemonVersion: DESKCUE_VERSION,
         capabilities: this.relayNegotiation.offeredCapabilities(profile),
         resume: [{
           stream: CLOUD_RELAY_STREAM,

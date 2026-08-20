@@ -1,4 +1,5 @@
 import type { CloudEnrollmentAttemptResponse, StartCloudEnrollmentAttemptInput } from "@deskcue/protocol/cloud";
+import { DESKCUE_VERSION } from "#config/deskCueVersion";
 import type {
   CloudEnrollmentAttemptRecord,
   CloudEnrollmentAttemptRepository
@@ -7,7 +8,6 @@ import type {
 import type { CloudConnectorHttpClient } from "./cloudConnectorHttpClient.ts";
 import type { CloudEnrollmentCoordinator, CloudCredentialStore } from "./cloudEnrollmentCoordinator.ts";
 
-const DAEMON_VERSION = "0.1.0";
 const RETRY_AFTER_FAILURE_MS = 5_000;
 
 type CloudEnrollmentAttemptCoordinatorOptions = {
@@ -59,7 +59,7 @@ export class CloudEnrollmentAttemptCoordinator {
       {
         installationId: identity.installationId,
         displayName: input.displayName,
-        localDaemonVersion: DAEMON_VERSION,
+        localDaemonVersion: DESKCUE_VERSION,
         capabilities: this.options.enrollment.getCapabilities(input)
       },
       lifecycleSignal
