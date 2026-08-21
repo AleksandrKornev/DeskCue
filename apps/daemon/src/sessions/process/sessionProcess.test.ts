@@ -20,11 +20,13 @@ import {
   getExitedSessionStatus
 } from "./sessionProcess.ts";
 import type { RunningChild } from "./sessionProcess.ts";
+import { createWindowsSurvivingPipeLauncher } from "./windowsSurvivingPipeLauncher.ts";
 
 const execFileAsync = promisify(execFile);
 
 async function waitForFile(filePath: string) {
   const deadline = Date.now() + 5_000;
+
   while (Date.now() < deadline) {
     try {
       await access(filePath);
@@ -33,7 +35,19 @@ async function waitForFile(filePath: string) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
+
   throw new Error("Timed out waiting for surviving child marker.");
+}
+
+async function waitForPipeExit(child: RunningChild) {
+  return await new Promise<number | null>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Timed out waiting for pipe exit.")), 5_000);
+
+    child.onExit(({ exitCode }) => {
+      clearTimeout(timeout);
+      resolve(exitCode);
+    });
+  });
 }
 
 test("keeps a successful Claude one-shot resume attached and ready for the next prompt", () => {
@@ -188,11 +202,13 @@ test("runs a one-shot process without a PTY and forwards stdout", async () => {
     transport: "pipe"
   });
   let output = "";
+
   const exitCode = await new Promise<number | null>((resolve, reject) => {
     const timeout = setTimeout(() => {
       child.kill();
       reject(new Error("Timed out waiting for pipe command to exit."));
     }, 5000);
+
     child.onData((chunk) => {
       output += chunk;
     });
@@ -223,6 +239,8 @@ test("survive-parent-exit pipe process completes after its DeskCue parent exits"
       surviveParentExit: true,
       transport: "pipe"
     });
+
+    await child.startupReady;
     child.detachFromDeskCue?.();
   `;
 
@@ -232,8 +250,112 @@ test("survive-parent-exit pipe process completes after its DeskCue parent exits"
       ["--conditions=deskcue-source", "--import", "tsx", "--input-type=module", "-e", parentCode],
       { cwd: new URL("../../../../..", import.meta.url) }
     );
+
     await waitForFile(markerPath);
     await access(markerPath);
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("keeps the Windows surviving pipe payload out of launcher argv", () => {
+  const prompt = "sensitive prompt that must not persist";
+  const launcher = createWindowsSurvivingPipeLauncher({
+    args: ["-e", "process.exit(0)", prompt],
+    file: process.execPath
+  });
+
+  assert.doesNotMatch([launcher.file, ...launcher.args].join(" "), new RegExp(prompt));
+  assert.match(launcher.payload, new RegExp(prompt));
+});
+
+test("Windows surviving pipe confirms nested startup", {
+  skip: process.platform !== "win32"
+}, async () => {
+  const prompt = "sensitive prompt that must not persist";
+  const child = createSessionPipe(process.cwd(), {}, {
+    args: ["-e", "setTimeout(() => process.exit(0), 250)", prompt],
+    file: process.execPath,
+    surviveParentExit: true,
+    transport: "pipe"
+  });
+
+  assert.ok(child.startupReady);
+  await child.startupReady;
+  await waitForPipeExit(child);
+});
+
+test("Windows surviving pipe reports an outer spawn error", {
+  skip: process.platform !== "win32"
+}, async () => {
+  const missingCwd = join(tmpdir(), `deskcue-missing-cwd-${Date.now()}`);
+  const child = createSessionPipe(missingCwd, {}, {
+    args: ["-e", "process.exit(0)"],
+    file: process.execPath,
+    surviveParentExit: true,
+    transport: "pipe"
+  });
+  let output = "";
+
+  child.onData((chunk) => {
+    output += chunk;
+  });
+
+  await assert.rejects(child.startupReady!, /Failed to start process launcher/);
+  assert.equal(await waitForPipeExit(child), 1);
+  assert.match(output, /Failed to start process/);
+});
+
+test("Windows surviving pipe reports bounded safe nested startup diagnostics before exit", {
+  skip: process.platform !== "win32"
+}, async () => {
+  const secretPrompt = "SECRET_PROMPT_MUST_NOT_APPEAR";
+  const child = createSessionPipe(process.cwd(), {}, {
+    args: [secretPrompt],
+    file: join(tmpdir(), `missing-agent-${Date.now()}.exe`),
+    surviveParentExit: true,
+    transport: "pipe"
+  });
+  let output = "";
+
+  child.onData((chunk) => {
+    output += chunk;
+  });
+
+  await assert.rejects(child.startupReady!, /Failed to start process: ENOENT/);
+  assert.equal(await waitForPipeExit(child), 1);
+  assert.match(output, /Failed to start process: ENOENT/);
+  assert.doesNotMatch(output, /SECRET_PROMPT_MUST_NOT_APPEAR/);
+  assert.ok(output.length <= 2_049);
+});
+
+test("Windows surviving pipe kill terminates its full tree", {
+  skip: process.platform !== "win32"
+}, async () => {
+  const directory = await mkdtemp(join(tmpdir(), "deskcue-tree-kill-"));
+  const startedPath = join(directory, "started.marker");
+  const markerPath = join(directory, "orphan.marker");
+  const child = createSessionPipe(process.cwd(), {}, {
+    args: [
+      "-e",
+      "require('node:fs').writeFileSync(process.argv[1], 'started'); " +
+        "setTimeout(() => require('node:fs').writeFileSync(process.argv[2], 'orphan'), 750)",
+      startedPath,
+      markerPath
+    ],
+    file: process.execPath,
+    surviveParentExit: true,
+    transport: "pipe"
+  });
+
+  try {
+    assert.ok(child.startupReady);
+    await child.startupReady;
+    await waitForFile(startedPath);
+    child.kill();
+    await waitForPipeExit(child);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    await assert.rejects(access(markerPath));
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
@@ -248,10 +370,12 @@ test("replays output and exit state when a pipe process finishes before subscrip
 
   await new Promise((resolve) => setTimeout(resolve, 100));
   let output = "";
+
   const exitCode = await new Promise<number | null>((resolve) => {
     child.onData((chunk) => {
       output += chunk;
     });
+
     child.onExit((event) => resolve(event.exitCode));
   });
 
@@ -306,6 +430,7 @@ test("normalizes dumb TERM for interactive PTY commands", async () => {
   const previousTerm = process.env.TERM;
 
   process.env.TERM = "dumb";
+
   try {
     const result = await runPtyCommand(command);
 
@@ -331,11 +456,13 @@ test("preserves explicit TERM override for interactive PTY commands", async () =
     const { createSessionPty } = await import(${JSON.stringify(helperUrl)});
     const child = createSessionPty(${JSON.stringify(command)}, process.cwd(), { TERM: "screen-256color" });
     let output = "";
+
     const timeout = setTimeout(() => {
       child.kill();
       console.error("Timed out waiting for PTY command to exit.");
       process.exit(2);
     }, 5000);
+
     child.onData((chunk) => {
       output += chunk;
     });
@@ -371,8 +498,10 @@ test("runs a generic command with a quoted absolute script path through the sess
   }
 
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-quoted-command-"));
+
   try {
     const scriptPath = join(tempDir, "quoted-script.cjs");
+
     await writeFile(scriptPath, `console.log("DESKCUE_QUOTED_PATH_OK");\n`, "utf8");
 
     const result = await runPtyCommand(`node "${scriptPath}"`);
@@ -505,11 +634,13 @@ test("delivers Escape to an interactive managed PTY command", async () => {
     });
     let output = "";
     let interruptRequested = false;
+
     const timeout = setTimeout(() => {
       child.kill();
       console.error("Timed out waiting for PTY Escape.");
       process.exit(2);
     }, 8000);
+
     child.onData((chunk) => {
       output += chunk;
       if (!interruptRequested && output.includes("DESKCUE_PTY_READY")) {

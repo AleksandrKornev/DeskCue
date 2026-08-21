@@ -1,4 +1,5 @@
 import type { SessionDetail, SessionLogLine } from "@deskcue/protocol";
+import type { RunningChild } from "#sessions/process/sessionProcess";
 
 import {
   createSessionLookupCallbacksForBackend,
@@ -53,6 +54,8 @@ export function createCodexPromptDeliveryCallbacks(
     appendSystemLog: (sessionId: string, text: string, timestamp?: string) =>
       context.appendLog(sessionId, "system", text, timestamp),
     finishSession: context.finishSession,
+    killChildForRestart: (sessionId: string, child: RunningChild | undefined) =>
+      context.sessionRunner.killChildForRestart(sessionId, child),
     startGitPolling: (sessionId: string, workspacePath: string) =>
       context.gitPolling.start(sessionId, workspacePath),
     stopGitPolling: (sessionId: string) => context.gitPolling.stop(sessionId)

@@ -77,18 +77,22 @@ function createManagedSourceSession(status: "running" | "read_only"): SessionSum
 
 test("streams frequent session summaries to the attention rail without HTTP invalidation", () => {
   const testWindow = new EventTarget();
+
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: testWindow
   });
   let summaryUpdates = 0;
   let invalidations = 0;
+
   const countSummary = () => {
     summaryUpdates += 1;
   };
+
   const countInvalidation = () => {
     invalidations += 1;
   };
+
   window.addEventListener(AGENT_SESSION_SUMMARY_UPDATED_EVENT, countSummary);
   window.addEventListener(AGENT_SESSIONS_INVALIDATED_EVENT, countInvalidation);
 
@@ -164,14 +168,17 @@ test("streams frequent session summaries to the attention rail without HTTP inva
 
 test("does not invalidate counts for repeated unseen live summaries", () => {
   const testWindow = new EventTarget();
+
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: testWindow
   });
   let invalidations = 0;
+
   const countInvalidation = () => {
     invalidations += 1;
   };
+
   window.addEventListener(AGENT_SESSIONS_INVALIDATED_EVENT, countInvalidation);
 
   const mutableStore = {
@@ -181,6 +188,7 @@ test("does not invalidate counts for repeated unseen live summaries", () => {
       mutableStore.agentSessionsTotalCountExact = false;
     }
   };
+
   const store = mutableStore as unknown as DashboardStore;
 
   try {
@@ -245,6 +253,7 @@ test("applies a stale terminal update for the active turn without moving updated
     ...createAgentSession("running"),
     updatedAt: "2026-07-31T10:00:10.000Z"
   };
+
   const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];
   const immediateRefreshes: Array<[string | null | undefined, unknown]> = [];
   const store = {
@@ -325,6 +334,7 @@ test("does not apply a stale terminal update from a previous turn", () => {
       startedAt: "2026-07-31T10:00:09.000Z"
     }
   };
+
   const store = {
     clearAgentSessionReadyForReview: () => undefined,
     updateActiveTakenOverAgentSession: (
@@ -378,7 +388,7 @@ test("does not apply a stale terminal update from a previous turn", () => {
   assert.equal(activeSession?.turnState?.fingerprint, "new-turn");
 });
 
-test("fully refreshes the active source transcript after a terminal session update", () => {
+test("forces a full transcript refresh for the matching terminal managed source", () => {
   const immediateRefreshes: Array<[string | null | undefined, unknown]> = [];
   const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];
   const store = {
@@ -412,13 +422,96 @@ test("fully refreshes the active source transcript after a terminal session upda
     store
   });
 
+  assert.deepEqual(immediateRefreshes, [[undefined, {
+    allowDuringPromptPolling: true,
+    force: true,
+    fullTranscript: true
+  }]]);
   assert.deepEqual(scheduledRefreshes, []);
-  assert.deepEqual(immediateRefreshes, [
-    [undefined, {
-      allowDuringPromptPolling: true,
-      fullTranscript: true
-    }]
-  ]);
+});
+
+test("does not refresh a mismatched active source after a terminal session update", () => {
+  const immediateRefreshes: Array<[string | null | undefined, unknown]> = [];
+  const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];
+  const store = {
+    mergeOverviewSession: () => undefined,
+    mergeSelectedSessionSummary: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "claude-code:source-2" },
+    event: {
+      type: "session.updated",
+      payload: createManagedSourceSession("read_only")
+    } satisfies ServerEvent,
+    loadSessionRef: { current: () => Promise.resolve(null) },
+    refreshTakenOverTranscriptNow: (updatedAt, options) => {
+      immediateRefreshes.push([updatedAt, options]);
+    },
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: (updatedAt, options) => {
+      scheduledRefreshes.push([updatedAt, options]);
+    },
+    selectedAgentSessionIdRef: { current: "claude-code:source-2" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: createManagedSourceSession("running") as never },
+    store
+  });
+
+  assert.deepEqual(immediateRefreshes, []);
+  assert.deepEqual(scheduledRefreshes, []);
+});
+
+test("does not refresh a terminal managed source with an empty adapter or null source id", () => {
+  const immediateRefreshes: Array<[string | null | undefined, unknown]> = [];
+  const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];
+  const store = {
+    mergeOverviewSession: () => undefined,
+    mergeSelectedSessionSummary: () => undefined
+  } as unknown as DashboardStore;
+  const common = {
+    activeTabRef: { current: "overview" as const },
+    activeTakenOverAgentSessionIdRef: { current: "codex:source-1" },
+    loadSessionRef: { current: () => Promise.resolve(null) },
+    refreshTakenOverTranscriptNow: (updatedAt?: string | null, options?: unknown) => {
+      immediateRefreshes.push([updatedAt, options]);
+    },
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: (updatedAt?: string | null, options?: unknown) => {
+      scheduledRefreshes.push([updatedAt, options]);
+    },
+    selectedAgentSessionIdRef: { current: "codex:source-1" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: createManagedSourceSession("running") as never },
+    store
+  };
+
+  for (const payload of [
+    { ...createManagedSourceSession("read_only"), adapterId: "" },
+    { ...createManagedSourceSession("read_only"), sourceSessionId: null }
+  ] satisfies SessionSummary[]) {
+    handleLiveUpdateEvent({
+      ...common,
+      event: {
+        type: "session.updated",
+        payload
+      } satisfies ServerEvent
+    });
+  }
+
+  assert.deepEqual(immediateRefreshes, []);
+  assert.deepEqual(scheduledRefreshes, []);
 });
 
 test("fully refreshes the matching active source transcript once after its turn finishes", () => {
@@ -469,8 +562,79 @@ test("fully refreshes the matching active source transcript once after its turn 
     force: true,
     fullTranscript: true
   };
+
   assert.deepEqual(immediateRefreshes, [[undefined, expectedOptions]]);
   assert.deepEqual(scheduledRefreshes, []);
+});
+
+test("keeps forced full transcript refreshes reliable in both terminal event orders", () => {
+  const turnFinishedEvent = {
+    type: "agent.session.turn.finished",
+    payload: {
+      agentId: "codex",
+      agentLabel: "Codex",
+      agentSessionId: "codex:source-1",
+      completedAt: "2026-07-31T10:00:05.000Z",
+      sourceSessionId: "source-1",
+      status: "completed",
+      title: "Check Access tab e2e",
+      workspaceName: "ExampleWorkspace",
+      workspacePath: "C:\\projects\\ExampleWorkspace"
+    }
+  } satisfies ServerEvent;
+  const managedTerminalEvent = {
+    type: "session.updated",
+    payload: {
+      ...createManagedSourceSession("read_only"),
+      adapterId: "codex"
+    }
+  } satisfies ServerEvent;
+  const expectedRefresh = [undefined, {
+    allowDuringPromptPolling: true,
+    force: true,
+    fullTranscript: true
+  }];
+
+  for (const events of [
+    [turnFinishedEvent, managedTerminalEvent],
+    [managedTerminalEvent, turnFinishedEvent]
+  ]) {
+    const immediateRefreshes: Array<[string | null | undefined, unknown]> = [];
+    const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];
+    const store = {
+      markAgentSessionReviewedAt: () => undefined,
+      mergeOverviewSession: () => undefined,
+      mergeSelectedSessionSummary: () => undefined
+    } as unknown as DashboardStore;
+    const common = {
+      activeTabRef: { current: "overview" as const },
+      activeTakenOverAgentSessionIdRef: { current: "codex:source-1" },
+      loadSessionRef: { current: () => Promise.resolve(null) },
+      refreshTakenOverTranscriptNow: (updatedAt?: string | null, options?: unknown) => {
+        immediateRefreshes.push([updatedAt, options]);
+      },
+      scheduleSelectedAgentSessionRefresh: () => undefined,
+      scheduleTakenOverTranscriptRefresh: (updatedAt?: string | null, options?: unknown) => {
+        scheduledRefreshes.push([updatedAt, options]);
+      },
+      selectedAgentSessionIdRef: { current: "codex:source-1" },
+      selectedSessionIdRef: { current: "managed-1" },
+      selectedSessionLogQueue: {
+        flush: () => undefined,
+        push: () => undefined,
+        teardown: () => undefined
+      },
+      selectedSessionRef: { current: createManagedSourceSession("running") as never },
+      store
+    };
+
+    for (const event of events) {
+      handleLiveUpdateEvent({ ...common, event });
+    }
+
+    assert.deepEqual(immediateRefreshes, [expectedRefresh, expectedRefresh]);
+    assert.deepEqual(scheduledRefreshes, []);
+  }
 });
 
 test("does not refresh the active transcript when a background source turn finishes", () => {

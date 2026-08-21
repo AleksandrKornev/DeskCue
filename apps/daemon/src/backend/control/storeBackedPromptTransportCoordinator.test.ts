@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { SessionDetail } from "@deskcue/protocol";
+import { SourcePromptStartupError } from "#agents/sourceAgentPromptProcess";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
 
 import { StoreBackedPromptTransportCoordinator } from "./storeBackedPromptTransportCoordinator.ts";
@@ -14,6 +15,7 @@ function coordinatorFor(
 ) {
   let currentSession = session;
   let deliveryPhase: "accepted" | "dispatching" | "outcome_unknown" | "prepared" | null = null;
+
   return new StoreBackedPromptTransportCoordinator({
     appendLog: () => {},
     finishSession: () => {},
@@ -36,17 +38,22 @@ function coordinatorFor(
       updateSession: () => {}
     }) as never,
     getSession: () => currentSession,
-    gitPolling: {} as never,
+    gitPolling: {
+      start: () => {},
+      stop: () => {}
+    } as never,
     persistState: async () => {},
     promptDeliveries: {
       markAccepted: () => {
         if (deliveryPhase !== "dispatching") return false;
+
         deliveryPhase = "accepted";
         lifecycle.push("accepted");
         return true;
       },
       markAcceptedBySession: () => {
         if (deliveryPhase !== "dispatching") return false;
+
         deliveryPhase = "accepted";
         lifecycle.push("accepted");
         return true;
@@ -57,17 +64,20 @@ function coordinatorFor(
           lifecycle.push("outcome-unknown");
           return 1;
         }
+
         return 0;
       },
       markCompleted: () => lifecycle.push("completed"),
       markDispatching: () => {
         if (deliveryPhase !== "prepared") return false;
+
         deliveryPhase = "dispatching";
         lifecycle.push("dispatching");
         return true;
       },
       markDispatchingBySession: () => {
         if (deliveryPhase !== "prepared") return false;
+
         deliveryPhase = "dispatching";
         lifecycle.push("dispatching");
         return true;
@@ -75,12 +85,21 @@ function coordinatorFor(
       markInterrupted: () => lifecycle.push("interrupted"),
       markNotSent: () => {
         if (deliveryPhase !== "prepared") return false;
+
+        deliveryPhase = null;
+        lifecycle.push("not-sent");
+        return true;
+      },
+      markNotSentAfterSynchronousSpawnFailure: () => {
+        if (deliveryPhase !== "prepared" && deliveryPhase !== "dispatching") return false;
+
         deliveryPhase = null;
         lifecycle.push("not-sent");
         return true;
       },
       markNotSentBySession: () => {
         if (deliveryPhase !== "prepared") return false;
+
         deliveryPhase = null;
         lifecycle.push("not-sent");
         return true;
@@ -88,12 +107,14 @@ function coordinatorFor(
       markObservedBySession: () => true,
       markOutcomeUnknown: () => {
         if (deliveryPhase !== "dispatching" && deliveryPhase !== "accepted") return false;
+
         deliveryPhase = "outcome_unknown";
         lifecycle.push("outcome-unknown");
         return true;
       },
       markOutcomeUnknownBySession: () => {
         if (deliveryPhase !== "dispatching" && deliveryPhase !== "accepted") return false;
+
         deliveryPhase = "outcome_unknown";
         lifecycle.push("outcome-unknown");
         return true;
@@ -105,8 +126,12 @@ function coordinatorFor(
       }
     },
     repository: {} as never,
+    sessionRunner: {
+      deleteChild: () => true,
+      isCurrentChild: () => false,
+      killChild: async () => {}
+    } as never,
     ...runtimeOverrides,
-    sessionRunner: {} as never,
     updateSession: (_sessionId, patch) => {
       onUpdateSession(patch);
       currentSession = { ...currentSession, ...patch };
@@ -249,6 +274,63 @@ test("marks a dispatching Codex delivery outcome unknown when transport throws",
   ]);
 });
 
+test("marks a confirmed Codex startup failure not sent and disposes its child", async () => {
+  const lifecycle: string[] = [];
+  const recoveryUpdates: SessionDetail["promptRecovery"][] = [];
+  const session = sessionDetail({
+    promptRecovery: {
+      phase: "not_sent",
+      promptText: "Previous attempt",
+      requestedAt: "2026-08-11T07:00:00.000Z",
+      retryable: true
+    }
+  });
+  const child = {} as never;
+  const coordinator = coordinatorFor(
+    session,
+    lifecycle,
+    {
+      restartCodexTransportProcess: async (callbacks: {
+        markPromptDispatching?: (sessionId: string) => void;
+      }) => {
+        callbacks.markPromptDispatching?.(session.id);
+        throw new SourcePromptStartupError(new Error("nested startup failed"), child);
+      },
+      sessionRunner: {
+        deleteChild: () => {
+          lifecycle.push("delete-child");
+          return true;
+        },
+        isCurrentChild: (_sessionId: string, activeChild: unknown) => activeChild === child,
+        killChild: async () => {
+          lifecycle.push("kill-child");
+        }
+      }
+    },
+    (patch) => {
+      if (patch.promptRecovery !== undefined) recoveryUpdates.push(patch.promptRecovery);
+    }
+  );
+
+  await assert.rejects(
+    coordinator.sendSourceInput(session, {} as never, "Explicit retry"),
+    SourcePromptStartupError
+  );
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Explicit retry",
+    "dispatching",
+    "not-sent",
+    "kill-child",
+    "delete-child"
+  ]);
+  assert.deepEqual(recoveryUpdates[0], null);
+  assert.equal(recoveryUpdates[1]?.phase, "not_sent");
+  assert.equal(recoveryUpdates[1]?.promptText, "Explicit retry");
+  assert.notEqual(recoveryUpdates[1]?.requestedAt, "2026-08-11T07:00:00.000Z");
+  assert.equal(recoveryUpdates[1]?.retryable, true);
+});
+
 test("keeps ownership when an accepted process races a journal transition", async () => {
   const lifecycle: string[] = [];
   const session = sessionDetail();
@@ -348,6 +430,7 @@ test("rejects empty Codex and Claude prompts before journal mutation", async () 
     coordinator.sendSourceInput(codex, {} as never, "   "),
     /Prompt is empty/
   );
+
   await assert.rejects(
     coordinator.sendSourceInput(claude, undefined, "\n\t"),
     /Prompt is empty/
@@ -376,6 +459,7 @@ test("keeps one prepared journal entry until a queued Codex prompt dispatches", 
     undefined,
     "Continue after the turn"
   );
+
   await coordinator.startQueuedCodexPrompt(queued);
 
   assert.deepEqual(lifecycle, [
@@ -390,6 +474,7 @@ test("rejects a concurrent prompt before it can prepare or spawn another transpo
   const lifecycle: string[] = [];
   const session = sessionDetail();
   let releaseTransport!: () => void;
+
   const transportGate = new Promise<void>((resolve) => {
     releaseTransport = resolve;
   });
@@ -407,11 +492,14 @@ test("rejects a concurrent prompt before it can prepare or spawn another transpo
   });
 
   const first = coordinator.sendSourceInput(session, {} as never, "First prompt");
+
   await Promise.resolve();
+
   await assert.rejects(
     coordinator.sendSourceInput(session, {} as never, "Second prompt"),
     /already handling a prompt/
   );
+
   releaseTransport();
   await first;
 
@@ -427,6 +515,7 @@ test("shutdown drains an already-started prompt before process ownership closes"
   const lifecycle: string[] = [];
   const session = sessionDetail();
   let releaseTransport!: () => void;
+
   const transportGate = new Promise<void>((resolve) => {
     releaseTransport = resolve;
   });
@@ -444,11 +533,14 @@ test("shutdown drains an already-started prompt before process ownership closes"
   });
 
   const send = coordinator.sendSourceInput(session, {} as never, "First prompt");
+
   await Promise.resolve();
   let drained = false;
+
   const drain = coordinator.beginShutdown().then(() => {
     drained = true;
   });
+
   await Promise.resolve();
   assert.equal(drained, false);
 
@@ -513,6 +605,7 @@ test("records an interrupt before attempting to restart the Codex transport", as
       throw new Error("transport should not spawn without a workspace");
     }
   };
+
   const coordinator = new StoreBackedPromptTransportCoordinator({
     appendLog: () => {},
     finishSession: () => {},
@@ -584,6 +677,7 @@ test("keeps Claude print ownership until source reconciliation completes", () =>
     "read_only",
     0
   );
+
   coordinator.recordSessionFinished("session-1", claudeSession, "failed", 1);
 
   assert.deepEqual(lifecycle, ["completed", "interrupted"]);
