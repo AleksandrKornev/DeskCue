@@ -102,3 +102,63 @@ test("owned process-tree termination ignores a benign taskkill exit race", async
     pid: 42
   }, terminationOptions(runtime));
 });
+
+test("owned process-tree termination waits for a delayed Windows exit race", async () => {
+  let exited = false;
+  let now = 0;
+  let resolveExited!: () => void;
+  const exitedPromise = new Promise<void>((resolve) => {
+    resolveExited = resolve;
+  });
+  const runtime = fakeRuntime({
+    now: () => now,
+    platform: "win32",
+    terminateWindowsProcessTree: async () => {
+      throw new Error("A descendant already exited");
+    },
+    wait: async (durationMs) => {
+      now += durationMs;
+      if (now < 50 || exited) return;
+
+      exited = true;
+      resolveExited();
+    }
+  });
+
+  await terminateOwnedProcessTree({
+    child: { kill: () => true },
+    exited: exitedPromise,
+    hasExited: () => exited,
+    pid: 42
+  }, {
+    ...terminationOptions(runtime),
+    timeoutMs: 100
+  });
+
+  assert.equal(exited, true);
+});
+
+test("owned process-tree termination surfaces a real taskkill failure", async () => {
+  let now = 0;
+  const taskkillError = new Error("taskkill failed");
+  const runtime = fakeRuntime({
+    now: () => now,
+    platform: "win32",
+    terminateWindowsProcessTree: async () => {
+      throw taskkillError;
+    },
+    wait: async (durationMs) => {
+      now += durationMs;
+    }
+  });
+
+  await assert.rejects(
+    terminateOwnedProcessTree({
+      child: { kill: () => true },
+      exited: new Promise<void>(() => {}),
+      hasExited: () => false,
+      pid: 42
+    }, terminationOptions(runtime)),
+    taskkillError
+  );
+});

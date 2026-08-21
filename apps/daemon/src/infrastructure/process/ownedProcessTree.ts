@@ -72,6 +72,21 @@ async function waitForChildExit(
   );
 }
 
+async function observeChildExitUntilDeadline(
+  processTree: OwnedProcessTree,
+  deadline: number,
+  runtime: ProcessTreeTerminationRuntime
+) {
+  if (processTree.hasExited()) return true;
+
+  await Promise.race([
+    processTree.exited,
+    runtime.wait(remainingDuration(deadline, runtime.now()))
+  ]);
+
+  return processTree.hasExited();
+}
+
 async function waitForProcessGroupExit(
   pid: number,
   timeoutMs: number,
@@ -162,13 +177,11 @@ export async function terminateOwnedProcessTree(
         remainingDuration(deadline, runtime.now())
       );
     } catch (error) {
-      // taskkill reports a failure when the exact process exits during the
-      // call. Let Node observe that benign race before surfacing the error.
-      await Promise.race([processTree.exited, runtime.wait(PROCESS_GROUP_POLL_INTERVAL_MS)]);
-      if (!processTree.hasExited()) {
-        throw error;
-      }
+      // taskkill can report a failure when a descendant exits while it walks
+      // the tree. The root process may still be completing that termination.
+      if (!await observeChildExitUntilDeadline(processTree, deadline, runtime)) throw error;
     }
+
     await waitForChildExit(processTree, deadline, runtime, createError, options);
     return;
   }
