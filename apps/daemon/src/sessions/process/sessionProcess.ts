@@ -6,12 +6,14 @@ import { dirname, join } from "node:path";
 
 import type { SessionDetail, SessionStatus } from "@deskcue/protocol";
 
+import { SessionProcessEventRelay } from "./sessionProcessEventRelay.ts";
 import {
   formatSessionPtySubmit,
   formatSessionProcessInput,
   getSessionProcessExitStatusOverride,
   isInteractiveSessionProcess
 } from "./sessionProcessPolicy.ts";
+import { createWindowsSurvivingSessionPipe } from "./windowsSurvivingPipeProcess.ts";
 
 type ChildSubscription = {
   dispose(): void;
@@ -20,6 +22,7 @@ type ChildSubscription = {
 export type RunningChild = {
   detachFromDeskCue?(): void;
   pid: number;
+  startupReady?: Promise<void>;
   surviveParentExit?: boolean;
   write(data: string): void;
   kill(signal?: NodeJS.Signals): void;
@@ -38,29 +41,21 @@ export type SessionSpawnSpec = {
 
 function unrefChildStream(stream: unknown) {
   const unref = (stream as { unref?: unknown } | null)?.unref;
-  if (typeof unref === "function") {
-    unref.call(stream);
-  }
+
+  if (typeof unref === "function") unref.call(stream);
 }
 
 export function getExitedSessionStatus(
   session: Pick<SessionDetail, "adapterId" | "command" | "sourceSessionId" | "status">,
   exitCode: number | null
 ): SessionStatus {
-  if (session.status === "stopped") {
-    return "stopped";
-  }
+  if (session.status === "stopped") return "stopped";
 
   const statusOverride = getSessionProcessExitStatusOverride(session, exitCode);
+
   if (statusOverride) return statusOverride;
-
-  if (exitCode === 0) {
-    return "done";
-  }
-
-  if (session.sourceSessionId && exitCode === null) {
-    return "stopped";
-  }
+  if (exitCode === 0) return "done";
+  if (session.sourceSessionId && exitCode === null) return "stopped";
 
   return "failed";
 }
@@ -68,6 +63,7 @@ export function getExitedSessionStatus(
 function createWindowsCommandWrapper(command: string) {
   const directory = mkdtempSync(join(tmpdir(), "deskcue-command-"));
   const wrapperPath = join(directory, "run.cmd");
+
   writeFileSync(
     wrapperPath,
     `@echo off\r\n${command}\r\nexit /b %ERRORLEVEL%\r\n`,
@@ -97,9 +93,7 @@ export function forwardSessionInput(session: SessionDetail, child: RunningChild,
 }
 
 export function requestSessionPtyInterrupt(session: SessionDetail, child: RunningChild) {
-  if (!isInteractiveSessionProcess(session.adapterId, session.command)) {
-    return null;
-  }
+  if (!isInteractiveSessionProcess(session.adapterId, session.command)) return null;
 
   child.write("\x1b");
   return "Escape";
@@ -128,9 +122,7 @@ export function buildSessionEnvironment(
     "DESKCUE_CODEX_PATH",
     "DESKCUE_CODEX_MODEL"
   ]) {
-    if (!env[name]?.trim()) {
-      delete env[name];
-    }
+    if (!env[name]?.trim()) delete env[name];
   }
 
   return env;
@@ -168,6 +160,7 @@ export function createSessionPty(
       useConpty: true,
       useConptyDll: false
     });
+
     child.onExit(() => {
       removeWindowsCommandWrapper(wrapperPath);
     });
@@ -176,6 +169,7 @@ export function createSessionPty(
   }
 
   const shell = env.SHELL || "/bin/bash";
+
   return spawnPty(shell, ["-lc", command], {
     name: "xterm-color",
     cols: 120,
@@ -193,6 +187,11 @@ export function createSessionPipe(
   spawnSpec: SessionSpawnSpec
 ): RunningChild {
   const env = buildSessionEnvironment(extraEnv, false);
+
+  if (process.platform === "win32" && spawnSpec.surviveParentExit) {
+    return createWindowsSurvivingSessionPipe(cwd, env, spawnSpec);
+  }
+
   const child = spawn(spawnSpec.file, spawnSpec.args, {
     cwd,
     detached: spawnSpec.surviveParentExit || process.platform !== "win32",
@@ -201,58 +200,29 @@ export function createSessionPipe(
     stdio: spawnSpec.surviveParentExit ? "ignore" : "pipe",
     windowsHide: true
   });
-  const dataHandlers = new Set<(chunk: string) => void>();
-  const exitHandlers = new Set<(event: { exitCode: number | null }) => void>();
-  const pendingData: string[] = [];
-  let detachedFromDeskCue = false;
-  let exited = false;
-  let finalExitCode: number | null = null;
+  const events = new SessionProcessEventRelay();
 
-  const publishData = (value: Buffer | string) => {
-    if (detachedFromDeskCue) {
-      return;
-    }
-    const text = value.toString();
-    if (dataHandlers.size === 0) {
-      pendingData.push(text);
-      return;
-    }
-    for (const handler of dataHandlers) {
-      handler(text);
-    }
-  };
-  const publishExit = (exitCode: number | null) => {
-    if (exited) {
-      return;
-    }
-    exited = true;
-    finalExitCode = exitCode;
-    for (const handler of exitHandlers) {
-      handler({ exitCode });
-    }
-  };
-
-  child.stdout?.on("data", publishData);
-  child.stderr?.on("data", publishData);
+  child.stdout?.on("data", (value: Buffer) => events.publishData(value));
+  child.stderr?.on("data", (value: Buffer) => events.publishData(value));
   child.once("error", (error) => {
-    publishData(`Failed to start process: ${error.message}\n`);
-    publishExit(1);
+    const diagnostic = `Failed to start process: ${error.message}`;
+
+    events.publishData(`${diagnostic}\n`);
+
+    events.publishExit(1);
   });
   // `close` waits for stdio handles too. CLI hooks may outlive the parent
   // process while retaining those handles, which left a completed one-shot
   // agent session permanently "running". The parent `exit` is the lifecycle
   // signal that matters for a managed process.
-  child.once("exit", (exitCode) => publishExit(exitCode));
-  if (spawnSpec.closeStdin) {
-    child.stdin?.end();
-  }
+  child.once("exit", (exitCode) => {
+    events.publishExit(exitCode);
+  });
+  if (spawnSpec.closeStdin) child.stdin?.end();
 
   return {
     detachFromDeskCue() {
-      detachedFromDeskCue = true;
-      dataHandlers.clear();
-      exitHandlers.clear();
-      pendingData.length = 0;
+      events.detach();
       child.unref();
       unrefChildStream(child.stdin);
       unrefChildStream(child.stdout);
@@ -262,28 +232,18 @@ export function createSessionPipe(
     surviveParentExit: spawnSpec.surviveParentExit === true,
     transport: "pipe",
     write(value: string) {
-      child.stdin?.write(value);
+      if (!child.stdin || child.stdin.destroyed || child.stdin.writableEnded) return;
+
+      child.stdin.write(value, () => undefined);
     },
     kill(signal) {
       child.kill(signal);
     },
     onData(handler) {
-      dataHandlers.add(handler);
-      for (const chunk of pendingData.splice(0)) {
-        handler(chunk);
-      }
-      return {
-        dispose: () => dataHandlers.delete(handler)
-      };
+      return events.onData(handler);
     },
     onExit(handler) {
-      exitHandlers.add(handler);
-      if (exited) {
-        handler({ exitCode: finalExitCode });
-      }
-      return {
-        dispose: () => exitHandlers.delete(handler)
-      };
+      return events.onExit(handler);
     }
   };
 }

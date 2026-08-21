@@ -22,6 +22,10 @@ type RestartCodexTransportCallbacks = SourcePromptProcessCallbacks & {
     child: RunningChild | undefined,
     reason: string
   ) => Promise<void>;
+  killChildForRestart: (
+    sessionId: string,
+    child: RunningChild | undefined
+  ) => Promise<void>;
 };
 
 export async function sendCodexPrompt(input: {
@@ -31,6 +35,7 @@ export async function sendCodexPrompt(input: {
   session: SessionDetail;
 }) {
   const prompt = input.prompt.trim();
+
   if (!prompt) throw new AppError("invalid_input", "Prompt is empty.");
 
   return input.restart({
@@ -52,6 +57,7 @@ function sendCodexInterrupt(child: RunningChild) {
         // The transport may already have accepted cancellation or exited.
       }
     }, delayMs);
+
     interruptTimer.unref?.();
   }
 }
@@ -61,10 +67,28 @@ function canRestartDetachedCodexShell(
   reason: CodexRestartReason
 ) {
   if (!session.sourceSessionId) return false;
-
   if (reason === "interrupt") return session.status === "read_only" || session.status === "running";
 
   return session.status === "read_only" || session.status === "stopped" || session.status === "running";
+}
+
+export function settleCodexSessionAfterReplacementSpawnFailure(
+  callbacks: Pick<
+    RestartCodexTransportCallbacks,
+    "stopGitPolling" | "updateSession"
+  >,
+  session: SessionDetail,
+  failedAt: string
+) {
+  callbacks.stopGitPolling(session.id);
+  callbacks.updateSession(session.id, {
+    status: "read_only",
+    finishedAt: failedAt,
+    exitCode: null,
+    replyState: emptyReplyState(),
+    actionRequest: null,
+    promptRecovery: null
+  });
 }
 
 export async function restartCodexTransport(
@@ -99,7 +123,7 @@ export async function restartCodexTransport(
     const promptText = prompt as string;
     const updatedSession = await runSourcePromptProcessLifecycle(callbacks, {
       beforeProcessStart: async () => {
-        await callbacks.killChild(session.id, currentChild, "restart");
+        await callbacks.killChildForRestart(session.id, currentChild);
       },
       command,
       env: {},
@@ -120,7 +144,9 @@ export async function restartCodexTransport(
       startedMessage: "DeskCue restarted the Codex transport for the next prompt.\n",
       workspace
     });
+
     if (!updatedSession) throw new AppError("not_found", "Session not found.");
+
     return updatedSession;
   }
 
@@ -131,6 +157,7 @@ export async function restartCodexTransport(
     sessionId: session.id,
     spawnSpec
   });
+
   sendCodexInterrupt(nextChild);
 
   attachSessionDataHandler({
@@ -141,6 +168,7 @@ export async function restartCodexTransport(
     onAppendSystemLog: callbacks.appendSystemLog,
     sessionId: session.id
   });
+
   callbacks.stopGitPolling(session.id);
 
   logger.info("Codex transport restarted for prompt", {
@@ -151,6 +179,7 @@ export async function restartCodexTransport(
     inputLength: prompt?.length ?? 0,
     reason: options.reason
   });
+
   callbacks.startGitPolling(session.id, workspace.path);
 
   await callbacks.killChild(session.id, currentChild, "restart");
@@ -163,11 +192,13 @@ export async function restartCodexTransport(
     replyState: emptyReplyState(),
     actionRequest: null
   });
+
   callbacks.appendSystemLog(session.id, "Prompt interrupt requested.\n");
   callbacks.appendSystemLog(
     session.id,
     "DeskCue restarted the Codex transport after interrupt.\n"
   );
+
   await callbacks.persistState();
 
   attachSessionExitHandler({
@@ -180,6 +211,7 @@ export async function restartCodexTransport(
   });
 
   const updatedSession = callbacks.getSession(session.id);
+
   if (!updatedSession) throw new AppError("not_found", "Session not found.");
 
   return updatedSession;

@@ -1,21 +1,60 @@
 import { useEffect, useRef } from "react";
 
-import {
-  hasPromptCompletionInTranscript
-} from "@models/promptDelivery";
 import type { PendingChatPrompt } from "@models/promptDelivery";
-import { agentChatDetailResource } from "@modules/dashboard/model/chatDetail/resource/agentChatDetailResource";
-import {
-  isPromptForActiveSelection,
-  PROMPT_REPLY_SYNC_WATCHDOG_DELAY_MS
-} from "@modules/dashboard/model/liveUpdates/helpers";
+import { PROMPT_REPLY_SYNC_WATCHDOG_DELAY_MS } from "@modules/dashboard/model/liveUpdates/helpers";
 
 import {
-  PROMPT_TRANSCRIPT_SYNC_RETRY_MS,
-  PROMPT_TRANSCRIPT_SYNC_WINDOW_MS
+  PROMPT_REPLY_WATCHDOG_HARD_TIMEOUT_MS,
+  PROMPT_REPLY_WATCHDOG_TERMINAL_GRACE_MS
 } from "./constants";
-import { buildSourceAgentSessionId } from "./helpers";
+import { buildSourceAgentSessionId, isPendingPromptForSelection } from "./helpers";
 import type { UseDashboardPromptReplyWatchdogArgs } from "./types";
+import { PromptReplyWatchdogController } from "./watchdog/promptReplyWatchdogController";
+import {
+  buildPromptKey,
+  canPoll,
+  extendTranscriptGrace,
+  isManagedReplyActive
+} from "./watchdog/promptReplyWatchdogState";
+import type { PromptWatch } from "./watchdog/promptReplyWatchdogState";
+
+interface PromptWatchCandidate {
+  agentSessionId: string;
+  managedPromptActive: boolean;
+  managedSessionId: string;
+  prompt: PendingChatPrompt;
+  sourceSessionId: string | null;
+}
+
+function createPromptWatch(candidate: PromptWatchCandidate, now: number): PromptWatch {
+  const { agentSessionId, managedPromptActive, managedSessionId, prompt, sourceSessionId } =
+    candidate;
+
+  return {
+    agentSessionId,
+    graceDeadline: now + PROMPT_REPLY_WATCHDOG_TERMINAL_GRACE_MS,
+    hardDeadline: now + PROMPT_REPLY_WATCHDOG_HARD_TIMEOUT_MS,
+    key: buildPromptKey(prompt, agentSessionId, sourceSessionId),
+    managedPromptActive,
+    managedSessionId,
+    observedCurrentSourceActive: false,
+    observedSourceTerminal: false,
+    prompt,
+    sourcePromptActive: false,
+    sourceSessionId,
+    stopped: false
+  };
+}
+
+function updatePromptWatchActivity(
+  watch: PromptWatch,
+  managedPromptActive: boolean,
+  now: number
+) {
+  if (watch.managedPromptActive && !managedPromptActive) extendTranscriptGrace(watch, now);
+
+  watch.managedPromptActive = managedPromptActive;
+}
 
 export function useDashboardPromptReplyWatchdog({
   activeTab,
@@ -31,150 +70,132 @@ export function useDashboardPromptReplyWatchdog({
   selectedSessionIdRef,
   selectedAgentSessionIdRef
 }: UseDashboardPromptReplyWatchdogArgs) {
-  const promptAwaitingTranscriptRef = useRef<PendingChatPrompt | null>(null);
-  const promptTranscriptSyncDeadlineRef = useRef(0);
-  const selectedSessionReplyState = selectedSession?.replyState;
-  const selectedSessionReplyPhase = selectedSessionReplyState?.phase;
-  const selectedSessionReplyRequestedAt = selectedSessionReplyState?.requestedAt;
+  const applyFetchedAgentSessionDetailRef = useRef(applyFetchedAgentSessionDetail);
+  const promptWatchRef = useRef<PromptWatch | null>(null);
+  const watchdogGenerationRef = useRef(0);
+
+  applyFetchedAgentSessionDetailRef.current = applyFetchedAgentSessionDetail;
+
+  const selectedReplyPhase = selectedSession?.replyState.phase;
+  const selectedReplyPromptText = selectedSession?.replyState.promptText;
+  const selectedReplyRequestedAt = selectedSession?.replyState.requestedAt;
+  const selectedSourceSessionId = selectedSession?.sourceSessionId ?? null;
   const selectedSourceAgentSessionId = buildSourceAgentSessionId(selectedSession);
-  const pendingPromptKey = pendingChatPrompt
-    ? `${pendingChatPrompt.requestedAt}\u0000${pendingChatPrompt.text}`
-    : "";
+  const agentSessionId = selectedSourceAgentSessionId ||
+    activeTakenOverAgentSessionSummaryId ||
+    activeTakenOverAgentSessionIdRef.current ||
+    selectedAgentSessionIdRef.current;
+  const restoreManagedPrompt = !pendingChatPrompt &&
+    isManagedReplyActive(selectedReplyPhase) &&
+    Boolean(selectedReplyPromptText && selectedReplyRequestedAt);
+  const promptText = pendingChatPrompt?.text ??
+    (restoreManagedPrompt ? selectedReplyPromptText : null);
+  const promptRequestedAt = pendingChatPrompt?.requestedAt ??
+    (restoreManagedPrompt ? selectedReplyRequestedAt : null);
+  const promptManagedSessionId = pendingChatPrompt?.sessionId ?? selectedSessionId;
+  const promptSourceSessionId = pendingChatPrompt?.sourceSessionId ??
+    selectedSourceSessionId ??
+    undefined;
+  const managedPromptActive = selectedSession?.status === "running" ||
+    isManagedReplyActive(selectedReplyPhase);
 
   useEffect(() => {
-    const shouldWatchPendingPrompt =
-      isPromptForActiveSelection(
-        pendingChatPrompt,
-        selectedSessionId,
-        selectedSession?.sourceSessionId ?? null
-      );
-    if (shouldWatchPendingPrompt && pendingChatPrompt) {
-      promptAwaitingTranscriptRef.current = pendingChatPrompt;
-      promptTranscriptSyncDeadlineRef.current = Date.now() + PROMPT_TRANSCRIPT_SYNC_WINDOW_MS;
+    const now = Date.now();
+    const generation = ++watchdogGenerationRef.current;
+    const prompt = promptText && promptRequestedAt
+      ? {
+          requestedAt: promptRequestedAt,
+          sessionId: promptManagedSessionId,
+          sourceSessionId: promptSourceSessionId,
+          text: promptText
+        } satisfies PendingChatPrompt
+      : null;
+    const promptMatchesSelection = isPendingPromptForSelection(
+      prompt,
+      selectedSessionId,
+      selectedSourceSessionId
+    );
+
+    if (prompt && promptMatchesSelection && agentSessionId) {
+      const candidate = {
+        agentSessionId,
+        managedPromptActive,
+        managedSessionId: selectedSessionId,
+        prompt,
+        sourceSessionId: selectedSourceSessionId
+      } satisfies PromptWatchCandidate;
+      const promptKey = buildPromptKey(prompt, agentSessionId, selectedSourceSessionId);
+
+      if (promptWatchRef.current?.key !== promptKey) promptWatchRef.current = createPromptWatch(candidate, now);
     }
 
-    const promptAwaitingTranscript = promptAwaitingTranscriptRef.current;
-    const shouldSyncRecordedPrompt = Boolean(
-      promptAwaitingTranscript &&
-      Date.now() < promptTranscriptSyncDeadlineRef.current &&
-      isPromptForActiveSelection(
-        promptAwaitingTranscript,
-        selectedSessionId,
-        selectedSession?.sourceSessionId ?? null
-      )
+    const watch = promptWatchRef.current;
+    const watchMatchesSelection = Boolean(
+      watch &&
+      watch.managedSessionId === selectedSessionId &&
+      watch.sourceSessionId === selectedSourceSessionId &&
+      watch.agentSessionId === agentSessionId
     );
-    const hasTakenOverTranscript =
-      Boolean(selectedSession?.sourceSessionId) ||
-      Boolean(activeTakenOverAgentSessionSummaryId) ||
-      Boolean(activeTakenOverAgentSessionIdRef.current);
-    const shouldPollForPromptReply =
+
+    if (!watchMatchesSelection) {
+      promptWatchRef.current = null;
+    } else if (watch) {
+      updatePromptWatchActivity(watch, managedPromptActive, now);
+    }
+
+    const activeWatch = promptWatchRef.current;
+    const shouldPoll = Boolean(
       activeTab === "overview" &&
-      Boolean(selectedSessionId) &&
-      hasTakenOverTranscript &&
-      (
-        shouldWatchPendingPrompt ||
-        shouldSyncRecordedPrompt ||
-        selectedSessionReplyPhase === "sending" ||
-        selectedSessionReplyPhase === "waiting"
-      );
-
-    promptReplyPollingActiveRef.current = shouldPollForPromptReply;
-
-    if (!shouldPollForPromptReply) {
-      return;
-    }
-
-    let cancelled = false;
-    let pollTimer: number | null = null;
-
-    const clearPollTimer = () => {
-      if (pollTimer !== null) {
-        window.clearTimeout(pollTimer);
-        pollTimer = null;
-      }
-    };
-
-    const pollPromptReplyState = async () => {
-      clearPollTimer();
-
-      const agentSessionId =
-        activeTakenOverAgentSessionIdRef.current ||
-        selectedAgentSessionIdRef.current ||
-        selectedSourceAgentSessionId;
-      const managedSessionId = selectedSessionIdRef.current;
-      if (!agentSessionId || !managedSessionId || activeTabRef.current !== "overview") {
-        return;
-      }
-
-      try {
-        const agentSession = await agentChatDetailResource.refreshNow(agentSessionId, {
-          activeTab: "overview",
-          force: true,
-          reason: "prompt-watchdog",
-          retry: true,
-          transcriptDetail: "summary"
-        });
-
-        if (!cancelled && agentSession && agentSessionId === agentSession.id) {
-          applyFetchedAgentSessionDetail(agentSession);
-        }
-
-        const hasPromptReply =
-          promptAwaitingTranscript &&
-          agentSession &&
-          hasPromptCompletionInTranscript(agentSession, promptAwaitingTranscript);
-
-        if (hasPromptReply) {
-          promptAwaitingTranscriptRef.current = null;
-          promptTranscriptSyncDeadlineRef.current = 0;
-          await loadSessionRef.current(managedSessionId, {
-            silent: true,
-            sessionView: "chat"
-          });
-        } else if (!cancelled && Date.now() < promptTranscriptSyncDeadlineRef.current) {
-          pollTimer = window.setTimeout(() => {
-            void pollPromptReplyState();
-          }, PROMPT_TRANSCRIPT_SYNC_RETRY_MS);
-        } else {
-          promptReplyPollingActiveRef.current = false;
-        }
-      } catch {
-        if (!cancelled && Date.now() < promptTranscriptSyncDeadlineRef.current) {
-          pollTimer = window.setTimeout(() => {
-            void pollPromptReplyState();
-          }, PROMPT_TRANSCRIPT_SYNC_RETRY_MS);
-        }
-      }
-    };
-
-    pollTimer = window.setTimeout(
-      () => {
-        void pollPromptReplyState();
-      },
-      PROMPT_REPLY_SYNC_WATCHDOG_DELAY_MS
+      activeWatch &&
+      canPoll(activeWatch, now)
     );
 
+    promptReplyPollingActiveRef.current = shouldPoll;
+    if (!shouldPoll || !activeWatch) return;
+
+    const controller = new PromptReplyWatchdogController({
+      applyAgentSession: (session) => {
+        applyFetchedAgentSessionDetailRef.current(session);
+      },
+      completePrompt: () => {
+        void loadSessionRef.current(activeWatch.managedSessionId, {
+          silent: true,
+          sessionView: "chat"
+        });
+      },
+      isCurrentWatch: () => {
+        const currentWatch = promptWatchRef.current;
+
+        return watchdogGenerationRef.current === generation &&
+          activeTabRef.current === "overview" &&
+          selectedSessionIdRef.current === activeWatch.managedSessionId &&
+          currentWatch?.key === activeWatch.key &&
+          currentWatch.agentSessionId === activeWatch.agentSessionId;
+      },
+      setPollingActive: (active) => {
+        promptReplyPollingActiveRef.current = active;
+      },
+      watch: activeWatch
+    });
+
+    controller.start(PROMPT_REPLY_SYNC_WATCHDOG_DELAY_MS);
     return () => {
-      cancelled = true;
-      promptReplyPollingActiveRef.current = false;
-      clearPollTimer();
+      controller.dispose();
     };
   }, [
     activeTab,
     activeTabRef,
     activeTakenOverAgentSessionIdRef,
-    activeTakenOverAgentSessionSummaryId,
-    applyFetchedAgentSessionDetail,
+    agentSessionId,
     loadSessionRef,
-    selectedSessionReplyPhase,
-    selectedSessionReplyRequestedAt,
-    selectedSession?.sourceSessionId,
-    selectedSourceAgentSessionId,
+    managedPromptActive,
+    promptManagedSessionId,
+    promptReplyPollingActiveRef,
+    promptRequestedAt,
+    promptSourceSessionId,
+    promptText,
     selectedSessionId,
     selectedSessionIdRef,
-    selectedAgentSessionIdRef,
-    pendingChatPrompt,
-    pendingPromptKey,
-    promptReplyPollingActiveRef
+    selectedSourceSessionId
   ]);
 }

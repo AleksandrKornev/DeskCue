@@ -33,7 +33,11 @@ interface HandleLiveUpdateEventArgs {
   >;
   refreshTakenOverTranscriptNow: (
     updatedAt?: string | null,
-    options?: { allowDuringPromptPolling?: boolean; fullTranscript?: boolean }
+    options?: {
+      allowDuringPromptPolling?: boolean;
+      force?: boolean;
+      fullTranscript?: boolean;
+    }
   ) => void;
   scheduleTakenOverTranscriptRefresh: (
     updatedAt?: string | null,
@@ -48,13 +52,20 @@ interface HandleLiveUpdateEventArgs {
 }
 
 function invalidateAgentSessionSummaries() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(AGENT_SESSIONS_INVALIDATED_EVENT));
-  }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(AGENT_SESSIONS_INVALIDATED_EVENT));
 }
 
 function isTerminalManagedSessionUpdate(session: SessionSummary) {
   return session.sourceSessionId !== null && session.status !== "running";
+}
+
+function isManagedSessionUpdateForActiveSource(
+  session: SessionSummary,
+  activeAgentSessionId: string
+) {
+  return session.adapterId !== null &&
+    session.sourceSessionId !== null &&
+    `${session.adapterId}:${session.sourceSessionId}` === activeAgentSessionId;
 }
 
 function isTerminalTranscriptUpdate(update: AgentSessionTranscriptUpdatedPayload) {
@@ -67,9 +78,8 @@ function isAgentSessionDetailNewerThanRealtimeUpdate(
 ) {
   const currentUpdatedAt = Date.parse(current.updatedAt);
   const updateUpdatedAt = Date.parse(update.updatedAt);
-  if (!Number.isNaN(currentUpdatedAt) && !Number.isNaN(updateUpdatedAt)) {
-    return currentUpdatedAt > updateUpdatedAt;
-  }
+
+  if (!Number.isNaN(currentUpdatedAt) && !Number.isNaN(updateUpdatedAt)) return currentUpdatedAt > updateUpdatedAt;
 
   return current.updatedAt > update.updatedAt;
 }
@@ -79,6 +89,7 @@ function isTerminalUpdateForCurrentTurn(
   update: AgentSessionTranscriptUpdatedPayload
 ) {
   const nextTurnState = update.turnState;
+
   if (
     !nextTurnState ||
     nextTurnState.phase === "active" ||
@@ -138,9 +149,7 @@ export function handleLiveUpdateEvent({
   selectedSessionRef,
   store
 }: HandleLiveUpdateEventArgs) {
-  if (event.type === "protocol.hello") {
-    return;
-  }
+  if (event.type === "protocol.hello") return;
 
   const selectedSessionId = selectedSessionIdRef.current;
 
@@ -167,6 +176,7 @@ export function handleLiveUpdateEvent({
         store.touchOverviewSession(event.payload.sessionId, event.payload.log.timestamp);
       });
     }
+
     return;
   }
 
@@ -180,18 +190,14 @@ export function handleLiveUpdateEvent({
   if (event.type === "agent.session.updated") {
     startTransition(() => {
       store.mergeAgentSessionSummary(event.payload);
-      if (event.payload.workState === "running") {
-        store.clearAgentSessionReadyForReview(event.payload.id);
-      }
+      if (event.payload.workState === "running") store.clearAgentSessionReadyForReview(event.payload.id);
     });
 
     const shouldRefreshSelectedAgentSession =
       event.payload.id === selectedAgentSessionIdRef.current &&
       event.payload.id !== activeTakenOverAgentSessionIdRef.current;
 
-    if (shouldRefreshSelectedAgentSession) {
-      scheduleSelectedAgentSessionRefresh(event.payload.updatedAt);
-    }
+    if (shouldRefreshSelectedAgentSession) scheduleSelectedAgentSessionRefresh(event.payload.updatedAt);
 
     publishAgentSessionSummary(event.payload);
 
@@ -203,12 +209,12 @@ export function handleLiveUpdateEvent({
       store.updateSelectedAgentSession((current) =>
         mergeAgentSessionRealtimeTranscriptState(current, event.payload)
       );
+
       store.updateActiveTakenOverAgentSession((current) =>
         mergeAgentSessionRealtimeTranscriptState(current, event.payload)
       );
-      if (event.payload.workState === "running") {
-        store.clearAgentSessionReadyForReview(event.payload.agentSessionId);
-      }
+
+      if (event.payload.workState === "running") store.clearAgentSessionReadyForReview(event.payload.agentSessionId);
     });
 
     const shouldRefreshTakenOverAgentSession =
@@ -217,6 +223,7 @@ export function handleLiveUpdateEvent({
 
     if (shouldRefreshTakenOverAgentSession) {
       const isTerminalUpdate = isTerminalTranscriptUpdate(event.payload);
+
       if (isTerminalUpdate) {
         refreshTakenOverTranscriptNow(event.payload.updatedAt, {
           allowDuringPromptPolling: true,
@@ -246,6 +253,7 @@ export function handleLiveUpdateEvent({
         event.payload.reviewedAt
       );
     });
+
     invalidateAgentSessionSummaries();
     return;
   }
@@ -275,6 +283,7 @@ export function handleLiveUpdateEvent({
         force: true,
         fullTranscript: true
       };
+
       refreshTakenOverTranscriptNow(undefined, terminalRefreshOptions);
     }
 
@@ -311,12 +320,16 @@ export function handleLiveUpdateEvent({
     }
 
     if (
-      activeTakenOverAgentSessionIdRef.current &&
+      isManagedSessionUpdateForActiveSource(
+        event.payload,
+        activeTakenOverAgentSessionIdRef.current
+      ) &&
       usesTakenOverAgentTranscript(activeTabRef.current)
     ) {
       if (isTerminalManagedSessionUpdate(event.payload)) {
         refreshTakenOverTranscriptNow(undefined, {
           allowDuringPromptPolling: true,
+          force: true,
           fullTranscript: true
         });
       } else {

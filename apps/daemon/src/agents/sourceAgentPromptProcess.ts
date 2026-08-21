@@ -8,6 +8,20 @@ import type {
   SessionSpawnSpec
 } from "#sessions/process/sessionProcess";
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export class SourcePromptStartupError extends Error {
+  readonly child: RunningChild | undefined;
+
+  constructor(cause: unknown, child: RunningChild | undefined) {
+    super(`Source prompt process failed to start: ${errorMessage(cause)}`, { cause });
+    this.name = "SourcePromptStartupError";
+    this.child = child;
+  }
+}
+
 export type SourcePromptProcessCallbacks = {
   appendStdoutLog: (sessionId: string, text: string) => void;
   appendSystemLog: (sessionId: string, text: string, timestamp?: string) => void;
@@ -47,16 +61,25 @@ export async function runSourcePromptProcessLifecycle(
   lifecycle: SourcePromptProcessLifecycle
 ): Promise<SessionDetail | null> {
   const { session, workspace } = lifecycle;
-  callbacks.markPromptDispatching?.(session.id);
+
   await lifecycle.beforeProcessStart?.();
 
-  const child = callbacks.spawnProcess({
-    command: lifecycle.command,
-    cwd: workspace.path,
-    env: lifecycle.env,
-    sessionId: session.id,
-    spawnSpec: lifecycle.spawnSpec
-  });
+  let child: RunningChild | undefined;
+
+  try {
+    callbacks.markPromptDispatching?.(session.id);
+    child = callbacks.spawnProcess({
+      command: lifecycle.command,
+      cwd: workspace.path,
+      env: lifecycle.env,
+      sessionId: session.id,
+      spawnSpec: lifecycle.spawnSpec
+    });
+    await child.startupReady;
+  } catch (error) {
+    throw new SourcePromptStartupError(error, child);
+  }
+
   callbacks.markPromptAccepted?.(session.id);
 
   attachSessionDataHandler({
@@ -67,6 +90,7 @@ export async function runSourcePromptProcessLifecycle(
     onAppendSystemLog: callbacks.appendSystemLog,
     sessionId: session.id
   });
+
   callbacks.stopGitPolling(session.id);
   callbacks.startGitPolling(session.id, workspace.path);
 
@@ -83,6 +107,7 @@ export async function runSourcePromptProcessLifecycle(
     },
     actionRequest: null
   });
+
   callbacks.appendSystemLog(session.id, "Input sent.\n", lifecycle.requestedAt);
   callbacks.appendSystemLog(session.id, lifecycle.startedMessage);
   await callbacks.persistState();
