@@ -6,50 +6,25 @@ import {
 } from "react";
 
 import type { LocalLlmRuntimeId, RuntimeSummary } from "@deskcue/protocol";
-import { isConnectionEpochCurrent } from "@api/connection/events";
 
 import {
+  IDLE_CATALOG_STATE,
+  isCatalogRequestCurrent,
   normalizeLocalChatCreationModels,
   readLocalChatCreationError
 } from "./helpers";
 import { getLocalChatRuntimeCatalogContract } from "./runtimeCatalogContract";
-import type { LocalChatRuntimeCatalogState } from "./types";
-
-interface UseLocalRuntimeCatalogOptions {
-  active: boolean;
-  connectionEpoch: number;
-  runtimeId: LocalLlmRuntimeId;
-}
-
-interface LocalRuntimeCatalogController {
-  cancel: () => void;
-  retry: () => void;
-  state: LocalChatRuntimeCatalogState;
-}
-
-const IDLE_CATALOG_STATE: LocalChatRuntimeCatalogState = {
-  error: null,
-  models: [],
-  runtime: null,
-  status: "idle"
-};
-
-function isCatalogRequestCurrent(
-  abortController: AbortController,
-  connectionEpoch: number,
-  generation: number,
-  generationRef: { current: number }
-) {
-  return !abortController.signal.aborted &&
-    generationRef.current === generation &&
-    isConnectionEpochCurrent(connectionEpoch);
-}
+import type { LocalChatRuntimeCatalogState, LocalRuntimeCatalogController } from "./types";
 
 export function useLocalRuntimeCatalog({
   active,
   connectionEpoch,
   runtimeId
-}: UseLocalRuntimeCatalogOptions): LocalRuntimeCatalogController {
+}: {
+  active: boolean;
+  connectionEpoch: number;
+  runtimeId: LocalLlmRuntimeId;
+}): LocalRuntimeCatalogController {
   const [state, setState] = useState<LocalChatRuntimeCatalogState>(IDLE_CATALOG_STATE);
   const [requestVersion, setRequestVersion] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -69,6 +44,7 @@ export function useLocalRuntimeCatalog({
     ) {
       return;
     }
+
     generationRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
@@ -78,19 +54,20 @@ export function useLocalRuntimeCatalog({
       runtime: null,
       status: "starting_runtime"
     });
+
     setRequestVersion((version) => version + 1);
   }, [state.status]);
 
   useEffect(() => {
-    if (!active) {
-      return;
-    }
+    if (!active) return;
 
     const contract = getLocalChatRuntimeCatalogContract(runtimeId);
     const abortController = new AbortController();
     const generation = generationRef.current + 1;
     let runtime: RuntimeSummary | null = null;
+
     generationRef.current = generation;
+
     abortRef.current = abortController;
     setState({
       error: null,
@@ -99,9 +76,10 @@ export function useLocalRuntimeCatalog({
       status: "starting_runtime"
     });
 
-    const loadCatalog = async () => {
+    void (async () => {
       try {
         const startResponse = await contract.start({ signal: abortController.signal });
+
         if (!isCatalogRequestCurrent(
           abortController,
           connectionEpoch,
@@ -119,6 +97,7 @@ export function useLocalRuntimeCatalog({
           status: "loading_models"
         });
         const modelsResponse = await contract.listModels({ signal: abortController.signal });
+
         if (!isCatalogRequestCurrent(
           abortController,
           connectionEpoch,
@@ -143,6 +122,7 @@ export function useLocalRuntimeCatalog({
         )) {
           return;
         }
+
         setState({
           error: readLocalChatCreationError(
             error,
@@ -153,18 +133,13 @@ export function useLocalRuntimeCatalog({
           status: "error"
         });
       } finally {
-        if (abortRef.current === abortController) {
-          abortRef.current = null;
-        }
+        if (abortRef.current === abortController) abortRef.current = null;
       }
-    };
+    })();
 
-    void loadCatalog();
     return () => {
       abortController.abort();
-      if (abortRef.current === abortController) {
-        abortRef.current = null;
-      }
+      if (abortRef.current === abortController) abortRef.current = null;
     };
   }, [active, connectionEpoch, requestVersion, runtimeId]);
 

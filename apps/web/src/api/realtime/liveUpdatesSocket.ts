@@ -15,8 +15,9 @@ import {
 } from "@api/connection/events";
 import { getDeskCueRuntime } from "@runtime";
 
-const LIVE_UPDATES_CLIENT_ID_STORAGE_KEY = "deskcue.liveUpdatesClientId";
+const LEGACY_LIVE_UPDATES_CLIENT_ID_STORAGE_KEY = "deskcue.liveUpdatesClientId";
 const LIVE_UPDATES_CURSOR_STORAGE_KEY = "deskcue.liveUpdatesCursor";
+let liveUpdatesClientId: string | null = null;
 const liveUpdatesSocketScopes = new WeakMap<WebSocket, {
   generation: number;
   scope: string | null;
@@ -28,30 +29,29 @@ type StoredLiveUpdatesCursor = {
 };
 
 function getLiveUpdatesClientId() {
-  const existingId = sessionStorage.getItem(LIVE_UPDATES_CLIENT_ID_STORAGE_KEY);
-  if (existingId) {
-    return existingId;
-  }
+  if (liveUpdatesClientId) return liveUpdatesClientId;
 
-  const generatedId =
+  liveUpdatesClientId =
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
-  sessionStorage.setItem(LIVE_UPDATES_CLIENT_ID_STORAGE_KEY, generatedId);
-  return generatedId;
+  // sessionStorage is copied into tabs opened from the current page. Keeping
+  // the socket identity in module memory gives every browsing context its own
+  // client while preserving the identity across reconnects in that context.
+  sessionStorage.removeItem(LEGACY_LIVE_UPDATES_CLIENT_ID_STORAGE_KEY);
+  return liveUpdatesClientId;
 }
 
 function readLiveUpdatesScope() {
   const runtime = getDeskCueRuntime();
-  if (runtime.mode === "cloud-machine") {
-    return runtime.getRealtimeScope();
-  }
+
+  if (runtime.mode === "cloud-machine") return runtime.getRealtimeScope();
 
   const config = getConnectionConfig();
-  if (config.accessToken) {
-    return null;
-  }
+
+  if (config.accessToken) return null;
+
   const daemonScope = config.daemonUrl || window.location.origin;
   const accessScope = config.deviceId
     ? `device:${config.deviceId}`
@@ -70,12 +70,12 @@ function readLiveUpdatesCursor(scope: string | null) {
   }
 
   const stored = sessionStorage.getItem(LIVE_UPDATES_CURSOR_STORAGE_KEY);
-  if (!stored) {
-    return null;
-  }
+
+  if (!stored) return null;
 
   try {
     const parsed = JSON.parse(stored) as Partial<StoredLiveUpdatesCursor>;
+
     if (
       typeof parsed.cursor === "string" &&
       parsed.cursor &&
@@ -93,10 +93,13 @@ function readLiveUpdatesCursor(scope: string | null) {
 
 function createProtocolHandshakeQuery(initial: Record<string, string>) {
   const query = new URLSearchParams(initial);
+
   query.set("protocolVersion", String(DESKCUE_PROTOCOL_VERSION));
+
   for (const capability of DESKCUE_PROTOCOL_CAPABILITIES) {
     query.append("protocolCapability", capability);
   }
+
   return query;
 }
 
@@ -113,11 +116,11 @@ export function openLiveUpdatesSocket() {
     clientId: getLiveUpdatesClientId()
   });
   const cursor = readLiveUpdatesCursor(scope);
-  if (cursor) {
-    query.set("afterCursor", cursor);
-  }
+
+  if (cursor) query.set("afterCursor", cursor);
 
   const socket = new WebSocket(buildWebSocketUrl(`/ws?${query.toString()}`));
+
   liveUpdatesSocketScopes.set(socket, {
     generation: readConnectionEpoch(),
     scope
@@ -128,6 +131,7 @@ export function openLiveUpdatesSocket() {
 export function openAccessMonitorSocket() {
   const query = createProtocolHandshakeQuery({ mode: "access" });
   const socket = new WebSocket(buildWebSocketUrl(`/ws?${query.toString()}`));
+
   liveUpdatesSocketScopes.set(socket, {
     generation: readConnectionEpoch(),
     scope: null
@@ -140,9 +144,7 @@ export function sendLiveSessionPresence(
   sessionId: string,
   sessionTab?: string | null
 ) {
-  if (socket?.readyState !== WebSocket.OPEN) {
-    return;
-  }
+  if (socket?.readyState !== WebSocket.OPEN) return;
 
   socket.send(JSON.stringify({
     clientId: getLiveUpdatesClientId(),
@@ -157,11 +159,10 @@ export function parseLiveUpdateMessage(message: MessageEvent) {
 }
 
 export function acknowledgeLiveUpdateCursor(socket: WebSocket | null, event: ServerEvent) {
-  if (!event.cursor || !socket) {
-    return;
-  }
+  if (!event.cursor || !socket) return;
 
   const socketState = liveUpdatesSocketScopes.get(socket);
+
   if (
     !socketState ||
     socketState.generation !== readConnectionEpoch() ||
@@ -176,9 +177,8 @@ export function acknowledgeLiveUpdateCursor(socket: WebSocket | null, event: Ser
       scope: socketState.scope
     } satisfies StoredLiveUpdatesCursor));
   }
-  if (socket?.readyState !== WebSocket.OPEN) {
-    return;
-  }
+
+  if (socket?.readyState !== WebSocket.OPEN) return;
 
   socket.send(JSON.stringify({
     clientId: getLiveUpdatesClientId(),
@@ -189,9 +189,8 @@ export function acknowledgeLiveUpdateCursor(socket: WebSocket | null, event: Ser
 
 export function handleLiveUpdatesClose(socket: WebSocket | null, event: CloseEvent) {
   if (event.code === 4001) {
-    if (getDeskCueRuntime().mode === "cloud-machine") {
-      return false;
-    }
+    if (getDeskCueRuntime().mode === "cloud-machine") return false;
+
     const socketEpoch = socket
       ? liveUpdatesSocketScopes.get(socket)?.generation
       : undefined;

@@ -367,6 +367,10 @@
 }
 
 @media (max-width: vars.$breakpoint-mobile) {
+  .trigger {
+    min-height: vars.$control-height-touch;
+  }
+
   .form {
     gap: 10px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));

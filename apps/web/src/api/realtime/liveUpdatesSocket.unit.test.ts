@@ -70,9 +70,21 @@ describe("live update resume cursor", () => {
     };
   });
 
+  it("does not reuse a client id copied through session storage into another tab", () => {
+    sessionStorage.setItem("deskcue.liveUpdatesClientId", "cloned-client-id");
+
+    const firstClientId = new URL(openLiveUpdatesSocket().url).searchParams.get("clientId");
+    const secondClientId = new URL(openLiveUpdatesSocket().url).searchParams.get("clientId");
+
+    expect(firstClientId).not.toBe("cloned-client-id");
+    expect(secondClientId).toBe(firstClientId);
+    expect(sessionStorage.getItem("deskcue.liveUpdatesClientId")).toBeNull();
+  });
+
   it("reuses a cursor only for the same daemon access identity", () => {
     const socket = openLiveUpdatesSocket();
     const socketUrl = new URL(socket.url);
+
     expect(socketUrl.searchParams.get("protocolVersion"))
       .toBe(String(DESKCUE_PROTOCOL_VERSION));
     expect(socketUrl.searchParams.getAll("protocolCapability"))
@@ -86,6 +98,7 @@ describe("live update resume cursor", () => {
       ...mocks.config,
       deviceId: "device-2"
     };
+
     window.dispatchEvent(new Event(CONNECTION_CONFIG_CHANGED_EVENT));
 
     expect(new URL(openLiveUpdatesSocket().url).searchParams.get("afterCursor"))
@@ -105,6 +118,7 @@ describe("live update resume cursor", () => {
   it("ignores an unauthorized close from a socket opened before a connection change", () => {
     const oldSocket = openLiveUpdatesSocket();
     const unauthorized = vi.fn();
+
     window.addEventListener("deskcue:api-unauthorized", unauthorized);
 
     window.dispatchEvent(new Event(CONNECTION_CONFIG_CHANGED_EVENT));
@@ -119,6 +133,7 @@ describe("live update resume cursor", () => {
     initializeDeskCueRuntime(createCloudMachineDeskCueRuntime(window.location));
     const socket = openLiveUpdatesSocket();
     const unauthorized = vi.fn();
+
     window.addEventListener("deskcue:api-unauthorized", unauthorized);
 
     expect(handleLiveUpdatesClose(socket, { code: 4001 } as CloseEvent)).toBe(false);
@@ -129,6 +144,7 @@ describe("live update resume cursor", () => {
   it("keeps direct daemon unauthorized closes on the local auth path", () => {
     const socket = openLiveUpdatesSocket();
     const unauthorized = vi.fn();
+
     window.addEventListener("deskcue:api-unauthorized", unauthorized);
 
     expect(handleLiveUpdatesClose(socket, { code: 4001 } as CloseEvent)).toBe(true);
@@ -142,8 +158,10 @@ describe("live update resume cursor", () => {
       daemonUrl: "http://deskcue.test",
       deviceId: null
     };
+
     const firstSocket = openLiveUpdatesSocket();
     const fakeFirstSocket = firstSocket as unknown as FakeWebSocket;
+
     acknowledgeLiveUpdateCursor(firstSocket, eventWithCursor("bearer-cursor"));
 
     expect(sessionStorage.getItem("deskcue.liveUpdatesCursor")).toBeNull();
@@ -155,6 +173,7 @@ describe("live update resume cursor", () => {
       cursor: unknown;
       type: unknown;
     };
+
     expect(typeof acknowledgement.clientId).toBe("string");
     expect(acknowledgement).toMatchObject({
       cursor: "bearer-cursor",

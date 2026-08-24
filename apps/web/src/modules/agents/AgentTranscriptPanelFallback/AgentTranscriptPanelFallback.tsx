@@ -1,8 +1,11 @@
 import clsx from "clsx";
 
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
+import { requestConfirmation } from "@components/ModalDialog";
 import { formatDate } from "@lib/format";
+import { getUnavailableChatPresentation } from "@modules/agents/agentSessionAccessPresentation";
 import type { AgentSessionsPanelProps } from "@modules/agents/types";
+import { useCurrentAgentSessionActionGuard } from "@modules/agents/useCurrentAgentSessionActionGuard";
 
 import styles from "./styles.module.scss";
 
@@ -25,6 +28,8 @@ export function AgentTranscriptPanelFallback({
   onAttach,
   onOpenManagedSession
 }: AgentTranscriptPanelFallbackProps) {
+  const currentSessionIdRef = useCurrentAgentSessionActionGuard(session?.id ?? null);
+
   if (!session) {
     return (
       <div className={clsx(styles.quickDetail, styles.quickDetailLoading)} aria-busy="true">
@@ -40,13 +45,12 @@ export function AgentTranscriptPanelFallback({
   }
 
   const attachedViewerCount = attachedManagedSessionInfo?.viewerCount ?? 0;
+  const unavailableChatPresentation = getUnavailableChatPresentation(session);
   const capabilityLabel = isLoading
     ? "Loading chat"
-    : session.workState === "running"
-      ? "Working in Codex"
-      : session.attachMode === "resume"
-        ? "Ready"
-        : "Review chat";
+    : session.attachMode === "resume"
+      ? "Ready to continue"
+      : unavailableChatPresentation.capabilityLabel;
   const attachedSessionHint = attachedManagedSessionInfo
     ? attachedManagedSessionInfo.status === "running"
       ? attachedViewerCount > 0
@@ -57,8 +61,8 @@ export function AgentTranscriptPanelFallback({
   const actionLabel = attachedManagedSessionId
     ? "Open live chat"
     : session.attachMode === "resume"
-      ? "Resume chat"
-      : "Open review";
+      ? "Continue chat"
+      : unavailableChatPresentation.actionLabel;
 
   return (
     <div className={clsx(styles.quickDetail, styles.quickDetailStable, isLoading && styles.quickDetailLoading)}>
@@ -81,11 +85,25 @@ export function AgentTranscriptPanelFallback({
         <button
           className={clsx(styles.button, styles.accentButton, attaching && styles.buttonLoading)}
           disabled={attaching}
-          onClick={() => {
+          onClick={async () => {
+            const actionSessionId = session.id;
+
             if (attachedManagedSessionId) {
               onOpenManagedSession(attachedManagedSessionId);
               return;
             }
+
+            if (session.attachMode !== "resume") {
+              const confirmed = await requestConfirmation({
+                confirmLabel: unavailableChatPresentation.confirmLabel,
+                description: unavailableChatPresentation.description,
+                title: unavailableChatPresentation.title
+              });
+
+              if (!confirmed || currentSessionIdRef.current !== actionSessionId) return;
+            }
+
+            if (currentSessionIdRef.current !== actionSessionId) return;
 
             onAttach();
           }}
@@ -98,8 +116,8 @@ export function AgentTranscriptPanelFallback({
             ? "DeskCue is preparing the local thread"
             : attachedSessionHint ??
               (session.attachMode === "resume"
-                ? "Resume starts the local agent process for this chat"
-                : "Open a read-only DeskCue review for this chat")}
+                ? "Open the completed chat; sending a follow-up continues it"
+                : unavailableChatPresentation.hint)}
         </p>
       </div>
     </div>

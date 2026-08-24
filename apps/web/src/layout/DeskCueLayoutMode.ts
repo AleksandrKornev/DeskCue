@@ -1,9 +1,11 @@
-import { createContext, useContext } from "react";
+import { useContext } from "react";
 
-export type DeskCueLayoutMode = "embedded" | "viewport";
+import {
+  DeskCueEmbeddedReadyContext,
+  DeskCueLayoutModeContext
+} from "./DeskCueLayoutModeContext";
 
-export const DeskCueLayoutModeContext = createContext<DeskCueLayoutMode>("viewport");
-export const DeskCueEmbeddedReadyContext = createContext<(() => void) | undefined>(undefined);
+export type { DeskCueLayoutMode } from "./DeskCueLayoutModeContext";
 
 export function useDeskCueLayoutMode() {
   return useContext(DeskCueLayoutModeContext);

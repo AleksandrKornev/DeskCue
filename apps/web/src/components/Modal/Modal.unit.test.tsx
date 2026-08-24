@@ -4,7 +4,7 @@ import {
   render,
   screen
 } from "@testing-library/react";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import {
   afterEach,
   describe,
@@ -43,18 +43,60 @@ function ModalFixture() {
 }
 
 describe("Modal", () => {
+  it("keeps one history entry through the StrictMode effect probe", async () => {
+    const pushState = vi.spyOn(window.history, "pushState");
+    const back = vi.spyOn(window.history, "back");
+    const onClose = vi.fn();
+    const view = render(
+      <StrictMode>
+        <Modal
+          closeOnHistoryBack
+          isOpen
+          title="History dialog"
+          onClose={onClose}
+        />
+      </StrictMode>
+    );
+
+    await act(async () => Promise.resolve());
+
+    expect(pushState).toHaveBeenCalledOnce();
+    expect(back).not.toHaveBeenCalled();
+
+    view.rerender(
+      <StrictMode>
+        <Modal
+          closeOnHistoryBack
+          isOpen={false}
+          title="History dialog"
+          onClose={onClose}
+        />
+      </StrictMode>
+    );
+
+    await act(async () => Promise.resolve());
+
+    expect(back).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("traps keyboard focus and restores it after close", () => {
     render(<ModalFixture />);
     const trigger = screen.getByRole("button", { name: "Open dialog" });
+
     trigger.focus();
+
     fireEvent.click(trigger);
 
     const dialog = screen.getByRole("dialog", { name: "Test dialog" });
+
     expect(dialog).toHaveAttribute("aria-describedby");
 
     const closeButton = screen.getByRole("button", { name: "Close dialog" });
     const lastAction = screen.getByRole("button", { name: "Last action" });
+
     dialog.focus();
+
     fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
     expect(lastAction).toHaveFocus();
 
@@ -90,7 +132,9 @@ describe("Modal", () => {
     const dialog = screen.getByRole("dialog", { name: "Test dialog" });
     const heading = screen.getByRole("heading", { name: "Test dialog" });
     const dragHandle = heading.parentElement?.parentElement;
+
     expect(dragHandle).toBeInstanceOf(HTMLElement);
+
     vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue({ height: 600 } as DOMRect);
 
     fireEvent.pointerDown(dragHandle!, {
@@ -104,12 +148,14 @@ describe("Modal", () => {
       isPrimary: true,
       pointerId: 1
     });
+
     expect(dialog).toHaveStyle({ transform: "translateY(20px)" });
     fireEvent.pointerUp(dragHandle!, {
       clientY: 120,
       isPrimary: true,
       pointerId: 1
     });
+
     act(() => vi.advanceTimersByTime(180));
     expect(dialog).toBeInTheDocument();
     expect(dialog.style.transform).toBe("");
@@ -130,6 +176,7 @@ describe("Modal", () => {
       isPrimary: true,
       pointerId: 2
     });
+
     act(() => vi.advanceTimersByTime(180));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

@@ -9,7 +9,11 @@ import { createPortal } from "react-dom";
 import CloseIcon from "@assets/images/icon-close.svg?react";
 import { useBottomSheetDrag } from "@components/BottomSheet";
 
-import { getFocusableElements } from "./helpers";
+import {
+  createModalKeyDownHandler,
+  createModalPopStateHandler,
+  readHistoryState
+} from "./helpers";
 import styles from "./styles.module.scss";
 import type { ModalProps } from "./types";
 
@@ -18,6 +22,7 @@ export function Modal({
   children,
   className,
   closeLabel = "Close dialog",
+  closeOnHistoryBack = false,
   description,
   eyebrow,
   footer,
@@ -30,6 +35,7 @@ export function Modal({
   const generatedTitleId = useId();
   const generatedDescriptionId = useId();
   const onCloseRef = useRef(onClose);
+  const historyEntryActiveRef = useRef(false);
   const resolvedTitleId = titleId ?? generatedTitleId;
   const {
     dragHandleProps,
@@ -42,52 +48,19 @@ export function Modal({
   }, [onClose]);
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
+    if (!isOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     const previouslyFocusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
     document.body.style.overflow = "hidden";
+
     window.requestAnimationFrame(() => {
       dialogRef.current?.focus({ preventScroll: true });
     });
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onCloseRef.current();
-        return;
-      }
-
-      if (event.key !== "Tab" || !dialogRef.current) {
-        return;
-      }
-
-      const focusableElements = getFocusableElements(dialogRef.current);
-      if (focusableElements.length === 0) {
-        event.preventDefault();
-        dialogRef.current.focus({ preventScroll: true });
-        return;
-      }
-
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements.at(-1);
-      const activeElement = document.activeElement;
-      const focusIsInsideDialog = activeElement instanceof Node &&
-        dialogRef.current.contains(activeElement);
-      if (
-        event.shiftKey &&
-        (activeElement === firstElement || activeElement === dialogRef.current || !focusIsInsideDialog)
-      ) {
-        event.preventDefault();
-        lastElement?.focus();
-      } else if (!event.shiftKey && (activeElement === lastElement || !focusIsInsideDialog)) {
-        event.preventDefault();
-        firstElement?.focus();
-      }
-    };
+    const handleKeyDown = createModalKeyDownHandler(dialogRef, onCloseRef);
 
     window.addEventListener("keydown", handleKeyDown);
 
@@ -98,9 +71,41 @@ export function Modal({
     };
   }, [dialogRef, isOpen]);
 
-  if (!isOpen) {
-    return null;
-  }
+  useEffect(() => {
+    if (!isOpen || !closeOnHistoryBack) return;
+
+    const marker = `${generatedTitleId}-history`;
+
+    if (readHistoryState().deskCueModal !== marker) {
+      window.history.pushState({ ...readHistoryState(), deskCueModal: marker }, "");
+    }
+
+    historyEntryActiveRef.current = true;
+
+    const handlePopState = createModalPopStateHandler(historyEntryActiveRef, onCloseRef);
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      if (
+        historyEntryActiveRef.current &&
+        readHistoryState().deskCueModal === marker
+      ) {
+        historyEntryActiveRef.current = false;
+        queueMicrotask(() => {
+          if (
+            !historyEntryActiveRef.current &&
+            readHistoryState().deskCueModal === marker
+          ) {
+            window.history.back();
+          }
+        });
+      }
+    };
+  }, [closeOnHistoryBack, generatedTitleId, isOpen]);
+
+  if (!isOpen) return null;
 
   return createPortal(
     <div className={styles.layer}>
