@@ -30,6 +30,7 @@ export type LogsTabPanelProps = {
   draftScopeKey: string;
   hasSelectedSession: boolean;
   hasSourceSession: boolean;
+  inputUnavailableLabel: string | null;
   isInterruptingPrompt: boolean;
   isPromptInFlight: boolean;
   isPromptQueued: boolean;

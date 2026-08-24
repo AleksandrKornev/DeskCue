@@ -120,7 +120,7 @@
 
 .searchField input {
   min-width: 0;
-  height: 40px;
+  height: 44px;
   border: 0;
   outline: 0;
   background: transparent;
@@ -334,6 +334,14 @@
   }
 
   .changesHeader { padding: 11px 12px; }
+  .refreshButton,
+  .openFileButton,
+  .mobileBackButton {
+    min-height: 44px;
+  }
+  .changedFileRow {
+    min-height: 44px;
+  }
   .changesHeader p { display: none; }
   .diffLine { grid-template-columns: 38px 38px minmax(320px, 1fr); }
 }

@@ -6,7 +6,12 @@ import CollapseIcon from "@assets/images/icon-collapse.svg?react";
 import ExpandIcon from "@assets/images/icon-expand.svg?react";
 
 import { MAX_WORKSPACE_BROWSER_ENTRIES } from "./constants";
-import { buildWorkspaceBreadcrumbs, formatFileSize, normalizeWorkspacePath } from "./helpers";
+import {
+  buildWorkspaceBreadcrumbs,
+  createFileViewerKeyDownHandler,
+  formatFileSize,
+  normalizeWorkspacePath
+} from "./helpers";
 import styles from "./styles.module.scss";
 import type { FilesTabPanelProps } from "./types";
 import { useWorkspaceFileBrowser } from "./useWorkspaceFileBrowser";
@@ -34,6 +39,7 @@ export function FilesTabPanel({
     const isChanged = changedPaths.has(normalizedPath) || (
       entry.kind === "directory" && [...changedPaths].some((path) => path.startsWith(`${normalizedPath}/`))
     );
+
     return (!changedOnly || isChanged) && (!normalizedQuery || entry.name.toLocaleLowerCase().includes(normalizedQuery));
   });
   const selectedFileChanged = browser.file ? changedPaths.has(normalizeWorkspacePath(browser.file.path)) : false;
@@ -43,7 +49,9 @@ export function FilesTabPanel({
       requestedPathRef.current = "";
       return;
     }
+
     if (requestedPathRef.current === requestedPath) return;
+
     requestedPathRef.current = requestedPath;
     void openRequestedPath(requestedPath).then((kind) => {
       setViewingFile(kind === "file");
@@ -54,9 +62,7 @@ export function FilesTabPanel({
   useEffect(() => {
     if (!fileViewerExpanded) return;
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFileViewerExpanded(false);
-    };
+    const handleKeyDown = createFileViewerKeyDownHandler(setFileViewerExpanded);
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -265,7 +271,14 @@ export function FilesTabPanel({
                   <p>DeskCue does not load binary file contents into the browser.</p>
                 </div>
               ) : (
-                <pre className={styles.fileContent}>{browser.file.content}</pre>
+                <pre className={styles.fileContent}>
+                  {(browser.file.content ?? "").split("\n").map((line, index) => (
+                    <span className={styles.fileLine} key={`${index}-${line.length}`}>
+                      <span aria-hidden="true" className={styles.fileLineNumber}>{index + 1}</span>
+                      <span className={styles.fileLineText}>{line || " "}</span>
+                    </span>
+                  ))}
+                </pre>
               )}
             </>
           ) : (
