@@ -1,3 +1,5 @@
+export * from "./types/realtimeTypes.ts";
+
 export const CLOUD_RELAY_PROTOCOL_VERSION = 1 as const;
 export const CLOUD_RELAY_CAPABILITY = "session.summary" as const;
 export const CLOUD_REMOTE_READ_CAPABILITY = "deskcue.read" as const;
@@ -89,6 +91,7 @@ export type CloudRemoteReadOperationInputMap = {
     view?: "chat" | "debug" | "diff";
     debugLogTail?: number;
   };
+
   "sessions.list": {
     includeLiveMetadata?: boolean;
     limit?: number;
@@ -96,6 +99,7 @@ export type CloudRemoteReadOperationInputMap = {
     query?: string;
     sourceId?: string;
   };
+
   "sessions.resolveRoute": { cloudSessionId: string };
   "sessions.get": CloudAgentSessionReadInput;
   "sessions.reviewed.post": { agentSessionId: string };
@@ -108,6 +112,7 @@ export type CloudRemoteReadOperationInputMap = {
     beforeEntryId: string;
     limit?: number;
   };
+
   "transcript.entries.get": { agentSessionId: string; entryIds: string[] };
   "transcript.entries.post": { agentSessionId: string; entryIds: string[] };
   "changes.get": CloudChangesReadInput;
@@ -121,6 +126,7 @@ export type CloudRemoteReadOperationInputMap = {
     managedSessionId?: string;
     path: string;
   };
+
   "assets.ticket.read": { ticket: string };
   "workspace.files.list": {
     workspaceId: string;
@@ -128,10 +134,12 @@ export type CloudRemoteReadOperationInputMap = {
     cursor?: string | null;
     limit?: number;
   };
+
   "workspace.files.read": { workspaceId: string; path: string };
   "managed.git.refresh": { sessionId: string; view?: "diff" };
   "preview.candidates": { kind: "session"; ownerId: string };
 };
+
 export type CloudRemoteReadOperationInput<
   Operation extends CloudRemoteReadOperation = CloudRemoteReadOperation
 > = CloudRemoteReadOperationInputMap[Operation];
@@ -169,8 +177,10 @@ export type RemoteControlOperationInputMap = {
     port: number;
     networkMode: "deskcue-host" | "device-direct";
   };
+
   "preview.stop": { sessionId: string };
 };
+
 export type ValidatedRemoteControlOperationInput<
   Operation extends RemoteControlOperation = RemoteControlOperation
 > = RemoteControlOperationInputMap[Operation];
@@ -308,7 +318,7 @@ export type CloudRelayServerFrame =
   | CloudRelayAck
   | CloudRemoteReadRequestFrame
   | RemoteControlRequestFrame
-  | RemoteRealtimeServerFrame;
+  | import("./types/realtimeTypes.ts").RemoteRealtimeServerFrame;
 
 export type CloudRemoteReadRequestFrame =
   | {
@@ -417,159 +427,13 @@ export type RemoteControlResponseFrame =
       sentAt: string;
     };
 
-export type RemoteRealtimeOpenMessage = {
-  type: "remote.realtime.open";
-  protocolVersion: typeof CLOUD_RELAY_PROTOCOL_VERSION;
-  streamId: string;
-  path: string;
-  deadlineAt: string;
-  sentAt: string;
-};
-export type RemoteRealtimeOpenedMessage = {
-  type: "remote.realtime.opened";
-  protocolVersion: typeof CLOUD_RELAY_PROTOCOL_VERSION;
-  streamId: string;
-  openedAt: string;
-};
-export type RemoteRealtimeClientMessageStart = {
-  type: "remote.realtime.client.message.start";
-  protocolVersion: typeof CLOUD_RELAY_PROTOCOL_VERSION;
-  streamId: string;
-  messageId: string;
-  bodyBytes: number;
-  chunkCount: number;
-  bodySha256: string;
-  sentAt: string;
-};
-export type RemoteRealtimeClientMessageChunk = {
-  type: "remote.realtime.client.message.chunk";
-  protocolVersion: typeof CLOUD_RELAY_PROTOCOL_VERSION;
-  streamId: string;
-  messageId: string;
-  index: number;
-  data: string;
-};
-export type RemoteRealtimeClientMessageEnd = {
-  type: "remote.realtime.client.message.end";
-  protocolVersion: typeof CLOUD_RELAY_PROTOCOL_VERSION;
-  streamId: string;
-  messageId: string;
-  bodySha256: string;
-  sentAt: string;
-};
-export type RemoteRealtimeServerMessageStart = Omit<RemoteRealtimeClientMessageStart, "type"> & {
-  type: "remote.realtime.server.message.start";
-};
-export type RemoteRealtimeServerMessageChunk = Omit<RemoteRealtimeClientMessageChunk, "type"> & {
-  type: "remote.realtime.server.message.chunk";
-};
-export type RemoteRealtimeServerMessageEnd = Omit<RemoteRealtimeClientMessageEnd, "type"> & {
-  type: "remote.realtime.server.message.end";
-};
-export type RemoteRealtimeCloseMessage = {
-  type: "remote.realtime.close";
-  protocolVersion: typeof CLOUD_RELAY_PROTOCOL_VERSION;
-  streamId: string;
-  code: number;
-  reason: string;
-  sentAt: string;
-};
-export type RemoteRealtimeClosedMessage = {
-  type: "remote.realtime.closed";
-  protocolVersion: typeof CLOUD_RELAY_PROTOCOL_VERSION;
-  streamId: string;
-  code: number;
-  reason: string;
-  closedAt: string;
-};
-export type RemoteRealtimeServerFrame =
-  | RemoteRealtimeOpenMessage
-  | RemoteRealtimeClientMessageStart
-  | RemoteRealtimeClientMessageChunk
-  | RemoteRealtimeClientMessageEnd
-  | RemoteRealtimeCloseMessage;
-export type RemoteRealtimeClientFrame =
-  | RemoteRealtimeOpenedMessage
-  | RemoteRealtimeServerMessageStart
-  | RemoteRealtimeServerMessageChunk
-  | RemoteRealtimeServerMessageEnd
-  | RemoteRealtimeClosedMessage;
-
 /** Every frame that the DeskCue daemon may send to the Cloud relay. */
 export type CloudRelayClientFrame =
   | CloudRelayHello
   | (CloudRelayEnvelope & { type?: never })
   | CloudRemoteReadResponseFrame
   | RemoteControlResponseFrame
-  | RemoteRealtimeClientFrame;
+  | import("./types/realtimeTypes.ts").RemoteRealtimeClientFrame;
 
-export type CloudConnectorState =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "degraded"
-  | "revoked";
 
-export type CloudConnectionStatusResponse = {
-  connectorIncluded: true;
-  connected: boolean;
-  enabled: boolean;
-  state: CloudConnectorState;
-  cloudOrigin: string | null;
-  displayName: string | null;
-  machineId: string | null;
-  lastConnectedAt: string | null;
-  lastErrorCode: string | null;
-  pendingEventCount: number;
-  remoteReadEnabled: boolean;
-  remoteFilesEnabled: boolean;
-  remoteControlEnabled: boolean;
-  remotePreviewEnabled: boolean;
-  sessionLabelDisclosureEnabled: boolean;
-};
-
-export type UpdateCloudSessionDisclosureInput = {
-  enabled: boolean;
-};
-
-export type UpdateCloudPermissionsInput = {
-  allowRemoteRead: boolean;
-  allowRemoteFiles: boolean;
-  allowRemoteControl: boolean;
-  allowRemotePreview: boolean;
-};
-
-export type ConnectCloudInput = {
-  cloudOrigin: string;
-  enrollmentTicket: string;
-  displayName: string;
-  allowRemoteRead: boolean;
-  allowRemoteFiles: boolean;
-  allowRemoteControl: boolean;
-  allowRemotePreview: boolean;
-};
-
-export type StartCloudEnrollmentAttemptInput = Omit<
-  ConnectCloudInput,
-  "enrollmentTicket"
->;
-
-export type CloudEnrollmentAttemptStatus =
-  | "pending"
-  | "failed"
-  | "expired";
-
-export type CloudEnrollmentAttempt = {
-  attemptId: string;
-  cloudOrigin: string;
-  displayName: string;
-  verificationUrl: string;
-  expiresAt: string;
-  pollIntervalMs: number;
-  status: CloudEnrollmentAttemptStatus;
-  lastErrorCode: string | null;
-};
-
-export type CloudEnrollmentAttemptResponse = {
-  attempt: CloudEnrollmentAttempt | null;
-};
+export * from "./types/connectionTypes.ts";
