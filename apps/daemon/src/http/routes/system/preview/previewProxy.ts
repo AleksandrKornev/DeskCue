@@ -18,18 +18,11 @@ import { readAccessTokenFromWebSocketRequest } from "#http/routes/access/accessC
 import { PreviewCookieJar } from "./egress/previewCookieJar.ts";
 import {
   previewEgressMustStripAuthorization,
-  readPreviewEgressUrl,
-  resolvePreviewEgressTarget
+  readPreviewEgressUrl
 } from "./egress/previewEgressTarget.ts";
 import type { PreviewEgressResolver } from "./egress/previewEgressTarget.ts";
 import { resolvePreviewWebSocketTargetUrls } from "./egress/previewWebSocketTarget.ts";
 import { discoverPreviewCandidates, waitForPreviewPort } from "./previewCandidateDiscovery.ts";
-import { PreviewHttpRelay } from "./previewHttpRelay.ts";
-import {
-  buildPreviewRequestHeaders,
-  createPreviewRootRequestRedirectHandler,
-  isDeskCueAuthorization
-} from "./previewProxyHeaders.ts";
 import { PREVIEW_PROXY_LIMITS } from "./previewProxyLimits.ts";
 import type {
   PreviewConfiguredPortReader,
@@ -56,6 +49,18 @@ import {
   rejectPreviewUpgrade,
   relayPreviewWebSockets
 } from "./previewWebSocketRelay.ts";
+import { PreviewHttpRelay } from "./relay/previewHttpRelay.ts";
+import {
+  buildPreviewRequestHeaders,
+  createPreviewRootRequestRedirectHandler,
+  isDeskCueAuthorization
+} from "./relay/previewProxyHeaders.ts";
+import { buildPreviewUrl } from "./routing/previewBrowserUrl.ts";
+import {
+  resolvePreviewHttpEgressTarget,
+  resolvePreviewWebSocketEgressTarget
+} from "./routing/previewEgressResolver.ts";
+import { isDeskCueAccessToken, readPreviewAuthRequired } from "./routing/previewProxyAccess.ts";
 import { PreviewProxyAdmission } from "./runtime/previewProxyAdmission.ts";
 import { PreviewProxyMetrics } from "./runtime/previewProxyMetrics.ts";
 import type { PreviewWebSocketMetricTracker } from "./runtime/previewProxyMetrics.ts";
@@ -74,37 +79,6 @@ type PreviewWebSocketContext = {
   targetUrl: URL;
   viewerKey: string;
 };
-
-function isDeskCueAccessToken(value: string) {
-  return Boolean(accessDeviceStore.authenticateToken(value));
-}
-
-function readBrowserFacingProtocol(request: express.Request) {
-  const requestHost = request.get("host")?.toLowerCase();
-  for (const value of [request.get("origin"), request.get("referer")]) {
-    if (!value) continue;
-    try {
-      const url = new URL(value);
-      const trustedOrigin = url.host.toLowerCase() === requestHost ||
-        daemonConfig.allowedOrigins.includes(url.origin);
-      if (trustedOrigin && (url.protocol === "http:" || url.protocol === "https:")) return url.protocol.slice(0, -1);
-    } catch {
-      // Fall through to the next browser-facing URL or the direct request.
-    }
-  }
-  return request.secure || request.protocol === "https" ? "https" : "http";
-}
-
-function buildPreviewUrl(request: express.Request, basePath: string, previewProxyPort?: number) {
-  if (!previewProxyPort) return `${basePath}/`;
-  const protocol = readBrowserFacingProtocol(request);
-  const origin = new URL(`${protocol}://${request.get("host") ?? "localhost"}`);
-  origin.port = String(previewProxyPort);
-  origin.pathname = `${basePath}/`;
-  origin.search = "";
-  origin.hash = "";
-  return origin.toString();
-}
 
 export class PreviewProxyController {
   private readonly admission = new PreviewProxyAdmission();
@@ -152,6 +126,7 @@ export class PreviewProxyController {
             excludedPort: daemonConfig.daemonPort
           })
         };
+
         response.json(result);
       } catch (error) {
         next(error);
@@ -162,10 +137,12 @@ export class PreviewProxyController {
       try {
         const owner = readProtocolPayload(() => parseIssuePreviewTicketInput(request.body));
         const target = await this.options.resolveTarget({ id: owner.ownerId, kind: owner.kind });
+
         if (!target) {
           response.status(409).json({ error: "Enable preview before opening it." });
           return;
         }
+
         if (!await waitForPreviewPort(target.port)) {
           response.status(409).json({ error: "The local preview server is unavailable." });
           return;
@@ -179,12 +156,14 @@ export class PreviewProxyController {
           readPreviewTicket(request.url, request.headers.cookie, previewOwner)
         );
         const basePath = buildPreviewBasePath(previewOwner);
+
         setPreviewTicketCookies(request, response, previewOwner, issued.ticket);
         const result: PreviewTicketResponse = {
           credentialRevision: issued.credentialRevision,
           expiresAt: new Date(issued.expiresAtMs).toISOString(),
           previewUrl: buildPreviewUrl(request, basePath, this.options.previewProxyPort)
         };
+
         response.status(201).json(result);
       } catch (error) {
         next(error);
@@ -194,6 +173,7 @@ export class PreviewProxyController {
 
   attach(server: Server) {
     if (this.server) throw new Error("Preview proxy is already attached.");
+
     this.server = server;
     this.closed = false;
     server.on("upgrade", this.onUpgrade);
@@ -201,6 +181,7 @@ export class PreviewProxyController {
 
   async close() {
     if (this.closed) return;
+
     this.closed = true;
     this.admission.close();
     if (this.server) this.server.off("upgrade", this.onUpgrade);
@@ -224,6 +205,7 @@ export class PreviewProxyController {
       const basePath = buildPreviewBasePath(owner);
       const ticket = readPreviewTicket(request.url, request.headers.cookie, owner);
       const ticketIsValid = this.ticketRegistry.validate(ticket, owner);
+
       if (!this.isHttpAuthorized(request, owner, ticket)) {
         response.status(401).json({ error: "A valid DeskCue preview ticket is required." });
         return;
@@ -233,21 +215,27 @@ export class PreviewProxyController {
         getRequestAccessDevice(request)?.id ??
         "local-preview";
       const admission = this.admission.tryAcquire("http", owner, viewerKey);
+
       if (!admission.accepted) {
         this.metrics.recordAdmissionRejection("http", admission.reason);
         response.status(503).json({ error: "Preview proxy is busy. Try again shortly." });
         return;
       }
+
       const metrics = this.metrics.startHttp();
-      let finalized = false;
-      const finalize = () => {
-        if (finalized) return;
-        finalized = true;
-        metrics.finish(response.writableEnded ? response.statusCode : 499);
-        admission.release();
+      const requestLifecycle = {
+        finalized: false,
+        finalize() {
+          if (requestLifecycle.finalized) return;
+
+          requestLifecycle.finalized = true;
+          metrics.finish(response.writableEnded ? response.statusCode : 499);
+          admission.release();
+        }
       };
-      response.once("finish", finalize);
-      response.once("close", finalize);
+
+      response.once("finish", requestLifecycle.finalize);
+      response.once("close", requestLifecycle.finalize);
 
       let target: ResolvedPreviewTarget | null;
       try {
@@ -255,6 +243,7 @@ export class PreviewProxyController {
       } catch {
         target = null;
       }
+
       if (!target) {
         response.status(404).json({ error: "Preview is not active for this chat." });
         return;
@@ -263,7 +252,9 @@ export class PreviewProxyController {
       if (ticket && ticketIsValid && hasExplicitPreviewTicket(request.url)) {
         setPreviewTicketCookies(request, response, owner, ticket);
       }
+
       const requestedEgressUrl = readPreviewEgressUrl(request.url);
+
       if (requestedEgressUrl && target.networkMode !== "deskcue-host") {
         response.status(403).json({ error: "Host-routed Preview networking is disabled." });
         return;
@@ -271,7 +262,7 @@ export class PreviewProxyController {
 
       try {
         const upstream = requestedEgressUrl
-          ? await this.readEgressHttpTarget(requestedEgressUrl)
+          ? await resolvePreviewHttpEgressTarget(requestedEgressUrl, this.options.resolveEgressTarget)
           : {
             egress: false as const,
             lookup: undefined,
@@ -305,7 +296,7 @@ export class PreviewProxyController {
 
   private isHttpAuthorized(request: express.Request, owner: PreviewOwner, ticket: string | null) {
     return (
-      !this.readAuthRequired() ||
+      !readPreviewAuthRequired(this.options.authRequired) ||
       Boolean(getRequestAccessDevice(request)) ||
       isTrustedLoopbackBrowserRequest(request) ||
       this.ticketRegistry.validate(ticket, owner)
@@ -318,8 +309,11 @@ export class PreviewProxyController {
     head: Buffer
   ) {
     const owner = readPreviewOwner(request.url);
+
     if (!owner) return;
+
     const ticket = readPreviewTicket(request.url ?? "/", request.headers.cookie, owner);
+
     if (!this.isWebSocketAuthorized(request, owner, ticket)) {
       rejectPreviewUpgrade(socket, 401, "Unauthorized");
       return;
@@ -327,18 +321,24 @@ export class PreviewProxyController {
 
     const viewerKey = this.readWebSocketViewerKey(request, owner, ticket);
     const admission = this.admission.tryAcquire("websocket", owner, viewerKey);
+
     if (!admission.accepted) {
       this.metrics.recordAdmissionRejection("websocket", admission.reason);
       rejectPreviewUpgrade(socket, 503, "Preview WebSocket limit reached");
       return;
     }
-    let admissionReleased = false;
-    const releaseAdmission = () => {
-      if (admissionReleased) return;
-      admissionReleased = true;
-      admission.release();
+
+    const admissionLifecycle = {
+      released: false,
+      release() {
+        if (admissionLifecycle.released) return;
+
+        admissionLifecycle.released = true;
+        admission.release();
+      }
     };
-    socket.once("close", releaseAdmission);
+
+    socket.once("close", admissionLifecycle.release);
 
     let target: ResolvedPreviewTarget | null = null;
     try {
@@ -346,16 +346,18 @@ export class PreviewProxyController {
     } catch {
       // Treat missing/corrupt owner state as unavailable without exposing it.
     }
+
     if (!target) {
-      releaseAdmission();
+      admissionLifecycle.release();
       rejectPreviewUpgrade(socket, 404, "Preview not active");
       return;
     }
 
     const basePath = buildPreviewBasePath(owner);
     const requestedEgressUrl = readPreviewEgressUrl(request.url);
+
     if (requestedEgressUrl && target.networkMode !== "deskcue-host") {
-      releaseAdmission();
+      admissionLifecycle.release();
       rejectPreviewUpgrade(socket, 403, "Host-routed Preview networking is disabled");
       return;
     }
@@ -363,7 +365,8 @@ export class PreviewProxyController {
     let connection: PreviewWebSocketContext;
     try {
       if (requestedEgressUrl) {
-        const resolved = await this.readEgressWebSocketTarget(requestedEgressUrl);
+        const resolved = await resolvePreviewWebSocketEgressTarget(requestedEgressUrl, this.options.resolveEgressTarget);
+
         connection = {
           egress: true,
           lookup: resolved.lookup,
@@ -377,6 +380,7 @@ export class PreviewProxyController {
           ticketPathSegment: PREVIEW_TICKET_PATH_SEGMENT,
           ticketQueryKey: PREVIEW_TICKET_QUERY_KEY
         });
+
         targetUrl.protocol = "ws:";
         connection = {
           egress: false,
@@ -385,7 +389,7 @@ export class PreviewProxyController {
         };
       }
     } catch {
-      releaseAdmission();
+      admissionLifecycle.release();
       rejectPreviewUpgrade(socket, 502, "Preview WebSocket target is unavailable or blocked");
       return;
     }
@@ -393,17 +397,21 @@ export class PreviewProxyController {
     try {
       this.webSocketServer.handleUpgrade(request, socket, head, (client) => {
         const metrics = this.metrics.startWebSocket();
-        const finish = () => {
-          metrics.finish();
-          releaseAdmission();
-          this.clientSockets.delete(client);
+        const clientLifecycle = {
+          finish: () => {
+            metrics.finish();
+            admissionLifecycle.release();
+            this.clientSockets.delete(client);
+          }
         };
+
         this.clientSockets.add(client);
-        client.once("close", finish);
+        client.once("close", clientLifecycle.finish);
         if (this.closed) {
           client.close(1012, "Preview proxy is shutting down");
           return;
         }
+
         try {
           this.connectUpstreamWebSocket(
             client,
@@ -419,15 +427,17 @@ export class PreviewProxyController {
         }
       });
     } catch {
-      releaseAdmission();
+      admissionLifecycle.release();
       rejectPreviewUpgrade(socket, 502, "Preview WebSocket upgrade failed");
     }
   }
 
   private isWebSocketAuthorized(request: IncomingMessage, owner: PreviewOwner, ticket: string | null) {
-    if (!this.readAuthRequired()) return true;
+    if (!readPreviewAuthRequired(this.options.authRequired)) return true;
     if (this.ticketRegistry.validate(ticket, owner)) return true;
+
     const device = accessDeviceStore.authenticateToken(readAccessTokenFromWebSocketRequest(request));
+
     return Boolean(device) || isTrustedLoopbackBrowserRequest(request);
   }
 
@@ -455,9 +465,11 @@ export class PreviewProxyController {
       maxPayload: PREVIEW_PROXY_LIMITS.maxWebSocketMessageBytes,
       origin: context.egress ? httpUrl.origin : target.origin
     });
+
     this.upstreamSockets.add(upstream);
     upstream.once("close", () => this.upstreamSockets.delete(upstream));
     relayPreviewWebSockets(client, upstream, metrics);
+
     client.once("error", () => {
       metrics.recordError();
       upstream.terminate();
@@ -474,34 +486,11 @@ export class PreviewProxyController {
     ticket: string | null
   ) {
     const ticketViewer = this.ticketRegistry.readViewerKey(ticket, owner);
+
     if (ticketViewer) return ticketViewer;
+
     return accessDeviceStore.authenticateToken(readAccessTokenFromWebSocketRequest(request))?.id ??
       "local-preview";
   }
 
-  private async readEgressHttpTarget(target: URL) {
-    if (target.protocol !== "http:" && target.protocol !== "https:") {
-      throw new Error("Preview HTTP egress target is invalid.");
-    }
-    const resolved = this.options.resolveEgressTarget
-      ? await this.options.resolveEgressTarget(target)
-      : await resolvePreviewEgressTarget(target, { allowLoopback: true });
-    return { ...resolved, egress: true as const };
-  }
-
-  private async readEgressWebSocketTarget(target: URL) {
-    if (target.protocol !== "ws:" && target.protocol !== "wss:") {
-      throw new Error("Preview WebSocket egress target is invalid.");
-    }
-    const validationUrl = new URL(target);
-    validationUrl.protocol = target.protocol === "wss:" ? "https:" : "http:";
-    const resolved = this.options.resolveEgressTarget
-      ? await this.options.resolveEgressTarget(validationUrl)
-      : await resolvePreviewEgressTarget(validationUrl, { allowLoopback: true });
-    const url = new URL(resolved.url);
-    url.protocol = target.protocol;
-    return { lookup: resolved.lookup, url };
-  }
-
-  private readAuthRequired() { return this.options.authRequired?.() ?? daemonConfig.authRequired; }
 }

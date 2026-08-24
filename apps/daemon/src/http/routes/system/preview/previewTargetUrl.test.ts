@@ -23,6 +23,20 @@ test("preserves Vite and application query tokens for the preview target", () =>
   );
 });
 
+test("preserves bare query flags while removing authenticated DeskCue credentials", () => {
+  const target = buildPreviewTargetUrl(
+    "/api/preview/sessions/session-1/__deskcue_ticket__/path-ticket/src/icon.svg" +
+      "?import&react&access_token=deskcue-device-token&token=public-token&empty=&flag",
+    "http://127.0.0.1:5173",
+    options
+  );
+
+  assert.equal(
+    target.href,
+    "http://127.0.0.1:5173/src/icon.svg?import&react&token=public-token&empty=&flag"
+  );
+});
+
 test("strips only authenticated DeskCue credentials and Preview ticket transport", () => {
   const target = buildPreviewTargetUrl(
     "/api/preview/sessions/session-1/__deskcue_ticket__/path-ticket/socket" +

@@ -46,7 +46,6 @@ export default defineConfig({
       },
       "/ws": {
         target: "http://localhost:4100",
-        changeOrigin: true,
         xfwd: true,
         ws: true
       },
