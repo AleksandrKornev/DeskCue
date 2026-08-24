@@ -38,6 +38,7 @@ export function normalizeOwnedProcessId(pid: number | undefined) {
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(timeoutError), timeoutMs);
+
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -62,9 +63,8 @@ async function waitForChildExit(
   createError: (message: string) => Error,
   options: TerminateOwnedProcessTreeOptions
 ) {
-  if (processTree.hasExited()) {
-    return;
-  }
+  if (processTree.hasExited()) return;
+
   await withTimeout(
     processTree.exited,
     remainingDuration(deadline, runtime.now()),
@@ -93,12 +93,13 @@ async function waitForProcessGroupExit(
   runtime: ProcessTreeTerminationRuntime
 ) {
   const deadline = runtime.now() + timeoutMs;
+
   while (runtime.isProcessGroupAlive(pid)) {
-    if (runtime.now() >= deadline) {
-      return false;
-    }
+    if (runtime.now() >= deadline) return false;
+
     await runtime.wait(Math.min(PROCESS_GROUP_POLL_INTERVAL_MS, remainingDuration(deadline, runtime.now())));
   }
+
   return true;
 }
 
@@ -125,9 +126,7 @@ const defaultRuntime: ProcessTreeTerminationRuntime = {
     try {
       process.kill(-pid, signal);
     } catch (error) {
-      if (!isMissingProcessError(error)) {
-        throw error;
-      }
+      if (!isMissingProcessError(error)) throw error;
     }
   },
   terminateWindowsProcessTree(pid, timeoutMs) {
@@ -166,6 +165,7 @@ export async function terminateOwnedProcessTree(
     } catch {
       // The child may have exited between the active-set read and kill.
     }
+
     await waitForChildExit(processTree, deadline, runtime, createError, options);
     return;
   }
@@ -182,6 +182,18 @@ export async function terminateOwnedProcessTree(
       if (!await observeChildExitUntilDeadline(processTree, deadline, runtime)) throw error;
     }
 
+    // taskkill owns termination of the OS process tree, but native PTY wrappers
+    // may not publish their exit event until their local handle is closed.
+    // Nudge that wrapper only after taskkill has completed so descendants cannot
+    // be orphaned by closing the root handle before the tree walk.
+    if (!processTree.hasExited()) {
+      try {
+        processTree.child.kill();
+      } catch {
+        // The native wrapper may have observed the taskkill result concurrently.
+      }
+    }
+
     await waitForChildExit(processTree, deadline, runtime, createError, options);
     return;
   }
@@ -192,6 +204,7 @@ export async function terminateOwnedProcessTree(
     Math.min(terminateGraceMs, remainingDuration(deadline, runtime.now())),
     runtime
   );
+
   if (!gracefulExit) {
     runtime.signalProcessGroup(processTree.pid, "SIGKILL");
     if (!await waitForProcessGroupExit(
@@ -202,5 +215,6 @@ export async function terminateOwnedProcessTree(
       throw createError(options.processGroupDidNotTerminateMessage(processTree.pid));
     }
   }
+
   await waitForChildExit(processTree, deadline, runtime, createError, options);
 }

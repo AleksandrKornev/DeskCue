@@ -16,6 +16,7 @@ function terminationOptions(runtime?: ProcessTreeTerminationRuntime) {
 
 test("owned process-tree termination bounds a child without a usable pid", async () => {
   let killed = false;
+
   await assert.rejects(
     terminateOwnedProcessTree({
       child: { kill: () => (killed = true) },
@@ -28,6 +29,7 @@ test("owned process-tree termination bounds a child without a usable pid", async
     }),
     /process did not exit/
   );
+
   assert.equal(killed, true);
 });
 
@@ -101,6 +103,34 @@ test("owned process-tree termination ignores a benign taskkill exit race", async
     hasExited: () => exited,
     pid: 42
   }, terminationOptions(runtime));
+});
+
+test("owned process-tree termination closes a Windows wrapper after taskkill", async () => {
+  let exited = false;
+  let killed = false;
+  let resolveExited!: () => void;
+  const exitedPromise = new Promise<void>((resolve) => {
+    resolveExited = resolve;
+  });
+  const runtime = fakeRuntime({
+    platform: "win32"
+  });
+
+  await terminateOwnedProcessTree({
+    child: {
+      kill: () => {
+        killed = true;
+        exited = true;
+        resolveExited();
+      }
+    },
+    exited: exitedPromise,
+    hasExited: () => exited,
+    pid: 42
+  }, terminationOptions(runtime));
+
+  assert.equal(killed, true);
+  assert.equal(exited, true);
 });
 
 test("owned process-tree termination waits for a delayed Windows exit race", async () => {

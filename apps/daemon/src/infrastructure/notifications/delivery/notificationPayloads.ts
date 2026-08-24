@@ -10,6 +10,7 @@ import type { NotificationPayload } from "../state/notificationTypes.ts";
 
 export function buildSessionFinishedNotification(session: SessionSummary): NotificationPayload {
   const done = session.status === "done";
+
   return {
     body: `${session.workspaceName}: ${done ? "Completed" : "Failed"}${formatExitCode(session.exitCode)}`,
     data: {
@@ -35,6 +36,7 @@ export function buildAgentTurnFinishedNotification(
       answer: payload.answer ?? null,
       completedAt: payload.completedAt,
       durationMs: payload.durationMs ?? null,
+      managedSessionId: payload.managedSessionId ?? null,
       notificationKind: "agent.turn.finished",
       sourceSessionId: payload.sourceSessionId,
       startedAt: payload.startedAt ?? null,
@@ -43,7 +45,9 @@ export function buildAgentTurnFinishedNotification(
     },
     tag: `deskcue-agent-session-${payload.agentSessionId}-${payload.completedAt}`,
     title: `DeskCue: ${payload.title}`,
-    url: `/?agent=${encodeURIComponent(`${payload.agentId}:${payload.sourceSessionId}`)}`
+    url: payload.managedSessionId
+      ? `/sessions/${encodeURIComponent(payload.managedSessionId)}/overview`
+      : `/?agent=${encodeURIComponent(`${payload.agentId}:${payload.sourceSessionId}`)}`
   };
 }
 
@@ -51,6 +55,7 @@ export function buildLocalLlmFinishedNotification(
   payload: Extract<ServerEvent, { type: "local.llm.chat.finished" }>["payload"]
 ): NotificationPayload {
   const runtimeLabel = payload.runtimeId === "lm-studio" ? "LM Studio" : "Ollama";
+
   return {
     body: payload.status === "completed"
       ? `${runtimeLabel}: response completed`
@@ -72,6 +77,7 @@ export function buildLocalLlmApprovalNotification(
   payload: Extract<ServerEvent, { type: "local.llm.chat.approval.required" }>["payload"]
 ): NotificationPayload {
   const runtimeLabel = payload.runtimeId === "lm-studio" ? "LM Studio" : "Ollama";
+
   return {
     body: `${runtimeLabel}: approve ${payload.summary}`,
     data: {

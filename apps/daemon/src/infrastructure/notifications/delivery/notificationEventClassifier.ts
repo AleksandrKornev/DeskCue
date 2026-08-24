@@ -58,12 +58,11 @@ export function classifyNotificationServerEvent(
     }];
   }
 
-  if (event.type !== "session.updated") {
-    return [];
-  }
+  if (event.type !== "session.updated") return [];
 
   const session = event.payload;
   const classified: ClassifiedNotificationEvent[] = [];
+
   if (session.actionRequest?.kind === "approval") {
     classified.push({
       claim: {
@@ -75,6 +74,8 @@ export function classifyNotificationServerEvent(
     });
   }
 
+  if (session.status === "stopped" && session.finishedAt === null) return classified;
+
   if (
     session.status !== "done" &&
     session.status !== "failed" &&
@@ -84,9 +85,9 @@ export function classifyNotificationServerEvent(
   }
 
   const payload = buildSessionFinishedNotification(session);
-  if (legacySessionWebhookActive) {
-    payload.webhookBody = buildLegacySessionWebhookPayload(session);
-  }
+
+  if (legacySessionWebhookActive) payload.webhookBody = buildLegacySessionWebhookPayload(session);
+
   classified.push({
     claim: {
       bucket: "sessionKeys",
