@@ -5,30 +5,11 @@ import type {
   UpdateCloudPermissionsInput
 } from "@deskcue/protocol";
 
+import type { PermissionFeedback } from "./cloudConnectionPresentation";
 import { PermissionFields, PermissionPresets } from "./PermissionControls";
 import { enabledCapabilityLabel } from "./permissions";
 import type { PermissionDraft } from "./permissions";
 import styles from "./styles.module.scss";
-
-export interface PermissionFeedback {
-  kind: "error" | "success";
-  message: string;
-}
-
-interface ConnectedCloudSettingsProps {
-  actionError: string | null;
-  loadError: string | null;
-  onDisconnect(): void;
-  onPermissionChange(patch: Partial<UpdateCloudPermissionsInput>): void;
-  onSavePermissions(event: FormEvent): void;
-  onSessionLabelDisclosureChange(enabled: boolean): void;
-  permissionFeedback: PermissionFeedback | null;
-  permissions: PermissionDraft;
-  permissionsDirty: boolean;
-  permissionsSubmitting: boolean;
-  status: CloudConnectionStatusResponse;
-  submitting: boolean;
-}
 
 export function ConnectedCloudSettings({
   actionError,
@@ -43,7 +24,20 @@ export function ConnectedCloudSettings({
   permissionsSubmitting,
   status,
   submitting
-}: ConnectedCloudSettingsProps) {
+}: {
+  actionError: string | null;
+  loadError: string | null;
+  onDisconnect(): void;
+  onPermissionChange(patch: Partial<UpdateCloudPermissionsInput>): void;
+  onSavePermissions(event: FormEvent): void;
+  onSessionLabelDisclosureChange(enabled: boolean): void;
+  permissionFeedback: PermissionFeedback | null;
+  permissions: PermissionDraft;
+  permissionsDirty: boolean;
+  permissionsSubmitting: boolean;
+  status: CloudConnectionStatusResponse;
+  submitting: boolean;
+}) {
   return (
     <div className={styles.connectedSettings}>
       <form className={styles.permissionsEditor} onSubmit={onSavePermissions}>

@@ -108,14 +108,14 @@ export function WebPushProviderSettings({
       {pushStatus ? <p className={styles.status}>{pushStatus}</p> : null}
       <Modal
         bodyClassName={styles.pushSessionsModalBody}
+        closeLabel="Close push sessions"
+        closeOnHistoryBack
         description="Stop DeskCue deliveries to saved push sessions. Browser notification permission stays under the browser's control."
         isOpen={sessionsDialogOpen && subscriptionToRemove === null}
         size="default"
         title="Manage push sessions"
         onClose={() => {
-          if (!removingPushSubscriptionId) {
-            setSessionsDialogOpen(false);
-          }
+          if (!removingPushSubscriptionId) setSessionsDialogOpen(false);
         }}
       >
         {otherPushSubscriptions.length > 0 ? (
@@ -166,14 +166,10 @@ export function WebPushProviderSettings({
         title="Stop this push session?"
         tone="danger"
         onCancel={() => {
-          if (!removingPushSubscriptionId) {
-            setSubscriptionToRemove(null);
-          }
+          if (!removingPushSubscriptionId) setSubscriptionToRemove(null);
         }}
         onConfirm={async () => {
-          if (!subscriptionToRemove) {
-            return;
-          }
+          if (!subscriptionToRemove) return;
 
           await onRemoveOtherPushSubscription(subscriptionToRemove.id);
           setSubscriptionToRemove(null);

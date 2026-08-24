@@ -1,21 +1,27 @@
-import type { FormEvent, SyntheticEvent } from "react";
 import { useEffect, useState } from "react";
 
 import type { CloudEnrollmentAttempt } from "@deskcue/protocol";
-import { cloudApi } from "@api/endpoint/cloud/endpoints";
 import { Modal } from "@components/Modal";
 import { useCloudConnectionStatus } from "@modules/cloudConnection/model/useCloudConnectionStatus";
 
+import {
+  cancelEnrollmentAttempt,
+  disconnect,
+  refreshEnrollmentAttempt,
+  savePermissions,
+  startEnrollmentAttempt,
+  submitConnection,
+  updateSessionLabelDisclosure
+} from "./actions/cloudConnectionActions";
+import type { CloudConnectionActionContext } from "./actions/cloudConnectionActions";
 import { CloudConnectionOverview } from "./CloudConnectionOverview";
+import { ENROLLMENT_STATUS_REFRESH_MS } from "./cloudConnectionPresentation";
+import type { PermissionFeedback } from "./cloudConnectionPresentation";
 import { CloudConnectionSummary } from "./CloudConnectionSummary";
 import { CloudEnrollmentForm } from "./CloudEnrollmentForm";
 import { ConnectedCloudSettings } from "./ConnectedCloudSettings";
-import type { PermissionFeedback } from "./ConnectedCloudSettings";
 import styles from "./styles.module.scss";
 import { usePermissionDraft } from "./usePermissionDraft";
-
-const OFFICIAL_CLOUD_ORIGIN = import.meta.env.VITE_DESKCUE_CLOUD_ORIGIN ?? "https://app.deskcue.io";
-const ENROLLMENT_STATUS_REFRESH_MS = 2_000;
 
 export function CloudConnectionPanel() {
   const { error: loadError, loading, refresh, setStatus, status } = useCloudConnectionStatus();
@@ -37,6 +43,20 @@ export function CloudConnectionPanel() {
     permissionsSubmitting,
     () => setPermissionsFeedback(null)
   );
+  const actionContext: CloudConnectionActionContext = {
+    cloudOrigin,
+    displayName,
+    enrollmentTicket,
+    permissionDraft,
+    refresh,
+    setActionError,
+    setEnrollmentAttempt,
+    setEnrollmentTicket,
+    setPermissionsFeedback,
+    setPermissionsSubmitting,
+    setStatus,
+    setSubmitting
+  };
 
   useEffect(() => {
     if (!hasCloudProfile) setPermissionsFeedback(null);
@@ -44,128 +64,21 @@ export function CloudConnectionPanel() {
 
   useEffect(() => {
     if (!detailsOpen || hasCloudProfile) return;
-    let active = true;
 
-    const refreshAttempt = async () => {
-      try {
-        const response = await cloudApi.getEnrollmentAttempt();
-        if (!active) return;
-        setEnrollmentAttempt(response.attempt);
-        if (!response.attempt) await refresh();
-      } catch {
-        // The main connection status already surfaces daemon reachability errors.
-      }
-    };
+    const activeRef = { current: true };
+    const refreshContext = { refresh, setEnrollmentAttempt };
 
-    void refreshAttempt();
-    const timer = window.setInterval(() => void refreshAttempt(), ENROLLMENT_STATUS_REFRESH_MS);
+    void refreshEnrollmentAttempt(activeRef, refreshContext);
+    const timer = window.setInterval(
+      () => void refreshEnrollmentAttempt(activeRef, refreshContext),
+      ENROLLMENT_STATUS_REFRESH_MS
+    );
 
     return () => {
-      active = false;
+      activeRef.current = false;
       window.clearInterval(timer);
     };
   }, [detailsOpen, hasCloudProfile, refresh]);
-
-  async function startEnrollmentAttempt(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setActionError(null);
-    const verificationWindow = window.open("about:blank", "_blank");
-    if (verificationWindow) verificationWindow.opener = null;
-    const result = await cloudApi.startEnrollmentAttempt({
-      ...permissionDraft.permissions,
-      cloudOrigin: OFFICIAL_CLOUD_ORIGIN,
-      displayName
-    });
-    if (result.ok && result.data.attempt) {
-      setEnrollmentAttempt(result.data.attempt);
-      if (verificationWindow) {
-        verificationWindow.location.href = result.data.attempt.verificationUrl;
-      } else {
-        window.location.assign(result.data.attempt.verificationUrl);
-      }
-    } else {
-      verificationWindow?.close();
-      setActionError(result.ok
-        ? "DeskCue Cloud did not return an enrollment attempt"
-        : result.data.error ?? "Failed to start DeskCue Cloud enrollment");
-    }
-    setSubmitting(false);
-  }
-
-  async function submitConnection(event: SyntheticEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setActionError(null);
-    const result = await cloudApi.connect({
-      ...permissionDraft.permissions,
-      cloudOrigin,
-      displayName,
-      enrollmentTicket
-    });
-    if (result.ok) {
-      setStatus(result.data);
-      setEnrollmentTicket("");
-      await refresh();
-    } else {
-      setActionError(result.data.error ?? "Failed to connect to DeskCue Cloud");
-    }
-    setSubmitting(false);
-  }
-
-  async function disconnect() {
-    setSubmitting(true);
-    setActionError(null);
-    const result = await cloudApi.disconnect();
-    if (result.ok) {
-      setStatus(result.data);
-    } else {
-      setActionError(result.data.error ?? "Failed to disconnect DeskCue Cloud");
-    }
-    setSubmitting(false);
-  }
-
-  async function updateSessionLabelDisclosure(enabled: boolean) {
-    setSubmitting(true);
-    setActionError(null);
-    const result = await cloudApi.updateSessionDisclosure({ enabled });
-    if (result.ok) {
-      setStatus(result.data);
-    } else {
-      setActionError(result.data.error ?? "Failed to update Cloud session label sharing");
-    }
-    setSubmitting(false);
-  }
-
-  async function savePermissions(event: FormEvent) {
-    event.preventDefault();
-    setPermissionsSubmitting(true);
-    setPermissionsFeedback(null);
-    const result = await cloudApi.updatePermissions(permissionDraft.permissions);
-    if (result.ok) {
-      setStatus(result.data);
-      permissionDraft.commit(result.data);
-      setPermissionsFeedback({ kind: "success", message: "Remote permissions saved." });
-    } else {
-      setPermissionsFeedback({
-        kind: "error",
-        message: result.data.error ?? "Failed to update Cloud remote permissions"
-      });
-    }
-    setPermissionsSubmitting(false);
-  }
-
-  async function cancelEnrollmentAttempt() {
-    setSubmitting(true);
-    setActionError(null);
-    const result = await cloudApi.cancelEnrollmentAttempt();
-    if (result.ok) {
-      setEnrollmentAttempt(null);
-    } else {
-      setActionError(result.data.error ?? "Failed to cancel Cloud enrollment");
-    }
-    setSubmitting(false);
-  }
 
   return (
     <>
@@ -196,10 +109,13 @@ export function CloudConnectionPanel() {
           <ConnectedCloudSettings
             actionError={actionError}
             loadError={loadError}
-            onDisconnect={() => void disconnect()}
+            onDisconnect={() => void disconnect(actionContext)}
             onPermissionChange={permissionDraft.update}
-            onSavePermissions={(event) => void savePermissions(event)}
-            onSessionLabelDisclosureChange={(enabled) => void updateSessionLabelDisclosure(enabled)}
+            onSavePermissions={(event) => void savePermissions(event, actionContext)}
+            onSessionLabelDisclosureChange={(enabled) => void updateSessionLabelDisclosure(
+              enabled,
+              actionContext
+            )}
             permissionFeedback={permissionsFeedback}
             permissions={permissionDraft.permissions}
             permissionsDirty={permissionDraft.dirty}
@@ -218,13 +134,13 @@ export function CloudConnectionPanel() {
             loadError={loadError}
             loading={loading}
             onAdvancedOpenChange={setAdvancedOpen}
-            onCancelEnrollment={() => void cancelEnrollmentAttempt()}
+            onCancelEnrollment={() => void cancelEnrollmentAttempt(actionContext)}
             onCloudOriginChange={setCloudOrigin}
-            onConnectCustom={(event) => void submitConnection(event)}
+            onConnectCustom={(event) => void submitConnection(event, actionContext)}
             onDisplayNameChange={setDisplayName}
             onEnrollmentTicketChange={setEnrollmentTicket}
             onPermissionChange={permissionDraft.update}
-            onStartEnrollment={(event) => void startEnrollmentAttempt(event)}
+            onStartEnrollment={(event) => void startEnrollmentAttempt(event, actionContext)}
             permissions={permissionDraft.permissions}
             submitting={submitting}
           />

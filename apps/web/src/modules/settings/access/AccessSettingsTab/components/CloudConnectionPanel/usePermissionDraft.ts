@@ -9,19 +9,12 @@ import {
 } from "./permissions";
 import type { PermissionDraft } from "./permissions";
 
-interface PermissionDraftState {
-  commit(status: CloudConnectionStatusResponse): void;
-  dirty: boolean;
-  permissions: PermissionDraft;
-  update(patch: Partial<PermissionDraft>): void;
-}
-
 export function usePermissionDraft(
   status: CloudConnectionStatusResponse | null,
   hasCloudProfile: boolean,
   submitting: boolean,
   onChange: () => void
-): PermissionDraftState {
+) {
   const [permissions, setPermissions] = useState<PermissionDraft>(FULL_ACCESS_PERMISSIONS);
   const [dirty, setDirty] = useState(false);
   const remoteControlEnabled = status?.remoteControlEnabled ?? false;
@@ -38,6 +31,7 @@ export function usePermissionDraft(
     }
 
     if (dirty || submitting) return;
+
     setPermissions({
       allowRemoteControl: remoteControlEnabled,
       allowRemoteFiles: remoteFilesEnabled,
@@ -54,20 +48,23 @@ export function usePermissionDraft(
     submitting
   ]);
 
-  function update(patch: Partial<PermissionDraft>): void {
-    const next = { ...permissions, ...patch };
-    setPermissions(next);
-    setDirty(Boolean(hasCloudProfile && status && !arePermissionsEqual(
-      next,
-      permissionsFromStatus(status)
-    )));
-    onChange();
-  }
+  const actions = {
+    commit(nextStatus: CloudConnectionStatusResponse): void {
+      setPermissions(permissionsFromStatus(nextStatus));
+      setDirty(false);
+    },
+    update(patch: Partial<PermissionDraft>): void {
+      const next = { ...permissions, ...patch };
 
-  function commit(nextStatus: CloudConnectionStatusResponse): void {
-    setPermissions(permissionsFromStatus(nextStatus));
-    setDirty(false);
-  }
+      setPermissions(next);
 
-  return { commit, dirty, permissions, update };
+      setDirty(Boolean(hasCloudProfile && status && !arePermissionsEqual(
+        next,
+        permissionsFromStatus(status)
+      )));
+      onChange();
+    }
+  };
+
+  return { commit: actions.commit, dirty, permissions, update: actions.update };
 }
