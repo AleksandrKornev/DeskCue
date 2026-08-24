@@ -9,16 +9,35 @@ import type {
 
 export const ATTACH_TRANSCRIPT_PREVIEW_ITEMS = 8;
 
+export function getMarkReviewedSessionId({
+  displaySessionId,
+  isHydratingSelection,
+  readyForReviewAgentSessionIds,
+  sessionCommandsEnabled
+}: {
+  displaySessionId: string;
+  isHydratingSelection: boolean;
+  readyForReviewAgentSessionIds: ReadonlySet<string>;
+  sessionCommandsEnabled: boolean;
+}) {
+  if (
+    !sessionCommandsEnabled ||
+    isHydratingSelection ||
+    !readyForReviewAgentSessionIds.has(displaySessionId)
+  ) {
+    return null;
+  }
+
+  return displaySessionId;
+}
+
 export function buildTextOnlyTranscriptEntries(timeline: TranscriptTimelineItem[]) {
   return timeline.flatMap((item): TextOnlyTranscriptEntry[] => {
-    if (item.type !== "entry") {
-      return [];
-    }
+    if (item.type !== "entry") return [];
 
     const text = getTextOnlyTranscriptEntryText(item.entry);
-    if (!text) {
-      return [];
-    }
+
+    if (!text) return [];
 
     return [
       {
@@ -37,9 +56,7 @@ function findLastEntryIndex(
   fromIndex = entries.length - 1
 ) {
   for (let index = Math.min(fromIndex, entries.length - 1); index >= 0; index -= 1) {
-    if (entries[index].role === role) {
-      return index;
-    }
+    if (entries[index].role === role) return index;
   }
 
   return -1;
@@ -51,26 +68,22 @@ export function buildVisibleTranscriptPreviewEntries(
 ) {
   const minimumPreviewItems = Math.max(previewItems, 2);
 
-  if (entries.length <= minimumPreviewItems) {
-    return entries;
-  }
+  if (entries.length <= minimumPreviewItems) return entries;
 
   const lastAssistantIndex = findLastEntryIndex(
     entries,
     "assistant",
     entries.length - 1
   );
-  if (lastAssistantIndex < 0) {
-    return entries.slice(-minimumPreviewItems);
-  }
+
+  if (lastAssistantIndex < 0) return entries.slice(-minimumPreviewItems);
 
   const pairedUserIndex = findLastEntryIndex(
     entries.slice(0, lastAssistantIndex),
     "user"
   );
-  if (pairedUserIndex < 0) {
-    return entries.slice(lastAssistantIndex).slice(-minimumPreviewItems);
-  }
+
+  if (pairedUserIndex < 0) return entries.slice(lastAssistantIndex).slice(-minimumPreviewItems);
 
   const previousAssistantIndex = findLastEntryIndex(
     entries,
@@ -90,29 +103,24 @@ export function buildAttachActionButtonLabel({
   attaching,
   canResume,
   hasAttachedManagedSession,
-  isOpeningSharedLiveThread
+  isOpeningSharedLiveThread,
+  unavailableActionLabel
 }: {
   attachWaitStage: AttachWaitStage;
   attaching: boolean;
   canResume: boolean;
   hasAttachedManagedSession: boolean;
   isOpeningSharedLiveThread: boolean;
+  unavailableActionLabel: string;
 }) {
   if (!attaching) {
-    if (hasAttachedManagedSession) {
-      return "Open live chat";
-    }
+    if (hasAttachedManagedSession) return "Open live chat";
 
-    return canResume ? "Resume chat" : "Open review";
+    return canResume ? "Continue chat" : unavailableActionLabel;
   }
 
-  if (attachWaitStage === "slow") {
-    return canResume ? "Still connecting..." : "Still opening...";
-  }
+  if (attachWaitStage === "slow") return "Still opening...";
+  if (attachWaitStage === "starting" && !isOpeningSharedLiveThread) return "Opening chat...";
 
-  if (attachWaitStage === "starting" && !isOpeningSharedLiveThread) {
-    return canResume ? "Connecting DeskCue..." : "Opening local agent...";
-  }
-
-  return canResume ? "Resuming chat..." : "Opening review...";
+  return canResume ? "Opening chat..." : "Opening view...";
 }

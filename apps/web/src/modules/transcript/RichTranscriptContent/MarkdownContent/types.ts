@@ -11,3 +11,11 @@ export type LocalMarkdownImageProps = {
   assetContext?: LocalAssetLinkContext;
   assetPath: string;
 };
+
+export type LocalAssetActionDialogProps = {
+  assetContext?: LocalAssetLinkContext;
+  assetPath: string;
+  displayName: string;
+  isOpen: boolean;
+  onClose: () => void;
+};
