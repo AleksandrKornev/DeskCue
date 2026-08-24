@@ -27,6 +27,7 @@ function runNodeFixture(script: string, args: string[]) {
       { stdio: ["ignore", "ignore", "pipe"], windowsHide: true }
     );
     let stderr = "";
+
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
@@ -34,6 +35,7 @@ function runNodeFixture(script: string, args: string[]) {
       child.kill();
       reject(new Error(`Crash fixture timed out. ${stderr}`));
     }, 10_000);
+
     child.once("error", (error) => {
       clearTimeout(timer);
       reject(error);
@@ -47,6 +49,7 @@ function runNodeFixture(script: string, args: string[]) {
 
 async function withWorkspace(run: (workspacePath: string) => Promise<void>) {
   const workspacePath = await mkdtemp(path.join(tmpdir(), "deskcue-local-llm-executor-"));
+
   try {
     await run(workspacePath);
   } finally {
@@ -65,6 +68,7 @@ test("read-only executor reads and searches only within canonical workspace", as
       turnId: "turn-1",
       workspacePath
     });
+
     assert.equal(read.status, "completed");
     assert.equal((read.result as { content: string }).content, "alpha\nbeta\n");
 
@@ -74,6 +78,7 @@ test("read-only executor reads and searches only within canonical workspace", as
       turnId: "turn-1",
       workspacePath
     });
+
     assert.deepEqual(search.result, { matches: [{ line: 2, path: "notes.txt", text: "beta" }], truncated: false });
 
     const blocked = await executor.execute({
@@ -82,6 +87,7 @@ test("read-only executor reads and searches only within canonical workspace", as
       turnId: "turn-1",
       workspacePath
     });
+
     assert.equal(blocked.status, "failed");
     assert.match(blocked.error ?? "", /escapes the attached workspace/);
   });
@@ -89,6 +95,7 @@ test("read-only executor reads and searches only within canonical workspace", as
 
 test("canonical workspace boundary rejects traversal and symlink escapes for reads and writes", async (context) => {
   const outsidePath = await mkdtemp(path.join(tmpdir(), "deskcue-local-llm-outside-"));
+
   try {
     await writeFile(path.join(outsidePath, "secret.txt"), "outside\n", "utf8");
     await withWorkspace(async (workspacePath) => {
@@ -99,6 +106,7 @@ test("canonical workspace boundary rejects traversal and symlink escapes for rea
           context.skip("This Windows account cannot create a junction/symlink.");
           return;
         }
+
         throw error;
       }
 
@@ -109,6 +117,7 @@ test("canonical workspace boundary rejects traversal and symlink escapes for rea
         turnId: "turn-boundary",
         workspacePath
       });
+
       assert.equal(readEscape.status, "failed");
       assert.match(readEscape.error ?? "", /escapes the attached workspace/);
 
@@ -122,6 +131,7 @@ test("canonical workspace boundary rejects traversal and symlink escapes for rea
         turnId: "turn-boundary",
         workspacePath
       });
+
       assert.equal(patchEscape.status, "failed");
       assert.match(patchEscape.error ?? "", /escapes the attached workspace/);
     });
@@ -147,6 +157,7 @@ test("workspace reads reject binary data and enforce configured byte limits", as
       turnId: "turn-limits",
       workspacePath
     });
+
     assert.deepEqual(limited.result, { content: "abcd", path: "long.txt", truncated: true });
 
     const listed = await executor.execute({
@@ -155,6 +166,7 @@ test("workspace reads reject binary data and enforce configured byte limits", as
       turnId: "turn-limits",
       workspacePath
     });
+
     assert.equal((listed.result as { entries: unknown[] }).entries.length, 1);
     assert.equal((listed.result as { truncated: boolean }).truncated, true);
 
@@ -164,6 +176,7 @@ test("workspace reads reject binary data and enforce configured byte limits", as
       turnId: "turn-limits",
       workspacePath
     });
+
     assert.equal((searched.result as { matches: unknown[] }).matches.length, 1);
     assert.equal((searched.result as { truncated: boolean }).truncated, true);
 
@@ -173,6 +186,7 @@ test("workspace reads reject binary data and enforce configured byte limits", as
       turnId: "turn-limits",
       workspacePath
     });
+
     assert.equal(binaryRead.status, "failed");
     assert.match(binaryRead.error ?? "", /Binary files cannot be read/);
 
@@ -186,6 +200,7 @@ test("workspace reads reject binary data and enforce configured byte limits", as
       turnId: "turn-limits",
       workspacePath
     });
+
     assert.equal(binaryPatch.status, "failed");
     assert.match(binaryPatch.error ?? "", /configured size limit/);
 
@@ -200,6 +215,7 @@ test("workspace reads reject binary data and enforce configured byte limits", as
       turnId: "turn-limits",
       workspacePath
     });
+
     assert.equal(binaryPatchWithinLimits.status, "failed");
     assert.match(binaryPatchWithinLimits.error ?? "", /Binary files cannot be patched/);
   });
@@ -221,6 +237,7 @@ test("workspace search stops at traversal, file-size, and depth budgets", async 
       turnId: "turn-search-budget",
       workspacePath
     });
+
     assert.equal(fileBudgetResult.status, "completed");
     assert.ok((fileBudgetResult.result as { matches: unknown[] }).matches.length <= 1);
     assert.equal((fileBudgetResult.result as { truncated: boolean }).truncated, true);
@@ -238,6 +255,7 @@ test("workspace search stops at traversal, file-size, and depth budgets", async 
       turnId: "turn-search-budget",
       workspacePath
     });
+
     assert.deepEqual(fileSizeResult.result, { matches: [], truncated: true });
 
     const depthResult = await new LocalLlmToolExecutor({
@@ -253,6 +271,7 @@ test("workspace search stops at traversal, file-size, and depth budgets", async 
       turnId: "turn-search-budget",
       workspacePath
     });
+
     assert.deepEqual(depthResult.result, { matches: [], truncated: true });
   });
 });
@@ -261,6 +280,7 @@ test("workspace read tools stop immediately when their generation is aborted", a
   await withWorkspace(async (workspacePath) => {
     await writeFile(path.join(workspacePath, "notes.txt"), "needle\n", "utf8");
     const controller = new AbortController();
+
     controller.abort();
 
     const result = await new LocalLlmToolExecutor().execute({
@@ -289,6 +309,7 @@ test("ask mode returns durable approval-shaped action requests without writing",
       turnId: "turn-ask",
       workspacePath
     });
+
     assert.equal(result.status, "requires_approval");
     assert.equal(result.event.type, "action_requested");
     assert.equal(result.actionRequest?.turnId, "turn-ask");
@@ -308,6 +329,7 @@ test("read-only, ask, auto-workspace, and full-access policies keep their write 
       turnId: "turn-policy",
       workspacePath
     });
+
     assert.equal(readOnly.status, "failed");
 
     const ask = await executor.execute({
@@ -316,6 +338,7 @@ test("read-only, ask, auto-workspace, and full-access policies keep their write 
       turnId: "turn-policy",
       workspacePath
     });
+
     assert.equal(ask.status, "requires_approval");
 
     const auto = await executor.execute({
@@ -324,6 +347,7 @@ test("read-only, ask, auto-workspace, and full-access policies keep their write 
       turnId: "turn-policy",
       workspacePath
     });
+
     assert.equal(auto.status, "requires_approval");
 
     const full = await executor.execute({
@@ -332,6 +356,7 @@ test("read-only, ask, auto-workspace, and full-access policies keep their write 
       turnId: "turn-policy",
       workspacePath
     });
+
     assert.equal(full.status, "completed");
     assert.equal(await readFile(path.join(workspacePath, "file.txt"), "utf8"), "before\n");
   });
@@ -351,6 +376,7 @@ test("auto workspace atomically applies a validated unified diff and rejects sta
       turnId: "turn-auto",
       workspacePath
     });
+
     assert.equal(applied.status, "completed");
     assert.equal(await readFile(path.join(workspacePath, "file.txt"), "utf8"), "after\n");
 
@@ -364,6 +390,7 @@ test("auto workspace atomically applies a validated unified diff and rejects sta
       turnId: "turn-auto",
       workspacePath
     });
+
     assert.equal(stale.status, "failed");
     assert.match(stale.error ?? "", /does not match/);
     assert.equal(await readFile(path.join(workspacePath, "file.txt"), "utf8"), "after\n");
@@ -413,9 +440,8 @@ test("a failed second atomic replace rolls back every file in a multi-file patch
       mkdir,
       rename: async (source, target) => {
         renameCount += 1;
-        if (renameCount === 2) {
-          throw new Error("simulated second replace failure");
-        }
+        if (renameCount === 2) throw new Error("simulated second replace failure");
+
         await rename(source, target);
       },
       rm,
@@ -444,6 +470,7 @@ test("a failed second atomic replace rolls back every file in a multi-file patch
       ),
       /simulated second replace failure/
     );
+
     assert.equal(await readFile(path.join(workspacePath, "first.txt"), "utf8"), "one\n");
     assert.equal(await readFile(path.join(workspacePath, "second.txt"), "utf8"), "two\n");
   });
@@ -452,7 +479,9 @@ test("a failed second atomic replace rolls back every file in a multi-file patch
 test("the next patch recovers a durable journal left by a crash between target renames", async () => {
   await withWorkspace(async (workspacePath) => {
     const firstFileName = "first-file.txt";
+
     await writeFile(path.join(workspacePath, firstFileName), "one\n", "utf8");
+
     await writeFile(path.join(workspacePath, "second.txt"), "two\n", "utf8");
     const moduleUrl = new URL("./localLlmUnifiedDiff.ts", import.meta.url).href;
     const crashingPatch = [
@@ -490,6 +519,7 @@ test("the next patch recovers a durable journal left by a crash between target r
       Buffer.from(crashingPatch, "utf8").toString("base64"),
       Buffer.from(firstFileName, "utf8").toString("base64")
     ]);
+
     assert.equal(childResult.code, 86, childResult.stderr);
     assert.equal(await readFile(path.join(workspacePath, firstFileName), "utf8"), "changed-one\n");
     assert.equal(await readFile(path.join(workspacePath, "second.txt"), "utf8"), "two\n");
@@ -526,6 +556,7 @@ test("auto workspace still asks before commands while full access runs bounded c
       turnId: "turn-command",
       workspacePath
     });
+
     // process.execPath is intentionally rejected as a path: commands stay PATH-only.
     assert.equal(requested.status, "requires_approval");
 
@@ -535,6 +566,7 @@ test("auto workspace still asks before commands while full access runs bounded c
       turnId: "turn-command",
       workspacePath
     });
+
     assert.equal(command.status, "completed");
     assert.match((command.result as { output: string }).output, /ok/);
   });
@@ -549,6 +581,7 @@ test("full access honours the daemon executable denylist", async () => {
       turnId: "turn-deny",
       workspacePath
     });
+
     assert.equal(result.status, "failed");
     assert.match(result.error ?? "", /denied by this DeskCue daemon/);
   });
@@ -575,7 +608,9 @@ test("full access truncates command output and terminates commands at the config
 
     assert.equal(result.status, "completed");
     const command = result.result as { output: string; timedOut: boolean; truncated: boolean };
+
     assert.equal(command.timedOut, true);
+
     assert.equal(command.truncated, true);
     assert.ok(Buffer.byteLength(command.output) <= 16);
   });
@@ -584,7 +619,7 @@ test("full access truncates command output and terminates commands at the config
 test("aborting a workspace command terminates its descendant process tree", async () => {
   await withWorkspace(async (workspacePath) => {
     const markerPath = path.join(workspacePath, "descendant-survived.txt");
-    const descendantScript = `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'alive'), 700)`;
+    const descendantScript = `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'alive'), 2_500)`;
     const parentScript = [
       "require('node:child_process').spawn(",
       "process.execPath,",
@@ -607,12 +642,15 @@ test("aborting a workspace command terminates its descendant process tree", asyn
       turnId: "turn-process-tree",
       workspacePath
     });
+
     setTimeout(() => controller.abort(), 150).unref();
 
     const result = await execution;
+
     assert.equal(result.status, "failed");
+
     assert.match(result.error ?? "", /abort/i);
-    await new Promise((resolve) => setTimeout(resolve, 850));
+    await new Promise((resolve) => setTimeout(resolve, 2_800));
     await assert.rejects(readFile(markerPath), { code: "ENOENT" });
   });
 });

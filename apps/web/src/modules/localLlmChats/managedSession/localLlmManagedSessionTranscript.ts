@@ -1,19 +1,17 @@
 import type {
-  AgentTranscriptActivityGroup,
   AgentTranscriptEntry,
   LocalLlmChatDetail,
   LocalLlmChatEvent
 } from "@deskcue/protocol";
 
+import { isToolEvent, lifecycleDetailText } from "./localLlmTurnActivities";
 import type {
   LocalLlmHistoryStream,
   LocalLlmProtectedRecordIds
 } from "./types";
 
-export type LocalLlmTurnActivities = {
-  byTurnId: Map<string, AgentTranscriptActivityGroup[]>;
-  unanchored: AgentTranscriptActivityGroup[];
-};
+export { groupLocalLlmTurnActivities } from "./localLlmTurnActivities";
+export type { LocalLlmTurnActivities } from "./localLlmTurnActivities";
 
 export type LocalLlmWaitingPrompt = {
   requestedAt: string;
@@ -35,6 +33,7 @@ export function localLlmChatRefreshInterval(
   generationState: LocalLlmChatDetail["generationState"] | null | undefined
 ) {
   if (!generationState) return null;
+
   return generationState === "running" ? LOCAL_LLM_RUNNING_REFRESH_INTERVAL_MS : null;
 }
 
@@ -59,28 +58,34 @@ function retainNewestWithinBudget<T extends { id: string }>(
   ) {
     return records;
   }
+
   const retainedIds = new Set<string>();
+
   if (preserveIds) {
     for (const record of records) {
-      if (preserveIds.has(record.id)) {
-        retainedIds.add(record.id);
-      }
+      if (preserveIds.has(record.id)) retainedIds.add(record.id);
     }
   }
+
   let retainedBytes = 2;
   let retainedLiveCount = 0;
+
   for (let index = records.length - 1; index >= 0 && retainedLiveCount < maxCount; index -= 1) {
     const record = records[index];
+
     if (retainedIds.has(record.id)) continue;
+
     const recordBytes = estimateWireBytes(record) + 2;
+
     if (recordBytes > maxBytes || retainedBytes + recordBytes > maxBytes) continue;
+
     retainedIds.add(record.id);
     retainedLiveCount += 1;
     retainedBytes += recordBytes;
   }
-  if (retainedIds.size === records.length) {
-    return records;
-  }
+
+  if (retainedIds.size === records.length) return records;
+
   return records.filter((record) => retainedIds.has(record.id));
 }
 
@@ -112,6 +117,7 @@ export function boundLocalChatDetail(
     MAX_RETAINED_LOCAL_LLM_CHANGE_SET_BYTES,
     preserveRecordIds.changeSets
   );
+
   if (
     messages === detail.messages &&
     events === detail.events &&
@@ -119,6 +125,7 @@ export function boundLocalChatDetail(
   ) {
     return detail;
   }
+
   return { ...detail, changeSets, events, messages };
 }
 
@@ -128,11 +135,15 @@ function mergeById<T extends { id: string; timestamp: string }>(
   mergeRecord: (previous: T, next: T) => T = (previous, next) => ({ ...previous, ...next })
 ) {
   const byId = new Map<string, T>();
+
   for (const item of current) byId.set(item.id, item);
+
   for (const item of incoming) {
     const previous = byId.get(item.id);
+
     byId.set(item.id, previous ? mergeRecord(previous, item) : item);
   }
+
   return [...byId.values()].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
 }
 
@@ -169,9 +180,7 @@ function areEquivalentTimelineRecords(
   left: { id: string; timestamp: string },
   right: { id: string; timestamp: string } | undefined
 ) {
-  if (left === right) {
-    return true;
-  }
+  if (left === right) return true;
 
   // A live/history response may enrich an existing record without changing
   // its durable id or timestamp (for example a completed tool summary or a
@@ -207,6 +216,7 @@ function sameActionRequests(
 ) {
   return left.length === right.length && left.every((request, index) => {
     const candidate = right[index];
+
     return request.id === candidate?.id && request.status === candidate.status;
   });
 }
@@ -217,8 +227,10 @@ function samePreviewArtifacts(
 ) {
   const leftArtifacts = left ?? [];
   const rightArtifacts = right ?? [];
+
   return leftArtifacts.length === rightArtifacts.length && leftArtifacts.every((artifact, index) => {
     const candidate = rightArtifacts[index];
+
     return artifact.id === candidate?.id &&
       artifact.capturedAt === candidate.capturedAt &&
       artifact.targetUrl === candidate.targetUrl &&
@@ -236,6 +248,7 @@ function samePreview(
 ) {
   if (left === right) return true;
   if (!left || !right) return false;
+
   return left.active === right.active &&
     left.networkMode === right.networkMode &&
     left.port === right.port &&
@@ -249,6 +262,7 @@ function sameGit(
 ) {
   if (left === right) return true;
   if (!left || !right) return false;
+
   return left.branch === right.branch &&
     left.isDirty === right.isDirty &&
     left.isGitRepo === right.isGitRepo &&
@@ -316,150 +330,6 @@ export function mergeLocalChatDetail(
   return isEquivalentLocalChatDetail(current, merged) ? current : merged;
 }
 
-function isToolEvent(event: LocalLlmChatEvent) {
-  return event.type === "tool_requested" || event.type === "tool_completed" || event.type === "tool_failed";
-}
-
-function withoutTerminalPeriod(text: string) {
-  return text.endsWith(".") ? text.slice(0, -1) : text;
-}
-
-function lifecycleDetailText(event: LocalLlmChatEvent) {
-  switch (event.type) {
-    case "turn_started":
-      return "DeskCue started local model generation";
-    case "assistant_message_saved":
-      return "DeskCue saved the assistant response";
-    case "turn_completed":
-      return "Local model generation completed";
-    case "turn_failed":
-      return event.error ? `Local model generation failed: ${withoutTerminalPeriod(event.error)}` : "Local model generation failed";
-    case "turn_interrupted":
-      return "Local model generation was stopped";
-    case "turn_interrupted_after_restart":
-      return "DeskCue restarted before local model generation finished";
-    case "model_reasoning_saved":
-      return event.summary ?? "Local model exposed reasoning";
-    case "tool_requested":
-      return event.toolName ? `Local agent requested ${event.toolName}` : "Local agent requested a tool";
-    case "tool_completed":
-      return event.summary
-        ? withoutTerminalPeriod(event.summary)
-        : event.toolName ? `Local agent completed ${event.toolName}` : "Local agent completed a tool";
-    case "tool_failed":
-      return event.error
-        ? withoutTerminalPeriod(event.error)
-        : event.toolName ? `Local agent could not complete ${event.toolName}` : "Local agent tool failed";
-    case "action_requested":
-      return event.actionRequest?.summary
-        ? withoutTerminalPeriod(event.actionRequest.summary)
-        : "Local agent needs approval before continuing";
-    case "action_resolved":
-      return event.summary ? withoutTerminalPeriod(event.summary) : "Local agent action request was resolved";
-  }
-}
-
-function toolActivitiesForTurn(
-  turnId: string,
-  events: readonly LocalLlmChatEvent[]
-): AgentTranscriptActivityGroup[] {
-  const eventsByToolCall = new Map<string, LocalLlmChatEvent[]>();
-  for (const event of events) {
-    if (!isToolEvent(event)) continue;
-    const toolCallId = event.toolCallId ?? event.id;
-    const toolEvents = eventsByToolCall.get(toolCallId) ?? [];
-    toolEvents.push(event);
-    eventsByToolCall.set(toolCallId, toolEvents);
-  }
-  if (!eventsByToolCall.size) return [];
-
-  const entries: AgentTranscriptEntry[] = [...eventsByToolCall.values()].map((toolEvents) => {
-    const terminal = [...toolEvents].reverse().find((event) => event.type !== "tool_requested");
-    const event = terminal ?? toolEvents[0];
-    const text = terminal ? lifecycleDetailText(terminal) : lifecycleDetailText(event);
-    return {
-      id: `local-llm:tool:${turnId}:${event.toolCallId ?? event.id}`,
-      parts: [{ text, type: "markdown" }],
-      phase: "commentary",
-      role: "commentary",
-      text,
-      timestamp: event.timestamp
-    };
-  });
-  const latestTimestamp = entries.reduce((latest, entry) => latest > entry.timestamp ? latest : entry.timestamp, entries[0].timestamp);
-  return [{
-    entries,
-    entryIds: entries.map((entry) => entry.id),
-    id: `local-llm:tools:${turnId}`,
-    kind: "tools",
-    label: `Tools (${entries.length})`,
-    sourceEntryIds: entries.map((entry) => entry.id),
-    timestamp: latestTimestamp
-  }];
-}
-
-function detailActivitiesForTurn(
-  turnId: string,
-  events: readonly LocalLlmChatEvent[]
-): AgentTranscriptActivityGroup[] {
-  const visible = events.filter((event) =>
-    event.type === "turn_failed" ||
-    event.type === "turn_interrupted" ||
-    event.type === "turn_interrupted_after_restart" ||
-    event.type === "model_reasoning_saved" ||
-    event.type === "action_requested" ||
-    event.type === "action_resolved"
-  );
-  if (!visible.length) return [];
-  const entries: AgentTranscriptEntry[] = visible.map((event) => {
-    const text = lifecycleDetailText(event);
-    return {
-      id: `local-llm:detail:${event.id}`,
-      parts: [{ text, type: "markdown" }],
-      phase: "commentary",
-      role: "commentary",
-      text,
-      timestamp: event.timestamp
-    };
-  });
-  return [{
-    entries,
-    entryIds: entries.map((entry) => entry.id),
-    id: `local-llm:details:${turnId}`,
-    kind: "details",
-    label: `Details (${entries.length})`,
-    sourceEntryIds: entries.map((entry) => entry.id),
-    timestamp: entries.at(-1)!.timestamp
-  }];
-}
-
-/**
- * The local-chat event ledger is deliberately more granular than the chat UI.
- * A single tool call produces request and completion facts, while a normal
- * assistant reply has start/save/complete facts. The timeline must keep those
- * durable facts without showing each one as a separate visual message.
- */
-export function groupLocalLlmTurnActivities(events: readonly LocalLlmChatEvent[]): LocalLlmTurnActivities {
-  const byTurnId = new Map<string, AgentTranscriptActivityGroup[]>();
-  const unanchored: AgentTranscriptActivityGroup[] = [];
-  const eventsByTurn = new Map<string, LocalLlmChatEvent[]>();
-  for (const event of events) {
-    const turnEvents = eventsByTurn.get(event.turnId) ?? [];
-    turnEvents.push(event);
-    eventsByTurn.set(event.turnId, turnEvents);
-  }
-
-  for (const [turnId, turnEvents] of eventsByTurn) {
-    const groups = [
-      ...toolActivitiesForTurn(turnId, turnEvents),
-      ...detailActivitiesForTurn(turnId, turnEvents)
-    ].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
-    if (groups.length) byTurnId.set(turnId, groups);
-  }
-
-  return { byTurnId, unanchored };
-}
-
 /**
  * The generic chat surface reserves the waiting card for a live commentary
  * entry. Local runtimes keep stream deltas in memory, so project that delta
@@ -484,10 +354,13 @@ export function localLlmLatestWaitingDetailEntry(detail: LocalLlmChatDetail): Ag
     event.turnId === activeTurnId &&
     (event.type === "turn_started" || isToolEvent(event) || event.type === "action_requested")
   );
+
   if (!latestEvent) return null;
 
   const text = lifecycleDetailText(latestEvent);
+
   if (!text) return null;
+
   return {
     id: `local-llm:waiting:${latestEvent.id}`,
     parts: [{ text, type: "markdown" }],
@@ -502,26 +375,32 @@ export function localLlmWaitingPrompt(detail: LocalLlmChatDetail): LocalLlmWaiti
   if (detail.generationState !== "running") return null;
 
   const started = [...detail.events].reverse().find((event) => event.type === "turn_started");
+
   if (!started?.messageId) return null;
 
   const message = detail.messages.find((candidate) =>
     candidate.id === started.messageId && candidate.role === "user"
   );
+
   return message ? { requestedAt: started.timestamp, text: message.text } : null;
 }
 
 export function localLlmInterruptedUserMessageIds(events: readonly LocalLlmChatEvent[]) {
   const userMessageIdByTurnId = new Map<string, string>();
   const interruptedUserMessageIds = new Set<string>();
+
   for (const event of events) {
     if (event.type === "turn_started" && event.messageId) {
       userMessageIdByTurnId.set(event.turnId, event.messageId);
       continue;
     }
+
     if (event.type === "turn_interrupted" || event.type === "turn_interrupted_after_restart") {
       const userMessageId = userMessageIdByTurnId.get(event.turnId);
+
       if (userMessageId) interruptedUserMessageIds.add(userMessageId);
     }
   }
+
   return interruptedUserMessageIds;
 }
