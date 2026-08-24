@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import type { SessionDetail, SessionStatus } from "@deskcue/protocol";
 
 import { SessionProcessEventRelay } from "./sessionProcessEventRelay.ts";
+import type { ProcessOutputStream } from "./sessionProcessEventRelay.ts";
 import {
   formatSessionPtySubmit,
   formatSessionProcessInput,
@@ -26,7 +27,7 @@ export type RunningChild = {
   surviveParentExit?: boolean;
   write(data: string): void;
   kill(signal?: NodeJS.Signals): void;
-  onData(listener: (data: string) => void): ChildSubscription;
+  onData(listener: (data: string, stream?: ProcessOutputStream) => void): ChildSubscription;
   onExit(listener: (event: { exitCode: number | null }) => void): ChildSubscription;
   transport?: "pipe" | "pty";
 };
@@ -202,12 +203,12 @@ export function createSessionPipe(
   });
   const events = new SessionProcessEventRelay();
 
-  child.stdout?.on("data", (value: Buffer) => events.publishData(value));
-  child.stderr?.on("data", (value: Buffer) => events.publishData(value));
+  child.stdout?.on("data", (value: Buffer) => events.publishData(value, "stdout"));
+  child.stderr?.on("data", (value: Buffer) => events.publishData(value, "stderr"));
   child.once("error", (error) => {
     const diagnostic = `Failed to start process: ${error.message}`;
 
-    events.publishData(`${diagnostic}\n`);
+    events.publishData(`${diagnostic}\n`, "stderr");
 
     events.publishExit(1);
   });

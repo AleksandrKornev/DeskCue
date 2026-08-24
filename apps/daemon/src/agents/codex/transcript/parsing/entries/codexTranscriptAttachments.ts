@@ -27,13 +27,8 @@ function isAbsolutePathLike(value: string) {
 }
 
 function extractAbsolutePathFromWrapperLine(line: string) {
-  if (!line) {
-    return null;
-  }
-
-  if (isAbsolutePathLike(line)) {
-    return line;
-  }
+  if (!line) return null;
+  if (isAbsolutePathLike(line)) return line;
 
   const pathAfterColonMatch = line.match(/:\s*([A-Za-z]:[\\/][^:*?"<>|]+|\/[^/\s][^]*?)\s*$/);
   const candidate = pathAfterColonMatch?.[1]?.trim() ?? "";
@@ -42,17 +37,13 @@ function extractAbsolutePathFromWrapperLine(line: string) {
 }
 
 function extractMentionedFilesFromWrapper(text: string) {
-  if (!text) {
-    return [];
-  }
+  if (!text) return [];
 
   const wrapperMatch = text.match(
-    /(?:^|\n)#+\s*Files mentioned by the user:\s*([\s\S]*?)(?:^|\n)#+\s*My request for Codex:\s*[\s\S]*$/im
+    /(?:^|\n)#+\s*Files mentioned by the user:\s*([\s\S]*?)(?:^|\n)#+\s*My request(?:\s+for Codex)?:\s*[\s\S]*$/im
   );
 
-  if (!wrapperMatch?.[1]) {
-    return [];
-  }
+  if (!wrapperMatch?.[1]) return [];
 
   return wrapperMatch[1]
     .split(/\r?\n/)
@@ -62,9 +53,7 @@ function extractMentionedFilesFromWrapper(text: string) {
 }
 
 function normalizeMarkdownLocalAssetPath(value: string) {
-  if (!value) {
-    return null;
-  }
+  if (!value) return null;
 
   const decodedValue = decodeURIComponent(value.trim());
 
@@ -76,9 +65,7 @@ function normalizeMarkdownLocalAssetPath(value: string) {
     return decodedValue.replace(/^file:\/\//, "");
   }
 
-  if (/^\/[A-Za-z]:[\\/]/.test(decodedValue)) {
-    return decodedValue.slice(1);
-  }
+  if (/^\/[A-Za-z]:[\\/]/.test(decodedValue)) return decodedValue.slice(1);
 
   return isAbsolutePathLike(decodedValue) ? decodedValue : null;
 }
@@ -108,9 +95,8 @@ export function buildUserMessageParts(
 
   images.forEach((image, index) => {
     const url = typeof image === "string" ? image : null;
-    if (!url) {
-      return;
-    }
+
+    if (!url) return;
 
     seenAttachments.add(`url:${url}`);
     parts.push({
@@ -124,12 +110,13 @@ export function buildUserMessageParts(
 
   localImages.forEach((image, index) => {
     const pathValue = typeof image === "string" ? image : null;
-    if (!pathValue) {
-      return;
-    }
+
+    if (!pathValue) return;
 
     const normalizedPath = path.normalize(pathValue);
+
     seenAttachments.add(`path:${normalizedPath.toLowerCase()}`);
+
     parts.push({
       type: "attachment",
       kind: isImagePathLike(normalizedPath) ? "local-image" : "local-file",
@@ -142,9 +129,8 @@ export function buildUserMessageParts(
   wrapperFiles.forEach((filePath, index) => {
     const normalizedPath = path.normalize(filePath);
     const dedupeKey = `path:${normalizedPath.toLowerCase()}`;
-    if (seenAttachments.has(dedupeKey)) {
-      return;
-    }
+
+    if (seenAttachments.has(dedupeKey)) return;
 
     seenAttachments.add(dedupeKey);
     parts.push({
@@ -170,14 +156,12 @@ function extractLocalAssetPartsFromMarkdown(text: string) {
 
   for (const match of text.matchAll(markdownLinkPattern)) {
     const normalizedPath = normalizeMarkdownLocalAssetPath(match[1] ?? "");
-    if (!normalizedPath || !isPreviewableAttachmentPath(normalizedPath)) {
-      continue;
-    }
+
+    if (!normalizedPath || !isPreviewableAttachmentPath(normalizedPath)) continue;
 
     const dedupeKey = normalizedPath.toLowerCase();
-    if (seenPaths.has(dedupeKey)) {
-      continue;
-    }
+
+    if (seenPaths.has(dedupeKey)) continue;
 
     seenPaths.add(dedupeKey);
     parts.push({
@@ -193,9 +177,7 @@ function extractLocalAssetPartsFromMarkdown(text: string) {
 }
 
 export function buildAssistantMessageParts(text: string) {
-  if (!text) {
-    return undefined;
-  }
+  if (!text) return undefined;
 
   return [
     {

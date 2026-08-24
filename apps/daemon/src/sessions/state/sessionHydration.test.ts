@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { SessionDetail } from "@deskcue/protocol";
+import { CODEX_ACTIVE_WRITER_BLOCKED_REASON } from "#agents/codex/session/codexWriterConflict";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
 
 import { hydratePersistedSessions } from "./sessionHydration.ts";
@@ -90,6 +91,90 @@ test("restores detached Codex failures as read-only shells", () => {
   assert.equal(hydrated.normalizedDetachedSessions, 0);
   assert.equal(hydrated.restoredCodexAttachedSessions, 1);
   assert.equal(hydrated.sessions[0]?.status, "read_only");
+});
+
+test("restores a persisted Codex active-writer conflict without a failed exit code", () => {
+  const hydrated = hydratePersistedSessions([
+    session({
+      adapterId: "codex",
+      exitCode: 1,
+      sourceSessionId: "codex-source",
+      status: "failed",
+      replyState: {
+        phase: "waiting",
+        promptText: "Continue",
+        requestedAt: "2026-06-22T10:00:30.000Z"
+      },
+      logs: [{
+        id: "log-1",
+        stream: "stderr",
+        text: "thread-store conflict: thread codex-source already has an active writer",
+        timestamp: "2026-06-22T10:01:00.000Z"
+      }]
+    })
+  ]);
+
+  const restored = hydrated.sessions[0];
+
+  assert.equal(restored?.status, "read_only");
+  assert.equal(restored?.exitCode, null);
+  assert.match(restored?.inputBlockedReason ?? "", /Codex Desktop still owns this chat/);
+  assert.match(restored?.logs.at(-1)?.text ?? "", /prompt was not sent/);
+});
+
+test("does not restore a stale Codex active-writer conflict after a later failure", () => {
+  const hydrated = hydratePersistedSessions([
+    session({
+      adapterId: "codex",
+      exitCode: 1,
+      sourceSessionId: "codex-source",
+      status: "failed",
+      logs: [
+        {
+          id: "old-conflict",
+          stream: "stderr",
+          text: "thread-store conflict: thread codex-source already has an active writer",
+          timestamp: "2026-06-22T10:01:00.000Z"
+        },
+        {
+          id: "later-failure",
+          stream: "stderr",
+          text: "A later unrelated Codex failure",
+          timestamp: "2026-06-22T10:03:00.000Z"
+        }
+      ]
+    })
+  ]);
+
+  const restored = hydrated.sessions[0];
+
+  assert.equal(hydrated.restoredCodexAttachedSessions, 0);
+  assert.equal(restored?.status, "failed");
+  assert.equal(restored?.exitCode, 1);
+});
+
+test("restores a finalized Codex active-writer conflict from durable recovery state", () => {
+  const hydrated = hydratePersistedSessions([
+    session({
+      adapterId: "codex",
+      exitCode: 1,
+      inputBlockedReason: CODEX_ACTIVE_WRITER_BLOCKED_REASON,
+      promptRecovery: {
+        phase: "not_sent",
+        promptText: "Continue",
+        requestedAt: "2026-06-22T10:00:30.000Z",
+        retryable: true
+      },
+      sourceSessionId: "codex-source",
+      status: "failed"
+    })
+  ]);
+
+  const restored = hydrated.sessions[0];
+
+  assert.equal(restored?.status, "read_only");
+  assert.equal(restored?.exitCode, null);
+  assert.equal(restored?.inputBlockedReason, CODEX_ACTIVE_WRITER_BLOCKED_REASON);
 });
 
 test("restores Codex sessions stopped by daemon restart as read-only shells", () => {

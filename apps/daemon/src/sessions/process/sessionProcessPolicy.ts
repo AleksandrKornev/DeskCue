@@ -55,6 +55,7 @@ export function formatSessionPtySubmit(input: string) {
 
 function formatCodexInput(input: string, sourceBacked: boolean) {
   const normalizedInput = input.replace(/\r?\n/g, " ");
+
   return sourceBacked
     ? `${normalizedInput}\t`
     : `${normalizedInput}${CODEX_TUI_SUBMIT_SEQUENCE}`;
@@ -69,14 +70,17 @@ function resolveCodexExitStatus(
   // that redundant transport; its expected non-zero exit must not overwrite
   // the authoritative resumable state with `failed` and disable the composer.
   if (session.status === "read_only" && session.sourceSessionId) return "read_only";
+  if (session.status === "done" && session.sourceSessionId) return "done";
+
   if (
     exitCode === 0 &&
     session.sourceSessionId &&
     /\bcodex(?:\.exe)?\b/i.test(session.command) &&
     /\sexec\s+resume\b/i.test(session.command)
   ) {
-    return "read_only";
+    return "done";
   }
+
   return null;
 }
 
@@ -92,6 +96,7 @@ function resolveClaudeExitStatus(
   ) {
     return "read_only";
   }
+
   return null;
 }
 
@@ -186,6 +191,7 @@ export function createSessionProcessAutomation(input: {
   const factory = sessionAutomationFactories.find((candidate) =>
     matchesSessionProcess(candidate, input.adapterId, input.command)
   );
+
   return factory?.create(input.child, input.onAutomationLog) ?? null;
 }
 
@@ -196,9 +202,11 @@ export function formatSessionProcessInput(
   const formatter = sessionInputFormatters.find((candidate) =>
     matchesSessionProcess(candidate, session.adapterId, session.command)
   );
+
   if (formatter) return formatter.format(input, Boolean(session.sourceSessionId));
 
   const normalizedInput = session.sourceSessionId ? input.replace(/\r?\n/g, " ") : input;
+
   return formatSessionPtySubmit(normalizedInput);
 }
 
@@ -209,6 +217,7 @@ export function getSessionProcessExitStatusOverride(
   const resolver = sessionExitStatusResolvers.find(
     (candidate) => candidate.adapterId === session.adapterId
   );
+
   return resolver?.resolve(session, exitCode) ?? null;
 }
 

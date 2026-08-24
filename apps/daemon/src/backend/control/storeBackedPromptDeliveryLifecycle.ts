@@ -16,6 +16,7 @@ export const noOpPromptDeliveryJournal: PromptDeliveryJournal = {
   markDispatchingBySession: () => true,
   markInterrupted: () => {},
   markNotSent: () => true,
+  markNotSentAfterActiveWriterConflict: () => true,
   markNotSentAfterSynchronousSpawnFailure: () => true,
   markNotSentBySession: () => true,
   markObservedBySession: () => true,

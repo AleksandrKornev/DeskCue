@@ -58,6 +58,19 @@ test("marks stopped Codex source shells as resumable", () => {
   assert.equal(projected.canSendInput, true);
 });
 
+test("marks completed Codex source shells as resumable", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    status: "done"
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, true);
+  assert.equal(projected.inputBlockedReason, null);
+});
+
 test("marks read-only Codex source shells as resumable", () => {
   const session = sessionDetail({
     adapterId: "codex",
@@ -69,6 +82,20 @@ test("marks read-only Codex source shells as resumable", () => {
 
   assert.equal(projected.canSendInput, true);
   assert.equal(projected.inputBlockedReason, null);
+});
+
+test("keeps a Codex shell blocked after an active-writer conflict", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    status: "read_only",
+    inputBlockedReason: "Codex Desktop still owns this chat."
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, false);
+  assert.equal(projected.inputBlockedReason, "Codex Desktop still owns this chat.");
 });
 
 test("marks a non-observe-only Claude source shell as resumable", () => {

@@ -1,5 +1,6 @@
 import type { SessionDetail, WorkspaceSummary } from "@deskcue/protocol";
 import { AppError } from "#application/errors";
+import { inspectGitRepo } from "#infrastructure/git";
 import { logger } from "#infrastructure/logging/logger";
 import { emptyReplyState } from "#sessions/model/sessionDefaults";
 import {
@@ -69,7 +70,8 @@ function canRestartDetachedCodexShell(
   if (!session.sourceSessionId) return false;
   if (reason === "interrupt") return session.status === "read_only" || session.status === "running";
 
-  return session.status === "read_only" || session.status === "stopped" || session.status === "running";
+  return session.status === "done" || session.status === "read_only" ||
+    session.status === "stopped" || session.status === "running";
 }
 
 export function settleCodexSessionAfterReplacementSpawnFailure(
@@ -114,9 +116,11 @@ export async function restartCodexTransport(
 
   if (options.reason === "prompt" && !prompt) throw new AppError("invalid_input", "Prompt is empty.");
 
+  const repoInfo = await inspectGitRepo(workspace.path);
   const { command, spawnSpec } = await buildCodexResumeTransport({
     sourceSessionId: session.sourceSessionId,
-    prompt
+    prompt,
+    skipGitRepoCheck: !repoInfo.isGitRepo
   });
 
   if (options.reason === "prompt") {
@@ -164,6 +168,7 @@ export async function restartCodexTransport(
     adapterId: session.adapterId,
     child: nextChild,
     command,
+    onAppendStderrLog: callbacks.appendStderrLog,
     onAppendStdoutLog: callbacks.appendStdoutLog,
     onAppendSystemLog: callbacks.appendSystemLog,
     sessionId: session.id

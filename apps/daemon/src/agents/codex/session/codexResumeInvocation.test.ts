@@ -40,6 +40,7 @@ test("builds a non-interactive exec resume argv when DeskCue has a prompt", () =
       model: null,
       sandboxMode: "workspace-write"
     },
+    skipGitRepoCheck: true,
     sessionId: "abc"
   });
 
@@ -50,9 +51,30 @@ test("builds a non-interactive exec resume argv when DeskCue has a prompt", () =
     "gpt-5",
     "exec",
     "resume",
+    "--skip-git-repo-check",
     "abc",
     "continue from DeskCue"
   ]);
   assert.match(invocation.command, /\sexec resume\s/);
+  assert.match(invocation.command, /exec resume --skip-git-repo-check abc/);
   assert.doesNotMatch(invocation.command, /-a| -s /);
+});
+
+test("keeps the Codex git repository check for prompt resumes in git workspaces", () => {
+  const invocation = buildCodexResumeInvocation({
+    executable: "codex",
+    model: null,
+    prompt: "continue",
+    runtimeContext: null,
+    sessionId: "abc"
+  });
+
+  assert.deepEqual(invocation.args, [
+    "-c",
+    "check_for_update_on_startup=false",
+    "exec",
+    "resume",
+    "abc",
+    "continue"
+  ]);
 });

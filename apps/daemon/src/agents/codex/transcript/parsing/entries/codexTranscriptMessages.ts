@@ -1,19 +1,12 @@
 import { isRecord } from "../codexTranscriptShared.ts";
 
 export function extractMessageText(content: unknown) {
-  if (!Array.isArray(content)) {
-    return "";
-  }
+  if (!Array.isArray(content)) return "";
 
   return content
     .map((chunk) => {
-      if (!isRecord(chunk)) {
-        return "";
-      }
-
-      if (typeof chunk.text === "string") {
-        return chunk.text;
-      }
+      if (!isRecord(chunk)) return "";
+      if (typeof chunk.text === "string") return chunk.text;
 
       return "";
     })
@@ -35,6 +28,7 @@ function stripInjectedCodexUserContext(text: string) {
 
   for (let index = 0; index < 8; index += 1) {
     const previous = normalized;
+
     normalized = normalized
       .replace(/^<recommended_plugins>[\s\S]*?<\/recommended_plugins>\s*/i, "")
       .replace(
@@ -45,18 +39,14 @@ function stripInjectedCodexUserContext(text: string) {
       .replace(/^<environment_context>[\s\S]*?<\/environment_context>\s*/i, "")
       .trim();
 
-    if (normalized === previous) {
-      break;
-    }
+    if (normalized === previous) break;
   }
 
   return normalized;
 }
 
 export function normalizeUserMessageText(text: string, payload: Record<string, unknown>) {
-  if (!text) {
-    return text;
-  }
+  if (!text) return text;
 
   const hasImageAttachments =
     (Array.isArray(payload.images) && payload.images.length > 0) ||
@@ -68,14 +58,13 @@ export function normalizeUserMessageText(text: string, payload: Record<string, u
   const withoutInjectedContext = stripInjectedCodexUserContext(withoutInlineImageMarkup);
 
   const codexAppWrapperMatch = withoutInjectedContext.match(
-    /(?:^|\n)#+\s*Files mentioned by the user:\s*[\s\S]*?(?:^|\n)#+\s*My request for Codex:\s*([\s\S]*)$/im
+    /(?:^|\n)#+\s*Files mentioned by the user:\s*[\s\S]*?(?:^|\n)#+\s*My request(?:\s+for Codex)?:\s*([\s\S]*)$/im
   );
 
   if (codexAppWrapperMatch) {
     const requestText = codexAppWrapperMatch[1]?.trim() ?? "";
-    if (requestText) {
-      return requestText;
-    }
+
+    if (requestText) return requestText;
   }
 
   if (hasImageAttachments) {
@@ -83,14 +72,13 @@ export function normalizeUserMessageText(text: string, payload: Record<string, u
       .split(/\r?\n/)
       .map((line) => line.trimEnd());
     const requestIndex = lines.findIndex((line) =>
-      /^#+\s*My request for Codex:\s*$/i.test(line.trim())
+      /^#+\s*My request(?:\s+for Codex)?:\s*$/i.test(line.trim())
     );
 
     if (requestIndex >= 0) {
       const requestText = lines.slice(requestIndex + 1).join("\n").trim();
-      if (requestText) {
-        return requestText;
-      }
+
+      if (requestText) return requestText;
     }
   }
 

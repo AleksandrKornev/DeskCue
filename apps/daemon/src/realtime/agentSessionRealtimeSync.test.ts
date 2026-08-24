@@ -57,6 +57,7 @@ function createAgentSessionDetail(
 
 function summaryFromDetail(detail: AgentSessionDetail): AgentSessionSummary {
   const { transcript: _transcript, ...summary } = detail;
+
   return summary;
 }
 
@@ -234,6 +235,7 @@ test("agent session turn-state repository keeps v1 JSON bounded and drops expire
         }
       });
     }
+
     repository.set("expired", {
       observedAt: new Date(now - 25 * 60 * 60 * 1000).toISOString(),
       owner: "external",
@@ -251,6 +253,7 @@ test("agent session turn-state repository keeps v1 JSON bounded and drops expire
       sessions: Array<{ id: string }>;
       version: number;
     };
+
     assert.equal(stored.version, 1);
     assert.equal(stored.sessions.length, 200);
     assert.equal(stored.sessions.some((record) => record.id === "expired"), false);
@@ -273,6 +276,7 @@ test("agent session realtime sync catches a fast external turn between polls", a
     ]),
     filePath: transcriptPath
   };
+
   const application = {
     events: Object.assign(events, {
       publishServerEvent: (event: ServerEvent) => {
@@ -292,6 +296,7 @@ test("agent session realtime sync catches a fast external turn between polls", a
   try {
     await writeFile(transcriptPath, "baseline", "utf8");
     const sync = createRealtimeSync(application, { turnStateStoragePath: null });
+
     await sync();
 
     await writeFile(transcriptPath, "new terminal turn", "utf8");
@@ -303,6 +308,7 @@ test("agent session realtime sync catches a fast external turn between polls", a
       ]),
       filePath: transcriptPath
     };
+
     await sync();
 
     assert.equal(
@@ -328,6 +334,7 @@ test("agent session realtime sync continues tracking a resumed source chat after
     ]),
     filePath: transcriptPath
   };
+
   const application = {
     events: Object.assign(events, {
       publishServerEvent: (event: ServerEvent) => {
@@ -347,6 +354,7 @@ test("agent session realtime sync continues tracking a resumed source chat after
   try {
     await writeFile(transcriptPath, "first terminal", "utf8");
     const sync = createRealtimeSync(application, { turnStateStoragePath: null });
+
     await sync();
 
     await writeFile(transcriptPath, "second terminal", "utf8");
@@ -359,6 +367,7 @@ test("agent session realtime sync continues tracking a resumed source chat after
       ]),
       filePath: transcriptPath
     };
+
     await sync();
 
     assert.deepEqual(
@@ -405,6 +414,7 @@ test("agent session realtime sync publishes turn finished event after daemon res
     const firstSync = createRealtimeSync(application, {
       turnStateStoragePath
     });
+
     await firstSync();
 
     detail = createAgentSessionDetail("resume", [
@@ -415,6 +425,7 @@ test("agent session realtime sync publishes turn finished event after daemon res
     const secondSync = createRealtimeSync(application, {
       turnStateStoragePath
     });
+
     await secondSync();
 
     assert.deepEqual(
@@ -466,6 +477,7 @@ test("agent session realtime sync publishes transcript updated event when observ
       listSessions: () => [
         {
           adapterId: "codex",
+          id: "managed-1",
           sourceSessionId: "source-1",
           status: "running"
         }
@@ -508,7 +520,7 @@ test("agent session realtime sync publishes transcript updated event when observ
   );
 });
 
-test("agent session realtime sync publishes turn finished event for running managed attached sessions", async () => {
+test("agent session realtime sync publishes turn finished after a managed shell becomes read-only", async () => {
   const events = new EventEmitter();
   const publishedEvents: ServerEvent[] = [];
   const startedAt = new Date(Date.now() - 5_000).toISOString();
@@ -516,7 +528,7 @@ test("agent session realtime sync publishes turn finished event for running mana
   let detail = createAgentSessionDetail("resume", [
     lifecycleEntry("start-1", startedAt, "Turn started")
   ]);
-  let managedSessionStatus: "running" | "done" = "running";
+  let managedSessionStatus: "running" | "read_only" = "running";
   const application = {
     events: Object.assign(events, {
       publishServerEvent: (event: ServerEvent) => {
@@ -528,6 +540,7 @@ test("agent session realtime sync publishes turn finished event for running mana
       listSessions: () => [
         {
           adapterId: "codex",
+          id: "managed-1",
           sourceSessionId: "source-1",
           status: managedSessionStatus
         }
@@ -544,6 +557,7 @@ test("agent session realtime sync publishes turn finished event for running mana
   const sync = createRealtimeSync(application);
 
   await sync();
+  managedSessionStatus = "read_only";
   detail = createAgentSessionDetail("resume", [
     lifecycleEntry("start-1", startedAt, "Turn started"),
     lifecycleEntry("done-1", completedAt, "Turn completed")
@@ -562,6 +576,7 @@ test("agent session realtime sync publishes turn finished event for running mana
           answer: null,
           completedAt,
           durationMs: null,
+          managedSessionId: "managed-1",
           sourceSessionId: "source-1",
           startedAt,
           status: "completed",
@@ -941,6 +956,7 @@ test("agent session realtime sync gradually primes unseen source details within 
   const events = new EventEmitter();
   const directory = await mkdtemp(join(tmpdir(), "deskcue-realtime-sync-"));
   const filePath = join(directory, "source.jsonl");
+
   await writeFile(filePath, "{}\n");
   const details = Array.from({ length: 4 }, (_, index) => ({
     ...createAgentSessionDetail("resume", []),
@@ -977,6 +993,7 @@ test("agent session realtime sync gradually primes unseen source details within 
       syncManagedSessions: false,
       trackExternalTurns: true
     });
+
     assert.equal(detailReads, 2);
 
     await sync({
@@ -986,6 +1003,7 @@ test("agent session realtime sync gradually primes unseen source details within 
       syncManagedSessions: false,
       trackExternalTurns: true
     });
+
     assert.equal(detailReads, 4);
   } finally {
     await rm(directory, {

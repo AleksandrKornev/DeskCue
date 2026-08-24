@@ -349,7 +349,8 @@ Sends follow-up input to the running managed session.
 For attached Codex sessions, the daemon chooses the safest delivery path:
 
 - if DeskCue owns a live managed Codex process, input is written to that process;
-- if the same Codex thread is active in another client, DeskCue restarts the managed transport with `codex resume <sessionId> "<prompt>"` so the prompt still continues that exact thread
+- if the same Codex thread is active in another client, DeskCue keeps it observation-only and rejects prompts while the other writer remains active;
+- once that source thread becomes resumable, DeskCue continues it with a one-shot `codex exec resume <sessionId> "<prompt>"`
 
 Managed session summaries may include a `promptRecovery` object after a daemon
 restart:
@@ -526,7 +527,7 @@ Body:
 
 Creates or reuses a managed session attached to the discovered agent session when the runtime is resumable.
 
-For Codex, a prompt is allowed even when the source thread is active in another client. In that case DeskCue uses the Codex resume command with the prompt as an argument instead of writing to a second live PTY. Attaching without a prompt to an active-in-another-client Codex thread remains read-only and returns an error.
+For Codex, a source thread that is active in another client is observation-only because Codex permits only one active writer. DeskCue rejects prompts for that state instead of queueing work that cannot be delivered. Once the source transcript is resumable, DeskCue can try a one-shot `exec resume`; if Codex Desktop still holds the writer, DeskCue keeps the shell read-only, records the prompt as not sent, and offers an explicit retry after the other writer is closed. For source workspaces that are not Git repositories, DeskCue adds Codex's `--skip-git-repo-check` option.
 
 ### Codex Compatibility Endpoints
 
@@ -550,7 +551,7 @@ Body:
 
 Creates a managed session around a Codex thread using the Codex-specific resume path.
 
-If the thread is active in another Codex client and the request includes `prompt`, DeskCue uses the same takeover-style resume path: `codex resume <sessionId> "<prompt>"`. If the request does not include `prompt`, the daemon rejects the request rather than opening an extra writer process.
+If the thread is active in another Codex client, DeskCue rejects requests that include `prompt` and creates or reuses a read-only review shell for requests without one. This prevents a prompt from remaining in `waiting` while Codex's single-writer lock makes delivery impossible.
 
 ### Runtime Discovery
 

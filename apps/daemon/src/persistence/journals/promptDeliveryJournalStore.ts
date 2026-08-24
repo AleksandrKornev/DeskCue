@@ -69,7 +69,9 @@ export class SqlitePromptDeliveryJournalStore {
     )
   ) {
     const resolved = initializeSqliteDatabaseContext(source);
+
     this.databaseContext = resolved.context;
+
     this.ownsDatabaseContext = resolved.ownsContext;
     this.database = resolved.context.database;
   }
@@ -80,6 +82,7 @@ export class SqlitePromptDeliveryJournalStore {
     requestedAt = new Date().toISOString()
   ) {
     const id = randomUUID();
+
     this.database.prepare(`
       INSERT INTO prompt_delivery_journal (
         id,
@@ -138,6 +141,7 @@ export class SqlitePromptDeliveryJournalStore {
         updated_at = ?
       WHERE session_id = ? AND phase IN ('not_sent', 'outcome_unknown')
     `).run(now, now, sessionId);
+
     return result.changes > 0;
   }
 
@@ -159,6 +163,7 @@ export class SqlitePromptDeliveryJournalStore {
 
   markActiveOutcomeUnknownForShutdown() {
     const now = new Date().toISOString();
+
     return this.database.prepare(`
       UPDATE prompt_delivery_journal
       SET phase = 'outcome_unknown', updated_at = ?
@@ -174,6 +179,15 @@ export class SqlitePromptDeliveryJournalStore {
     return this.transitionById(
       deliveryId,
       ["prepared", "dispatching"],
+      "not_sent",
+      "completed_at"
+    );
+  }
+
+  markNotSentAfterActiveWriterConflict(sessionId: string) {
+    return this.transitionLatestBySession(
+      sessionId,
+      ["prepared", "dispatching", "accepted", "outcome_unknown"],
       "not_sent",
       "completed_at"
     );
@@ -199,11 +213,11 @@ export class SqlitePromptDeliveryJournalStore {
   recoverActiveAfterRestart(): PromptDeliveryRecoveryRecord[] {
     return this.database.transaction(() => {
       const recoverable = this.listRecoverable();
-      if (recoverable.length === 0) {
-        return [];
-      }
+
+      if (recoverable.length === 0) return [];
 
       const now = new Date().toISOString();
+
       this.database.prepare(`
         UPDATE prompt_delivery_journal
         SET phase = 'not_sent', completed_at = ?, updated_at = ?
@@ -217,6 +231,7 @@ export class SqlitePromptDeliveryJournalStore {
 
       return recoverable.map((record): PromptDeliveryRecoveryRecord => {
         const definitelyNotSent = record.phase === "prepared" || record.phase === "not_sent";
+
         return {
           ...record,
           phase: definitelyNotSent ? "not_sent" : "outcome_unknown",
@@ -230,9 +245,7 @@ export class SqlitePromptDeliveryJournalStore {
   }
 
   close() {
-    if (this.ownsDatabaseContext) {
-      this.databaseContext.close();
-    }
+    if (this.ownsDatabaseContext) this.databaseContext.close();
   }
 
   private listRecoverable(): RecoverablePromptDeliveryJournalRow[] {
@@ -256,6 +269,7 @@ export class SqlitePromptDeliveryJournalStore {
     phase: Extract<PromptDeliveryJournalPhase, "completed" | "interrupted">
   ) {
     const now = new Date().toISOString();
+
     this.database.prepare(`
       UPDATE prompt_delivery_journal
       SET phase = ?, completed_at = ?, updated_at = ?
@@ -289,6 +303,7 @@ export class SqlitePromptDeliveryJournalStore {
       SET phase = ?, updated_at = ?${timestampAssignment}
       WHERE id = ? AND phase IN (${fromPhases.map(() => "?").join(", ")})
     `).run(...parameters);
+
     return result.changes === 1;
   }
 
@@ -317,6 +332,7 @@ export class SqlitePromptDeliveryJournalStore {
         LIMIT 1
       )
     `).run(...parameters);
+
     return result.changes === 1;
   }
 }

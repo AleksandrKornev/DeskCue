@@ -24,6 +24,7 @@ import {
 } from "#agents/codex/session/codexReplyState";
 import { buildCodexResumeTransport } from "#agents/codex/session/codexTransport";
 import { AppError } from "#application/errors";
+import { inspectGitRepo } from "#infrastructure/git";
 import { logger } from "#infrastructure/logging/logger";
 import type { SessionSpawnSpec } from "#sessions/process/sessionProcess";
 
@@ -114,24 +115,19 @@ export async function resumeCodexAgentSession(
     );
   const existing = runningExisting ?? (isActiveElsewhere ? readOnlyExisting : null);
 
+  if (isActiveElsewhere && normalizedPrompt) {
+    throw new AppError(
+      "not_accepting_input",
+      "This Codex thread is active in another client. Close it there before sending from DeskCue."
+    );
+  }
+
   if (existing) {
     logger.info("Reusing existing attached Codex session", {
       sessionId: existing.id,
       sourceSessionId: codexSession.id,
       status: existing.status
     });
-
-    if (runningExisting && isActiveElsewhere && normalizedPrompt) {
-      logger.info("Restarting existing Codex transport from attach", {
-        sessionId: existing.id,
-        sourceSessionId: codexSession.id,
-        totalDurationMs: elapsedMs(startedAt)
-      });
-      return callbacks.restartCodexTransport(existing, {
-        prompt: normalizedPrompt,
-        reason: "prompt"
-      });
-    }
 
     if (normalizedPrompt) {
       logger.info("Forwarding attach prompt to existing Codex session", {
@@ -179,10 +175,12 @@ export async function resumeCodexAgentSession(
   const workspace = await callbacks.createWorkspace(codexSession.workspacePath);
   const workspaceDurationMs = elapsedMs(workspaceStartedAt);
   const transportStartedAt = performance.now();
+  const repoInfo = await inspectGitRepo(workspace.path);
   const { command, spawnSpec } = await buildCodexResumeTransport({
     sourceSessionId: codexSession.id,
     prompt: normalizedPrompt,
-    runtimeContext: toCodexRuntimeContext(codexSession)
+    runtimeContext: toCodexRuntimeContext(codexSession),
+    skipGitRepoCheck: !repoInfo.isGitRepo
   });
   const transportDurationMs = elapsedMs(transportStartedAt);
 
@@ -197,6 +195,7 @@ export async function resumeCodexAgentSession(
     argvInput: normalizedPrompt,
     spawnSpec
   });
+
   logger.info("Codex attach launched managed session", {
     sessionId: session.id,
     sourceSessionId: codexSession.id,
@@ -251,6 +250,7 @@ function toCodexSession(
   agentSession: AgentSessionSummary | AgentSessionDetail
 ): CodexSessionSummary | CodexSessionDetail {
   const summary = buildFallbackCodexSessionSummary(agentSession);
+
   if (!("transcript" in agentSession)) return summary;
 
   return {
@@ -264,11 +264,30 @@ async function resumeDiscoveredCodexSession(
   agentSession: AgentSessionSummary | AgentSessionDetail,
   prompt?: string
 ) {
-  if (agentSession.attachMode !== "resume" && !prompt?.trim()) {
-    return resumeCodexAgentSession(
-      callbacks,
-      toCodexSession(agentSession),
-      prompt
+  const normalizedPrompt = prompt?.trim();
+
+  if (!normalizedPrompt) {
+    const existingReadOnly = callbacks.findReadOnlyAttachedSession(
+      agentSession.sourceSessionId
+    );
+
+    if (existingReadOnly) return existingReadOnly;
+
+    const reviewSession = agentSession.attachMode !== "resume"
+      ? toCodexSession(agentSession)
+      : "transcript" in agentSession
+      ? toCodexSession(agentSession)
+      : await getCodexSessionDetail(
+          agentSession.sourceSessionId,
+          true,
+          CODEX_ATTACH_TRANSCRIPT_TAIL
+        ) ?? toCodexSession(agentSession);
+    return callbacks.createReadOnlyCodexSession(
+      reviewSession,
+      agentSession.attachMode === "resume"
+      ? "Open the completed Codex chat. Sending a follow-up continues it."
+        : agentSession.attachModeReason ||
+          "This Codex thread remains active in another client."
     );
   }
 
@@ -283,7 +302,7 @@ async function resumeDiscoveredCodexSession(
   return resumeCodexAgentSession(
     callbacks,
     codexSession ?? toCodexSession(agentSession),
-    prompt
+    normalizedPrompt
   );
 }
 
@@ -318,6 +337,7 @@ const SOURCE_AGENT_ATTACH_STRATEGIES: ReadonlyMap<
 
 function getSourceAgentAttachStrategy(adapterId: string) {
   const strategy = SOURCE_AGENT_ATTACH_STRATEGIES.get(adapterId);
+
   if (strategy?.adapterId === adapterId) return strategy;
 
   throw new AppError(
@@ -332,16 +352,19 @@ export async function resumeDiscoveredAgentSession(
   prompt?: string
 ) {
   const existing = callbacks.findReusableAttachedSession(agentSession.sourceSessionId);
-  if (existing) {
+
+  if (existing && agentSession.agentId !== codexAdapter.id) {
     logger.info("Reusing existing attached agent session", {
       sessionId: existing.id,
       sourceSessionId: agentSession.sourceSessionId,
       status: existing.status
     });
     if (prompt?.trim()) return callbacks.sendInput(existing.id, prompt);
+
     return callbacks.getSession(existing.id)!;
   }
 
   const strategy = getSourceAgentAttachStrategy(agentSession.agentId);
+
   return strategy.resume(callbacks, agentSession, prompt);
 }

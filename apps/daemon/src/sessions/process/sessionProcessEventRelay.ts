@@ -2,28 +2,37 @@ type ChildSubscription = {
   dispose(): void;
 };
 
+export type ProcessOutputStream = "stdout" | "stderr";
+
+type PendingProcessData = {
+  stream: ProcessOutputStream;
+  text: string;
+};
+
 export class SessionProcessEventRelay {
-  private readonly dataHandlers = new Set<(chunk: string) => void>();
+  private readonly dataHandlers = new Set<
+    (chunk: string, stream?: ProcessOutputStream) => void
+  >();
   private readonly exitHandlers = new Set<
     (event: { exitCode: number | null }) => void
   >();
-  private readonly pendingData: string[] = [];
+  private readonly pendingData: PendingProcessData[] = [];
   private detached = false;
   private exited = false;
   private finalExitCode: number | null = null;
 
-  publishData(value: Buffer | string) {
+  publishData(value: Buffer | string, stream: ProcessOutputStream = "stdout") {
     if (this.detached) return;
 
     const text = value.toString();
 
     if (this.dataHandlers.size === 0) {
-      this.pendingData.push(text);
+      this.pendingData.push({ stream, text });
       return;
     }
 
     for (const handler of this.dataHandlers) {
-      handler(text);
+      handler(text, stream);
     }
   }
 
@@ -44,10 +53,12 @@ export class SessionProcessEventRelay {
     this.pendingData.length = 0;
   }
 
-  onData(handler: (data: string) => void): ChildSubscription {
+  onData(
+    handler: (data: string, stream?: ProcessOutputStream) => void
+  ): ChildSubscription {
     this.dataHandlers.add(handler);
-    for (const chunk of this.pendingData.splice(0)) {
-      handler(chunk);
+    for (const pending of this.pendingData.splice(0)) {
+      handler(pending.text, pending.stream);
     }
 
     return {

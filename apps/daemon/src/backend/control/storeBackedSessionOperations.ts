@@ -36,10 +36,7 @@ import {
 } from "#sessions/commands/sessionCommands";
 import type { SessionGitPolling } from "#sessions/git/sessionGitPolling";
 import { sendSessionInput } from "#sessions/input/sessionPromptDelivery";
-import {
-  detachAttachedSession as detachManagedSession,
-  finalizeSession
-} from "#sessions/lifecycle/sessionFinalization";
+import { detachAttachedSession as detachManagedSession } from "#sessions/lifecycle/sessionFinalization";
 import { appendSessionLog } from "#sessions/logs/sessionLogAppend";
 import type { SessionRunner, SessionRunnerShutdownSurvivor } from "#sessions/process/sessionRunner";
 import {
@@ -54,6 +51,10 @@ import {
   ExternalAgentSessionControl,
   externalAgentSessionRuntime
 } from "./externalAgentSessionControl.ts";
+import {
+  createStoreBackedReadOnlyClaudeSession,
+  createStoreBackedReadOnlyCodexSession
+} from "./sessionOperations/storeBackedReadOnlySessionCreation.ts";
 import { StoreBackedAttachedSessionReconciler } from "./storeBackedAttachedSessionReconciler.ts";
 import {
   noOpPromptDeliveryJournal,
@@ -80,10 +81,7 @@ import type {
 } from "../callbacks/storeBackedSessionCallbacks.ts";
 import type { StoreBackedPersistenceController } from "../persistence/storeBackedPersistenceController.ts";
 import { launchStoreBackedManagedSession } from "./sessionOperations/storeBackedManagedSessionLaunch.ts";
-import {
-  createStoreBackedReadOnlyClaudeSession,
-  createStoreBackedReadOnlyCodexSession
-} from "./sessionOperations/storeBackedReadOnlySessionCreation.ts";
+import { finishStoreBackedSession } from "./sessionOperations/storeBackedSessionFinalization.ts";
 import {
   markStoreBackedPromptRecoveryOutcomeUnknown,
   markStoreBackedSessionRecoveryRequiredAfterShutdown
@@ -174,6 +172,7 @@ export class StoreBackedSessionOperations {
   withInputCapability(session: SessionDetail): SessionDetail {
     return withSessionInputCapability(session, (sessionId) => this.sessionRunner.hasChild(sessionId));
   }
+
   toSummary(session: SessionDetail): SessionSummary {
     return toSessionSummary(session, (sessionId) => this.sessionRunner.hasChild(sessionId));
   }
@@ -240,6 +239,7 @@ export class StoreBackedSessionOperations {
 
   async startQueuedPrompt(sessionId: string): Promise<SessionDetail> {
     const session = this.getSession(sessionId);
+
     if (!session) throw new AppError("not_found", "Session not found.");
 
     return this.promptTransport.startQueuedCodexPrompt(session);
@@ -335,6 +335,7 @@ export class StoreBackedSessionOperations {
     const inputDrain = this.sessionInput.beginShutdown();
     const attachedSessionReconciliationDrain = this.attachedSessionReconciler.close();
     const promptDrain = this.promptTransport.beginShutdown();
+
     await Promise.all([
       attachedSessionReconciliationDrain,
       inputDrain,
@@ -379,14 +380,11 @@ export class StoreBackedSessionOperations {
   }
 
   private finishSession(sessionId: string, status: SessionStatus, exitCode: number | null) {
-    const session = this.repository.getSession(sessionId);
-    if (session) this.sourceTurnInterrupts.confirmManagedTransportExit(session);
-    this.promptTransport.recordSessionFinished(sessionId, session, status, exitCode);
-    finalizeSession(
-      createSessionFinalizationCallbacks(this.callbackContext()),
-      sessionId,
-      status,
-      exitCode
+    const context = this.callbackContext();
+
+    finishStoreBackedSession(
+      context, this.promptTransport, this.sourceTurnInterrupts,
+      sessionId, status, exitCode
     );
   }
 
@@ -453,6 +451,7 @@ export class StoreBackedSessionOperations {
 
   private getSession(sessionId: string): SessionDetail | null {
     const session = this.repository.getSession(sessionId);
+
     return session ? structuredClone(this.withInputCapability(session)) : null;
   }
 

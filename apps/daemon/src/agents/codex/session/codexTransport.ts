@@ -10,12 +10,14 @@ import {
 type BuildCodexResumeTransportInput = {
   prompt?: string;
   runtimeContext?: CodexSessionRuntimeContext | null;
+  skipGitRepoCheck?: boolean;
   sourceSessionId: string;
 };
 
 export async function buildCodexResumeTransport({
   prompt,
   runtimeContext: providedRuntimeContext,
+  skipGitRepoCheck,
   sourceSessionId
 }: BuildCodexResumeTransportInput) {
   const codexExecutable = await resolvePreferredCodexExecutable();
@@ -29,7 +31,8 @@ export async function buildCodexResumeTransport({
     prompt,
     executable: codexExecutable,
     model: codexModel,
-    runtimeContext
+    runtimeContext,
+    skipGitRepoCheck
   });
 
   return {

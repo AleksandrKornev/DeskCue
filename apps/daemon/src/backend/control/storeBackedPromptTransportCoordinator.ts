@@ -4,6 +4,7 @@ import {
   restartCodexTransport as restartCodexTransportProcess,
   settleCodexSessionAfterReplacementSpawnFailure
 } from "#agents/codex/session/codexPromptDelivery";
+import { hasCodexActiveWriterConflict } from "#agents/codex/session/codexWriterConflict";
 import { SourcePromptStartupError } from "#agents/sourceAgentPromptProcess";
 import { AppError } from "#application/errors";
 import { emptyReplyState } from "#sessions/model/sessionDefaults";
@@ -436,6 +437,14 @@ export class StoreBackedPromptTransportCoordinator {
   ) {
     if (this.deliveryLifecycle.isShuttingDown()) {
       this.options.promptDeliveries.markOutcomeUnknownBySession(sessionId);
+      return;
+    }
+
+    if (
+      session &&
+      hasCodexActiveWriterConflict(session, { requestedAt: session.replyState.requestedAt })
+    ) {
+      this.options.promptDeliveries.markNotSentAfterActiveWriterConflict(sessionId);
       return;
     }
 

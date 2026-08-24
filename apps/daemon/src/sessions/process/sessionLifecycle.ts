@@ -9,6 +9,7 @@ type AttachSessionDataHandlerOptions = {
   adapterId: string;
   child: RunningChild;
   command: string;
+  onAppendStderrLog?: (sessionId: string, text: string) => void;
   onAppendStdoutLog: (sessionId: string, text: string) => void;
   onAppendSystemLog: (sessionId: string, text: string) => void;
   sessionId: string;
@@ -23,10 +24,28 @@ type AttachSessionExitHandlerOptions = {
   sessionId: string;
 };
 
+function resolveFinalExitCode(
+  session: SessionDetail,
+  status: SessionStatus,
+  processExitCode: number | null
+) {
+  const sourceTurnAlreadyCompleted =
+    session.sourceSessionId &&
+    session.exitCode === 0 &&
+    (
+      (session.status === "read_only" && status === "read_only") ||
+      (session.status === "done" && status === "done") ||
+      (session.status === "stopped" && status === "stopped")
+    );
+
+  return sourceTurnAlreadyCompleted ? 0 : processExitCode;
+}
+
 export function attachSessionDataHandler({
   adapterId,
   child,
   command,
+  onAppendStderrLog,
   onAppendStdoutLog,
   onAppendSystemLog,
   sessionId
@@ -38,8 +57,13 @@ export function attachSessionDataHandler({
     onAutomationLog: (text) => onAppendSystemLog(sessionId, text)
   });
 
-  child.onData((chunk) => {
-    onAppendStdoutLog(sessionId, chunk);
+  child.onData((chunk, stream) => {
+    if (stream === "stderr" && onAppendStderrLog) {
+      onAppendStderrLog(sessionId, chunk);
+    } else {
+      onAppendStdoutLog(sessionId, chunk);
+    }
+
     processAutomation?.handleChunk(chunk);
   });
 }
@@ -54,26 +78,28 @@ export function attachSessionExitHandler({
 }: AttachSessionExitHandlerOptions) {
   child.onExit(({ exitCode }) => {
     const current = getSession(sessionId);
-    if (!current) {
-      return;
-    }
 
-    if (!isCurrentChild(sessionId, child)) {
-      return;
-    }
+    if (!current) return;
+    if (!isCurrentChild(sessionId, child)) return;
 
-    const normalizedExitCode = exitCode ?? null;
-    const nextStatus = getExitedSessionStatus(current, normalizedExitCode);
+    const processExitCode = exitCode ?? null;
+    const nextStatus = getExitedSessionStatus(current, processExitCode);
+    const finalExitCode = resolveFinalExitCode(current, nextStatus, processExitCode);
 
     onAppendSystemLog(
       sessionId,
-      `Process exited with code ${normalizedExitCode ?? "unknown"}.\n`
+      finalExitCode === processExitCode
+        ? `Process exited with code ${processExitCode ?? "unknown"}.\n`
+        : `Process exited with code ${processExitCode ?? "unknown"} after the source turn was already confirmed complete; preserving the successful session outcome.\n`
     );
+
     logger.info("Session process exited", {
       sessionId,
-      exitCode: normalizedExitCode,
+      exitCode: finalExitCode,
+      processExitCode,
       status: nextStatus
     });
-    onFinishSession(sessionId, nextStatus, normalizedExitCode);
+
+    onFinishSession(sessionId, nextStatus, finalExitCode);
   });
 }

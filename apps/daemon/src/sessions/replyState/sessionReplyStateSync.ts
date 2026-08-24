@@ -8,6 +8,7 @@ import type {
 } from "@deskcue/protocol";
 import {
   deriveReplyStateFromAgentSession,
+  isLatestManagedCodexPromptConfirmedComplete,
   isManagedSessionOwnActiveTurn,
   isReplyStateEqual
 } from "#agents/codex/session/codexReplyState";
@@ -57,6 +58,20 @@ function hasManagedTakeoverHistory(session: Pick<SessionDetail, "inputHistory">)
   return session.inputHistory.some((input) => input.trim());
 }
 
+function shouldNormalizeCompletedCodexExitCode(
+  session: SessionDetail,
+  agentSession: AgentSessionDetail
+) {
+  return (
+    session.adapterId === "codex" &&
+    session.status === "read_only" &&
+    session.exitCode !== null &&
+    session.exitCode !== 0 &&
+    session.replyState.phase === "idle" &&
+    isLatestManagedCodexPromptConfirmedComplete(session, agentSession)
+  );
+}
+
 export function syncManagedSessionReplyState(
   callbacks: SessionReplyStateSyncCallbacks,
   agentSession: AgentSessionDetail
@@ -68,19 +83,16 @@ export function syncManagedSessionReplyState(
       item.sourceSessionId === agentSession.sourceSessionId
   );
 
-  if (!session) {
-    return null;
-  }
+  if (!session) return null;
 
   const promptRecovery = reconcileSessionPromptRecovery(session, agentSession);
+
   if (promptRecovery) {
     const recoveryChanged =
       session.promptRecovery?.phase !== promptRecovery.promptRecovery?.phase ||
       session.promptRecovery?.retryable !== promptRecovery.promptRecovery?.retryable ||
       !isReplyStateEqual(session.replyState, promptRecovery.replyState);
-    if (!recoveryChanged) {
-      return callbacks.getPublicSession(session.id);
-    }
+    if (!recoveryChanged) return callbacks.getPublicSession(session.id);
 
     callbacks.updateSession(session.id, {
       promptRecovery: promptRecovery.promptRecovery,
@@ -97,6 +109,7 @@ export function syncManagedSessionReplyState(
         ? "read_only" as const
         : session.status
     };
+
     callbacks.emitServerEvent({
       type: "session.updated",
       payload: callbacks.toSummary(updatedSession)
@@ -145,9 +158,33 @@ export function syncManagedSessionReplyState(
   }
 
   const nextReplyState = deriveReplyStateFromAgentSession(session, agentSession);
-  if (isReplyStateEqual(session.replyState, nextReplyState)) {
+  const shouldNormalizeExitCode = shouldNormalizeCompletedCodexExitCode(
+    session,
+    agentSession
+  );
+
+  if (shouldNormalizeExitCode) {
+    callbacks.updateSession(session.id, {
+      exitCode: 0
+    });
+    callbacks.emitServerEvent({
+      type: "session.updated",
+      payload: callbacks.toSummary({
+        ...session,
+        exitCode: 0
+      })
+    });
+    void callbacks.persistState().catch((error) => {
+      logger.error("Failed to persist source-confirmed Codex outcome", {
+        message: error instanceof Error ? error.message : String(error),
+        sessionId: session.id
+      });
+    });
+
     return callbacks.getPublicSession(session.id);
   }
+
+  if (isReplyStateEqual(session.replyState, nextReplyState)) return callbacks.getPublicSession(session.id);
 
   const shouldLogInputConfirmationTimeout =
     session.replyState.phase === "sending" &&
@@ -192,9 +229,7 @@ export function reconcileAttachedAgentSession<T extends AgentSessionSummary | Ag
   hasRunningChild: (sessionId: string) => boolean,
   agentSession: T
 ): T {
-  if (agentSession.attachMode === "resume") {
-    return agentSession;
-  }
+  if (agentSession.attachMode === "resume") return agentSession;
 
   // A verified external process stop is the control-plane acknowledgement for
   // this turn. Some runtimes do not flush a terminal transcript entry after
@@ -216,9 +251,7 @@ export function reconcileAttachedAgentSession<T extends AgentSessionSummary | Ag
       hasRunningChild(session.id)
   );
 
-  if (!runningAttachedSession) {
-    return agentSession;
-  }
+  if (!runningAttachedSession) return agentSession;
 
   if (
     !("transcript" in agentSession) ||

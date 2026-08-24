@@ -26,12 +26,14 @@ export function createWindowsSurvivingSessionPipe(
     detached: true,
     env,
     shell: false,
-    stdio: ["pipe", "ignore", "ignore", "pipe"],
+    stdio: ["pipe", "pipe", "pipe", "pipe"],
     windowsHide: true
   });
   const events = new SessionProcessEventRelay();
   const handshake = new WindowsSurvivingPipeHandshake(child, events);
 
+  child.stdout?.on("data", (value: Buffer) => events.publishData(value, "stdout"));
+  child.stderr?.on("data", (value: Buffer) => events.publishData(value, "stderr"));
   handshake.start(launcher.payload);
 
   return {
@@ -39,6 +41,8 @@ export function createWindowsSurvivingSessionPipe(
       events.detach();
       child.unref();
       unrefChildStream(child.stdin);
+      unrefChildStream(child.stdout);
+      unrefChildStream(child.stderr);
       unrefChildStream(child.stdio[3]);
     },
     pid: child.pid ?? -1,
@@ -53,7 +57,7 @@ export function createWindowsSurvivingSessionPipe(
     kill(signal?: NodeJS.Signals) {
       handshake.kill(signal);
     },
-    onData(handler: (data: string) => void) {
+    onData(handler: Parameters<SessionProcessEventRelay["onData"]>[0]) {
       return events.onData(handler);
     },
     onExit(handler: (event: { exitCode: number | null }) => void) {

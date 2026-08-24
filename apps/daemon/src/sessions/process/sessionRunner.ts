@@ -33,7 +33,7 @@ export type SessionRunnerShutdownResult = {
   survivors: SessionRunnerShutdownSurvivor[];
 };
 
-const SESSION_RUNNER_SHUTDOWN_TIMEOUT_MS = 2_000;
+const SESSION_RUNNER_SHUTDOWN_TIMEOUT_MS = 5_000;
 const SESSION_PROCESS_TERMINATION_GRACE_MS = 500;
 
 function toErrorMessage(error: unknown) {

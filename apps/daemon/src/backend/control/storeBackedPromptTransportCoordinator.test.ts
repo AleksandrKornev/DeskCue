@@ -14,7 +14,7 @@ function coordinatorFor(
   onUpdateSession: (patch: Partial<SessionDetail>) => void = () => {}
 ) {
   let currentSession = session;
-  let deliveryPhase: "accepted" | "dispatching" | "outcome_unknown" | "prepared" | null = null;
+  let deliveryPhase: "accepted" | "dispatching" | "not_sent" | "outcome_unknown" | "prepared" | null = null;
 
   return new StoreBackedPromptTransportCoordinator({
     appendLog: () => {},
@@ -88,6 +88,13 @@ function coordinatorFor(
 
         deliveryPhase = null;
         lifecycle.push("not-sent");
+        return true;
+      },
+      markNotSentAfterActiveWriterConflict: () => {
+        if (!deliveryPhase) return false;
+
+        deliveryPhase = "not_sent";
+        lifecycle.push("active-writer-not-sent");
         return true;
       },
       markNotSentAfterSynchronousSpawnFailure: () => {
@@ -439,7 +446,7 @@ test("rejects empty Codex and Claude prompts before journal mutation", async () 
   assert.deepEqual(lifecycle, []);
 });
 
-test("keeps one prepared journal entry until a queued Codex prompt dispatches", async () => {
+test("dispatches a detached read-only Codex prompt immediately instead of queueing it", async () => {
   const lifecycle: string[] = [];
   const session = sessionDetail({ status: "read_only" });
   const coordinator = coordinatorFor(session, lifecycle, {
@@ -454,14 +461,13 @@ test("keeps one prepared journal entry until a queued Codex prompt dispatches", 
     }
   });
 
-  const queued = await coordinator.sendSourceInput(
+  const result = await coordinator.sendSourceInput(
     session,
     undefined,
     "Continue after the turn"
   );
 
-  await coordinator.startQueuedCodexPrompt(queued);
-
+  assert.equal(result.replyState.phase, "idle");
   assert.deepEqual(lifecycle, [
     "prepare:Continue after the turn",
     "dispatching",
@@ -637,6 +643,7 @@ test("records an interrupt before attempting to restart the Codex transport", as
       markDispatchingBySession: () => true,
       markInterrupted: () => lifecycle.push("interrupted"),
       markNotSent: () => true,
+      markNotSentAfterActiveWriterConflict: () => true,
       markNotSentBySession: () => true,
       markObservedBySession: () => true,
       markOutcomeUnknown: () => true,
@@ -691,6 +698,85 @@ test("records a user-stopped prompt transport as interrupted even with a zero ex
   coordinator.recordSessionFinished(session.id, session, "stopped", 0);
 
   assert.deepEqual(lifecycle, ["interrupted"]);
+});
+
+test("preserves an active-writer conflict as definitely not sent", async () => {
+  const lifecycle: string[] = [];
+  const session = sessionDetail();
+  const coordinator = coordinatorFor(session, lifecycle, {
+    restartCodexTransportProcess: async (callbacks: {
+      markPromptAccepted?: (sessionId: string) => void;
+      markPromptDispatching?: (sessionId: string) => void;
+    }) => {
+      callbacks.markPromptDispatching?.(session.id);
+      callbacks.markPromptAccepted?.(session.id);
+      return session;
+    }
+  });
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  const requestedAt = new Date().toISOString();
+  const finishedSession = sessionDetail({
+    logs: [{
+      id: "writer-conflict",
+      stream: "stderr",
+      text: "thread-store conflict: thread source-1 already has an active writer",
+      timestamp: new Date(Date.parse(requestedAt) + 1).toISOString()
+    }],
+    replyState: {
+      phase: "sending",
+      promptText: "Continue safely",
+      requestedAt
+    }
+  });
+
+  coordinator.recordSessionFinished(session.id, finishedSession, "read_only", null);
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Continue safely",
+    "dispatching",
+    "accepted",
+    "active-writer-not-sent"
+  ]);
+});
+
+test("does not reuse an active-writer conflict from an earlier prompt attempt", async () => {
+  const lifecycle: string[] = [];
+  const session = sessionDetail({
+    logs: [{
+      id: "stale-writer-conflict",
+      stream: "stderr",
+      text: "thread-store conflict: thread source-1 already has an active writer",
+      timestamp: "2026-08-05T10:00:00.000Z"
+    }]
+  });
+  const coordinator = coordinatorFor(session, lifecycle, {
+    restartCodexTransportProcess: async (callbacks: {
+      markPromptAccepted?: (sessionId: string) => void;
+      markPromptDispatching?: (sessionId: string) => void;
+    }) => {
+      callbacks.markPromptDispatching?.(session.id);
+      callbacks.markPromptAccepted?.(session.id);
+      return session;
+    }
+  });
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  coordinator.recordSessionFinished(session.id, {
+    ...session,
+    replyState: {
+      phase: "sending",
+      promptText: "Continue safely",
+      requestedAt: new Date().toISOString()
+    }
+  }, "failed", 1);
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Continue safely",
+    "dispatching",
+    "accepted",
+    "interrupted"
+  ]);
 });
 
 test("shutdown exit cannot terminally resolve an accepted prompt", async () => {

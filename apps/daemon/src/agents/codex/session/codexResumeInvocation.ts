@@ -17,22 +17,15 @@ function insertCodexRuntimeFlags(
 ) {
   const flags: string[] = [];
 
-  if (runtimeContext.approvalPolicy) {
-    flags.push(`-a "${runtimeContext.approvalPolicy}"`);
-  }
+  if (runtimeContext.approvalPolicy) flags.push(`-a "${runtimeContext.approvalPolicy}"`);
 
-  if (runtimeContext.sandboxMode) {
-    flags.push(`-s "${runtimeContext.sandboxMode}"`);
-  }
+  if (runtimeContext.sandboxMode) flags.push(`-s "${runtimeContext.sandboxMode}"`);
 
-  if (flags.length === 0) {
-    return command;
-  }
+  if (flags.length === 0) return command;
 
   const resumeIndex = command.indexOf(" resume ");
-  if (resumeIndex < 0) {
-    return `${command} ${flags.join(" ")}`.trim();
-  }
+
+  if (resumeIndex < 0) return `${command} ${flags.join(" ")}`.trim();
 
   return `${command.slice(0, resumeIndex)} ${flags.join(" ")}${command.slice(resumeIndex)}`;
 }
@@ -43,8 +36,16 @@ export function buildCodexResumeInvocation(input: {
   executable: string;
   model: string | null;
   runtimeContext: CodexSessionRuntimeContext | null;
+  skipGitRepoCheck?: boolean;
 }) {
-  const { sessionId, prompt, executable, model, runtimeContext } = input;
+  const {
+    sessionId,
+    prompt,
+    executable,
+    model,
+    runtimeContext,
+    skipGitRepoCheck = false
+  } = input;
   const normalizedPrompt = prompt?.trim();
   const args = ["-c", "check_for_update_on_startup=false"];
 
@@ -52,10 +53,10 @@ export function buildCodexResumeInvocation(input: {
   // in the composer.  A DeskCue prompt must instead be a one-shot `exec resume`
   // invocation: it submits the turn immediately and exits after the result.
   if (normalizedPrompt) {
-    if (model) {
-      args.push("-m", model);
-    }
-    args.push("exec", "resume", sessionId, normalizedPrompt);
+    if (model) args.push("-m", model);
+    args.push("exec", "resume");
+    if (skipGitRepoCheck) args.push("--skip-git-repo-check");
+    args.push(sessionId, normalizedPrompt);
 
     return {
       command: renderCodexCommand(executable, args),
@@ -63,17 +64,11 @@ export function buildCodexResumeInvocation(input: {
     };
   }
 
-  if (runtimeContext?.approvalPolicy) {
-    args.push("-a", runtimeContext.approvalPolicy);
-  }
+  if (runtimeContext?.approvalPolicy) args.push("-a", runtimeContext.approvalPolicy);
 
-  if (runtimeContext?.sandboxMode) {
-    args.push("-s", runtimeContext.sandboxMode);
-  }
+  if (runtimeContext?.sandboxMode) args.push("-s", runtimeContext.sandboxMode);
 
-  if (model) {
-    args.push("-m", model);
-  }
+  if (model) args.push("-m", model);
 
   args.push("resume", sessionId);
 

@@ -30,6 +30,7 @@ function session(id: string) {
 
 async function withJournal(run: (databasePath: string) => Promise<void>) {
   const directory = await mkdtemp(join(tmpdir(), "deskcue-prompt-journal-"));
+
   try {
     await run(join(directory, "state.sqlite"));
   } finally {
@@ -40,11 +41,14 @@ async function withJournal(run: (databasePath: string) => Promise<void>) {
 test("prepared prompt is durably classified as definitely not sent after restart", async () => {
   await withJournal(async (databasePath) => {
     const first = new SqlitePromptDeliveryJournalStore(databasePath);
+
     first.prepare(session("session-prepared"), "Continue the task");
+
     first.close();
 
     const second = new SqlitePromptDeliveryJournalStore(databasePath);
     const recovered = second.recoverActiveAfterRestart();
+
     assert.deepEqual(recovered.map(recoveryShape), [{
       phase: "not_sent",
       previousPhase: "prepared",
@@ -67,12 +71,15 @@ test("dispatching and accepted prompts become outcome unknown after restart", as
     const first = new SqlitePromptDeliveryJournalStore(databasePath);
     const dispatchingId = first.prepare(session("session-dispatching"), "Dispatch me");
     const acceptedId = first.prepare(session("session-accepted"), "Accept me");
+
     assert.equal(first.markDispatching(dispatchingId), true);
+
     assert.equal(first.markDispatching(acceptedId), true);
     assert.equal(first.markAccepted(acceptedId), true);
     first.close();
 
     const second = new SqlitePromptDeliveryJournalStore(databasePath);
+
     assert.deepEqual(second.recoverActiveAfterRestart().map(recoveryShape).sort(bySessionId), [
       {
         phase: "outcome_unknown",
@@ -106,10 +113,34 @@ test("dispatching and accepted prompts become outcome unknown after restart", as
   });
 });
 
+test("active-writer conflict remains definitely not sent after restart", async () => {
+  await withJournal(async (databasePath) => {
+    const first = new SqlitePromptDeliveryJournalStore(databasePath);
+    const deliveryId = first.prepare(session("session-active-writer"), "Continue safely");
+
+    assert.equal(first.markDispatching(deliveryId), true);
+    assert.equal(first.markAccepted(deliveryId), true);
+    assert.equal(first.markNotSentAfterActiveWriterConflict("session-active-writer"), true);
+    first.close();
+
+    const second = new SqlitePromptDeliveryJournalStore(databasePath);
+
+    assert.deepEqual(second.recoverActiveAfterRestart().map(recoveryShape), [{
+      phase: "not_sent",
+      previousPhase: "not_sent",
+      recoveryDisposition: "definitely_not_sent",
+      sessionId: "session-active-writer"
+    }]);
+    second.close();
+  });
+});
+
 test("session transitions preserve prepared, dispatching, accepted ordering", async () => {
   await withJournal(async (databasePath) => {
     const store = new SqlitePromptDeliveryJournalStore(databasePath);
+
     store.prepare(session("session-ordered"), "Continue");
+
     assert.equal(store.markAcceptedBySession("session-ordered"), false);
     assert.equal(store.markDispatchingBySession("session-ordered"), true);
     assert.equal(store.markDispatchingBySession("session-ordered"), false);
@@ -120,6 +151,7 @@ test("session transitions preserve prepared, dispatching, accepted ordering", as
       store.recoverActiveAfterRestart()[0]?.previousPhase,
       "accepted"
     );
+
     store.close();
   });
 });
@@ -127,7 +159,9 @@ test("session transitions preserve prepared, dispatching, accepted ordering", as
 test("terminal prompt journal entries are not recovered after restart", async () => {
   await withJournal(async (databasePath) => {
     const store = new SqlitePromptDeliveryJournalStore(databasePath);
+
     store.prepare(session("session-completed"), "Continue");
+
     store.markDispatchingBySession("session-completed");
     store.markAcceptedBySession("session-completed");
     store.markCompleted("session-completed");
@@ -140,7 +174,9 @@ test("transcript observation terminally resolves outcome-unknown recovery", asyn
   await withJournal(async (databasePath) => {
     const store = new SqlitePromptDeliveryJournalStore(databasePath);
     const deliveryId = store.prepare(session("session-observed"), "Continue");
+
     store.markDispatchingBySession("session-observed");
+
     store.markAcceptedBySession("session-observed");
     store.recoverActiveAfterRestart();
 
@@ -155,6 +191,7 @@ test("transcript observation terminally resolves outcome-unknown recovery", asyn
     const row = database.prepare(
       "SELECT phase FROM prompt_delivery_journal WHERE id = ?"
     ).get(deliveryId) as { phase: string };
+
     database.close();
     assert.equal(row.phase, "observed");
   });
@@ -163,7 +200,9 @@ test("transcript observation terminally resolves outcome-unknown recovery", asyn
 test("observing a retry supersedes an older definitely-not-sent attempt", async () => {
   await withJournal(async (databasePath) => {
     const store = new SqlitePromptDeliveryJournalStore(databasePath);
+
     store.prepare(session("session-observed"), "First attempt");
+
     store.recoverActiveAfterRestart();
 
     store.prepare(session("session-observed"), "Replacement attempt");
@@ -180,7 +219,9 @@ test("observing a retry supersedes an older definitely-not-sent attempt", async 
 test("successful explicit retry resolves an older not-sent recovery record", async () => {
   await withJournal(async (databasePath) => {
     const store = new SqlitePromptDeliveryJournalStore(databasePath);
+
     store.prepare(session("session-retry"), "First attempt");
+
     store.recoverActiveAfterRestart();
 
     store.prepare(session("session-retry"), "Explicit retry");
@@ -196,7 +237,9 @@ test("successful explicit retry resolves an older not-sent recovery record", asy
 test("shutdown preserves accepted work as outcome unknown and queued work as not sent", async () => {
   await withJournal(async (databasePath) => {
     const store = new SqlitePromptDeliveryJournalStore(databasePath);
+
     store.prepare(session("session-queued"), "Queued");
+
     store.prepare(session("session-dispatching"), "Dispatching");
     store.markDispatchingBySession("session-dispatching");
     store.prepare(session("session-accepted"), "Accepted");
@@ -227,6 +270,7 @@ test("shutdown preserves accepted work as outcome unknown and queued work as not
         }
       ]
     );
+
     store.close();
   });
 });

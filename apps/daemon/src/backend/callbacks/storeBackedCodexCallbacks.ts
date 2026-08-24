@@ -49,6 +49,8 @@ export function createCodexPromptDeliveryCallbacks(
     ...createSessionLookupCallbacksForBackend(context),
     ...createSessionRunnerCallbacksForBackend(context),
     ...createSessionStateCallbacksForBackend(context),
+    appendStderrLog: (sessionId: string, text: string) =>
+      context.appendLog(sessionId, "stderr", text),
     appendStdoutLog: (sessionId: string, text: string) =>
       context.appendLog(sessionId, "stdout", text),
     appendSystemLog: (sessionId: string, text: string, timestamp?: string) =>
