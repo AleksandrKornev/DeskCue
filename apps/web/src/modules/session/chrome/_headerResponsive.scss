@@ -18,14 +18,14 @@
 
   .chatHeader {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     gap: 10px;
     align-items: start;
     padding-inline: 0;
   }
 
   .chatHeader > .actions {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
     width: auto;
     justify-content: flex-end;
@@ -34,9 +34,30 @@
   }
 
   .chatMain {
-    grid-column: 1;
+    grid-column: 2;
     grid-row: 1;
     gap: 10px;
+  }
+
+  .mobileBackButton {
+    grid-column: 1;
+    grid-row: 1;
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.08);
+    color: vars.$color-text-primary;
+    font-size: 1.2rem;
+  }
+
+  .mobileBackButton:hover,
+  .mobileBackButton:focus-visible {
+    border-color: rgba(214, 164, 103, 0.3);
+    background: rgba(214, 164, 103, 0.12);
   }
 
   .command {
@@ -80,12 +101,43 @@
   }
 
   .liveConnection {
+    box-sizing: border-box;
+    position: relative;
     flex: 0 0 auto;
     min-width: max-content;
     max-width: 100%;
-    min-height: 22px;
+    min-height: vars.$control-height-touch;
     padding-inline: 7px;
+    background: transparent;
     font-size: 0.68rem;
+  }
+
+  .liveConnection::before {
+    position: absolute;
+    inset: 11px 0;
+    border-radius: vars.$radius-pill;
+    background: rgba(255, 255, 255, 0.05);
+    content: "";
+  }
+
+  .liveConnection > * {
+    position: relative;
+  }
+
+  .liveConnectionLive::before {
+    background: rgba(44, 156, 92, 0.13);
+  }
+
+  .liveConnectionConnecting::before {
+    background: rgba(49, 82, 181, 0.14);
+  }
+
+  .liveConnectionReconnecting::before {
+    background: rgba(214, 164, 103, 0.14);
+  }
+
+  .liveConnectionOffline::before {
+    background: rgba(206, 73, 73, 0.15);
   }
 
   .liveConnectionDetail {
@@ -104,7 +156,7 @@
     z-index: 1;
     margin-top: 4px;
     padding-inline: 0;
-    transform: translateY(34%);
+    transform: none;
   }
 
   .liveNav.liveNav :global([role="tablist"]) {
@@ -149,7 +201,7 @@
 
   @media (max-width: 340px) {
     .chatHeader {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: 44px minmax(0, 1fr) auto;
       gap: 8px;
     }
 
@@ -190,7 +242,7 @@
 
   .chatHeader {
     gap: 8px;
-    max-height: 65px;
+    max-height: 94px;
     opacity: 1;
     overflow: visible;
     visibility: visible;
@@ -205,9 +257,16 @@
   }
 
   .titleRow {
-    min-height: 37px;
+    min-height: vars.$control-height-touch;
     align-items: center;
     flex-wrap: nowrap;
+  }
+
+  .commandTooltip {
+    box-sizing: border-box;
+    min-height: vars.$control-height-touch;
+    align-content: center;
+    padding-block: 3px;
   }
 
   .command,
@@ -225,7 +284,7 @@
   }
 
   .metaRow {
-    min-height: 22px;
+    min-height: vars.$control-height-touch;
     overflow: visible;
     flex-wrap: nowrap;
   }
@@ -250,7 +309,7 @@
   }
 
   .chatToolbarCollapsed {
-    margin-bottom: -46px;
+    margin-bottom: 0;
     padding: 0 12px;
     background: transparent;
     backdrop-filter: none;

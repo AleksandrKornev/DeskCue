@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useId,
   useRef,
@@ -14,8 +13,11 @@ import type {
 import { requestConfirmation } from "@components/ModalDialog";
 
 import {
+  blurComposerField,
   buildSharedSessionTakeoverConfirmation,
   getDraftActionDecision,
+  normalizeComposerNotice,
+  shouldShowComposerHint,
   shouldSubmitComposerOnEnter,
   TOUCH_SEND_BLUR_DELAY_MS
 } from "./helpers";
@@ -67,193 +69,145 @@ export function useSessionMessageComposerController({
     : "Send message";
 
   const interruptButtonLabel = isPromptQueued ? "Cancel queued message" : "Interrupt prompt";
-  const shouldShowSharedSessionHint = Boolean(sharedSessionHint);
+  const normalizedSharedSessionHint = normalizeComposerNotice(sharedSessionHint);
+  const shouldShowSharedSessionHint = shouldShowComposerHint({
+    canSendInput,
+    sharedSessionHint: normalizedSharedSessionHint
+  });
   const sharedSessionHintText =
-    sharedSessionHint && compactViewport && viewerCount > 1
+    normalizedSharedSessionHint && compactViewport && viewerCount > 1
       ? `${viewerCount} DeskCue clients open. Sending may interrupt the current run`
-      : sharedSessionHint;
+      : normalizedSharedSessionHint;
 
-  const syncHasDraft = (nextValue: string) => {
-    const nextHasDraft = nextValue.trim().length > 0;
-    setHasDraft((current) => (current === nextHasDraft ? current : nextHasDraft));
-  };
+  const actions = {
+    async confirmSharedSessionTakeover() {
+      if (!shouldSubmitReplacement) return true;
+      if (viewerCount <= 1) return true;
 
-  const handleComposerFieldBlur = () => {
-    setIsComposerFieldFocused(false);
-  };
-
-  const handleComposerFieldFocus = () => {
-    setIsComposerFieldFocused(true);
-  };
-
-  const blurComposerField = useCallback((field: HTMLInputElement | HTMLTextAreaElement | null, delayMs = 0) => {
-    const blurActiveElement = () => {
-      field?.blur();
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
+      return requestConfirmation({
+        confirmLabel: "Interrupt and send",
+        description: buildSharedSessionTakeoverConfirmation(viewerCount, activePromptText ?? ""),
+        title: "Interrupt current prompt?",
+        tone: "danger"
+      });
+    },
+    handleChatSendButtonClick() {
+      if (handledTouchSendPointerRef.current) {
+        handledTouchSendPointerRef.current = false;
+        return;
       }
-    };
 
-    if (delayMs > 0) {
-      window.setTimeout(blurActiveElement, delayMs);
-      return;
-    }
+      if (buttonActsAsInterrupt && !isInterruptingPrompt && canSendInput) {
+        onInterruptPrompt();
+        return;
+      }
 
-    blurActiveElement();
-    window.requestAnimationFrame(() => {
-      blurActiveElement();
-      window.setTimeout(blurActiveElement, 0);
-    });
-  }, []);
+      void actions.submitDraft();
+    },
+    handleComposerFieldBlur() {
+      setIsComposerFieldFocused(false);
+    },
+    handleComposerFieldFocus() {
+      setIsComposerFieldFocused(true);
+    },
+    handleKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+      if (event.key !== "Enter") return;
+      if (event.nativeEvent.isComposing) return;
+      if (!shouldSubmitComposerOnEnter(event.currentTarget.value, event, compactViewport)) return;
+      if (!event.currentTarget.value.trim() || !canSubmitDraft) return;
 
-  const sendActionDecision = async (decision: "approve" | "reject") => {
-    if (!canSendInput || isInterruptingPrompt) {
-      return;
-    }
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    },
+    handleSendPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+      if (!canSubmitDraft) return;
+      if (buttonActsAsInterrupt) return;
 
-    const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
-    blurComposerField(field);
-    if (field) {
-      field.value = "";
-    }
-    setHasDraft(false);
-    setPendingActionDecision(decision);
+      event.preventDefault();
 
-    const sent = await onSendInput(decision === "approve" ? "y" : "esc", {
-      actionDecision: decision
-    });
+      if (event.pointerType === "touch") {
+        handledTouchSendPointerRef.current = true;
+        void actions.submitDraft({ blurDelayMs: TOUCH_SEND_BLUR_DELAY_MS });
+        return;
+      }
 
-    if (!sent) {
-      setPendingActionDecision(null);
+      const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
+
+      blurComposerField(field);
+    },
+    handleSubmit(event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      void actions.submitDraft();
+    },
+    async sendActionDecision(decision: "approve" | "reject") {
+      if (!canSendInput || isInterruptingPrompt) return;
+
+      const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
+
+      blurComposerField(field);
+
+      if (field) field.value = "";
       setHasDraft(false);
-    }
-  };
+      setPendingActionDecision(decision);
 
-  const confirmSharedSessionTakeover = async () => {
-    if (!shouldSubmitReplacement) {
-      return true;
-    }
+      const sent = await onSendInput(decision === "approve" ? "y" : "esc", {
+        actionDecision: decision
+      });
 
-    if (viewerCount <= 1) {
-      return true;
-    }
-
-    return requestConfirmation({
-      confirmLabel: "Interrupt and send",
-      description: buildSharedSessionTakeoverConfirmation(viewerCount, activePromptText ?? ""),
-      title: "Interrupt current prompt?",
-      tone: "danger"
-    });
-  };
-
-  const submitDraft = async (options?: { blurDelayMs?: number }) => {
-    const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
-    const nextDraft = field?.value.trim() ?? "";
-    if (!nextDraft || !canSubmitDraft) {
-      return;
-    }
-
-    if (!(await confirmSharedSessionTakeover())) {
-      return;
-    }
-
-    blurComposerField(field, options?.blurDelayMs);
-    if (field) {
-      field.value = "";
-    }
-    setHasDraft(false);
-
-    const actionDecision = isActionDecisionPending ? getDraftActionDecision(nextDraft) : undefined;
-    const sent = await onSendInput(nextDraft, {
-      actionDecision,
-      replaceRunningPrompt: shouldSubmitReplacement
-    });
-
-    if (!sent) {
-      if (field) {
-        field.value = nextDraft;
+      if (!sent) {
+        setPendingActionDecision(null);
+        setHasDraft(false);
       }
-      setHasDraft(true);
-      return;
+    },
+    async submitDraft(options?: { blurDelayMs?: number }) {
+      const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
+      const nextDraft = field?.value.trim() ?? "";
+
+      if (!nextDraft || !canSubmitDraft) return;
+      if (!(await actions.confirmSharedSessionTakeover())) return;
+
+      blurComposerField(field, options?.blurDelayMs);
+      if (field) field.value = "";
+      setHasDraft(false);
+
+      const actionDecision = isActionDecisionPending ? getDraftActionDecision(nextDraft) : undefined;
+      const sent = await onSendInput(nextDraft, {
+        actionDecision,
+        replaceRunningPrompt: shouldSubmitReplacement
+      });
+
+      if (!sent) {
+        if (field) field.value = nextDraft;
+        setHasDraft(true);
+        return;
+      }
+
+      blurComposerField(field);
+    },
+    syncHasDraft(nextValue: string) {
+      const nextHasDraft = nextValue.trim().length > 0;
+
+      setHasDraft((current) => (current === nextHasDraft ? current : nextHasDraft));
     }
-
-    blurComposerField(field);
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    submitDraft();
-  };
-
-  const handleChatSendButtonClick = () => {
-    if (handledTouchSendPointerRef.current) {
-      handledTouchSendPointerRef.current = false;
-      return;
-    }
-
-    if (buttonActsAsInterrupt && !isInterruptingPrompt && canSendInput) {
-      onInterruptPrompt();
-      return;
-    }
-
-    submitDraft();
-  };
-
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter") {
-      return;
-    }
-
-    if (event.nativeEvent.isComposing) {
-      return;
-    }
-
-    if (!shouldSubmitComposerOnEnter(event.currentTarget.value, event, compactViewport)) {
-      return;
-    }
-
-    if (!event.currentTarget.value.trim() || !canSubmitDraft) {
-      return;
-    }
-
-    event.preventDefault();
-    event.currentTarget.form?.requestSubmit();
-  };
-
-  const handleSendPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!canSubmitDraft) {
-      return;
-    }
-
-    if (buttonActsAsInterrupt) {
-      return;
-    }
-
-    event.preventDefault();
-
-    if (event.pointerType === "touch") {
-      handledTouchSendPointerRef.current = true;
-      submitDraft({ blurDelayMs: TOUCH_SEND_BLUR_DELAY_MS });
-      return;
-    }
-
-    const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
-    blurComposerField(field);
   };
 
   useEffect(() => {
     const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
-    if (field) {
-      field.value = "";
-    }
+
+    if (field) field.value = "";
+
     setHasDraft(false);
 
-    const syncRestoredDraft = () => {
-      const restoredField = mode === "chat" ? textAreaRef.current : textInputRef.current;
-      setHasDraft(Boolean(restoredField?.value.trim()));
+    const draftRestoration = {
+      sync() {
+        const restoredField = mode === "chat" ? textAreaRef.current : textInputRef.current;
+
+        setHasDraft(Boolean(restoredField?.value.trim()));
+      }
     };
-    const frame = window.requestAnimationFrame(syncRestoredDraft);
-    const restoredDraftTimer = window.setTimeout(syncRestoredDraft, 250);
+
+    const frame = window.requestAnimationFrame(draftRestoration.sync);
+    const restoredDraftTimer = window.setTimeout(draftRestoration.sync, 250);
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -262,31 +216,29 @@ export function useSessionMessageComposerController({
   }, [draftScopeKey, mode]);
 
   useEffect(() => {
-    if (!actionRequest) {
-      setPendingActionDecision(null);
-    }
+    if (!actionRequest) setPendingActionDecision(null);
   }, [actionRequest]);
 
   return {
     buttonActsAsInterrupt,
     canSubmitDraft,
     composerInputId,
-    handleChatSendButtonClick,
-    handleComposerFieldBlur,
-    handleComposerFieldFocus,
-    handleKeyDown,
-    handleSendPointerDown,
-    handleSubmit,
+    handleChatSendButtonClick: actions.handleChatSendButtonClick,
+    handleComposerFieldBlur: actions.handleComposerFieldBlur,
+    handleComposerFieldFocus: actions.handleComposerFieldFocus,
+    handleKeyDown: actions.handleKeyDown,
+    handleSendPointerDown: actions.handleSendPointerDown,
+    handleSubmit: actions.handleSubmit,
     hasDraft,
     interruptButtonLabel,
     isActionDecisionDisabled,
     isComposerFieldFocused,
-    sendActionDecision,
+    sendActionDecision: actions.sendActionDecision,
     sendButtonLabel,
     sharedSessionHintText,
     shouldShowSharedSessionHint,
     shouldSubmitReplacement,
-    syncHasDraft,
+    syncHasDraft: actions.syncHasDraft,
     textAreaRef,
     textInputRef,
     visibleActionRequest

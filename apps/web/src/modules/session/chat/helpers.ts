@@ -20,6 +20,23 @@ import type {
 
 type PromptIdentity = Pick<PendingChatPrompt, "requestedAt" | "text">;
 
+export async function retryRecoveredPrompt(
+  operation: Exclude<ChatThreadOperationState, { kind: "idle" }>,
+  isRetrying: boolean,
+  setIsRetrying: (value: boolean) => void,
+  onRetry: () => Promise<boolean>
+) {
+  if (operation.kind !== "recovery" || !operation.actionLabel || isRetrying) return;
+
+  setIsRetrying(true);
+
+  try {
+    await onRetry();
+  } finally {
+    setIsRetrying(false);
+  }
+}
+
 function getPendingPromptStatusLabel(
   status: PendingChatPrompt["status"] | PromptRecoveryState["phase"] | null | undefined
 ) {
@@ -92,6 +109,7 @@ function buildChatThreadOperation(
   if (input.promptRecovery) return buildRecoveryOperation(input.promptRecovery);
 
   const isPromptQueued = input.pendingChatPrompt?.status === "queued";
+
   if (
     input.waiting.kind === "idle" ||
     isPromptQueued ||
@@ -126,10 +144,10 @@ export function hasVisibleConfirmedPrompt(
 
   return visibleConversationTimeline.some((item) => {
     if (item.type !== "message" || item.role !== "user") return false;
-
     if (item.entry.text.trim() !== promptText) return false;
 
     const entryTime = new Date(item.timestamp).getTime();
+
     return !Number.isFinite(requestedAt) || entryTime >= requestedAt - 15_000;
   });
 }
@@ -141,12 +159,15 @@ export function findImmediateInterruptTargetKey(
   if (!prompt) return null;
 
   const normalizedPromptText = prompt.text.trim();
+
   if (!normalizedPromptText) return null;
 
   const requestedAt = new Date(prompt.requestedAt).getTime();
+
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     const itemTime = item.type === "message" ? new Date(item.timestamp).getTime() : Number.NaN;
+
     if (
       item.type === "message" &&
       item.role === "user" &&

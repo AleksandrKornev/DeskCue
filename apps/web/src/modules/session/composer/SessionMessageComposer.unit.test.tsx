@@ -36,7 +36,7 @@ describe("SessionMessageComposer", () => {
     try {
       renderComposer({ onSendInput });
 
-      expect(screen.getByRole("textbox", { name: "Remote session is read only" }))
+      expect(screen.getByRole("textbox", { name: "Remote control disabled" }))
         .toBeDisabled();
       expect(screen.queryByRole("button", { name: "Send message" }))
         .not.toBeInTheDocument();
@@ -47,21 +47,52 @@ describe("SessionMessageComposer", () => {
     }
   });
 
-  it("disables input and send button for read-only sessions", () => {
-    renderComposer({ canSendInput: false });
+  it("explains why session input is unavailable", () => {
+    renderComposer({
+      canSendInput: false,
+      inputUnavailableLabel: "Turn active in Codex Desktop"
+    });
 
     expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-    expect(screen.getByPlaceholderText("This session is read only")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Turn active in Codex Desktop")).toBeInTheDocument();
+  });
+
+  it("normalizes and does not duplicate the same unavailable-input reason", () => {
+    renderComposer({
+      canSendInput: false,
+      inputUnavailableLabel: "This session is not accepting input.",
+      sharedSessionHint: "This session is not accepting input."
+    });
+
+    const field = screen.getByRole("textbox", { name: "Next message" });
+
+    expect(field).toHaveAttribute("placeholder", "This session is not accepting input");
+    expect(field).toHaveAttribute("title", "This session is not accepting input");
+    expect(screen.queryByText("This session is not accepting input.")).not.toBeInTheDocument();
+    expect(screen.queryByText("This session is not accepting input")).not.toBeInTheDocument();
+  });
+
+  it("does not repeat a disabled-input reason as a second visible hint", () => {
+    renderComposer({
+      canSendInput: false,
+      inputUnavailableLabel: "Turn active in Codex Desktop",
+      sharedSessionHint: "This turn is running in Codex Desktop. Finish or stop it there"
+    });
+
+    expect(screen.getByPlaceholderText("Turn active in Codex Desktop")).toBeInTheDocument();
+    expect(screen.queryByText(/This turn is running in Codex Desktop/u)).not.toBeInTheDocument();
   });
 
   it("sends a trimmed draft", async () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({ onSendInput });
 
     fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
       target: { value: "  continue please  " }
     });
+
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => {
@@ -74,6 +105,7 @@ describe("SessionMessageComposer", () => {
 
   it("submits a single-line draft with Enter", async () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({ onSendInput });
     const field = screen.getByRole("textbox", { name: "Next message" });
 
@@ -90,6 +122,7 @@ describe("SessionMessageComposer", () => {
 
   it("keeps Enter as a newline action in the compact mobile layout", () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({ compactViewport: true, onSendInput });
     const field = screen.getByRole("textbox", { name: "Next message" });
 
@@ -101,6 +134,7 @@ describe("SessionMessageComposer", () => {
 
   it("keeps Ctrl+Enter as a newline action in the compact mobile layout", () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({ compactViewport: true, onSendInput });
     const field = screen.getByRole("textbox", { name: "Next message" });
 
@@ -112,6 +146,7 @@ describe("SessionMessageComposer", () => {
 
   it("keeps plain Enter for a draft that is already multiline", () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({ onSendInput });
     const field = screen.getByRole("textbox", { name: "Next message" });
 
@@ -123,6 +158,7 @@ describe("SessionMessageComposer", () => {
 
   it("submits a multiline draft with Ctrl+Enter", async () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({ onSendInput });
     const field = screen.getByRole("textbox", { name: "Next message" });
 
@@ -139,6 +175,7 @@ describe("SessionMessageComposer", () => {
 
   it("keeps Shift+Enter as a newline shortcut", () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({ onSendInput });
     const field = screen.getByRole("textbox", { name: "Next message" });
 
@@ -150,6 +187,7 @@ describe("SessionMessageComposer", () => {
 
   it("interrupts an in-flight prompt when no replacement draft exists", () => {
     const onInterruptPrompt = vi.fn();
+
     renderComposer({
       isPromptInFlight: true,
       onInterruptPrompt
@@ -162,6 +200,7 @@ describe("SessionMessageComposer", () => {
 
   it("sends approval decisions through the composer action path", async () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
+
     renderComposer({
       actionRequest: {
         command: "apply patch",

@@ -66,6 +66,10 @@
   align-items: flex-start;
 }
 
+.mobileBackButton {
+  display: none;
+}
+
 .chatMain {
   display: grid;
   flex: 1 1 auto;

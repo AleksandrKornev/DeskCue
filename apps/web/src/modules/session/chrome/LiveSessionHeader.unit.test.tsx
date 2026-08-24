@@ -32,6 +32,8 @@ afterEach(() => {
 
 describe("LiveSessionHeader", () => {
   it("keeps the agent, compaction count, and live state in the session metadata", () => {
+    const onExitSession = vi.fn();
+
     render(
       <LiveSessionHeader
         activeTab="preview"
@@ -56,6 +58,7 @@ describe("LiveSessionHeader", () => {
         subtitle="D:\\work\\DeskCueWorkspace"
         title="Continue HTTPS Preview DeskCue"
         toolbarRef={createRef<HTMLDivElement>()}
+        onExitSession={onExitSession}
         onSelectTab={vi.fn()}
       />
     );
@@ -71,6 +74,9 @@ describe("LiveSessionHeader", () => {
       "aria-selected",
       "true"
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to chats" }));
+    expect(onExitSession).toHaveBeenCalledOnce();
   });
 
   it("collapses on downward mobile scrolling and expands when scrolling back up", () => {
@@ -103,6 +109,7 @@ describe("LiveSessionHeader", () => {
           subtitle="D:\\work\\DeskCueWorkspace"
           title="Continue HTTPS Preview DeskCue"
           toolbarRef={toolbarRef}
+          onExitSession={vi.fn()}
           onSelectTab={vi.fn()}
         />
         <div data-testid="session-scroll-target" />
@@ -110,7 +117,9 @@ describe("LiveSessionHeader", () => {
     );
 
     const scrollTarget = screen.getByTestId("session-scroll-target");
+
     setScrollMetrics(scrollTarget, { scrollTop: 48 });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
@@ -168,6 +177,7 @@ describe("LiveSessionHeader", () => {
           subtitle="D:\\work\\DeskCueWorkspace"
           title="Continue HTTPS Preview DeskCue"
           toolbarRef={toolbarRef}
+          onExitSession={vi.fn()}
           onSelectTab={vi.fn()}
         />
         <div data-testid="session-scroll-target" />
@@ -175,17 +185,20 @@ describe("LiveSessionHeader", () => {
     );
 
     const scrollTarget = screen.getByTestId("session-scroll-target");
+
     setScrollMetrics(scrollTarget, {
       clientHeight: 500,
       scrollHeight: 1_000,
       scrollTop: 280
     });
+
     fireEvent.wheel(scrollTarget, { deltaY: 24 });
     setScrollMetrics(scrollTarget, {
       clientHeight: 500,
       scrollHeight: 1_000,
       scrollTop: 304
     });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).toHaveClass(styles.chatToolbarCollapsed);
@@ -195,6 +208,7 @@ describe("LiveSessionHeader", () => {
       scrollHeight: 1_000,
       scrollTop: 480
     });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
@@ -205,6 +219,7 @@ describe("LiveSessionHeader", () => {
       scrollHeight: 1_000,
       scrollTop: 404
     });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
@@ -240,6 +255,7 @@ describe("LiveSessionHeader", () => {
           subtitle="D:\\work\\DeskCueWorkspace"
           title="Continue HTTPS Preview DeskCue"
           toolbarRef={toolbarRef}
+          onExitSession={vi.fn()}
           onSelectTab={onSelectTab}
         />
         <div data-testid="session-scroll-target" />

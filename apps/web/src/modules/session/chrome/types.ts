@@ -48,6 +48,7 @@ export type LiveSessionHeaderProps = {
   subtitle: string;
   title: string;
   toolbarRef: RefObject<HTMLDivElement | null>;
+  onExitSession: () => void;
   onSelectTab: (tab: SessionTab) => void;
 };
 

@@ -16,13 +16,10 @@ describe("LiveConnectionIndicator", () => {
       />
     );
 
-    const indicator = screen.getByRole("button", {
-      name: "Live updated now; Live updated"
-    });
-    expect(indicator).toHaveAttribute(
-      "aria-label",
-      "Live updated now; Live updated"
-    );
+    const indicator = screen.getByRole("button");
+
+    expect(indicator).not.toHaveAttribute("aria-label");
+
     expect(screen.getByText("Live")).toBeInTheDocument();
     expect(screen.getAllByText("updated")).not.toHaveLength(0);
   });

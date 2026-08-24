@@ -10,6 +10,7 @@ export interface SessionMessageComposerProps {
   viewerCount?: number;
   activePromptText?: string | null;
   actionRequest?: SessionActionRequest | null;
+  inputUnavailableLabel?: string | null;
   sharedSessionHint?: string | null;
   liveUpdatesConnection?: LiveUpdatesConnectionState;
   isPromptInFlight: boolean;
