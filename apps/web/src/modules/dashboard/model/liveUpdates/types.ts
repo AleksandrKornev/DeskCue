@@ -38,6 +38,7 @@ export interface UseDashboardAgentSessionRefreshesArgs {
 
 export type ScheduleTakenOverTranscriptRefreshOptions = {
   allowDuringPromptPolling?: boolean;
+  force?: boolean;
 };
 
 export type UseTakenOverAgentSessionRefreshArgs = {

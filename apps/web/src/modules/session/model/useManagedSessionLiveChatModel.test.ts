@@ -4,7 +4,8 @@ import { describe, it } from "node:test";
 import {
   resolveContextCompactionCount,
   resolveLiveHeaderStatus,
-  resolveLiveHeaderStatusLabel
+  resolveLiveHeaderStatusLabel,
+  resolveLiveSourceState
 } from "./liveChat/helpers";
 
 describe("managed session live chat model", () => {
@@ -77,6 +78,78 @@ describe("managed session live chat model", () => {
     );
   });
 
+  it("shows retry required instead of ready after a prompt was definitely not sent", () => {
+    assert.equal(
+      resolveLiveHeaderStatusLabel({
+        isPromptInFlight: false,
+        sessionShell: {
+          inputBlockedReason: "Codex Desktop still owns this chat.",
+          promptRecovery: {
+            phase: "not_sent",
+            promptText: "Continue",
+            requestedAt: "2026-08-23T13:23:23.000Z",
+            retryable: true
+          },
+          sourceSessionId: "source-1",
+          status: "read_only"
+        },
+        takenOverAgentSession: {
+          attachMode: "resume",
+          workState: "idle"
+        }
+      }),
+      "retry required"
+    );
+  });
+
+  it("does not hide a failed shell behind a ready source transcript", () => {
+    const sessionShell = { sourceSessionId: "source-1", status: "failed" as const };
+    const sourceSession = { attachMode: "resume" as const, workState: "idle" as const };
+
+    assert.equal(resolveLiveHeaderStatus({
+      isPromptInFlight: false,
+      sessionShell,
+      takenOverAgentSession: sourceSession
+    }), "failed");
+    assert.equal(resolveLiveHeaderStatusLabel({
+      isPromptInFlight: false,
+      sessionShell,
+      takenOverAgentSession: sourceSession
+    }), "failed");
+  });
+
+  it("keeps a completed resumable shell ready despite stale active source detail", () => {
+    const sessionShell = { sourceSessionId: "source-1", status: "done" as const };
+    const staleSourceSession = { attachMode: "resume" as const, workState: "running" as const };
+
+    assert.equal(resolveLiveHeaderStatus({
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: staleSourceSession
+    }), "done");
+    assert.equal(resolveLiveHeaderStatusLabel({
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: staleSourceSession
+    }), "ready");
+  });
+
+  it("keeps a stopped shell ready despite stale active source detail", () => {
+    const sessionShell = { sourceSessionId: "source-1", status: "stopped" as const };
+    const staleSourceSession = { attachMode: "resume" as const, workState: "running" as const };
+
+    assert.equal(resolveLiveHeaderStatus({
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: staleSourceSession
+    }), "stopped");
+    assert.equal(resolveLiveHeaderStatusLabel({
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: staleSourceSession
+    }), "ready");
+  });
+
   it("does not label an active source chat as ready", () => {
     assert.equal(
       resolveLiveHeaderStatusLabel({
@@ -91,6 +164,23 @@ describe("managed session live chat model", () => {
         }
       }),
       undefined
+    );
+  });
+
+  it("labels an active view-only source chat as observing", () => {
+    assert.equal(
+      resolveLiveHeaderStatusLabel({
+        isPromptInFlight: false,
+        sessionShell: {
+          sourceSessionId: "source-1",
+          status: "read_only"
+        },
+        takenOverAgentSession: {
+          attachMode: "read_only",
+          workState: "running"
+        }
+      }),
+      "observing"
     );
   });
 
@@ -120,7 +210,67 @@ describe("managed session live chat model", () => {
     }), "ready");
   });
 
-  it("labels a non-resumable source chat as read only", () => {
+  it("uses a newer terminal list summary when the transcript detail still projects an active turn", () => {
+    const detail = {
+      attachMode: "resume" as const,
+      turnState: {
+        activityAt: "2026-08-22T16:40:30.000Z",
+        completedAt: null,
+        evidence: "recent_non_final_activity" as const,
+        fingerprint: "turn-1",
+        phase: "active" as const,
+        startedAt: "2026-08-22T16:40:30.000Z"
+      },
+      workState: "running" as const
+    };
+
+    const summary = {
+      attachMode: "resume" as const,
+      turnState: {
+        activityAt: null,
+        completedAt: "2026-08-22T16:40:36.000Z",
+        evidence: "terminal_lifecycle" as const,
+        fingerprint: "turn-2",
+        phase: "completed" as const,
+        startedAt: null
+      },
+      workState: "idle" as const
+    };
+
+    assert.deepEqual(resolveLiveSourceState(detail, summary), summary);
+  });
+
+  it("does not let an older active list summary replace a newer terminal detail", () => {
+    const detail = {
+      attachMode: "resume" as const,
+      turnState: {
+        activityAt: null,
+        completedAt: "2026-08-22T16:40:36.000Z",
+        evidence: "terminal_lifecycle" as const,
+        fingerprint: "turn-2",
+        phase: "completed" as const,
+        startedAt: null
+      },
+      workState: "idle" as const
+    };
+
+    const summary = {
+      attachMode: "resume" as const,
+      turnState: {
+        activityAt: "2026-08-22T16:40:30.000Z",
+        completedAt: null,
+        evidence: "recent_non_final_activity" as const,
+        fingerprint: "turn-1",
+        phase: "active" as const,
+        startedAt: "2026-08-22T16:40:30.000Z"
+      },
+      workState: "running" as const
+    };
+
+    assert.deepEqual(resolveLiveSourceState(detail, summary), detail);
+  });
+
+  it("labels a non-resumable source chat as view only", () => {
     assert.equal(
       resolveLiveHeaderStatusLabel({
         isPromptInFlight: false,
@@ -133,7 +283,7 @@ describe("managed session live chat model", () => {
           workState: "idle"
         }
       }),
-      "read only"
+      "view only"
     );
   });
 

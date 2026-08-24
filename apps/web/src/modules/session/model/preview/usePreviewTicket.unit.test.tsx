@@ -32,7 +32,7 @@ describe("usePreviewTicket", () => {
     vi.useRealTimers();
   });
 
-  it("hydrates an owner-scoped proxy URL only while Preview is open", async () => {
+  it("retains the owner-scoped proxy URL while Preview is hidden", async () => {
     const session = {
       id: "session-1",
       preview: { active: true, networkMode: "device-direct", port: 5173 }
@@ -55,7 +55,38 @@ describe("usePreviewTicket", () => {
     );
 
     rerender({ enabled: false });
+    expect(result.current.url).toBe("https://deskcue.example/api/preview/sessions/session-1/");
+    expect(result.current.documentRevision).toBe(0);
+    expect(issueTicket).toHaveBeenCalledTimes(1);
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(issueTicket).toHaveBeenCalledTimes(2));
+    expect(result.current.url).toBe("https://deskcue.example/api/preview/sessions/session-1/");
+    expect(result.current.documentRevision).toBe(0);
+  });
+
+  it("does not expose a retained frame after the owner changes while Preview is hidden", async () => {
+    const firstSession = {
+      id: "session-1",
+      preview: { active: true, networkMode: "device-direct", port: 5173 }
+    } as never;
+    const secondSession = {
+      id: "session-2",
+      preview: { active: true, networkMode: "device-direct", port: 5173 }
+    } as never;
+    const { result, rerender } = renderHook(
+      ({ enabled, session }) => usePreviewTicket(session, enabled),
+      { initialProps: { enabled: true, session: firstSession } }
+    );
+
+    await waitFor(() => expect(result.current.url).toBe(
+      "https://deskcue.example/api/preview/sessions/session-1/"
+    ));
+
+    rerender({ enabled: false, session: secondSession });
+
     expect(result.current.url).toBeNull();
+    expect(issueTicket).toHaveBeenCalledTimes(1);
   });
 
   it("does not request a ticket until preview is configured", () => {
@@ -76,7 +107,9 @@ describe("usePreviewTicket", () => {
       expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
       previewUrl: "/api/preview/sessions/session-1/"
     };
+
     let resolveSecond!: (ticket: typeof firstTicket) => void;
+
     issueTicket
       .mockResolvedValueOnce(firstTicket)
       .mockImplementationOnce(() => new Promise((resolve) => {
@@ -110,7 +143,9 @@ describe("usePreviewTicket", () => {
       expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
       previewUrl: "/api/preview/sessions/session-1/"
     };
+
     let resolveSecond!: (ticket: typeof stableTicket) => void;
+
     issueTicket
       .mockResolvedValueOnce(stableTicket)
       .mockImplementationOnce(() => new Promise((resolve) => {
@@ -162,12 +197,14 @@ describe("usePreviewTicket", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(269_999);
     });
+
     expect(issueTicket).toHaveBeenCalledTimes(1);
     expect(result.current.documentRevision).toBe(0);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
+
     expect(issueTicket).toHaveBeenCalledTimes(2);
     expect(result.current.url).toBe("https://deskcue.example/api/preview/sessions/session-1/");
     expect(result.current.documentRevision).toBe(0);
@@ -179,6 +216,7 @@ describe("usePreviewTicket", () => {
       expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
       previewUrl: "/api/preview/sessions/session-1/"
     };
+
     issueTicket
       .mockResolvedValueOnce(ticket)
       .mockResolvedValueOnce({ ...ticket, credentialRevision: "BBBBBBBBBBBBBBBB" })
@@ -234,8 +272,10 @@ describe("usePreviewTicket", () => {
       expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
       previewUrl: "/api/preview/sessions/session-1/"
     };
+
     let resolveB!: (ticket: typeof initialTicket) => void;
     let resolveFinalA!: (ticket: typeof initialTicket) => void;
+
     issueTicket
       .mockResolvedValueOnce(initialTicket)
       .mockImplementationOnce(() => new Promise((resolve) => {
@@ -305,6 +345,7 @@ describe("usePreviewTicket", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
+
     expect(issueTicket).toHaveBeenCalledTimes(3);
     expect(result.current.documentRevision).toBe(0);
   });
@@ -331,6 +372,7 @@ describe("usePreviewTicket", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
+
     expect(issueTicket).toHaveBeenCalledTimes(2);
     expect(result.current).toMatchObject({
       error: "The local preview server is unavailable.",
@@ -341,11 +383,13 @@ describe("usePreviewTicket", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
+
     expect(issueTicket).toHaveBeenCalledTimes(3);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
+
     expect(issueTicket).toHaveBeenCalledTimes(3);
 
     act(() => result.current.retry());

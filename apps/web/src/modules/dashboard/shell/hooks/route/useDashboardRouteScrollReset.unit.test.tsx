@@ -5,7 +5,7 @@ import type { RouteViewState } from "@models/dashboardRoute";
 import {
   clearAgentBrowserListScrollTop,
   rememberAgentBrowserListScrollTop
-} from "@modules/dashboard/shell/route/agentBrowserListScrollMemory";
+} from "@modules/agents/panel/state/agentBrowserListMemory";
 
 import { useDashboardRouteScrollReset } from "./useDashboardRouteScrollReset";
 

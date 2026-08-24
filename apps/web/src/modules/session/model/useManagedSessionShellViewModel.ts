@@ -6,6 +6,8 @@ import type {
 } from "@deskcue/protocol";
 import { buildDebugLogEntries } from "@models/sessionDisplay";
 
+import { mergeManagedSessionLifecycle } from "./managedSessionShellViewModel";
+
 export function useManagedSessionShellViewModel({
   managedSessions,
   selectedSession,
@@ -31,7 +33,11 @@ export function useManagedSessionShellViewModel({
     lastSelectedSessionDetailRef.current = null;
   }
 
-  const selectedSessionDetail = matchingSessionDetail ?? lastSelectedSessionDetailRef.current;
+  const retainedSessionDetail = matchingSessionDetail ?? lastSelectedSessionDetailRef.current;
+  const selectedSessionDetail = useMemo(
+    () => mergeManagedSessionLifecycle(retainedSessionDetail, selectedSessionSummary),
+    [retainedSessionDetail, selectedSessionSummary]
+  );
   const activeSelectedSession = selectedSessionDetail?.status === "running" ? selectedSessionDetail : null;
   const debugEntries = useMemo(
     () =>

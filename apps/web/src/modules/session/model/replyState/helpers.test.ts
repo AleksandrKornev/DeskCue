@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { SessionSummary } from "@deskcue/protocol";
+import type { AgentSessionDetail, SessionSummary } from "@deskcue/protocol";
 
 import {
+  isConfirmedDeskCuePendingPrompt,
+  isManagedSourceSessionWorking,
   resolveInputAvailability,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
@@ -61,6 +63,45 @@ function transcriptUser(id: string, text: string) {
 }
 
 describe("managed session reply state helpers", () => {
+  it("ignores stale active source metadata after the managed transport is done", () => {
+    const activeSource = {
+      turnState: { phase: "active" },
+      workState: "running"
+    } as AgentSessionDetail;
+
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "done" }),
+      activeSource
+    ), false);
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "stopped" }),
+      activeSource
+    ), false);
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "running" }),
+      activeSource
+    ), true);
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "read_only" }),
+      activeSource
+    ), true);
+  });
+
+  it("does not treat an outcome-unknown prompt as DeskCue-owned control", () => {
+    assert.equal(isConfirmedDeskCuePendingPrompt({
+      sessionId: "session-1",
+      status: "not_confirmed",
+      text: "Ambiguous prompt",
+      requestedAt
+    }), false);
+    assert.equal(isConfirmedDeskCuePendingPrompt({
+      sessionId: "session-1",
+      status: "waiting",
+      text: "Confirmed prompt",
+      requestedAt
+    }), true);
+  });
+
   it("restores the pending prompt bubble from a read-only waiting source shell", () => {
     const sessionShell = createSessionShell({
       replyState: {
@@ -117,6 +158,7 @@ describe("managed session reply state helpers", () => {
       text: "New prompt",
       requestedAt: "2026-07-29T17:59:00.000Z"
     });
+
     assert.equal(result.displayedPendingChatPrompt?.text, "New prompt");
   });
 
@@ -220,6 +262,10 @@ describe("managed session reply state helpers", () => {
     assert.equal(resolveInputAvailability(localChatShell, {
       canSendInputWhenReadOnly: true
     }).canSendInput, true);
+    assert.equal(resolveInputAvailability(localChatShell, {
+      blockExternalSourceInput: true,
+      canSendInputWhenReadOnly: true
+    }).canSendInput, false);
   });
 
   it("keeps the transcript skeleton during reload even when a pending prompt is restored", () => {

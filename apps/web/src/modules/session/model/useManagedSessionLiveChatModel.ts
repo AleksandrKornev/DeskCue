@@ -7,7 +7,8 @@ import { compareSwitchableManagedSessions } from "@modules/session/helpers";
 import {
   resolveContextCompactionCount,
   resolveLiveHeaderStatus,
-  resolveLiveHeaderStatusLabel
+  resolveLiveHeaderStatusLabel,
+  resolveLiveSourceState
 } from "./liveChat/helpers";
 
 export function useManagedSessionLiveChatModel({
@@ -45,6 +46,10 @@ export function useManagedSessionLiveChatModel({
     takenOverAgentSession?.contextCompactionCount,
     activeTakenOverAgentSessionSummary?.contextCompactionCount
   );
+  const liveSourceState = resolveLiveSourceState(
+    takenOverAgentSession,
+    activeTakenOverAgentSessionSummary
+  );
   const switchableManagedSessions = useMemo(
     () =>
       managedSessions
@@ -79,12 +84,12 @@ export function useManagedSessionLiveChatModel({
   const liveHeaderStatusLabel = resolveLiveHeaderStatusLabel({
     isPromptInFlight,
     sessionShell,
-    takenOverAgentSession
+    takenOverAgentSession: liveSourceState
   });
   const liveHeaderStatus = resolveLiveHeaderStatus({
     isPromptInFlight,
     sessionShell,
-    takenOverAgentSession
+    takenOverAgentSession: liveSourceState
   });
 
   return {

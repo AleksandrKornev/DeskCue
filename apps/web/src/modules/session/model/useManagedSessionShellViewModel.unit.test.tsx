@@ -8,6 +8,7 @@ import { useManagedSessionShellViewModel } from "./useManagedSessionShellViewMod
 function createSummary(id: string, workspaceName: string): SessionSummary {
   return {
     id,
+    lastActivityAt: "2026-08-22T08:00:00.000Z",
     workspaceName
   } as SessionSummary;
 }
@@ -15,6 +16,7 @@ function createSummary(id: string, workspaceName: string): SessionSummary {
 function createDetail(id: string): SessionDetail {
   return {
     id,
+    lastActivityAt: "2026-08-22T08:00:00.000Z",
     sourceSessionId: "source-1",
     status: "running",
     workspaceName: "Source chat workspace"
@@ -36,6 +38,7 @@ describe("useManagedSessionShellViewModel", () => {
       selectedSession: detail,
       selectedSessionId: "session-1"
     };
+
     const { result, rerender } = renderHook(
       (props: ShellHarnessProps) => useManagedSessionShellViewModel(props),
       { initialProps }
@@ -48,6 +51,42 @@ describe("useManagedSessionShellViewModel", () => {
     expect(result.current.isSessionShellLoading).toBe(false);
   });
 
+  it("applies a newer realtime lifecycle summary to a retained detail", () => {
+    const detail = {
+      ...createDetail("session-1"),
+      canSendInput: false,
+      finishedAt: "2026-08-22T08:00:00.000Z",
+      status: "read_only" as const
+    };
+
+    const summary = {
+      ...createSummary("session-1", "Source chat workspace"),
+      actionRequest: null,
+      canSendInput: true,
+      exitCode: 0,
+      finishedAt: null,
+      inputBlockedReason: null,
+      lastActivityAt: "2026-08-22T08:00:01.000Z",
+      replyState: {
+        phase: "idle" as const,
+        promptText: null,
+        requestedAt: null
+      },
+      status: "stopped" as const
+    };
+
+    const { result } = renderHook(() => useManagedSessionShellViewModel({
+      managedSessions: [summary],
+      selectedSession: detail,
+      selectedSessionId: detail.id
+    }));
+
+    expect(result.current.selectedSessionDetail?.status).toBe("stopped");
+    expect(result.current.selectedSessionDetail?.finishedAt).toBeNull();
+    expect(result.current.selectedSessionDetail?.canSendInput).toBe(true);
+    expect(result.current.sessionShell).toBe(result.current.selectedSessionDetail);
+  });
+
   it("does not leak a preserved detail into another or removed session", () => {
     const detail = createDetail("session-1");
     const firstSummary = createSummary("session-1", "First workspace");
@@ -57,6 +96,7 @@ describe("useManagedSessionShellViewModel", () => {
       selectedSession: detail,
       selectedSessionId: "session-1"
     };
+
     const { result, rerender } = renderHook(
       (props: ShellHarnessProps) => useManagedSessionShellViewModel(props),
       { initialProps }

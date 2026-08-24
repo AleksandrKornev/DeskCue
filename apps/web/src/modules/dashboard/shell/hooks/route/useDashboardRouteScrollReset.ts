@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { consumeAgentBrowserListScrollTop } from "@modules/dashboard/shell/route/agentBrowserListScrollMemory";
+import { consumeAgentBrowserListScrollTop } from "@modules/agents/panel/state/agentBrowserListMemory";
 
 import {
   resetWindowScroll,
@@ -22,15 +22,11 @@ export function useDashboardRouteScrollReset({
   } = routeState;
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (!shouldResetWindowScrollOnSessionRoute({ agentSessionId, kind, tab })) {
-      return;
-    }
+    if (typeof window === "undefined") return;
+    if (!shouldResetWindowScrollOnSessionRoute({ agentSessionId, kind, tab })) return;
 
     resetWindowScroll();
+
     window.requestAnimationFrame(() => {
       resetWindowScroll();
     });
@@ -42,16 +38,13 @@ export function useDashboardRouteScrollReset({
   }, [agentSessionId, kind, sessionId, tab]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || kind !== "dashboard") {
-      return;
-    }
+    if (typeof window === "undefined" || kind !== "dashboard") return;
 
-    if (!agentSessionId && isExitingToDashboardFrame) {
-      setIsExitingToDashboardFrame(false);
-    }
+    if (!agentSessionId && isExitingToDashboardFrame) setIsExitingToDashboardFrame(false);
 
     if (!agentSessionId) {
       const rememberedScrollTop = consumeAgentBrowserListScrollTop();
+
       if (rememberedScrollTop !== null) {
         restoreWindowScroll(rememberedScrollTop);
         const frameId = window.requestAnimationFrame(() => {
@@ -60,6 +53,7 @@ export function useDashboardRouteScrollReset({
         const timeoutId = window.setTimeout(() => {
           restoreWindowScroll(rememberedScrollTop);
         }, 120);
+
         return () => {
           window.cancelAnimationFrame(frameId);
           window.clearTimeout(timeoutId);
@@ -70,6 +64,7 @@ export function useDashboardRouteScrollReset({
       const frameId = window.requestAnimationFrame(() => {
         resetWindowScroll();
       });
+
       return () => {
         window.cancelAnimationFrame(frameId);
       };

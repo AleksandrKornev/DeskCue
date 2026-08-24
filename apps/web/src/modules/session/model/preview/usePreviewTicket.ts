@@ -37,11 +37,12 @@ export function usePreviewTicket(
 
   useEffect(() => {
     const previousStatus = previousConnectionStatusRef.current;
+
     previousConnectionStatusRef.current = connectionStatus;
     const hadLiveConnection = hasObservedLiveConnectionRef.current;
-    if (connectionStatus === "live") {
-      hasObservedLiveConnectionRef.current = true;
-    }
+
+    if (connectionStatus === "live") hasObservedLiveConnectionRef.current = true;
+
     if (
       !shouldIssueTicket ||
       connectionStatus !== "live" ||
@@ -52,26 +53,32 @@ export function usePreviewTicket(
     ) {
       return;
     }
+
     setRefreshVersion((current) => current + 1);
   }, [connectionStatus, ownerKey, shouldIssueTicket, state.resolvedKey]);
 
   useEffect(() => {
-    if (!shouldIssueTicket || !ownerKind || !ownerId) {
+    if (!ownerKind || !ownerId) {
       operationRef.current += 1;
       retryStateRef.current = { failures: 0, key: "" };
       setState(createEmptyPreviewTicketState());
       return;
     }
 
-    if (retryStateRef.current.key !== ownerKey) {
-      retryStateRef.current = { failures: 0, key: ownerKey };
+    if (!enabled) {
+      operationRef.current += 1;
+      return;
     }
+
+    if (retryStateRef.current.key !== ownerKey) retryStateRef.current = { failures: 0, key: ownerKey };
 
     const operation = ++operationRef.current;
     const controller = new AbortController();
     let refreshTimer: number | null = null;
+
     setState((current) => {
       const sameOwner = current.key.startsWith(`${ownerIdentity}:`);
+
       if (current.key === ownerKey || (sameOwner && current.url)) {
         return {
           ...current,
@@ -79,6 +86,7 @@ export function usePreviewTicket(
           loading: !current.url && !current.error
         };
       }
+
       return {
         ...createEmptyPreviewTicketState(),
         key: ownerKey,
@@ -88,11 +96,11 @@ export function usePreviewTicket(
 
     void previewApi.issueTicket({ kind: ownerKind, ownerId }, controller.signal).then((ticket) => {
       if (operationRef.current !== operation) return;
+
       retryStateRef.current = { failures: 0, key: ownerKey };
       setState((current) => {
-        if (operationRef.current !== operation || current.key !== ownerKey) {
-          return current;
-        }
+        if (operationRef.current !== operation || current.key !== ownerKey) return current;
+
         const hasResolvedDocument = Boolean(current.resolvedKey);
         const routingChanged = hasResolvedDocument && current.resolvedKey !== ownerKey;
         const credentialChanged = hasResolvedDocument &&
@@ -121,14 +129,15 @@ export function usePreviewTicket(
       );
     }).catch((error: unknown) => {
       if (controller.signal.aborted || operationRef.current !== operation) return;
+
       const failureCount = retryStateRef.current.key === ownerKey
         ? retryStateRef.current.failures + 1
         : 1;
       retryStateRef.current = { failures: failureCount, key: ownerKey };
+
       setState((current) => {
-        if (operationRef.current !== operation || current.key !== ownerKey) {
-          return current;
-        }
+        if (operationRef.current !== operation || current.key !== ownerKey) return current;
+
         if (current.url && current.resolvedKey === ownerKey) {
           return {
             ...current,
@@ -136,6 +145,7 @@ export function usePreviewTicket(
             loading: false
           };
         }
+
         return {
           ...current,
           error: error instanceof Error ? error.message : "Failed to open the local preview",
@@ -156,7 +166,7 @@ export function usePreviewTicket(
       controller.abort();
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
     };
-  }, [ownerId, ownerIdentity, ownerKey, ownerKind, refreshVersion, shouldIssueTicket]);
+  }, [enabled, ownerId, ownerIdentity, ownerKey, ownerKind, refreshVersion]);
 
   const retry = useCallback(() => {
     retryStateRef.current = { failures: 0, key: ownerKey };

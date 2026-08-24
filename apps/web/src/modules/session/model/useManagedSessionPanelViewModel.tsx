@@ -110,6 +110,7 @@ export function useManagedSessionPanelViewModel({
           commandTarget.targetId,
           promptText
         );
+
         clearPendingCloudCommand(command);
       },
       confirmDuplicate: () => requestConfirmation({
@@ -147,6 +148,7 @@ export function useManagedSessionPanelViewModel({
     displayedPendingChatPrompt,
     effectiveIsWaitingForChatReply,
     effectiveShellWaitingPrompt,
+    inputUnavailableLabel,
     interruptLifecycle,
     isInterruptingPrompt,
     isPromptQueued,
@@ -285,6 +287,7 @@ export function useManagedSessionPanelViewModel({
       if (!liveChatAgentSessionId) return 0;
 
       setLoadingMoreAgentTranscriptId(liveChatAgentSessionId);
+
       try {
         return await onLoadMoreAgentSessionTranscript(liveChatAgentSessionId, beforeEntryId);
       } finally {
@@ -379,6 +382,7 @@ export function useManagedSessionPanelViewModel({
     composerPromptInFlight,
     contextCompactionCount,
     debugEntries,
+    inputUnavailableLabel,
     isCompactViewport,
     isActivityExpanded,
     interruptLifecycle,

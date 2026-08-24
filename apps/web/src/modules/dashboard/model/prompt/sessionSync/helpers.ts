@@ -58,9 +58,8 @@ function buildReplyStatePrompt(
   status: PendingChatPrompt["status"]
 ): PendingChatPrompt | null {
   const replyState = selectedSession.replyState;
-  if (!selectedSession.sourceSessionId || !replyState.promptText?.trim() || !replyState.requestedAt) {
-    return null;
-  }
+
+  if (!selectedSession.sourceSessionId || !replyState.promptText?.trim() || !replyState.requestedAt) return null;
 
   return {
     text: replyState.promptText,
@@ -105,13 +104,8 @@ function resolvePendingPromptSyncAction({
     !promptWasConfirmed &&
     hasPromptWaitedLongerThan(pendingChatPrompt, CANCELLED_PROMPT_RETENTION_MS);
 
-  if (promptIsStaleWithoutConfirmation) {
-    return { kind: "reset" };
-  }
-
-  if (promptWasCompleted) {
-    return { kind: "clear-completed", prompt: pendingChatPrompt };
-  }
+  if (promptIsStaleWithoutConfirmation) return { kind: "reset" };
+  if (promptWasCompleted) return { kind: "clear-completed", prompt: pendingChatPrompt };
 
   if (
     hasManagedSessionCompletedPendingPrompt(selectedSession, pendingChatPrompt) &&
@@ -147,9 +141,8 @@ function resolveSendingPromptSyncAction({
   selectedSession: SessionDetail;
 }): PromptSessionSyncAction {
   const sendingPrompt = buildReplyStatePrompt(selectedSession, "waiting");
-  if (!sendingPrompt) {
-    return { kind: "none" };
-  }
+
+  if (!sendingPrompt) return { kind: "none" };
 
   if (hasPromptCompletionInTranscript(activeTakenOverAgentSession, sendingPrompt)) {
     return {
@@ -219,9 +212,7 @@ export function resolvePromptSessionSyncAction({
   pendingChatPrompt: PendingChatPrompt | null;
   selectedSession: SessionDetail | null;
 }): PromptSessionSyncAction {
-  if (isInterruptingPrompt) {
-    return { kind: "none" };
-  }
+  if (isInterruptingPrompt) return { kind: "none" };
 
   const replyState = selectedSession?.replyState;
   const hasWritableRunningSourceSession =
@@ -237,11 +228,19 @@ export function resolvePromptSessionSyncAction({
       selectedSession?.id ?? "",
       selectedSession?.sourceSessionId ?? null
     );
+  const hasStoppedSourceSession =
+    Boolean(selectedSession?.sourceSessionId) &&
+    selectedSession?.status === "stopped" &&
+    replyState?.phase === "idle";
+
+  if (hasStoppedSourceSession) {
+    return pendingChatPrompt || awaitingChatReplySince || isWaitingForChatReply
+      ? { kind: "reset" }
+      : { kind: "none" };
+  }
 
   if (!hasWritableRunningSourceSession || !selectedSession || !replyState) {
-    if (pendingChatPrompt?.status === "starting") {
-      return { kind: "none" };
-    }
+    if (pendingChatPrompt?.status === "starting") return { kind: "none" };
 
     if (hasScopedWaitingPrompt && pendingChatPrompt) {
       return hasPromptCompletionInTranscript(activeTakenOverAgentSession, pendingChatPrompt)
@@ -268,6 +267,7 @@ export function resolvePromptSessionSyncAction({
 
   if (replyState.phase === "queued" && replyState.promptText && replyState.requestedAt) {
     const queuedPrompt = buildReplyStatePrompt(selectedSession, "queued");
+
     return queuedPrompt &&
       pendingChatPrompt?.text === queuedPrompt.text &&
       pendingChatPrompt?.requestedAt === queuedPrompt.requestedAt &&
@@ -280,6 +280,7 @@ export function resolvePromptSessionSyncAction({
 
   if (replyState.phase === "waiting" && replyState.requestedAt) {
     const waitingPrompt = buildReplyStatePrompt(selectedSession, "waiting");
+
     if (
       waitingPrompt &&
       hasPromptCompletionInTranscript(activeTakenOverAgentSession, waitingPrompt)

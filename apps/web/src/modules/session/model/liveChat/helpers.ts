@@ -1,4 +1,8 @@
-import type { SessionDetail, SessionSummary } from "@deskcue/protocol";
+import type {
+  SessionDetail,
+  SessionStatus,
+  SessionSummary
+} from "@deskcue/protocol";
 import {
   getSessionInterruptLifecycle,
   isInterruptLifecycleUnconfirmed
@@ -20,6 +24,35 @@ function hasTerminalSourceTurn(session: SourceLiveState | null) {
   return session?.turnState?.phase !== undefined && session.turnState.phase !== "active";
 }
 
+function readTurnStateTimestamp(session: SourceLiveStateWithAttach) {
+  const timestamp = session.turnState?.completedAt ??
+    session.turnState?.activityAt ??
+    session.turnState?.startedAt ??
+    null;
+  const parsed = timestamp ? Date.parse(timestamp) : Number.NaN;
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function resolveLiveSourceState(
+  detail: SourceLiveStateWithAttach | null,
+  summary: SourceLiveStateWithAttach | null
+) {
+  if (!summary) return detail;
+  if (!detail) return summary;
+
+  const detailTurnTimestamp = readTurnStateTimestamp(detail);
+  const summaryTurnTimestamp = readTurnStateTimestamp(summary);
+
+  if (summaryTurnTimestamp === null) return detail;
+  if (detailTurnTimestamp !== null && summaryTurnTimestamp < detailTurnTimestamp) return detail;
+
+  return {
+    ...detail,
+    ...summary
+  };
+}
+
 export function resolveLiveHeaderStatus({
   isPromptInFlight,
   takenOverAgentSession,
@@ -28,11 +61,14 @@ export function resolveLiveHeaderStatus({
   isPromptInFlight: boolean;
   sessionShell: Pick<SessionDetail | SessionSummary, "sourceSessionId" | "status"> | null;
   takenOverAgentSession: SourceLiveState | null;
-}) {
+}): SessionStatus {
+  if (sessionShell?.status === "failed") return "failed";
+  if (sessionShell?.status === "done") return "done";
+  if (sessionShell?.status === "stopped") return "stopped";
+
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
-  if (sessionShell?.sourceSessionId && interruptLifecycle.phase === "requested") {
-    return "running";
-  }
+
+  if (sessionShell?.sourceSessionId && interruptLifecycle.phase === "requested") return "running";
 
   if (
     sessionShell?.sourceSessionId &&
@@ -66,41 +102,37 @@ export function resolveLiveHeaderStatusLabel({
   takenOverAgentSession
 }: {
   isPromptInFlight: boolean;
-  sessionShell: Pick<SessionDetail | SessionSummary, "sourceSessionId" | "status"> | null;
+  sessionShell: Pick<
+    SessionDetail | SessionSummary,
+    "inputBlockedReason" | "promptRecovery" | "sourceSessionId" | "status"
+  > | null;
   takenOverAgentSession: SourceLiveStateWithAttach | null;
 }) {
-  if (!sessionShell?.sourceSessionId) {
-    return undefined;
-  }
+  if (!sessionShell?.sourceSessionId) return undefined;
+  if (sessionShell.status === "failed") return "failed";
+  if (sessionShell.status === "done") return "ready";
+  if (sessionShell.status === "stopped") return "ready";
+  if (sessionShell.promptRecovery?.phase === "not_sent") return "retry required";
 
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
-  if (interruptLifecycle.phase === "requested") {
-    return "stopping";
-  }
 
-  if (interruptLifecycle.phase === "confirmed" && interruptLifecycle.confirmation === "source_terminal") {
-    return "ready";
-  }
-
-  if (isInterruptLifecycleUnconfirmed(interruptLifecycle)) {
-    return "interrupt unconfirmed";
-  }
+  if (interruptLifecycle.phase === "requested") return "stopping";
+  if (interruptLifecycle.phase === "confirmed" && interruptLifecycle.confirmation === "source_terminal") return "ready";
+  if (isInterruptLifecycleUnconfirmed(interruptLifecycle)) return "interrupt unconfirmed";
 
   if (!isPromptInFlight && hasTerminalSourceTurn(takenOverAgentSession)) {
-    return takenOverAgentSession?.attachMode === "resume" ? "ready" : "read only";
+    return takenOverAgentSession?.attachMode === "resume" ? "ready" : "view only";
   }
 
-  if (isPromptInFlight || takenOverAgentSession?.workState === "running") {
-    return undefined;
-  }
+  if (isPromptInFlight) return undefined;
 
-  if (takenOverAgentSession?.attachMode === "resume") {
-    return "ready";
-  }
-
-  if (takenOverAgentSession?.attachMode === "read_only") {
-    return "read only";
-  }
+  if (
+    takenOverAgentSession?.workState === "running" &&
+    takenOverAgentSession.attachMode === "read_only"
+  ) return "observing";
+  if (takenOverAgentSession?.workState === "running") return undefined;
+  if (takenOverAgentSession?.attachMode === "resume") return "ready";
+  if (takenOverAgentSession?.attachMode === "read_only") return "view only";
 
   return undefined;
 }

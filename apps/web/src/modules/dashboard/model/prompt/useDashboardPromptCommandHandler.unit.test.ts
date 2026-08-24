@@ -13,7 +13,9 @@ import type { UseDashboardPromptCommandHandlerArgs } from "./types";
 import { useDashboardPromptCommandHandler } from "./useDashboardPromptCommandHandler";
 
 const requestConfirmation = vi.hoisted(() => vi.fn());
+
 vi.mock("@components/ModalDialog", () => ({ requestConfirmation }));
+
 vi.mock("@modules/dashboard/model/timing", () => ({
   wait: () => Promise.resolve()
 }));
@@ -31,6 +33,7 @@ function createHarness(selectedSession: SessionDetail) {
     markPromptAccepted: vi.fn(),
     setIsInterruptingPrompt: vi.fn()
   };
+
   const args = {
     loadAgentSessions: vi.fn(() => Promise.resolve([])),
     loadSession: vi.fn(() => Promise.resolve(selectedSession)),
@@ -101,6 +104,7 @@ function createActionRequest(): NonNullable<SessionDetail["actionRequest"]> {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
+
   return {
     promise: new Promise<T>((nextResolve) => {
       resolve = nextResolve;
@@ -128,6 +132,7 @@ describe("useDashboardPromptCommandHandler", () => {
 
   it("does not apply a late attach response to a different selected session", async () => {
     const request = deferred<Awaited<ReturnType<typeof originalAttach>>>();
+
     agentSessionsApi.attach = vi.fn(() => request.promise);
     const harness = createHarness(createSession({ canSendInput: false }));
     const pending = harness.handleSendInput("continue");
@@ -143,6 +148,7 @@ describe("useDashboardPromptCommandHandler", () => {
 
   it("does not apply a late send response to a different selected session", async () => {
     const request = deferred<Awaited<ReturnType<typeof originalSendInput>>>();
+
     sessionsApi.sendInput = vi.fn(() => request.promise);
     const harness = createHarness(createSession({ canSendInput: true }));
     const pending = harness.handleSendInput("continue");
@@ -166,6 +172,7 @@ describe("useDashboardPromptCommandHandler", () => {
 
     expect(sessionsApi.sendInput).toHaveBeenCalledTimes(1);
     const options = vi.mocked(sessionsApi.sendInput).mock.calls[0]?.[2];
+
     expect(options?.commandId).toMatch(/^deskcue-[a-z0-9-]{8,}$/u);
   });
 
@@ -186,7 +193,26 @@ describe("useDashboardPromptCommandHandler", () => {
       "codex:source-1",
       { omitTranscript: true }
     );
+
     expect(harness.promptDelivery.interruptPromptBeforeSendingReplacement).toHaveBeenCalledTimes(1);
+    expect(sessionsApi.sendInput).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes a stopped managed session despite stale active source metadata", async () => {
+    agentSessionsApi.getOne = vi.fn(() => Promise.resolve({
+      turnState: { phase: "active" },
+      workState: "running"
+    } as never));
+    sessionsApi.sendInput = vi.fn(() => Promise.resolve({
+      ok: true as const,
+      data: createSession({ status: "running" })
+    }));
+    const harness = createHarness(createSession({ status: "stopped" }));
+
+    await expect(harness.handleSendInput("continue after stop")).resolves.toBe("session-a");
+
+    expect(agentSessionsApi.getOne).not.toHaveBeenCalled();
+    expect(harness.promptDelivery.interruptPromptBeforeSendingReplacement).not.toHaveBeenCalled();
     expect(sessionsApi.sendInput).toHaveBeenCalledTimes(1);
   });
 
@@ -201,6 +227,7 @@ describe("useDashboardPromptCommandHandler", () => {
 
     expect(agentSessionsApi.attach).toHaveBeenCalledTimes(1);
     const commandId = vi.mocked(agentSessionsApi.attach).mock.calls[0]?.[2];
+
     expect(commandId).toMatch(/^deskcue-[a-z0-9-]{8,}$/u);
   });
 
@@ -224,7 +251,9 @@ describe("useDashboardPromptCommandHandler", () => {
     expect(sessionsApi.sendInput).toHaveBeenCalledTimes(2);
     const firstCommandId = vi.mocked(sessionsApi.sendInput).mock.calls[0]?.[2]?.commandId;
     const secondCommandId = vi.mocked(sessionsApi.sendInput).mock.calls[1]?.[2]?.commandId;
+
     expect(firstCommandId).toMatch(/^deskcue-/u);
+
     expect(secondCommandId).toMatch(/^deskcue-/u);
     expect(secondCommandId).not.toBe(firstCommandId);
   });
@@ -248,6 +277,7 @@ describe("useDashboardPromptCommandHandler", () => {
       sourceSessionId: null
     });
     const harness = createHarness(selectedSession);
+
     harness.args.loadSession.mockResolvedValue(recoveredSession);
 
     await expect(harness.handleSendInput("continue")).resolves.toBe("session-a");
@@ -273,12 +303,15 @@ describe("useDashboardPromptCommandHandler", () => {
     expect(requestConfirmation).toHaveBeenCalledTimes(2);
     const firstCommandId = vi.mocked(agentSessionsApi.attach).mock.calls[0]?.[2];
     const secondCommandId = vi.mocked(agentSessionsApi.attach).mock.calls[1]?.[2];
+
     expect(secondCommandId).toBe(firstCommandId);
   });
 
   it("does not rotate or mutate prompt state when duplicate confirmation becomes stale", async () => {
     const confirmation = deferred<boolean>();
+
     requestConfirmation.mockImplementation(() => confirmation.promise);
+
     sessionsApi.sendInput = vi.fn(() => Promise.resolve({
       ok: false as const,
       status: 409,
@@ -287,7 +320,9 @@ describe("useDashboardPromptCommandHandler", () => {
     const harness = createHarness(createSession({ canSendInput: true }));
 
     const pending = harness.handleSendInput("continue");
+
     await vi.waitFor(() => expect(requestConfirmation).toHaveBeenCalledTimes(1));
+
     harness.selectedSessionIdRef.current = "session-b";
     confirmation.resolve(true);
 
@@ -308,6 +343,7 @@ describe("useDashboardPromptCommandHandler", () => {
       actionRequest: null,
       inputHistory: ["approve"]
     });
+
     harness.args.loadSession.mockResolvedValue(recoveredSession);
 
     await expect(harness.handleSendInput("approve", {
@@ -333,6 +369,7 @@ describe("useDashboardPromptCommandHandler", () => {
       });
     const actionRequest = createActionRequest();
     const harness = createHarness(createSession({ actionRequest }));
+
     harness.args.loadSession.mockResolvedValue(createSession({ actionRequest }));
 
     await expect(harness.handleSendInput("approve", {
@@ -346,6 +383,7 @@ describe("useDashboardPromptCommandHandler", () => {
     }));
     const firstCommandId = vi.mocked(sessionsApi.sendInput).mock.calls[0]?.[2]?.commandId;
     const secondCommandId = vi.mocked(sessionsApi.sendInput).mock.calls[1]?.[2]?.commandId;
+
     expect(secondCommandId).not.toBe(firstCommandId);
   });
 
@@ -358,6 +396,7 @@ describe("useDashboardPromptCommandHandler", () => {
     }));
     const actionRequest = createActionRequest();
     const harness = createHarness(createSession({ actionRequest }));
+
     harness.args.loadSession.mockResolvedValue(createSession({ actionRequest }));
 
     await expect(harness.handleSendInput("reject", {
@@ -373,6 +412,7 @@ describe("useDashboardPromptCommandHandler", () => {
     }));
     const firstCommandId = vi.mocked(sessionsApi.sendInput).mock.calls[0]?.[2]?.commandId;
     const secondCommandId = vi.mocked(sessionsApi.sendInput).mock.calls[1]?.[2]?.commandId;
+
     expect(secondCommandId).toBe(firstCommandId);
   });
 
@@ -383,6 +423,7 @@ describe("useDashboardPromptCommandHandler", () => {
     }));
     const hydrated = createSession({ status: "stopped" });
     const harness = createHarness(createSession({ canSendInput: true }));
+
     harness.args.loadSession.mockResolvedValue(hydrated);
 
     await expect(harness.handleSendInput("continue")).resolves.toBe("session-a");
@@ -398,6 +439,7 @@ describe("useDashboardPromptCommandHandler", () => {
     }));
     const hydrated = createSession({ id: "managed-new" });
     const harness = createHarness(createSession({ canSendInput: false }));
+
     harness.args.loadSession.mockResolvedValue(hydrated);
 
     await expect(harness.handleSendInput("continue")).resolves.toBe("managed-new");
@@ -412,6 +454,7 @@ describe("useDashboardPromptCommandHandler", () => {
       data: { accepted: true as const, sessionId: "session-a" }
     }));
     const harness = createHarness(createSession({ canSendInput: true }));
+
     harness.args.loadSession.mockResolvedValue(null as never);
 
     await expect(harness.handleSendInput("continue")).resolves.toBe(false);

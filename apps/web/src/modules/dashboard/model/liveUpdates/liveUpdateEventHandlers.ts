@@ -41,7 +41,7 @@ interface HandleLiveUpdateEventArgs {
   ) => void;
   scheduleTakenOverTranscriptRefresh: (
     updatedAt?: string | null,
-    options?: { allowDuringPromptPolling?: boolean }
+    options?: { allowDuringPromptPolling?: boolean; force?: boolean }
   ) => void;
   scheduleSelectedAgentSessionRefresh: (updatedAt?: string | null) => void;
   selectedAgentSessionIdRef: MutableRefObject<string>;
@@ -231,7 +231,8 @@ export function handleLiveUpdateEvent({
         });
       } else {
         scheduleTakenOverTranscriptRefresh(event.payload.updatedAt, {
-          allowDuringPromptPolling: true
+          allowDuringPromptPolling: true,
+          force: true
         });
       }
     }
@@ -304,19 +305,19 @@ export function handleLiveUpdateEvent({
   });
 
   if (event.payload.id === selectedSessionIdRef.current) {
+    startTransition(() => {
+      store.mergeSelectedSessionSummary(event.payload, {
+        includePreview: event.type === "session.preview"
+      });
+    });
+
     if (!selectedSessionRef.current) {
-      loadSessionRef.current(
+      void loadSessionRef.current(
         event.payload.id,
         buildManagedSessionLoadOptionsForTab(activeTabRef.current, {
           silent: true
         })
       );
-    } else {
-      startTransition(() => {
-        store.mergeSelectedSessionSummary(event.payload, {
-          includePreview: event.type === "session.preview"
-        });
-      });
     }
 
     if (

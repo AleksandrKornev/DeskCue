@@ -248,6 +248,54 @@ test("does not invalidate counts for repeated unseen live summaries", () => {
   assert.equal(invalidations, 0);
 });
 
+test("forces an active transcript refresh when realtime metadata is already current", () => {
+  const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];
+  const store = {
+    clearAgentSessionReadyForReview: () => undefined,
+    updateActiveTakenOverAgentSession: () => undefined,
+    updateSelectedAgentSession: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "codex:source-1" },
+    event: {
+      type: "agent.session.transcript.updated",
+      payload: {
+        agentId: "codex",
+        agentLabel: "Codex",
+        agentSessionId: "codex:source-1",
+        latestEntryId: "prompt-1",
+        sourceSessionId: "source-1",
+        transcriptLength: 2,
+        turnState: createAgentSession("running").turnState,
+        updatedAt: "2026-07-31T10:00:00.000Z",
+        workState: "running"
+      }
+    } satisfies ServerEvent,
+    loadSessionRef: { current: () => Promise.resolve(null) },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: (updatedAt, options) => {
+      scheduledRefreshes.push([updatedAt, options]);
+    },
+    selectedAgentSessionIdRef: { current: "" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: null },
+    store
+  });
+
+  assert.deepEqual(scheduledRefreshes, [["2026-07-31T10:00:00.000Z", {
+    allowDuringPromptPolling: true,
+    force: true
+  }]]);
+});
+
 test("applies a stale terminal update for the active turn without moving updatedAt backward", () => {
   let activeSession: AgentSessionDetail | null = {
     ...createAgentSession("running"),
@@ -428,6 +476,53 @@ test("forces a full transcript refresh for the matching terminal managed source"
     fullTranscript: true
   }]]);
   assert.deepEqual(scheduledRefreshes, []);
+});
+
+test("merges a selected lifecycle update even while its detail ref is hydrating", async () => {
+  const merged: SessionSummary[] = [];
+  const loaded: string[] = [];
+  const store = {
+    mergeOverviewSession: () => undefined,
+    mergeSelectedSessionSummary: (summary: SessionSummary) => merged.push(summary)
+  } as unknown as DashboardStore;
+  const update = {
+    ...createManagedSourceSession("read_only"),
+    finishedAt: null,
+    lastActivityAt: "2026-07-31T10:00:06.000Z",
+    status: "stopped" as const
+  };
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "" },
+    event: {
+      type: "session.updated",
+      payload: update
+    } satisfies ServerEvent,
+    loadSessionRef: {
+      current: (sessionId) => {
+        loaded.push(sessionId);
+        return Promise.resolve(null);
+      }
+    },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: () => undefined,
+    selectedAgentSessionIdRef: { current: "" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: null },
+    store
+  });
+
+  await Promise.resolve();
+
+  assert.deepEqual(merged, [update]);
+  assert.deepEqual(loaded, ["managed-1"]);
 });
 
 test("does not refresh a mismatched active source after a terminal session update", () => {

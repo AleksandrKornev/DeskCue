@@ -5,7 +5,6 @@ import type {
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
-import { isActiveSourceTurn } from "@models/agentChatWorkState";
 import type { PendingChatPrompt } from "@models/promptDelivery";
 import {
   getSessionInterruptLifecycle,
@@ -16,6 +15,8 @@ import type { ChatTranscriptEntry } from "@modules/session/types";
 import {
   hasAssistantReplyAfterPrompt,
   hasShellWaitingPromptCompleted,
+  isConfirmedDeskCuePendingPrompt,
+  isManagedSourceSessionWorking,
   resolveInputAvailability,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
@@ -55,7 +56,7 @@ export function useManagedSessionReplyState({
     Boolean(sessionShell?.sourceSessionId) &&
     (sessionShell?.status === "running" || sessionShell?.status === "read_only");
   const isSourceSessionWorking =
-    Boolean(sessionShell?.sourceSessionId) && isActiveSourceTurn(takenOverAgentSession);
+    isManagedSourceSessionWorking(sessionShell, takenOverAgentSession);
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
   const isServerInterruptRequested = interruptLifecycle.phase === "requested";
   const isEffectiveInterruptingPrompt = isInterruptingPrompt || isServerInterruptRequested;
@@ -81,6 +82,13 @@ export function useManagedSessionReplyState({
     isPromptTrackableSessionShell,
     sessionShell
   });
+  const hasConfirmedRawPendingPrompt = isConfirmedDeskCuePendingPrompt(rawPendingChatPrompt);
+  const isUncontrollableExternalCodexTurn =
+    sessionShell?.adapterId === "codex" &&
+    sessionShell.status === "read_only" &&
+    isSourceSessionWorking &&
+    !hasConfirmedRawPendingPrompt &&
+    !effectiveShellWaitingPrompt;
   const isShellWaitingPromptCompleted = hasShellWaitingPromptCompleted(
     takenOverAgentSession,
     effectiveShellWaitingPrompt
@@ -148,7 +156,8 @@ export function useManagedSessionReplyState({
     suppressWaitingForInterruptLifecycle
   });
   const isPromptQueued = sessionShell?.replyState.phase === "queued";
-  const composerPromptInFlight = activeActionRequest ? false : isPromptInFlight;
+  const composerPromptInFlight =
+    activeActionRequest || isUncontrollableExternalCodexTurn ? false : isPromptInFlight;
   const shouldShowChatLoading = shouldShowManagedSessionChatLoading({
     hasConversationContent,
     hasPendingPrompt: Boolean(displayedPendingChatPrompt),
@@ -160,11 +169,26 @@ export function useManagedSessionReplyState({
     suppressWaitingForInterruptLifecycle
   });
 
-  const { canSendInput } = resolveInputAvailability(sessionShell, { canSendInputWhenReadOnly });
+  const { canSendInput } = resolveInputAvailability(sessionShell, {
+    blockExternalSourceInput: isUncontrollableExternalCodexTurn,
+    canSendInputWhenReadOnly
+  });
+  const inputUnavailableLabel = canSendInput
+    ? null
+    : isUncontrollableExternalCodexTurn
+      ? "Turn active in Codex Desktop"
+      : sessionShell?.inputBlockedReason?.trim()
+        ? sessionShell.inputBlockedReason
+      : sessionShell?.sourceSessionId
+        ? "This chat is view only"
+        : "Input unavailable";
 
   const sharedViewerCount = sessionShell?.viewerCount ?? 0;
-  const sharedSessionHint =
-    sharedViewerCount > 1 && composerPromptInFlight
+  const sharedSessionHint = isUncontrollableExternalCodexTurn
+    ? "This turn is running in Codex Desktop. Finish or stop it there before sending a follow-up from DeskCue"
+    : !canSendInput && sessionShell?.inputBlockedReason
+      ? sessionShell.inputBlockedReason
+    : sharedViewerCount > 1 && composerPromptInFlight
       ? `This live session is open in ${sharedViewerCount} DeskCue clients. Sending a new prompt from here will interrupt the current run first`
       : null;
 
@@ -176,6 +200,7 @@ export function useManagedSessionReplyState({
     displayedPendingChatPrompt: suppressWaitingForInterruptLifecycle ? null : displayedPendingChatPrompt,
     effectiveIsWaitingForChatReply,
     effectiveShellWaitingPrompt,
+    inputUnavailableLabel,
     isSourceSessionWorking,
     isPromptQueued,
     interruptLifecycle,
