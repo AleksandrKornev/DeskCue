@@ -88,17 +88,35 @@ function isTerminalUpdateForCurrentTurn(
   current: AgentSessionDetail,
   update: AgentSessionTranscriptUpdatedPayload
 ) {
+  const currentTurnState = current.turnState;
   const nextTurnState = update.turnState;
 
   if (
     !nextTurnState ||
     nextTurnState.phase === "active" ||
-    !current.turnState?.fingerprint
+    !currentTurnState ||
+    currentTurnState.phase !== "active"
   ) {
     return false;
   }
 
-  return current.turnState.fingerprint === nextTurnState.fingerprint;
+  if (
+    currentTurnState.fingerprint &&
+    currentTurnState.fingerprint === nextTurnState.fingerprint
+  ) {
+    return true;
+  }
+
+  if (nextTurnState.evidence !== "terminal_lifecycle") return false;
+
+  const currentStartedAt = Date.parse(
+    currentTurnState.startedAt ?? currentTurnState.activityAt ?? ""
+  );
+  const nextCompletedAt = Date.parse(nextTurnState.completedAt ?? "");
+
+  return Number.isFinite(currentStartedAt) &&
+    Number.isFinite(nextCompletedAt) &&
+    nextCompletedAt >= currentStartedAt;
 }
 
 function mergeAgentSessionRealtimeTranscriptState(
@@ -277,6 +295,15 @@ export function handleLiveUpdateEvent({
     const shouldRefreshTakenOverAgentSession =
       event.payload.agentSessionId === activeTakenOverAgentSessionIdRef.current &&
       usesTakenOverAgentTranscript(activeTabRef.current);
+
+    if (event.payload.managedSessionId === selectedSessionId) {
+      void loadSessionRef.current(
+        selectedSessionId,
+        buildManagedSessionLoadOptionsForTab(activeTabRef.current, {
+          silent: true
+        })
+      );
+    }
 
     if (shouldRefreshTakenOverAgentSession) {
       const terminalRefreshOptions = {

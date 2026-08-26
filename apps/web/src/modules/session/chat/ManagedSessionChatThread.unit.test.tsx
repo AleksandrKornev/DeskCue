@@ -158,7 +158,7 @@ describe("ManagedSessionChatThread", () => {
     ).toBeInTheDocument();
   });
 
-  it("explains that an agent may continue while DeskCue checks history after restart", () => {
+  it("explains that DeskCue lost control while it checks history after restart", () => {
     renderChatThread({
       promptRecovery: {
         phase: "checking",
@@ -168,17 +168,17 @@ describe("ManagedSessionChatThread", () => {
       }
     });
 
-    expect(screen.getByText("Checking agent history")).toBeInTheDocument();
+    expect(screen.getByText("Checking turn status")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "DeskCue restarted during delivery. The agent may still be running in the background."
+        "DeskCue restarted during this turn and no longer has verified control. It is checking agent history and will not resend the prompt."
       )
     ).toBeInTheDocument();
     expect(screen.getByText("Checking delivery")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry prompt" })).not.toBeInTheDocument();
   });
 
-  it("offers only a separately labelled, confirmable resend when delivery is unknown", () => {
+  it("does not offer an unsafe resend when delivery is unknown", () => {
     renderChatThread({
       promptRecovery: {
         phase: "outcome_unknown",
@@ -188,18 +188,19 @@ describe("ManagedSessionChatThread", () => {
       }
     });
 
-    expect(screen.getByText("Delivery outcome unknown")).toBeInTheDocument();
+    expect(screen.getByText("Turn outcome unknown")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "The agent may have continued in the background. DeskCue will not resend this prompt automatically."
+        "DeskCue found no final result and no longer has verified control. Check this chat in Codex before continuing; DeskCue will not resend the prompt."
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry prompt" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send again anyway" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send again anyway" })).not.toBeInTheDocument();
   });
 
   it("offers an explicit retry only when the daemon confirms the prompt was not sent", async () => {
     const onRetryRecoveredPrompt = vi.fn(() => Promise.resolve(true));
+
     renderChatThread({
       onRetryRecoveredPrompt,
       promptRecovery: {
@@ -316,7 +317,9 @@ describe("ManagedSessionChatThread", () => {
     });
 
     const messages = container.querySelectorAll(`.${styles.chatMessageUser}`);
+
     expect(messages).toHaveLength(2);
+
     expect(messages[0]).not.toHaveTextContent("Interrupted");
     expect(messages[1]).toHaveTextContent("Interrupted");
   });

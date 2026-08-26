@@ -27,6 +27,7 @@ async function withPatchedAgentSessionsApi<T>(
   run: () => Promise<T>
 ) {
   const original = { ...agentSessionsApi };
+
   Object.assign(agentSessionsApi, overrides);
 
   try {
@@ -144,10 +145,12 @@ describe("agent chat detail requests", () => {
       resolveAgentChatTranscriptDetail("overview", { summaryOnOverview: true }),
       "summary"
     );
+
     assert.equal(
       resolveAgentChatTranscriptDetail("activity", { summaryOnOverview: true }),
       "full"
     );
+
     assert.equal(
       resolveAgentChatTranscriptDetail("overview", { summaryOnOverview: false }),
       "full"
@@ -204,6 +207,7 @@ describe("agent chat detail requests", () => {
         transcriptDetail: "summary"
       }
     );
+
     assert.deepEqual(
       buildAgentChatDetailFetchOptions({
         activeTab: "diff",
@@ -373,6 +377,66 @@ describe("agent chat detail requests", () => {
 
       assert.equal(viewRequestCount, 1);
       assert.equal(result.detail?.id, "agent-1");
+    });
+  });
+
+  it("requests an atomic session summary for a forced full transcript refresh", async () => {
+    const baseDetail = createAgentSessionDetail({
+      transcriptView: createTranscriptView([
+        createMessageItem("entry-1", "user")
+      ])
+    });
+    const completedAt = "2026-07-26T10:01:00.000Z";
+
+    await withPatchedAgentSessionsApi({
+      getTranscriptUpdatesWithMeta: () => Promise.reject(new Error("Did not expect transcript updates")),
+      getTranscriptViewWithMeta: (_agentSessionId, options) => {
+        assert.equal(options?.fullTranscript, true);
+        assert.equal(options?.includeSessionSummary, true);
+
+        return Promise.resolve(createResult({
+          ...createTranscriptView([
+            createMessageItem("entry-1", "user"),
+            createMessageItem("entry-2", "assistant", completedAt)
+          ], completedAt),
+          session: {
+            ...baseDetail,
+            turnState: {
+              activityAt: null,
+              completedAt,
+              evidence: "terminal_lifecycle" as const,
+              fingerprint: "terminal-1",
+              phase: "completed" as const,
+              startedAt: null
+            },
+            updatedAt: completedAt,
+            workState: "idle" as const
+          }
+        }));
+      },
+      getOne: () => Promise.reject(new Error("Did not expect session fallback"))
+    }, async () => {
+      const result = await readAgentChatDetail("agent-1", {
+        activeTab: "overview",
+        baseDetail: {
+          ...baseDetail,
+          turnState: {
+            activityAt: baseDetail.updatedAt,
+            completedAt: null,
+            evidence: "recent_non_final_activity",
+            fingerprint: "start-1",
+            phase: "active",
+            startedAt: baseDetail.updatedAt
+          },
+          workState: "running"
+        },
+        fullTranscript: true,
+        transcriptDetail: "summary"
+      });
+
+      assert.equal(result.detail?.workState, "idle");
+      assert.equal(result.detail?.turnState?.phase, "completed");
+      assert.equal(result.detail?.transcript.at(-1)?.role, "assistant");
     });
   });
 });

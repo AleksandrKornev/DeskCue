@@ -44,7 +44,7 @@ export type ChatThreadOperationState =
   | { kind: "interrupt-unconfirmed" }
   | {
       kind: "recovery";
-      actionLabel: "Retry prompt" | "Send again anyway" | null;
+      actionLabel: "Retry prompt" | null;
       detail: string;
       identity: string;
       title: string;

@@ -1,4 +1,5 @@
 import type {
+  AgentSessionObservedTurnState,
   AgentSessionSummary,
   AgentTranscriptActivityGroup,
   AgentTranscriptEntry,
@@ -18,6 +19,21 @@ export function areInterruptLifecyclesEqual(left: object, right: object) {
     leftLifecycle.confirmation === rightLifecycle.confirmation;
 }
 
+export function areObservedTurnStatesEqual(
+  left: AgentSessionObservedTurnState | undefined,
+  right: AgentSessionObservedTurnState | undefined
+) {
+  if (left === right) return true;
+  if (!left || !right) return false;
+
+  return left.activityAt === right.activityAt &&
+    left.completedAt === right.completedAt &&
+    left.evidence === right.evidence &&
+    left.fingerprint === right.fingerprint &&
+    left.phase === right.phase &&
+    left.startedAt === right.startedAt;
+}
+
 function areSourceEntryRangesEqual(
   left: AgentTranscriptSourceRange[] | undefined,
   right: AgentTranscriptSourceRange[] | undefined
@@ -25,12 +41,11 @@ function areSourceEntryRangesEqual(
   const leftValues = left ?? [];
   const rightValues = right ?? [];
 
-  if (leftValues.length !== rightValues.length) {
-    return false;
-  }
+  if (leftValues.length !== rightValues.length) return false;
 
   return leftValues.every((value, index) => {
     const rightValue = rightValues[index];
+
     return rightValue !== undefined &&
       value.prefix === rightValue.prefix &&
       value.start === rightValue.start &&
@@ -50,9 +65,7 @@ function areTranscriptPartEqual(
   left: NonNullable<AgentTranscriptEntry["parts"]>[number],
   right: NonNullable<AgentTranscriptEntry["parts"]>[number] | undefined
 ) {
-  if (!right || left.type !== right.type) {
-    return false;
-  }
+  if (!right || left.type !== right.type) return false;
 
   switch (left.type) {
     case "attachment":
@@ -125,9 +138,7 @@ export function mergeTranscriptEntryReference<TEntry extends AgentTranscriptEntr
   current: TEntry | undefined,
   next: TEntry
 ) {
-  if (current && next && areAgentTranscriptEntriesEqual(current, next)) {
-    return current;
-  }
+  if (current && next && areAgentTranscriptEntriesEqual(current, next)) return current;
 
   return next;
 }
@@ -145,9 +156,8 @@ function mergeTranscriptEntryReferences(
       currentEntriesById.get(entry.id),
       entry
     );
-    if (mergedEntry !== current[entryIndex]) {
-      hasChanges = true;
-    }
+
+    if (mergedEntry !== current[entryIndex]) hasChanges = true;
     return mergedEntry;
   });
 
@@ -174,6 +184,7 @@ export function mergeTranscriptActivityGroup(
   }
 
   const entries = mergeTranscriptEntryReferences(current.entries, next.entries);
+
   return entries === current.entries ? current : { ...next, entries };
 }
 
@@ -190,9 +201,8 @@ export function mergeTranscriptActivityGroups(
       currentGroupsById.get(group.id),
       group
     );
-    if (mergedGroup !== currentGroups[groupIndex]) {
-      hasChanges = true;
-    }
+
+    if (mergedGroup !== currentGroups[groupIndex]) hasChanges = true;
     return mergedGroup;
   });
 
@@ -203,13 +213,8 @@ export function areAgentSessionSummariesEqual(
   left: AgentSessionSummary | undefined,
   right: AgentSessionSummary | undefined
 ) {
-  if (left === right) {
-    return true;
-  }
-
-  if (!left || !right) {
-    return false;
-  }
+  if (left === right) return true;
+  if (!left || !right) return false;
 
   return (
     left.id === right.id &&
@@ -232,6 +237,7 @@ export function areAgentSessionSummariesEqual(
     left.attachModeReason === right.attachModeReason &&
     left.reviewedAt === right.reviewedAt &&
     left.workState === right.workState &&
+    areObservedTurnStatesEqual(left.turnState, right.turnState) &&
     areInterruptLifecyclesEqual(left, right)
   );
 }
@@ -240,13 +246,8 @@ export function areTranscriptTurnStatusesEqual(
   left: AgentTranscriptTurnStatus | null,
   right: AgentTranscriptTurnStatus | null
 ) {
-  if (left === right) {
-    return true;
-  }
-
-  if (!left || !right) {
-    return false;
-  }
+  if (left === right) return true;
+  if (!left || !right) return false;
 
   return (
     left.kind === right.kind &&

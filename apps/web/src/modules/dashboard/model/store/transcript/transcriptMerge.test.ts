@@ -30,14 +30,21 @@ function createEntry(id: string, text: string, timestamp = baseTimestamp): Agent
 
 function createActivityGroup(
   id: string,
-  entries: AgentTranscriptEntry[]
+  entries: AgentTranscriptEntry[],
+  kind: AgentTranscriptActivityGroup["kind"] = "tools"
 ): AgentTranscriptActivityGroup {
+  const label = kind === "changes"
+    ? `Changes (${entries.length})`
+    : kind === "details"
+      ? `Details (${entries.length})`
+      : `Tools (${entries.length})`;
+
   return {
     id,
     entries,
     entryIds: entries.map((entry) => entry.id),
-    kind: "tools",
-    label: `Tools (${entries.length})`,
+    kind,
+    label,
     sourceEntryCount: entries.length,
     sourceEntryIds: entries.map((entry) => entry.id),
     timestamp: entries[0]?.timestamp ?? baseTimestamp
@@ -70,6 +77,7 @@ function createSessionDetail(
   overrides: Partial<AgentSessionDetail> = {}
 ): AgentSessionDetail {
   const summary = createSummary();
+
   return {
     ...summary,
     transcript: [],
@@ -112,6 +120,7 @@ describe("mergeAgentSessionDetail", () => {
       turnStatus: null,
       type: "message"
     };
+
     const summary = createSummary();
     const current = createSessionDetail({
       transcript: [messageEntry],
@@ -155,6 +164,7 @@ describe("mergeAgentSessionDetail", () => {
       turnStatus: null,
       type: "message"
     };
+
     const current = createSessionDetail({
       transcript: [messageEntry],
       transcriptView: createTranscriptView({ items: [messageItem] })
@@ -186,6 +196,120 @@ describe("mergeAgentSessionDetail", () => {
     } as AgentSessionDetail;
 
     assert.notEqual(mergeAgentSessionDetail(current, next), current);
+  });
+
+  it("keeps a terminal source-turn refresh after the final transcript was already merged", () => {
+    const finalEntry = createEntry("entry:final", "done");
+    const activeTurnState = {
+      activityAt: baseTimestamp,
+      completedAt: null,
+      evidence: "recent_non_final_activity" as const,
+      fingerprint: "turn-1",
+      phase: "active" as const,
+      startedAt: baseTimestamp
+    };
+
+    const completedTurnState = {
+      activityAt: null,
+      completedAt: baseTimestamp,
+      evidence: "terminal_lifecycle" as const,
+      fingerprint: "turn-1",
+      phase: "completed" as const,
+      startedAt: null
+    };
+
+    const current = createSessionDetail({
+      transcript: [finalEntry],
+      turnState: activeTurnState,
+      workState: "running"
+    });
+    const next = createSessionDetail({
+      transcript: [{ ...finalEntry }],
+      turnState: completedTurnState,
+      workState: "idle"
+    });
+
+    const merged = mergeAgentSessionDetail(current, next);
+
+    assert.notEqual(merged, current);
+    assert.equal(merged.workState, "idle");
+    assert.deepEqual(merged.turnState, completedTurnState);
+    assert.equal(merged.transcript, current.transcript);
+  });
+
+  it("keeps terminal lifecycle when a stale active detail adds the final transcript", () => {
+    const userEntry = {
+      ...createEntry("entry:user", "run", "2026-07-17T10:00:00.000Z"),
+      role: "user" as const
+    };
+
+    const finalEntry = createEntry("entry:final", "done", "2026-07-17T10:00:05.000Z");
+    const completedTurnState = {
+      activityAt: null,
+      completedAt: "2026-07-17T10:00:05.000Z",
+      evidence: "terminal_lifecycle" as const,
+      fingerprint: "terminal-1",
+      phase: "completed" as const,
+      startedAt: null
+    };
+
+    const staleActiveTurnState = {
+      activityAt: "2026-07-17T10:00:01.000Z",
+      completedAt: null,
+      evidence: "recent_non_final_activity" as const,
+      fingerprint: "start-1",
+      phase: "active" as const,
+      startedAt: "2026-07-17T10:00:00.000Z"
+    };
+
+    const current = createSessionDetail({
+      transcript: [userEntry],
+      turnState: completedTurnState,
+      workState: "idle"
+    });
+    const staleRefresh = createSessionDetail({
+      transcript: [userEntry, finalEntry],
+      turnState: staleActiveTurnState,
+      updatedAt: "2026-07-17T10:00:05.000Z",
+      workState: "running"
+    });
+
+    const merged = mergeAgentSessionDetail(current, staleRefresh);
+
+    assert.equal(merged.transcript.at(-1)?.id, finalEntry.id);
+    assert.equal(merged.workState, "idle");
+    assert.deepEqual(merged.turnState, completedTurnState);
+  });
+
+  it("accepts an active source lifecycle that starts after the completed turn", () => {
+    const current = createSessionDetail({
+      turnState: {
+        activityAt: null,
+        completedAt: "2026-07-17T10:00:05.000Z",
+        evidence: "terminal_lifecycle",
+        fingerprint: "terminal-1",
+        phase: "completed",
+        startedAt: null
+      },
+      workState: "idle"
+    });
+    const next = createSessionDetail({
+      turnState: {
+        activityAt: "2026-07-17T10:00:10.000Z",
+        completedAt: null,
+        evidence: "recent_non_final_activity",
+        fingerprint: "start-2",
+        phase: "active",
+        startedAt: "2026-07-17T10:00:10.000Z"
+      },
+      updatedAt: "2026-07-17T10:00:10.000Z",
+      workState: "running"
+    });
+
+    const merged = mergeAgentSessionDetail(current, next);
+
+    assert.equal(merged.workState, "running");
+    assert.equal(merged.turnState?.fingerprint, "start-2");
   });
 
   it("preserves latest waiting detail entry reference when payload is equal", () => {
@@ -248,6 +372,7 @@ describe("mergeAgentSessionDetail", () => {
       turnStatus: null,
       type: "message"
     };
+
     const current = createSessionDetail({
       transcript: [messageEntry],
       transcriptView: createTranscriptView({ items: [currentItem] })
@@ -279,6 +404,145 @@ describe("mergeAgentSessionDetail", () => {
     }
   });
 
+  it("drops standalone activities after the terminal reply embeds the same groups", () => {
+    const userEntry = {
+      ...createEntry("entry:user", "run the check", "2026-07-17T10:00:00.000Z"),
+      role: "user" as const
+    };
+
+    const detailEntry = createEntry(
+      "entry:detail",
+      "checking the file",
+      "2026-07-17T10:00:01.000Z"
+    );
+    const toolEntry = {
+      ...createEntry("entry:tool", "tool output", "2026-07-17T10:00:02.000Z"),
+      role: "tool" as const
+    };
+
+    const assistantEntry = createEntry(
+      "entry:assistant",
+      "done",
+      "2026-07-17T10:00:03.000Z"
+    );
+    const details = createActivityGroup("details:turn", [detailEntry], "details");
+    const tools = createActivityGroup("tools:turn", [toolEntry]);
+    const userItem: AgentTranscriptViewItem = {
+      activities: [],
+      changeActivities: [],
+      entry: userEntry,
+      key: "message:user",
+      role: "user",
+      timestamp: userEntry.timestamp,
+      turnStatus: null,
+      type: "message"
+    };
+
+    const current = createSessionDetail({
+      transcript: [userEntry, detailEntry, toolEntry],
+      transcriptView: createTranscriptView({
+        items: [
+          userItem,
+          { activity: details, key: details.id, type: "activity" },
+          { activity: tools, key: tools.id, type: "activity" }
+        ]
+      })
+    });
+    const terminal = createSessionDetail({
+      transcript: [userEntry, detailEntry, toolEntry, assistantEntry],
+      transcriptView: createTranscriptView({
+        items: [
+          userItem,
+          {
+            activities: [details, tools],
+            changeActivities: [],
+            entry: assistantEntry,
+            key: "message:assistant",
+            role: "assistant",
+            timestamp: assistantEntry.timestamp,
+            turnStatus: null,
+            type: "message"
+          }
+        ],
+        updatedAt: "2026-07-17T10:00:04.000Z"
+      }),
+      updatedAt: "2026-07-17T10:00:04.000Z"
+    });
+
+    const merged = mergeAgentSessionDetail(current, terminal);
+    const repeated = mergeAgentSessionDetail(merged, terminal);
+
+    assert.deepEqual(
+      merged.transcriptView?.items.map((item) => [item.type, item.key]),
+      [
+        ["message", "message:user"],
+        ["message", "message:assistant"]
+      ]
+    );
+
+    assert.equal(repeated, merged);
+  });
+
+  it("retains unrelated history while dropping a reparented standalone activity", () => {
+    const historyEntry = {
+      ...createEntry("entry:history", "orphaned earlier output", "2026-07-17T09:59:00.000Z"),
+      role: "tool" as const
+    };
+
+    const currentEntry = {
+      ...createEntry("entry:current", "current output", "2026-07-17T10:00:01.000Z"),
+      role: "tool" as const
+    };
+
+    const assistantEntry = createEntry(
+      "entry:assistant",
+      "done",
+      "2026-07-17T10:00:02.000Z"
+    );
+    const historyActivity = createActivityGroup("tools:history", [historyEntry]);
+    const currentActivity = createActivityGroup("changes:current", [currentEntry], "changes");
+    const current = createSessionDetail({
+      transcript: [historyEntry, currentEntry],
+      transcriptView: createTranscriptView({
+        items: [
+          { activity: historyActivity, key: historyActivity.id, type: "activity" },
+          { activity: currentActivity, key: currentActivity.id, type: "activity" }
+        ]
+      })
+    });
+    const terminal = createSessionDetail({
+      transcript: [historyEntry, currentEntry, assistantEntry],
+      transcriptView: createTranscriptView({
+        items: [{
+          activities: [],
+          changeActivities: [currentActivity],
+          entry: assistantEntry,
+          key: "message:assistant",
+          role: "assistant",
+          timestamp: assistantEntry.timestamp,
+          turnStatus: null,
+          type: "message"
+        }],
+        updatedAt: "2026-07-17T10:00:03.000Z"
+      }),
+      updatedAt: "2026-07-17T10:00:03.000Z"
+    });
+    const historyProtection = {
+      entryIds: new Set([historyEntry.id]),
+      viewItemKeys: new Set([historyActivity.id])
+    };
+
+    const merged = mergeAgentSessionDetail(current, terminal, historyProtection);
+
+    assert.deepEqual(
+      merged.transcriptView?.items.map((item) => [item.type, item.key]),
+      [
+        ["activity", historyActivity.id],
+        ["message", "message:assistant"]
+      ]
+    );
+  });
+
   it("keeps a known context-compaction count when a stale detail reports zero", () => {
     const current = createSessionDetail({ contextCompactionCount: 8 });
     const next = createSessionDetail({ contextCompactionCount: 0 });
@@ -307,12 +571,14 @@ describe("mergeAgentSessionDetail", () => {
       sourceEntryCount: 1,
       sourceEntryIds: ["source:1"]
     };
+
     const nextEntry: AgentTranscriptEntry = {
       ...currentEntry,
       text: "first detail\nsecond detail",
       sourceEntryCount: 2,
       sourceEntryIds: ["source:1", "source:2"]
     };
+
     const current = createSessionDetail({ transcript: [currentEntry] });
     const next = createSessionDetail({
       transcript: [nextEntry],
@@ -367,6 +633,7 @@ describe("mergeAgentSessionTranscriptPage", () => {
       turnStatus: null,
       type: "message"
     };
+
     const pageItem: AgentTranscriptViewItem = {
       activities: [],
       changeActivities: [],
@@ -377,6 +644,7 @@ describe("mergeAgentSessionTranscriptPage", () => {
       turnStatus: null,
       type: "message"
     };
+
     const current = createSessionDetail({
       transcript: [currentEntry],
       transcriptView: createTranscriptView({ items: [currentItem] })
@@ -392,6 +660,7 @@ describe("mergeAgentSessionTranscriptPage", () => {
       merged?.transcriptView?.items.map((item) => item.key),
       ["message:page", "message:current"]
     );
+
     assert.equal(merged?.transcriptView?.items[1], currentItem);
   });
 
@@ -407,6 +676,7 @@ describe("mergeAgentSessionTranscriptPage", () => {
       turnStatus: null,
       type: "message"
     };
+
     const current = createSessionDetail({
       transcript: [currentEntry],
       transcriptView: createTranscriptView({ items: [currentItem] })
@@ -433,6 +703,7 @@ describe("mergeAgentSessionTranscriptPage", () => {
       entryIds: new Set(historyEntries.map((entry) => entry.id)),
       viewItemKeys: new Set(historyItems.map((item) => item.key))
     };
+
     const withHistory = mergeAgentSessionTranscriptPage(current, current.id, {
       entries: historyEntries,
       transcriptView: createTranscriptView({ items: historyItems })

@@ -58,6 +58,12 @@ function hasManagedTakeoverHistory(session: Pick<SessionDetail, "inputHistory">)
   return session.inputHistory.some((input) => input.trim());
 }
 
+function selectLatestActivityTimestamp(session: SessionDetail, agentSession: AgentSessionDetail) {
+  return session.lastActivityAt > agentSession.updatedAt
+    ? session.lastActivityAt
+    : agentSession.updatedAt;
+}
+
 function shouldNormalizeCompletedCodexExitCode(
   session: SessionDetail,
   agentSession: AgentSessionDetail
@@ -88,6 +94,7 @@ export function syncManagedSessionReplyState(
   const promptRecovery = reconcileSessionPromptRecovery(session, agentSession);
 
   if (promptRecovery) {
+    const lastActivityAt = selectLatestActivityTimestamp(session, agentSession);
     const recoveryChanged =
       session.promptRecovery?.phase !== promptRecovery.promptRecovery?.phase ||
       session.promptRecovery?.retryable !== promptRecovery.promptRecovery?.retryable ||
@@ -95,6 +102,7 @@ export function syncManagedSessionReplyState(
     if (!recoveryChanged) return callbacks.getPublicSession(session.id);
 
     callbacks.updateSession(session.id, {
+      lastActivityAt,
       promptRecovery: promptRecovery.promptRecovery,
       replyState: promptRecovery.replyState,
       status: promptRecovery.confirmed && session.status === "stopped"
@@ -103,6 +111,7 @@ export function syncManagedSessionReplyState(
     });
     const updatedSession = {
       ...session,
+      lastActivityAt,
       promptRecovery: promptRecovery.promptRecovery,
       replyState: promptRecovery.replyState,
       status: promptRecovery.confirmed && session.status === "stopped"

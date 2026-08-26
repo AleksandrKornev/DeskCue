@@ -8,6 +8,26 @@ import {
 const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
+const ATTENTION_SESSION_STATUS_LABELS = new Set([
+  "checking",
+  "interrupt unconfirmed",
+  "outcome unknown",
+  "retry required",
+  "stopping"
+]);
+
+export function isAttentionSessionStatus(statusLabel?: string) {
+  return Boolean(statusLabel && ATTENTION_SESSION_STATUS_LABELS.has(statusLabel));
+}
+
+export function isDangerSessionStatus(
+  status: SessionSummary["status"],
+  statusLabel?: string
+) {
+  if (status === "failed") return true;
+
+  return status === "stopped" && (statusLabel?.trim().toLowerCase() ?? status) === "stopped";
+}
 
 export function formatConnectionAge(lastSyncedAt: string | null, now: number) {
   if (!lastSyncedAt) return null;

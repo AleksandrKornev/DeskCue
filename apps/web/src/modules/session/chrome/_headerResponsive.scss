@@ -10,7 +10,11 @@
     gap: 4px;
     margin-left: calc(50% - 50vw);
     margin-right: 0;
-    padding: calc(11px + env(safe-area-inset-top, 0px)) 18px 0;
+    padding:
+      calc(11px + env(safe-area-inset-top, 0px))
+      calc(18px + env(safe-area-inset-right, 0px))
+      0
+      calc(18px + env(safe-area-inset-left, 0px));
     background: vars.$color-surface-app;
     backdrop-filter: blur(16px);
     box-shadow: none;
@@ -19,7 +23,8 @@
   .chatHeader {
     display: grid;
     grid-template-columns: 44px minmax(0, 1fr) auto;
-    gap: 10px;
+    column-gap: 10px;
+    row-gap: 6px;
     align-items: start;
     padding-inline: 0;
   }
@@ -34,9 +39,7 @@
   }
 
   .chatMain {
-    grid-column: 2;
-    grid-row: 1;
-    gap: 10px;
+    display: contents;
   }
 
   .mobileBackButton {
@@ -66,13 +69,15 @@
   }
 
   .titleRow {
-    display: flex;
+    grid-column: 2;
+    grid-row: 1;
     align-items: center;
-    flex-wrap: nowrap;
-    gap: 8px;
+    align-self: center;
   }
 
   .metaRow {
+    grid-column: 1 / -1;
+    grid-row: 2;
     width: 100%;
     gap: 6px;
     flex-wrap: wrap;
@@ -96,6 +101,8 @@
   }
 
   .path {
+    grid-column: 1 / -1;
+    grid-row: 3;
     margin-top: 2px;
     font-size: 0.86rem;
   }
@@ -202,7 +209,7 @@
   @media (max-width: 340px) {
     .chatHeader {
       grid-template-columns: 44px minmax(0, 1fr) auto;
-      gap: 8px;
+      column-gap: 8px;
     }
 
     .chatHeader > .actions {
@@ -222,10 +229,6 @@
       display: none;
     }
 
-    .titleRow {
-      flex-wrap: wrap;
-      row-gap: 4px;
-    }
   }
 }
 
@@ -233,7 +236,11 @@
   .chatToolbarShell {
     top: 0;
     gap: 0;
-    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 0;
+    padding:
+      calc(12px + env(safe-area-inset-top, 0px))
+      calc(12px + env(safe-area-inset-right, 0px))
+      0
+      calc(12px + env(safe-area-inset-left, 0px));
     transition:
       padding-top 180ms ease,
       background-color 0s,
@@ -241,8 +248,9 @@
   }
 
   .chatHeader {
-    gap: 8px;
-    max-height: 94px;
+    column-gap: 8px;
+    row-gap: 6px;
+    max-height: 180px;
     opacity: 1;
     overflow: visible;
     visibility: visible;
@@ -259,7 +267,6 @@
   .titleRow {
     min-height: vars.$control-height-touch;
     align-items: center;
-    flex-wrap: nowrap;
   }
 
   .commandTooltip {
@@ -286,7 +293,7 @@
   .metaRow {
     min-height: vars.$control-height-touch;
     overflow: visible;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 
   .metaRow > * {
@@ -294,6 +301,11 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .metaRow > .headerStatus {
+    flex-shrink: 0;
+    overflow: visible;
   }
 
   .desktopCompactionLabel {

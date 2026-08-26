@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import type { AgentSessionSummary } from "@deskcue/protocol";
+
 import {
+  findManagedSourceSessionSummary,
   resolveContextCompactionCount,
   resolveLiveHeaderStatus,
   resolveLiveHeaderStatusLabel,
@@ -9,6 +12,36 @@ import {
 } from "./liveChat/helpers";
 
 describe("managed session live chat model", () => {
+  it("does not select another adapter with the same source session id", () => {
+    const wrongAdapter = {
+      agentId: "claude-code",
+      id: "claude-code:shared-source",
+      sourceSessionId: "shared-source"
+    } as AgentSessionSummary;
+    const expected = {
+      agentId: "codex",
+      id: "codex:shared-source",
+      sourceSessionId: "shared-source"
+    } as AgentSessionSummary;
+
+    assert.equal(findManagedSourceSessionSummary(
+      [wrongAdapter, expected],
+      {
+        adapterId: "codex",
+        sourceSessionId: "shared-source"
+      },
+      null
+    ), expected);
+    assert.equal(findManagedSourceSessionSummary(
+      [wrongAdapter, expected],
+      {
+        adapterId: "codex",
+        sourceSessionId: "shared-source"
+      },
+      { id: expected.id }
+    ), expected);
+  });
+
   it("keeps the compaction count monotonic across detail and summary refreshes", () => {
     assert.equal(resolveContextCompactionCount(0, 12), 12);
     assert.equal(resolveContextCompactionCount(15, 12), 15);
@@ -100,6 +133,36 @@ describe("managed session live chat model", () => {
       }),
       "retry required"
     );
+  });
+
+  it("shows outcome recovery instead of running for a stale active source", () => {
+    const sessionShell = {
+      inputBlockedReason: "DeskCue lost verified control of this turn.",
+      promptRecovery: {
+        phase: "outcome_unknown" as const,
+        promptText: "Continue",
+        requestedAt: "2026-08-25T10:00:00.000Z",
+        retryable: false
+      },
+      sourceSessionId: "source-1",
+      status: "read_only" as const
+    };
+
+    const staleSourceSession = {
+      attachMode: "resume" as const,
+      workState: "running" as const
+    };
+
+    assert.equal(resolveLiveHeaderStatus({
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: staleSourceSession
+    }), "read_only");
+    assert.equal(resolveLiveHeaderStatusLabel({
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: staleSourceSession
+    }), "outcome unknown");
   });
 
   it("does not hide a failed shell behind a ready source transcript", () => {

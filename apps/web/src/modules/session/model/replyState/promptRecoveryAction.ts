@@ -23,29 +23,22 @@ export function resolveRecoveredPromptCommandTarget(
 
 export async function resendRecoveredPrompt({
   clearPendingCommand,
-  confirmDuplicate,
   promptRecovery,
   sendInput
 }: {
   clearPendingCommand: () => void;
-  confirmDuplicate: () => Promise<boolean>;
   promptRecovery: PromptRecoveryState | null;
   sendInput: (promptText: string) => Promise<boolean>;
 }) {
   const promptText = promptRecovery?.promptText?.trim();
-  if (!promptRecovery || !promptText || promptRecovery.phase === "checking") {
-    return false;
-  }
 
-  if (promptRecovery.phase === "not_sent" && !promptRecovery.retryable) {
+  if (
+    !promptRecovery ||
+    !promptText ||
+    promptRecovery.phase !== "not_sent" ||
+    !promptRecovery.retryable
+  ) {
     return false;
-  }
-
-  if (promptRecovery.phase === "outcome_unknown") {
-    const confirmed = await confirmDuplicate();
-    if (!confirmed) {
-      return false;
-    }
   }
 
   clearPendingCommand();

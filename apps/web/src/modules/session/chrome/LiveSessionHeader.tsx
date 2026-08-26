@@ -10,6 +10,10 @@ import {
   getSessionTabsForCapabilities
 } from "@models/sessionTabs";
 
+import {
+  isAttentionSessionStatus,
+  isDangerSessionStatus
+} from "./helpers";
 import { LiveConnectionIndicator } from "./LiveConnectionIndicator";
 import styles from "./styles.module.scss";
 import type { LiveSessionHeaderProps } from "./types";
@@ -58,25 +62,33 @@ export function LiveSessionHeader({
         </button>
         <div className={styles.chatMain}>
           <div className={styles.titleRow}>
-            <p className={styles.command}>
+            <h1 className={styles.command}>
               <Tooltip
                 className={styles.commandTooltip}
                 placement="below"
                 tapToOpen
                 value={title}
               />
-            </p>
-            <StatusBadge
-              className={clsx(
-                styles.headerStatusBadge,
-                status === "running" && styles.headerStatusBadgeRunning,
-                statusLabel && styles.headerStatusBadgeActionable
-              )}
-              label={statusLabel}
-              status={status}
-            />
+            </h1>
           </div>
           <div className={styles.metaRow}>
+            <span
+              aria-atomic="true"
+              aria-live="polite"
+              className={styles.headerStatus}
+              role="status"
+            >
+              <StatusBadge
+                className={clsx(
+                  styles.headerStatusBadge,
+                  status === "running" && styles.headerStatusBadgeRunning,
+                  isAttentionSessionStatus(statusLabel) && styles.headerStatusBadgeActionable,
+                  isDangerSessionStatus(status, statusLabel) && styles.headerStatusBadgeDanger
+                )}
+                label={statusLabel}
+                status={status}
+              />
+            </span>
             {isAgentChat ? <AgentChatBadge /> : null}
             <span className={clsx(styles.sourcePill, styles.sourcePillMuted)}>
               {agentLabel ?? adapterLabel}

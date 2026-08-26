@@ -1,5 +1,6 @@
 import type {
   AgentSessionDetail,
+  AgentSessionSummary,
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
@@ -13,20 +14,23 @@ import {
   isLocalAgentStartupVisible,
   isPendingPromptForSession
 } from "@modules/session/helpers";
+import { resolveLiveSourceState } from "@modules/session/model/liveChat/helpers";
 import type { ChatTranscriptEntry } from "@modules/session/types";
 
 type SessionShell = SessionDetail | SessionSummary | null;
 
 export function isManagedSourceSessionWorking(
   sessionShell: SessionShell,
-  sourceSession: AgentSessionDetail | null
+  sourceSession: AgentSessionDetail | null,
+  sourceSessionSummary: AgentSessionSummary | null = null
 ) {
   const canSurfaceSourceWork =
     sessionShell?.status === "running" || sessionShell?.status === "read_only";
+  const liveSourceState = resolveLiveSourceState(sourceSession, sourceSessionSummary);
 
   return Boolean(sessionShell?.sourceSessionId) &&
     canSurfaceSourceWork &&
-    isActiveSourceTurn(sourceSession);
+    isActiveSourceTurn(liveSourceState);
 }
 
 export function buildPromptIdentity(prompt: PendingChatPrompt) {

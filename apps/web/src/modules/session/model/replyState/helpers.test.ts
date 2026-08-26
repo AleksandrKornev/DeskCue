@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { AgentSessionDetail, SessionSummary } from "@deskcue/protocol";
+import type { AgentSessionDetail, AgentSessionSummary, SessionSummary } from "@deskcue/protocol";
 
 import {
   isConfirmedDeskCuePendingPrompt,
@@ -85,6 +85,39 @@ describe("managed session reply state helpers", () => {
       createSessionShell({ status: "read_only" }),
       activeSource
     ), true);
+  });
+
+  it("uses a newer terminal source summary instead of stale active detail", () => {
+    const activeSource = {
+      attachMode: "resume",
+      turnState: {
+        activityAt: "2026-07-29T18:00:00.000Z",
+        completedAt: null,
+        evidence: "recent_non_final_activity",
+        fingerprint: "start-1",
+        phase: "active",
+        startedAt: "2026-07-29T18:00:00.000Z"
+      },
+      workState: "running"
+    } as AgentSessionDetail;
+    const terminalSummary = {
+      ...activeSource,
+      turnState: {
+        activityAt: null,
+        completedAt: "2026-07-29T18:00:05.000Z",
+        evidence: "terminal_lifecycle",
+        fingerprint: "terminal-1",
+        phase: "completed",
+        startedAt: null
+      },
+      workState: "idle"
+    } as AgentSessionSummary;
+
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "read_only" }),
+      activeSource,
+      terminalSummary
+    ), false);
   });
 
   it("does not treat an outcome-unknown prompt as DeskCue-owned control", () => {

@@ -5,6 +5,7 @@ function getInputBlockedReason(session: SessionDetail) {
   const explicitInputBlockedReason = session.inputBlockedReason?.trim();
 
   if (explicitInputBlockedReason) return explicitInputBlockedReason;
+  if (session.promptRecovery && !session.promptRecovery.retryable) return "DeskCue lost verified control of this turn.";
 
   if (session.adapterId === "claude-code" && session.command.endsWith(" (observe-only)")) {
     return "This Claude Code background chat can be observed or stopped, but Claude CLI cannot continue it in the same chat.";
@@ -34,8 +35,11 @@ export function withSessionInputCapability(
     Boolean(session.sourceSessionId) &&
     session.status === "running";
   const hasExplicitInputBlock = Boolean(session.inputBlockedReason?.trim());
+  const hasUnresolvedPromptRecovery = Boolean(
+    session.promptRecovery && !session.promptRecovery.retryable
+  );
   const canSendInput =
-    !hasExplicitInputBlock && !isObserveOnlyClaudeSession && (
+    !hasExplicitInputBlock && !hasUnresolvedPromptRecovery && !isObserveOnlyClaudeSession && (
       hasRunningChild(session.id) ||
       canResumeAdapterSession ||
       canRestartCompletedClaudeShell ||

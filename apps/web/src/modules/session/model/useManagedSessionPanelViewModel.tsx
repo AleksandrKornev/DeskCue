@@ -4,7 +4,6 @@ import {
   acquirePendingCloudCommand,
   clearPendingCloudCommand
 } from "@api/transport/pendingCommandJournal";
-import { requestConfirmation } from "@components/ModalDialog";
 import { ManagedSessionActivityEntries } from "@modules/session/activity";
 import {
   buildManagedSessionChatThreadState,
@@ -18,6 +17,7 @@ import type {
 } from "@modules/session/types";
 import { useDeskCueRuntime } from "@runtime";
 
+import { findManagedSourceSessionSummary } from "./liveChat/helpers";
 import {
   CHAT_ACTIVITY_ENTRY_RENDER_LIMIT,
   EXTERNAL_WAIT_VISIBILITY_DELAY_MS
@@ -97,6 +97,15 @@ export function useManagedSessionPanelViewModel({
     previewEnabled && activeTab === "preview" && !usesHostPreviewLauncher
   );
   const promptRecovery = sessionShell?.promptRecovery ?? null;
+  const sourceSessionSummary = useMemo(
+    () =>
+      findManagedSourceSessionSummary(
+        agentSessions,
+        sessionShell,
+        takenOverAgentSession
+      ),
+    [agentSessions, sessionShell, takenOverAgentSession]
+  );
   const retryRecoveredPrompt = useCallback(
     () => resendRecoveredPrompt({
       clearPendingCommand: () => {
@@ -113,14 +122,6 @@ export function useManagedSessionPanelViewModel({
 
         clearPendingCloudCommand(command);
       },
-      confirmDuplicate: () => requestConfirmation({
-        cancelLabel: "Cancel",
-        confirmLabel: "Send again",
-        description:
-          "The agent may already have received this prompt and could still be working. Sending it again can create duplicate work.",
-        title: "Send this prompt again?",
-        tone: "danger"
-      }),
       promptRecovery,
       sendInput: onSendInput
     }),
@@ -169,6 +170,7 @@ export function useManagedSessionPanelViewModel({
     selectedSessionDetail,
     selectedSessionId,
     sessionShell,
+    sourceSessionSummary,
     takenOverAgentSession
   });
 

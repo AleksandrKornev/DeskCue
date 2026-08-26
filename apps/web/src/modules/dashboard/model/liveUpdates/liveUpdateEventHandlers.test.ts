@@ -327,12 +327,12 @@ test("applies a stale terminal update for the active turn without moving updated
           sourceSessionId: "source-1",
           transcriptLength: 3,
           turnState: {
-            activityAt: "2026-07-31T10:00:05.000Z",
+            activityAt: null,
             completedAt: "2026-07-31T10:00:05.000Z",
             evidence: "terminal_lifecycle",
-            fingerprint: "start-1",
+            fingerprint: "terminal-1",
             phase: "interrupted",
-            startedAt: "2026-07-31T10:00:00.000Z"
+            startedAt: null
           },
           updatedAt: "2026-07-31T10:00:05.000Z",
           workState: "idle"
@@ -660,6 +660,55 @@ test("fully refreshes the matching active source transcript once after its turn 
 
   assert.deepEqual(immediateRefreshes, [[undefined, expectedOptions]]);
   assert.deepEqual(scheduledRefreshes, []);
+});
+
+test("reloads the selected managed session when a late source terminal can clear recovery", async () => {
+  const loaded: string[] = [];
+  const store = {
+    markAgentSessionReviewedAt: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "codex:source-1" },
+    event: {
+      type: "agent.session.turn.finished",
+      payload: {
+        agentId: "codex",
+        agentLabel: "Codex",
+        agentSessionId: "codex:source-1",
+        completedAt: "2026-07-31T10:00:05.000Z",
+        managedSessionId: "managed-1",
+        sourceSessionId: "source-1",
+        status: "completed",
+        title: "Recovered turn",
+        workspaceName: "ExampleWorkspace",
+        workspacePath: "C:\\projects\\ExampleWorkspace"
+      }
+    } satisfies ServerEvent,
+    loadSessionRef: {
+      current: (sessionId) => {
+        loaded.push(sessionId);
+        return Promise.resolve(null);
+      }
+    },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: () => undefined,
+    selectedAgentSessionIdRef: { current: "codex:source-1" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: createManagedSourceSession("read_only") as never },
+    store
+  });
+
+  await Promise.resolve();
+
+  assert.deepEqual(loaded, ["managed-1"]);
 });
 
 test("keeps forced full transcript refreshes reliable in both terminal event orders", () => {

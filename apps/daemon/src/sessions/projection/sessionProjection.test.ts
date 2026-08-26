@@ -84,6 +84,44 @@ test("marks read-only Codex source shells as resumable", () => {
   assert.equal(projected.inputBlockedReason, null);
 });
 
+test("blocks ordinary input while a source prompt outcome is unresolved", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    promptRecovery: {
+      phase: "outcome_unknown",
+      promptText: "Continue",
+      requestedAt: "2026-08-25T10:00:00.000Z",
+      retryable: false
+    },
+    sourceSessionId: "source-1",
+    status: "read_only"
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, false);
+  assert.equal(projected.inputBlockedReason, "DeskCue lost verified control of this turn.");
+});
+
+test("keeps a definitely-not-sent prompt available to its explicit retry action", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    promptRecovery: {
+      phase: "not_sent",
+      promptText: "Continue",
+      requestedAt: "2026-08-25T10:00:00.000Z",
+      retryable: true
+    },
+    sourceSessionId: "source-1",
+    status: "read_only"
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, true);
+  assert.equal(projected.inputBlockedReason, null);
+});
+
 test("keeps a Codex shell blocked after an active-writer conflict", () => {
   const session = sessionDetail({
     adapterId: "codex",

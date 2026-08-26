@@ -1,4 +1,5 @@
 import type {
+  AgentSessionSummary,
   SessionDetail,
   SessionStatus,
   SessionSummary
@@ -12,6 +13,25 @@ import type {
   SourceLiveState,
   SourceLiveStateWithAttach
 } from "./types";
+
+export function findManagedSourceSessionSummary(
+  agentSessions: AgentSessionSummary[],
+  sessionShell: Pick<SessionDetail | SessionSummary, "adapterId" | "sourceSessionId"> | null,
+  sourceSession: Pick<AgentSessionSummary, "id"> | null
+) {
+  const exactSession = sourceSession
+    ? agentSessions.find((session) => session.id === sourceSession.id)
+    : null;
+
+  if (exactSession) return exactSession;
+  if (!sessionShell?.sourceSessionId) return null;
+
+  return agentSessions.find(
+    (session) =>
+      session.agentId === sessionShell.adapterId &&
+      session.sourceSessionId === sessionShell.sourceSessionId
+  ) ?? null;
+}
 
 export function resolveContextCompactionCount(
   detailCount: number | null | undefined,
@@ -59,12 +79,16 @@ export function resolveLiveHeaderStatus({
   sessionShell
 }: {
   isPromptInFlight: boolean;
-  sessionShell: Pick<SessionDetail | SessionSummary, "sourceSessionId" | "status"> | null;
+  sessionShell: Pick<
+    SessionDetail | SessionSummary,
+    "promptRecovery" | "sourceSessionId" | "status"
+  > | null;
   takenOverAgentSession: SourceLiveState | null;
 }): SessionStatus {
   if (sessionShell?.status === "failed") return "failed";
   if (sessionShell?.status === "done") return "done";
   if (sessionShell?.status === "stopped") return "stopped";
+  if (sessionShell?.promptRecovery) return "read_only";
 
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
 
@@ -113,6 +137,8 @@ export function resolveLiveHeaderStatusLabel({
   if (sessionShell.status === "done") return "ready";
   if (sessionShell.status === "stopped") return "ready";
   if (sessionShell.promptRecovery?.phase === "not_sent") return "retry required";
+  if (sessionShell.promptRecovery?.phase === "checking") return "checking";
+  if (sessionShell.promptRecovery?.phase === "outcome_unknown") return "outcome unknown";
 
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
 

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import type {
   AgentSessionDetail,
+  AgentSessionSummary,
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
@@ -10,6 +11,7 @@ import {
   getSessionInterruptLifecycle,
   isInterruptLifecycleWaitingSuppressed
 } from "@models/sessionInterruptLifecycle";
+import { resolveLiveSourceState } from "@modules/session/model/liveChat/helpers";
 import type { ChatTranscriptEntry } from "@modules/session/types";
 
 import {
@@ -37,6 +39,7 @@ export function useManagedSessionReplyState({
   selectedSessionDetail,
   selectedSessionId,
   sessionShell,
+  sourceSessionSummary,
   takenOverAgentSession
 }: {
   canSendInputWhenReadOnly?: boolean;
@@ -50,14 +53,23 @@ export function useManagedSessionReplyState({
   selectedSessionDetail: SessionDetail | null;
   selectedSessionId: string;
   sessionShell: SessionDetail | SessionSummary | null;
+  sourceSessionSummary: AgentSessionSummary | null;
   takenOverAgentSession: AgentSessionDetail | null;
 }) {
   const isPromptTrackableSessionShell =
     Boolean(sessionShell?.sourceSessionId) &&
     (sessionShell?.status === "running" || sessionShell?.status === "read_only");
   const isSourceSessionWorking =
-    isManagedSourceSessionWorking(sessionShell, takenOverAgentSession);
-  const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
+    isManagedSourceSessionWorking(
+      sessionShell,
+      takenOverAgentSession,
+      sourceSessionSummary
+    );
+  const liveSourceState = resolveLiveSourceState(
+    takenOverAgentSession,
+    sourceSessionSummary
+  );
+  const interruptLifecycle = getSessionInterruptLifecycle(liveSourceState);
   const isServerInterruptRequested = interruptLifecycle.phase === "requested";
   const isEffectiveInterruptingPrompt = isInterruptingPrompt || isServerInterruptRequested;
   const suppressWaitingForInterruptLifecycle =
@@ -83,12 +95,14 @@ export function useManagedSessionReplyState({
     sessionShell
   });
   const hasConfirmedRawPendingPrompt = isConfirmedDeskCuePendingPrompt(rawPendingChatPrompt);
+  const promptRecovery = sessionShell?.promptRecovery ?? null;
   const isUncontrollableExternalCodexTurn =
     sessionShell?.adapterId === "codex" &&
     sessionShell.status === "read_only" &&
     isSourceSessionWorking &&
     !hasConfirmedRawPendingPrompt &&
-    !effectiveShellWaitingPrompt;
+    !effectiveShellWaitingPrompt &&
+    !promptRecovery;
   const isShellWaitingPromptCompleted = hasShellWaitingPromptCompleted(
     takenOverAgentSession,
     effectiveShellWaitingPrompt
@@ -157,7 +171,9 @@ export function useManagedSessionReplyState({
   });
   const isPromptQueued = sessionShell?.replyState.phase === "queued";
   const composerPromptInFlight =
-    activeActionRequest || isUncontrollableExternalCodexTurn ? false : isPromptInFlight;
+    activeActionRequest || isUncontrollableExternalCodexTurn || promptRecovery
+      ? false
+      : isPromptInFlight;
   const shouldShowChatLoading = shouldShowManagedSessionChatLoading({
     hasConversationContent,
     hasPendingPrompt: Boolean(displayedPendingChatPrompt),
@@ -170,12 +186,14 @@ export function useManagedSessionReplyState({
   });
 
   const { canSendInput } = resolveInputAvailability(sessionShell, {
-    blockExternalSourceInput: isUncontrollableExternalCodexTurn,
+    blockExternalSourceInput: isUncontrollableExternalCodexTurn || Boolean(promptRecovery),
     canSendInputWhenReadOnly
   });
   const inputUnavailableLabel = canSendInput
     ? null
-    : isUncontrollableExternalCodexTurn
+    : promptRecovery
+      ? "DeskCue lost verified control of this turn"
+      : isUncontrollableExternalCodexTurn
       ? "Turn active in Codex Desktop"
       : sessionShell?.inputBlockedReason?.trim()
         ? sessionShell.inputBlockedReason
@@ -184,7 +202,9 @@ export function useManagedSessionReplyState({
         : "Input unavailable";
 
   const sharedViewerCount = sessionShell?.viewerCount ?? 0;
-  const sharedSessionHint = isUncontrollableExternalCodexTurn
+  const sharedSessionHint = promptRecovery
+    ? "DeskCue will not resend this prompt automatically"
+    : isUncontrollableExternalCodexTurn
     ? "This turn is running in Codex Desktop. Finish or stop it there before sending a follow-up from DeskCue"
     : !canSendInput && sessionShell?.inputBlockedReason
       ? sessionShell.inputBlockedReason

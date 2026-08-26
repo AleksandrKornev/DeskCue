@@ -65,19 +65,17 @@ function buildRecoveryOperation(
 ): ChatThreadOperationState {
   const hasPromptText = Boolean(recovery.promptText?.trim());
   const actionLabel =
-    recovery.phase === "outcome_unknown" && hasPromptText
-      ? "Send again anyway"
-      : recovery.phase === "not_sent" && recovery.retryable && hasPromptText
-        ? "Retry prompt"
-        : null;
+    recovery.phase === "not_sent" && recovery.retryable && hasPromptText
+      ? "Retry prompt"
+      : null;
 
   if (recovery.phase === "checking") {
     return {
       kind: "recovery",
       actionLabel,
-      detail: "DeskCue restarted during delivery. The agent may still be running in the background.",
+      detail: "DeskCue restarted during this turn and no longer has verified control. It is checking agent history and will not resend the prompt.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
-      title: "Checking agent history"
+      title: "Checking turn status"
     };
   }
 
@@ -85,9 +83,9 @@ function buildRecoveryOperation(
     return {
       kind: "recovery",
       actionLabel,
-      detail: "The agent may have continued in the background. DeskCue will not resend this prompt automatically.",
+      detail: "DeskCue found no final result and no longer has verified control. Check this chat in Codex before continuing; DeskCue will not resend the prompt.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
-      title: "Delivery outcome unknown"
+      title: "Turn outcome unknown"
     };
   }
 
