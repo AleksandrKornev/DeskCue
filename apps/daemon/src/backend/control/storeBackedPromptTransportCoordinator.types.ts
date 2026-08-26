@@ -46,6 +46,7 @@ export type StoreBackedPromptTransportCoordinatorOptions = {
   gitPolling: SessionGitPolling;
   persistState: () => Promise<void>;
   promptDeliveries: PromptDeliveryJournal;
+  publishSessionUpdate: (session: SessionDetail) => void;
   repository: SessionRepository;
   restartClaudePromptTransportProcess?: typeof restartClaudePromptTransport;
   restartCodexTransportProcess?: typeof restartCodexTransport;

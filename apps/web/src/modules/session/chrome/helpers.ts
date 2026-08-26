@@ -9,9 +9,9 @@ const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
 const ATTENTION_SESSION_STATUS_LABELS = new Set([
-  "checking",
+  "control lost",
   "interrupt unconfirmed",
-  "outcome unknown",
+  "recovering",
   "retry required",
   "stopping"
 ]);

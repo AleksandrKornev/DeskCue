@@ -312,6 +312,72 @@ describe("mergeAgentSessionDetail", () => {
     assert.equal(merged.turnState?.fingerprint, "start-2");
   });
 
+  it("accepts a different active turn that starts at the completed turn timestamp", () => {
+    const timestamp = "2026-07-17T10:00:05.000Z";
+    const current = createSessionDetail({
+      turnState: {
+        activityAt: null,
+        completedAt: timestamp,
+        evidence: "terminal_lifecycle",
+        fingerprint: "terminal-1",
+        phase: "completed",
+        startedAt: null,
+        turnStartFingerprint: "start-1"
+      },
+      workState: "idle"
+    });
+    const next = createSessionDetail({
+      turnState: {
+        activityAt: timestamp,
+        completedAt: null,
+        evidence: "unanswered_user_turn",
+        fingerprint: "start-2",
+        phase: "active",
+        startedAt: timestamp
+      },
+      updatedAt: timestamp,
+      workState: "running"
+    });
+
+    const merged = mergeAgentSessionDetail(current, next);
+
+    assert.equal(merged.workState, "running");
+    assert.equal(merged.turnState?.fingerprint, "start-2");
+  });
+
+  it("retains a terminal lifecycle for the same identified turn at an equal timestamp", () => {
+    const timestamp = "2026-07-17T10:00:05.000Z";
+    const current = createSessionDetail({
+      turnState: {
+        activityAt: null,
+        completedAt: timestamp,
+        evidence: "terminal_lifecycle",
+        fingerprint: "terminal-1",
+        phase: "completed",
+        startedAt: null,
+        turnStartFingerprint: "start-1"
+      },
+      workState: "idle"
+    });
+    const staleActive = createSessionDetail({
+      turnState: {
+        activityAt: timestamp,
+        completedAt: null,
+        evidence: "turn_lifecycle",
+        fingerprint: "start-1",
+        phase: "active",
+        startedAt: timestamp
+      },
+      updatedAt: timestamp,
+      workState: "running"
+    });
+
+    const merged = mergeAgentSessionDetail(current, staleActive);
+
+    assert.equal(merged.workState, "idle");
+    assert.equal(merged.turnState?.fingerprint, "terminal-1");
+  });
+
   it("preserves latest waiting detail entry reference when payload is equal", () => {
     const messageEntry = createEntry("entry:message", "working");
     const waitingEntry = createEntry("entry:waiting", "waiting for approval");
@@ -481,6 +547,121 @@ describe("mergeAgentSessionDetail", () => {
     );
 
     assert.equal(repeated, merged);
+  });
+
+  it("clears stale historical turn status and activity after a later prompt completes", () => {
+    const firstUserEntry = {
+      ...createEntry("entry:user-1", "first prompt", "2026-07-17T10:00:00.000Z"),
+      role: "user" as const
+    };
+
+    const firstDetailEntry = createEntry(
+      "entry:detail-1",
+      "checking",
+      "2026-07-17T10:00:01.000Z"
+    );
+    const firstAssistantEntry = createEntry(
+      "entry:assistant-1",
+      "first final",
+      "2026-07-17T10:00:02.000Z"
+    );
+    const secondUserEntry = {
+      ...createEntry("entry:user-2", "second prompt", "2026-07-17T10:01:00.000Z"),
+      role: "user" as const
+    };
+
+    const secondAssistantEntry = createEntry(
+      "entry:assistant-2",
+      "second final",
+      "2026-07-17T10:01:02.000Z"
+    );
+    const details = createActivityGroup("details:first", [firstDetailEntry], "details");
+    const staleUserItem: AgentTranscriptViewItem = {
+      activities: [],
+      changeActivities: [],
+      entry: firstUserEntry,
+      key: "message:user-1",
+      role: "user",
+      timestamp: firstUserEntry.timestamp,
+      turnStatus: {
+        kind: "incomplete",
+        label: "No final reply",
+        title: "The source agent finished before DeskCue received a final reply"
+      },
+      type: "message"
+    };
+
+    const firstAssistantItem: AgentTranscriptViewItem = {
+      activities: [details],
+      changeActivities: [],
+      entry: firstAssistantEntry,
+      key: "message:assistant-1",
+      role: "assistant",
+      timestamp: firstAssistantEntry.timestamp,
+      turnStatus: null,
+      type: "message"
+    };
+
+    const cleanFirstUserItem: AgentTranscriptViewItem = {
+      ...staleUserItem,
+      turnStatus: null
+    };
+
+    const secondUserItem: AgentTranscriptViewItem = {
+      activities: [],
+      changeActivities: [],
+      entry: secondUserEntry,
+      key: "message:user-2",
+      role: "user",
+      timestamp: secondUserEntry.timestamp,
+      turnStatus: null,
+      type: "message"
+    };
+
+    const secondAssistantItem: AgentTranscriptViewItem = {
+      activities: [],
+      changeActivities: [],
+      entry: secondAssistantEntry,
+      key: "message:assistant-2",
+      role: "assistant",
+      timestamp: secondAssistantEntry.timestamp,
+      turnStatus: null,
+      type: "message"
+    };
+
+    const current = createSessionDetail({
+      transcriptView: createTranscriptView({
+        items: [
+          staleUserItem,
+          { activity: details, key: details.id, type: "activity" },
+          firstAssistantItem
+        ]
+      })
+    });
+    const terminal = createSessionDetail({
+      transcriptView: createTranscriptView({
+        items: [
+          cleanFirstUserItem,
+          firstAssistantItem,
+          secondUserItem,
+          secondAssistantItem
+        ],
+        updatedAt: "2026-07-17T10:01:03.000Z"
+      }),
+      updatedAt: "2026-07-17T10:01:03.000Z"
+    });
+
+    const merged = mergeAgentSessionDetail(current, terminal);
+    const firstUser = merged.transcriptView?.items.find(
+      (item) => item.type === "message" && item.key === "message:user-1"
+    );
+
+    assert.equal(firstUser?.type, "message");
+    assert.equal(firstUser?.turnStatus, null);
+    assert.equal(
+      merged.transcriptView?.items.some((item) => item.type === "activity" && item.key === details.id),
+      false
+    );
   });
 
   it("retains unrelated history while dropping a reparented standalone activity", () => {
@@ -662,6 +843,78 @@ describe("mergeAgentSessionTranscriptPage", () => {
     );
 
     assert.equal(merged?.transcriptView?.items[1], currentItem);
+  });
+
+  it("lets an authoritative history page clear stale turn status and reparented activity", () => {
+    const userEntry = {
+      ...createEntry("entry:user", "prompt", "2026-07-17T10:00:00.000Z"),
+      role: "user" as const
+    };
+
+    const detailEntry = createEntry("entry:detail", "checking", "2026-07-17T10:00:01.000Z");
+    const assistantEntry = createEntry(
+      "entry:assistant",
+      "final",
+      "2026-07-17T10:00:02.000Z"
+    );
+    const details = createActivityGroup("details:turn", [detailEntry], "details");
+    const staleUserItem: AgentTranscriptViewItem = {
+      activities: [],
+      changeActivities: [],
+      entry: userEntry,
+      key: "message:user",
+      role: "user",
+      timestamp: userEntry.timestamp,
+      turnStatus: {
+        kind: "incomplete",
+        label: "No final reply",
+        title: "The source agent finished before DeskCue received a final reply"
+      },
+      type: "message"
+    };
+
+    const assistantItem: AgentTranscriptViewItem = {
+      activities: [details],
+      changeActivities: [],
+      entry: assistantEntry,
+      key: "message:assistant",
+      role: "assistant",
+      timestamp: assistantEntry.timestamp,
+      turnStatus: null,
+      type: "message"
+    };
+
+    const current = createSessionDetail({
+      transcriptView: createTranscriptView({
+        items: [staleUserItem, { activity: details, key: details.id, type: "activity" }]
+      })
+    });
+    const pageUserItem: AgentTranscriptViewItem = { ...staleUserItem, turnStatus: null };
+    const page = createTranscriptView({ items: [pageUserItem, assistantItem] });
+
+    const merged = mergeAgentSessionTranscriptPage(current, current.id, {
+      entries: [userEntry, detailEntry, assistantEntry],
+      transcriptView: page
+    });
+    const mergedUser = merged?.transcriptView?.items.find(
+      (item) => item.type === "message" && item.key === staleUserItem.key
+    );
+
+    assert.equal(mergedUser?.type, "message");
+    assert.equal(mergedUser?.turnStatus, null);
+    assert.equal(
+      merged?.transcriptView?.items.some(
+        (item) => item.type === "activity" && item.key === details.id
+      ),
+      false
+    );
+
+    assert.equal(
+      merged?.transcriptView?.items.some(
+        (item) => item.type === "message" && item.key === assistantItem.key
+      ),
+      true
+    );
   });
 
   it("bounds manually loaded history and preserves its window during an automatic tail merge", () => {

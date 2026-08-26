@@ -151,9 +151,9 @@ export function useManagedSessionPanelViewModel({
     effectiveShellWaitingPrompt,
     inputUnavailableLabel,
     interruptLifecycle,
+    isExternalSourceTurn,
     isInterruptingPrompt,
     isPromptQueued,
-    isSourceSessionWorking,
     sharedSessionHint,
     sharedViewerCount,
     shouldShowChatLoading,
@@ -215,8 +215,7 @@ export function useManagedSessionPanelViewModel({
     waitingReplyPrompt?.requestedAt ?? null;
   const hasExternalSourceReply =
     !suppressExternalWaiting &&
-    isSourceSessionWorking &&
-    !effectiveIsWaitingForChatReply;
+    isExternalSourceTurn;
   const [isExternalSourceReplyVisible, setIsExternalSourceReplyVisible] = useState(false);
 
   useEffect(() => {

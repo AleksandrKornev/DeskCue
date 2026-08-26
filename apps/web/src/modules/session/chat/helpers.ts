@@ -73,9 +73,9 @@ function buildRecoveryOperation(
     return {
       kind: "recovery",
       actionLabel,
-      detail: "DeskCue restarted during this turn and no longer has verified control. It is checking agent history and will not resend the prompt.",
+      detail: "DeskCue restarted during this turn. It is checking the source agent's history and will not resend the prompt.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
-      title: "Checking turn status"
+      title: "Recovering turn state"
     };
   }
 
@@ -83,7 +83,7 @@ function buildRecoveryOperation(
     return {
       kind: "recovery",
       actionLabel,
-      detail: "DeskCue found no final result and no longer has verified control. Check this chat in Codex before continuing; DeskCue will not resend the prompt.",
+      detail: "DeskCue did not find a final reply after restarting. Check the source agent before continuing; DeskCue will not resend the prompt.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
       title: "Turn outcome unknown"
     };

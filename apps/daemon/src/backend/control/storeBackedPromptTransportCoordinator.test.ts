@@ -132,6 +132,7 @@ function coordinatorFor(
         return "journal-1";
       }
     },
+    publishSessionUpdate: () => {},
     repository: {} as never,
     sessionRunner: {
       deleteChild: () => true,
@@ -187,6 +188,7 @@ test("prepares the journal before Codex transport and records transport ownershi
   const lifecycle: string[] = [];
   const session = sessionDetail();
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartCodexTransportProcess: async (callbacks: {
       markPromptAccepted?: (sessionId: string) => void;
       markPromptDispatching?: (sessionId: string) => void;
@@ -204,7 +206,8 @@ test("prepares the journal before Codex transport and records transport ownershi
     "prepare:Continue safely",
     "dispatching",
     "transport",
-    "accepted"
+    "accepted",
+    "published"
   ]);
 });
 
@@ -237,6 +240,7 @@ test("marks a prepared Codex delivery not sent when transport validation fails",
   const lifecycle: string[] = [];
   const session = sessionDetail();
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartCodexTransportProcess: async () => {
       lifecycle.push("transport");
       throw new Error("replacement failed");
@@ -251,7 +255,8 @@ test("marks a prepared Codex delivery not sent when transport validation fails",
   assert.deepEqual(lifecycle, [
     "prepare:Continue safely",
     "transport",
-    "not-sent"
+    "not-sent",
+    "published"
   ]);
 });
 
@@ -259,6 +264,7 @@ test("marks a dispatching Codex delivery outcome unknown when transport throws",
   const lifecycle: string[] = [];
   const session = sessionDetail();
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartCodexTransportProcess: async (callbacks: {
       markPromptDispatching?: (sessionId: string) => void;
     }) => {
@@ -277,7 +283,8 @@ test("marks a dispatching Codex delivery outcome unknown when transport throws",
     "prepare:Continue safely",
     "dispatching",
     "transport",
-    "outcome-unknown"
+    "outcome-unknown",
+    "published"
   ]);
 });
 
@@ -303,6 +310,7 @@ test("marks a confirmed Codex startup failure not sent and disposes its child", 
         callbacks.markPromptDispatching?.(session.id);
         throw new SourcePromptStartupError(new Error("nested startup failed"), child);
       },
+      publishSessionUpdate: () => lifecycle.push("published"),
       sessionRunner: {
         deleteChild: () => {
           lifecycle.push("delete-child");
@@ -329,7 +337,8 @@ test("marks a confirmed Codex startup failure not sent and disposes its child", 
     "dispatching",
     "not-sent",
     "kill-child",
-    "delete-child"
+    "delete-child",
+    "published"
   ]);
   assert.deepEqual(recoveryUpdates[0], null);
   assert.equal(recoveryUpdates[1]?.phase, "not_sent");
@@ -376,6 +385,7 @@ test("classifies a Claude pre-dispatch failure exactly once", async () => {
   const lifecycle: string[] = [];
   const session = sessionDetail({ adapterId: "claude-code" });
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartClaudePromptTransportProcess: async () => {
       lifecycle.push("transport");
       throw new Error("Claude validation failed");
@@ -390,7 +400,8 @@ test("classifies a Claude pre-dispatch failure exactly once", async () => {
   assert.deepEqual(lifecycle, [
     "prepare:Continue safely",
     "transport",
-    "not-sent"
+    "not-sent",
+    "published"
   ]);
 });
 
@@ -650,6 +661,7 @@ test("records an interrupt before attempting to restart the Codex transport", as
       markOutcomeUnknownBySession: () => true,
       prepare: () => "journal-1"
     },
+    publishSessionUpdate: () => {},
     repository: {} as never,
     sessionRunner: sessionRunner as never,
     updateSession: () => {}

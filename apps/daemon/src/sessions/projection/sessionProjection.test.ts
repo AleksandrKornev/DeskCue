@@ -100,7 +100,7 @@ test("blocks ordinary input while a source prompt outcome is unresolved", () => 
   const projected = toSessionSummary(session, () => false);
 
   assert.equal(projected.canSendInput, false);
-  assert.equal(projected.inputBlockedReason, "DeskCue lost verified control of this turn.");
+  assert.equal(projected.inputBlockedReason, "DeskCue lost control of this turn.");
 });
 
 test("keeps a definitely-not-sent prompt available to its explicit retry action", () => {
@@ -127,13 +127,13 @@ test("keeps a Codex shell blocked after an active-writer conflict", () => {
     adapterId: "codex",
     sourceSessionId: "source-1",
     status: "read_only",
-    inputBlockedReason: "Codex Desktop still owns this chat."
+    inputBlockedReason: "Another Codex client still owns this chat."
   });
 
   const projected = toSessionSummary(session, () => false);
 
   assert.equal(projected.canSendInput, false);
-  assert.equal(projected.inputBlockedReason, "Codex Desktop still owns this chat.");
+  assert.equal(projected.inputBlockedReason, "Another Codex client still owns this chat.");
 });
 
 test("marks a non-observe-only Claude source shell as resumable", () => {

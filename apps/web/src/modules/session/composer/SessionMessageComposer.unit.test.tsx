@@ -50,12 +50,12 @@ describe("SessionMessageComposer", () => {
   it("explains why session input is unavailable", () => {
     renderComposer({
       canSendInput: false,
-      inputUnavailableLabel: "Turn active in Codex Desktop"
+      inputUnavailableLabel: "Turn active outside DeskCue"
     });
 
     expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-    expect(screen.getByPlaceholderText("Turn active in Codex Desktop")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Turn active outside DeskCue")).toBeInTheDocument();
   });
 
   it("normalizes and does not duplicate the same unavailable-input reason", () => {
@@ -76,12 +76,12 @@ describe("SessionMessageComposer", () => {
   it("does not repeat a disabled-input reason as a second visible hint", () => {
     renderComposer({
       canSendInput: false,
-      inputUnavailableLabel: "Turn active in Codex Desktop",
-      sharedSessionHint: "This turn is running in Codex Desktop. Finish or stop it there"
+      inputUnavailableLabel: "Turn active outside DeskCue",
+      sharedSessionHint: "This turn is running outside DeskCue. Finish or stop it in the controlling client"
     });
 
-    expect(screen.getByPlaceholderText("Turn active in Codex Desktop")).toBeInTheDocument();
-    expect(screen.queryByText(/This turn is running in Codex Desktop/u)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Turn active outside DeskCue")).toBeInTheDocument();
+    expect(screen.queryByText(/This turn is running outside DeskCue/u)).not.toBeInTheDocument();
   });
 
   it("sends a trimmed draft", async () => {

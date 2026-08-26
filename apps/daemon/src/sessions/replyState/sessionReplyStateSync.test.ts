@@ -279,6 +279,13 @@ test("publishes a fresh managed-session summary when a late terminal clears reco
           role: "assistant",
           text: "Recovered",
           phase: "final"
+        },
+        {
+          id: "recovered-turn-completed",
+          timestamp: "2026-06-22T10:02:00.000Z",
+          role: "system",
+          text: "Turn completed",
+          phase: null
         }
       ]
     })

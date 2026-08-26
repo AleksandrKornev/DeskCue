@@ -147,7 +147,10 @@ export class StoreBackedPromptTransportCoordinator {
 
         await this.options.persistState();
         if (preparedDelivery.kind === "exact") this.queuedPromptDeliveries.set(session.id, preparedDelivery);
-        return this.options.getSession(session.id) ?? session;
+        const updatedSession = this.options.getSession(session.id) ?? session;
+
+        this.options.publishSessionUpdate(updatedSession);
+        return updatedSession;
       }
 
       return this.startPreparedSourcePrompt(session, prompt, preparedDelivery, strategy);
@@ -194,12 +197,15 @@ export class StoreBackedPromptTransportCoordinator {
     strategy: SourcePromptTransportStrategy
   ): Promise<SessionDetail> {
     try {
-      return await strategy.start(session, prompt, {
+      const updatedSession = await strategy.start(session, prompt, {
         markPromptAccepted: (sessionId) =>
           this.markDeliveryAccepted(sessionId, preparedDelivery),
         markPromptDispatching: (sessionId) =>
           this.markDeliveryDispatching(sessionId, preparedDelivery)
       });
+
+      this.options.publishSessionUpdate(updatedSession);
+      return updatedSession;
     } catch (error) {
       const confirmedStartupFailure = error instanceof SourcePromptStartupError;
       const disposition = confirmedStartupFailure
@@ -232,6 +238,8 @@ export class StoreBackedPromptTransportCoordinator {
         preparedDelivery,
         disposition
       );
+
+      this.options.publishSessionUpdate(this.options.getSession(session.id) ?? session);
 
       if (cleanupError) {
         throw new AggregateError(

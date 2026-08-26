@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type {
   AgentSessionDetail,
+  SessionDetail,
   SessionSummary,
   ServerEvent
 } from "@deskcue/protocol";
@@ -296,6 +297,56 @@ test("forces an active transcript refresh when realtime metadata is already curr
   }]]);
 });
 
+test("refreshes a selected managed shell when its source transcript changes", () => {
+  const loadedSessionIds: string[] = [];
+  const store = {
+    clearAgentSessionReadyForReview: () => undefined,
+    updateActiveTakenOverAgentSession: () => undefined,
+    updateSelectedAgentSession: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "claude-code:source-1" },
+    event: {
+      type: "agent.session.transcript.updated",
+      payload: {
+        agentId: "claude-code",
+        agentLabel: "Claude Code",
+        agentSessionId: "claude-code:source-1",
+        latestEntryId: "prompt-1",
+        sourceSessionId: "source-1",
+        transcriptLength: 2,
+        turnState: createAgentSession("running").turnState,
+        updatedAt: "2026-07-31T10:00:00.000Z",
+        workState: "running"
+      }
+    } satisfies ServerEvent,
+    loadSessionRef: {
+      current: (sessionId) => {
+        loadedSessionIds.push(sessionId);
+        return Promise.resolve(null);
+      }
+    },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: () => undefined,
+    selectedAgentSessionIdRef: { current: "" },
+    selectedSessionIdRef: { current: "" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: {
+      current: createManagedSourceSession("read_only") as unknown as SessionDetail
+    },
+    store
+  });
+
+  assert.deepEqual(loadedSessionIds, ["managed-1"]);
+});
+
 test("applies a stale terminal update for the active turn without moving updatedAt backward", () => {
   let activeSession: AgentSessionDetail | null = {
     ...createAgentSession("running"),
@@ -436,6 +487,144 @@ test("does not apply a stale terminal update from a previous turn", () => {
   assert.equal(activeSession?.turnState?.fingerprint, "new-turn");
 });
 
+test("does not apply a different terminal turn at the active turn timestamp", () => {
+  const timestamp = "2026-07-31T10:00:10.000Z";
+  let activeSession: AgentSessionDetail | null = {
+    ...createAgentSession("running"),
+    updatedAt: "2026-07-31T10:00:11.000Z",
+    turnState: {
+      activityAt: timestamp,
+      completedAt: null,
+      evidence: "unanswered_user_turn",
+      fingerprint: "new-turn",
+      phase: "active",
+      startedAt: timestamp
+    }
+  };
+
+  const store = {
+    clearAgentSessionReadyForReview: () => undefined,
+    updateActiveTakenOverAgentSession: (
+      updater: (current: AgentSessionDetail | null) => AgentSessionDetail | null
+    ) => {
+      activeSession = updater(activeSession);
+    },
+    updateSelectedAgentSession: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "codex:source-1" },
+    event: {
+      type: "agent.session.transcript.updated",
+      payload: {
+        agentId: "codex",
+        agentLabel: "Codex",
+        agentSessionId: "codex:source-1",
+        latestEntryId: "old-terminal",
+        sourceSessionId: "source-1",
+        transcriptLength: 3,
+        turnState: {
+          activityAt: timestamp,
+          completedAt: timestamp,
+          evidence: "terminal_lifecycle",
+          fingerprint: "old-turn",
+          phase: "completed",
+          startedAt: null,
+          turnStartFingerprint: "old-start"
+        },
+        updatedAt: timestamp,
+        workState: "idle"
+      }
+    } satisfies ServerEvent,
+    loadSessionRef: { current: () => Promise.resolve(null) },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: () => undefined,
+    selectedAgentSessionIdRef: { current: "" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: null },
+    store
+  });
+
+  assert.equal(activeSession?.workState, "running");
+  assert.equal(activeSession?.turnState?.fingerprint, "new-turn");
+});
+
+test("applies a terminal update for the same identified turn at an equal timestamp", () => {
+  const timestamp = "2026-07-31T10:00:10.000Z";
+  let activeSession: AgentSessionDetail | null = {
+    ...createAgentSession("running"),
+    updatedAt: "2026-07-31T10:00:11.000Z",
+    turnState: {
+      activityAt: timestamp,
+      completedAt: null,
+      evidence: "turn_lifecycle",
+      fingerprint: "same-turn-start",
+      phase: "active",
+      startedAt: timestamp
+    }
+  };
+
+  const store = {
+    clearAgentSessionReadyForReview: () => undefined,
+    updateActiveTakenOverAgentSession: (
+      updater: (current: AgentSessionDetail | null) => AgentSessionDetail | null
+    ) => {
+      activeSession = updater(activeSession);
+    },
+    updateSelectedAgentSession: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "codex:source-1" },
+    event: {
+      type: "agent.session.transcript.updated",
+      payload: {
+        agentId: "codex",
+        agentLabel: "Codex",
+        agentSessionId: "codex:source-1",
+        latestEntryId: "terminal-1",
+        sourceSessionId: "source-1",
+        transcriptLength: 3,
+        turnState: {
+          activityAt: null,
+          completedAt: timestamp,
+          evidence: "terminal_lifecycle",
+          fingerprint: "terminal-1",
+          phase: "completed",
+          startedAt: null,
+          turnStartFingerprint: "same-turn-start"
+        },
+        updatedAt: timestamp,
+        workState: "idle"
+      }
+    } satisfies ServerEvent,
+    loadSessionRef: { current: () => Promise.resolve(null) },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: () => undefined,
+    selectedAgentSessionIdRef: { current: "" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: null },
+    store
+  });
+
+  assert.equal(activeSession?.workState, "idle");
+  assert.equal(activeSession?.turnState?.fingerprint, "terminal-1");
+});
+
 test("forces a full transcript refresh for the matching terminal managed source", () => {
   const immediateRefreshes: Array<[string | null | undefined, unknown]> = [];
   const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];
@@ -522,6 +711,56 @@ test("merges a selected lifecycle update even while its detail ref is hydrating"
   await Promise.resolve();
 
   assert.deepEqual(merged, [update]);
+  assert.deepEqual(loaded, ["managed-1"]);
+});
+
+test("reloads an existing selected detail when realtime lifecycle changes without a route selection ref", async () => {
+  const loaded: string[] = [];
+  const current = createManagedSourceSession("read_only");
+  const update = {
+    ...createManagedSourceSession("running"),
+    lastActivityAt: "2026-07-31T10:00:04.000Z",
+    replyState: {
+      phase: "sending" as const,
+      promptText: "Continue work",
+      requestedAt: "2026-07-31T10:00:04.000Z"
+    }
+  };
+
+  const store = {
+    mergeOverviewSession: () => undefined,
+    mergeSelectedSessionSummary: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "overview" },
+    activeTakenOverAgentSessionIdRef: { current: "" },
+    event: {
+      type: "session.updated",
+      payload: update
+    } satisfies ServerEvent,
+    loadSessionRef: {
+      current: (sessionId) => {
+        loaded.push(sessionId);
+        return Promise.resolve(null);
+      }
+    },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: () => undefined,
+    selectedAgentSessionIdRef: { current: "" },
+    selectedSessionIdRef: { current: "" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: current as never },
+    store
+  });
+
+  await Promise.resolve();
+
   assert.deepEqual(loaded, ["managed-1"]);
 });
 
@@ -696,7 +935,7 @@ test("reloads the selected managed session when a late source terminal can clear
     scheduleSelectedAgentSessionRefresh: () => undefined,
     scheduleTakenOverTranscriptRefresh: () => undefined,
     selectedAgentSessionIdRef: { current: "codex:source-1" },
-    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionIdRef: { current: "stale-managed" },
     selectedSessionLogQueue: {
       flush: () => undefined,
       push: () => undefined,

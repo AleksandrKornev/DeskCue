@@ -25,16 +25,16 @@ export function findNearestTranscriptLineOffset(
   lineOffsets: TranscriptLineOffset[] | undefined,
   targetLineIndex: number
 ): TranscriptLineOffset {
-  if (!lineOffsets?.length) {
-    return { byteOffset: 0, lineIndex: 0 };
-  }
+  if (!lineOffsets?.length) return { byteOffset: 0, lineIndex: 0 };
+
   let nearestOffset = lineOffsets[0] ?? { byteOffset: 0, lineIndex: 0 };
+
   for (const offset of lineOffsets) {
-    if (offset.lineIndex > targetLineIndex) {
-      break;
-    }
+    if (offset.lineIndex > targetLineIndex) break;
+
     nearestOffset = offset;
   }
+
   return nearestOffset;
 }
 
@@ -42,23 +42,22 @@ export function findNearestTranscriptByteOffset(
   lineOffsets: TranscriptLineOffset[] | undefined,
   targetByteOffset: number
 ): TranscriptLineOffset {
-  if (!lineOffsets?.length) {
-    return { byteOffset: 0, lineIndex: 0 };
-  }
+  if (!lineOffsets?.length) return { byteOffset: 0, lineIndex: 0 };
+
   let nearestOffset = lineOffsets[0] ?? { byteOffset: 0, lineIndex: 0 };
+
   for (const offset of lineOffsets) {
-    if (offset.byteOffset > targetByteOffset) {
-      break;
-    }
+    if (offset.byteOffset > targetByteOffset) break;
+
     nearestOffset = offset;
   }
+
   return nearestOffset;
 }
 
 function shouldRetainLineHints(snapshot: TranscriptLineIndexSnapshot) {
-  if (snapshot.lineHintsComplete !== true) {
-    return true;
-  }
+  if (snapshot.lineHintsComplete !== true) return true;
+
   return (
     (snapshot.compactLineSpans?.length ?? 0) <= MAX_COMPACT_HINT_SPANS &&
     (snapshot.exactLineOffsets?.length ?? 0) <= MAX_EXACT_HINT_OFFSETS
@@ -133,9 +132,9 @@ export class CodexTranscriptLineIndex {
   ) {
     await this.#loadDurableIfNeeded();
     const snapshot = this.#snapshots.get(filePath);
-    if (!snapshot || snapshot.size !== source.size) {
-      return;
-    }
+
+    if (!snapshot || snapshot.size !== source.size) return;
+
     this.#setSnapshot(filePath, {
       ...snapshot,
       contextCompactionCount: source.compactionCount,
@@ -155,9 +154,8 @@ export class CodexTranscriptLineIndex {
       this.#snapshots.get(filePath),
       options
     );
-    if (memorySnapshot) {
-      return memorySnapshot;
-    }
+
+    if (memorySnapshot) return memorySnapshot;
 
     await this.#loadDurableIfNeeded();
 
@@ -167,23 +165,20 @@ export class CodexTranscriptLineIndex {
       this.#snapshots.get(filePath),
       options
     );
-    if (durableSnapshot) {
-      return durableSnapshot;
-    }
+
+    if (durableSnapshot) return durableSnapshot;
 
     const requestKey = buildRequestKey(filePath, fileStat, options);
     const existingRequest = this.#requests.get(requestKey);
-    if (existingRequest) {
-      return existingRequest.promise;
-    }
+
+    if (existingRequest) return existingRequest.promise;
 
     const request = this.#createSnapshot(filePath, fileStat, options)
       .finally(() => {
-        if (this.#requests.get(requestKey)?.promise === request) {
-          this.#requests.delete(requestKey);
-        }
+        if (this.#requests.get(requestKey)?.promise === request) this.#requests.delete(requestKey);
       });
     this.#requests.set(requestKey, { promise: request });
+
     return request;
   }
 
@@ -193,44 +188,38 @@ export class CodexTranscriptLineIndex {
     cached: TranscriptLineIndexSnapshot | undefined,
     options: TranscriptLineIndexReadOptions
   ): Promise<TranscriptLineIndexSnapshot | null> {
-    if (!cached) {
-      return null;
-    }
+    if (!cached) return null;
 
     const requireOffsets = options.requireOffsets === true;
     const requireChatMessageOffsets = options.requireChatMessageOffsets === true;
     const requireLineHints = options.requireLineHints === true;
 
     if (cached.size === fileStat.size) {
-      if (requireOffsets && !cached.lineOffsets?.length) {
-        return null;
-      }
-      if (requireChatMessageOffsets && cached.chatMessageLineOffsets === undefined) {
-        return null;
-      }
-      if (requireLineHints && !hasCompleteLineHints(cached)) {
-        return null;
-      }
+      if (requireOffsets && !cached.lineOffsets?.length) return null;
+      if (requireChatMessageOffsets && cached.chatMessageLineOffsets === undefined) return null;
+      if (requireLineHints && !hasCompleteLineHints(cached)) return null;
 
       if (cached.mtimeMs !== fileStat.mtimeMs) {
         const updated = { ...cached, mtimeMs: fileStat.mtimeMs };
+
         this.#setSnapshot(filePath, updated);
+
         await this.#storage.write(this.#snapshots);
         return updated;
       }
+
       return cached;
     }
 
     if (cached.size < fileStat.size) {
-      if (requireOffsets && (!cached.lineOffsets?.length || cached.endsWithLineBreak === false)) {
-        return null;
-      }
-      if (requireChatMessageOffsets && cached.chatMessageLineOffsets === undefined) {
-        return null;
-      }
-      if (requireLineHints && !hasCompleteLineHints(cached)) {
-        return null;
-      }
+      // An append scan cannot reconstruct the prefix of a line that was only
+      // partially present in the cached snapshot. Re-scan the complete file
+      // before trusting chat/exact-line hints, even when byte offsets were not
+      // requested by this reader.
+      if (cached.endsWithLineBreak === false) return null;
+      if (requireOffsets && !cached.lineOffsets?.length) return null;
+      if (requireChatMessageOffsets && cached.chatMessageLineOffsets === undefined) return null;
+      if (requireLineHints && !hasCompleteLineHints(cached)) return null;
 
       const updated = await this.#scanner.readAppendSnapshot(cached, filePath, {
         appendStartByteOffset: cached.size,
@@ -241,6 +230,7 @@ export class CodexTranscriptLineIndex {
         requireOffsets,
         size: fileStat.size
       });
+
       this.#setSnapshot(filePath, updated);
       await this.#storage.write(this.#snapshots);
       return updated;
@@ -262,6 +252,7 @@ export class CodexTranscriptLineIndex {
       includeLineHints: options.requireLineHints === true,
       includeOffsets: options.requireOffsets === true
     });
+
     this.#setSnapshot(filePath, snapshot);
     await this.#storage.write(this.#snapshots);
     return snapshot;
@@ -272,23 +263,24 @@ export class CodexTranscriptLineIndex {
       ? snapshot
       : stripLineHints(snapshot);
     this.#snapshots.delete(filePath);
+
     this.#snapshots.set(filePath, retained);
     while (this.#snapshots.size > MAX_CACHED_SNAPSHOTS) {
       const oldest = this.#snapshots.keys().next().value;
-      if (oldest === undefined) {
-        break;
-      }
+
+      if (oldest === undefined) break;
+
       this.#snapshots.delete(oldest);
     }
   }
 
   async #loadDurableIfNeeded() {
-    if (this.#durableLoaded) {
-      return;
-    }
+    if (this.#durableLoaded) return;
+
     this.#durableLoaded = true;
     for (const snapshot of await this.#storage.load()) {
       const { filePath, ...value } = snapshot;
+
       this.#setSnapshot(filePath, value);
     }
   }

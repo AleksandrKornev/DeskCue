@@ -134,11 +134,11 @@ export function resolveLiveHeaderStatusLabel({
 }) {
   if (!sessionShell?.sourceSessionId) return undefined;
   if (sessionShell.status === "failed") return "failed";
+  if (sessionShell.promptRecovery?.phase === "not_sent") return "retry required";
+  if (sessionShell.promptRecovery?.phase === "checking") return "recovering";
+  if (sessionShell.promptRecovery?.phase === "outcome_unknown") return "control lost";
   if (sessionShell.status === "done") return "ready";
   if (sessionShell.status === "stopped") return "ready";
-  if (sessionShell.promptRecovery?.phase === "not_sent") return "retry required";
-  if (sessionShell.promptRecovery?.phase === "checking") return "checking";
-  if (sessionShell.promptRecovery?.phase === "outcome_unknown") return "outcome unknown";
 
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
 

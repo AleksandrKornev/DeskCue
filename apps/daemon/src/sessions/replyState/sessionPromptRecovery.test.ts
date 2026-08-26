@@ -151,7 +151,7 @@ test("does not treat non-final assistant activity as a terminal outcome", () => 
   });
 });
 
-test("restores completed state when the recovered prompt already has a reply", () => {
+test("does not treat an assistant entry without terminal lifecycle evidence as completed", () => {
   const result = reconcileSessionPromptRecovery(
     recoverySession("outcome_unknown"),
     sourceSession([
@@ -160,15 +160,48 @@ test("restores completed state when the recovered prompt already has a reply", (
     ])
   );
 
-  assert.deepEqual(result, {
-    confirmed: true,
-    promptRecovery: null,
-    replyState: {
-      phase: "idle",
-      promptText: null,
-      requestedAt: null
-    }
-  });
+  assert.equal(result?.confirmed, true);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
+});
+
+test("does not use a later turn's terminal result to resolve recovery", () => {
+  const result = reconcileSessionPromptRecovery(
+    recoverySession("outcome_unknown"),
+    sourceSession([
+      transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
+      transcriptEntry("later-user", "user", "Different turn", "2026-08-11T10:00:03.000Z"),
+      {
+        id: "later-turn-completed",
+        phase: null,
+        role: "system",
+        text: "Turn completed",
+        timestamp: "2026-08-11T10:00:04.000Z"
+      }
+    ])
+  );
+
+  assert.equal(result?.confirmed, true);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
+});
+
+test("does not let a later identical prompt steal recovery association", () => {
+  const result = reconcileSessionPromptRecovery(
+    recoverySession("outcome_unknown"),
+    sourceSession([
+      transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
+      transcriptEntry("repeated-user", "user", "Recover me", "2026-08-11T10:00:03.000Z"),
+      {
+        id: "repeated-turn-completed",
+        phase: null,
+        role: "system",
+        text: "Turn completed",
+        timestamp: "2026-08-11T10:00:04.000Z"
+      }
+    ])
+  );
+
+  assert.equal(result?.confirmed, true);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
 });
 
 test("clears an existing unknown outcome after a late terminal lifecycle entry", () => {

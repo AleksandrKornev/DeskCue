@@ -49,29 +49,6 @@ function shouldRetainTranscriptViewItem(
   return item.type !== "activity" || !embeddedActivityIds.has(item.activity.id);
 }
 
-export function mergeAgentTranscriptViewPage(
-  current: AgentSessionDetail["transcriptView"],
-  page: AgentTranscriptViewResponse | undefined
-) {
-  if (!page || page.items.length === 0) return current;
-  if (!current || current.sessionId !== page.sessionId) return page;
-
-  const itemsByKey = new Map<string, AgentTranscriptViewItem>();
-
-  for (const item of page.items) {
-    itemsByKey.set(item.key, item);
-  }
-
-  for (const item of current.items) {
-    itemsByKey.set(item.key, item);
-  }
-
-  return {
-    ...current,
-    items: Array.from(itemsByKey.values()).sort(compareTranscriptViewItems)
-  };
-}
-
 function mergeTranscriptViewItem(
   current: AgentTranscriptViewItem | undefined,
   next: AgentTranscriptViewItem
@@ -115,6 +92,31 @@ function mergeTranscriptViewItem(
     activities,
     changeActivities,
     turnStatus
+  };
+}
+
+export function mergeAgentTranscriptViewPage(
+  current: AgentSessionDetail["transcriptView"],
+  page: AgentTranscriptViewResponse | undefined
+) {
+  if (!page || page.items.length === 0) return current;
+  if (!current || current.sessionId !== page.sessionId) return page;
+
+  const currentItemsByKey = new Map(current.items.map((item) => [item.key, item]));
+  const pageItemKeys = new Set(page.items.map((item) => item.key));
+  const pageEmbeddedActivityIds = readEmbeddedActivityIds(page.items);
+  const retainedCurrentItems = current.items.filter(
+    (item) =>
+      !pageItemKeys.has(item.key) &&
+      shouldRetainTranscriptViewItem(item, pageEmbeddedActivityIds)
+  );
+  const refreshedPageItems = page.items.map((item) =>
+    mergeTranscriptViewItem(currentItemsByKey.get(item.key), item)
+  );
+
+  return {
+    ...current,
+    items: [...retainedCurrentItems, ...refreshedPageItems].sort(compareTranscriptViewItems)
   };
 }
 

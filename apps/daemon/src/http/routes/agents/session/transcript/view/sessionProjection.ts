@@ -37,7 +37,8 @@ function toAgentSessionObservedTurnState(turnState: SourceAgentTurnState) {
     evidence: turnState.evidence,
     fingerprint: turnState.fingerprint,
     phase: turnState.phase,
-    startedAt: null
+    startedAt: null,
+    turnStartFingerprint: turnState.turnStartFingerprint
   };
 }
 
@@ -77,5 +78,6 @@ export function toAgentSessionSummary(session: AgentSessionDetail): AgentSession
     transcriptView: _transcriptView,
     ...summary
   } = session;
+
   return summary;
 }

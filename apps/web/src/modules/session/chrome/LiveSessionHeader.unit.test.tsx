@@ -124,7 +124,7 @@ describe("LiveSessionHeader", () => {
       "A long session title that must not compete with status"
     );
 
-    rerender(renderHeader("read_only", "outcome unknown"));
+    rerender(renderHeader("read_only", "control lost"));
 
     expect(getStatusBadge()).toHaveClass(styles.headerStatusBadgeActionable);
     expect(getStatusBadge()).not.toHaveClass(styles.headerStatusBadgeRunning);

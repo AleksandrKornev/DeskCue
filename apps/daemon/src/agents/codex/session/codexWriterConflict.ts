@@ -1,7 +1,7 @@
 import type { SessionDetail } from "@deskcue/protocol";
 
 export const CODEX_ACTIVE_WRITER_BLOCKED_REASON =
-  "Codex Desktop still owns this chat. Close it there, then retry the prompt from DeskCue.";
+  "Another Codex client still owns this chat. Close it there, then retry the prompt from DeskCue.";
 
 type CodexActiveWriterConflictScope = {
   requestedAt?: string | null;

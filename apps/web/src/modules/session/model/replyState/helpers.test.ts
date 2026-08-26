@@ -5,7 +5,9 @@ import type { AgentSessionDetail, AgentSessionSummary, SessionSummary } from "@d
 
 import {
   isConfirmedDeskCuePendingPrompt,
+  isManagedSourceReplyWaiting,
   isManagedSourceSessionWorking,
+  isSourceTurnOutsideDeskCue,
   resolveInputAvailability,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
@@ -282,6 +284,75 @@ describe("managed session reply state helpers", () => {
       isWaitingForChatReply: false,
       suppressWaitingForInterruptLifecycle: false
     }), true);
+  });
+
+  it("restores waiting for passive clients from the managed source lifecycle", () => {
+    assert.equal(isManagedSourceReplyWaiting(
+      createSessionShell({ status: "running" })
+    ), true);
+    assert.equal(isManagedSourceReplyWaiting(
+      createSessionShell({ status: "read_only" })
+    ), false);
+    assert.equal(isManagedSourceReplyWaiting({
+      ...createSessionShell({ status: "running" }),
+      sourceSessionId: null
+    }), false);
+  });
+
+  it("recognizes an externally controlled source turn without depending on the agent adapter", () => {
+    const sourceSession = { attachMode: "read_only" as const };
+    const options = {
+      hasDeskCuePrompt: false,
+      hasPromptRecovery: false,
+      hasWaitingPrompt: false,
+      isSourceSessionWorking: true
+    };
+
+    assert.equal(isSourceTurnOutsideDeskCue(
+      createSessionShell({ adapterId: "codex", status: "read_only" }),
+      sourceSession,
+      options
+    ), true);
+    assert.equal(isSourceTurnOutsideDeskCue(
+      createSessionShell({ adapterId: "claude-code", status: "read_only" }),
+      sourceSession,
+      options
+    ), true);
+  });
+
+  it("does not call a DeskCue-owned or recovering source turn external", () => {
+    const sessionShell = createSessionShell({ status: "read_only" });
+
+    assert.equal(isSourceTurnOutsideDeskCue(
+      sessionShell,
+      { attachMode: "resume" },
+      {
+        hasDeskCuePrompt: false,
+        hasPromptRecovery: false,
+        hasWaitingPrompt: false,
+        isSourceSessionWorking: true
+      }
+    ), false);
+    assert.equal(isSourceTurnOutsideDeskCue(
+      sessionShell,
+      { attachMode: "read_only" },
+      {
+        hasDeskCuePrompt: true,
+        hasPromptRecovery: false,
+        hasWaitingPrompt: false,
+        isSourceSessionWorking: true
+      }
+    ), false);
+    assert.equal(isSourceTurnOutsideDeskCue(
+      sessionShell,
+      { attachMode: "read_only" },
+      {
+        hasDeskCuePrompt: false,
+        hasPromptRecovery: true,
+        hasWaitingPrompt: false,
+        isSourceSessionWorking: true
+      }
+    ), false);
   });
 
   it("permits a DeskCue-owned read-only shell only when the explicit capability is set", () => {

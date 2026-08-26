@@ -33,6 +33,30 @@ export function isManagedSourceSessionWorking(
     isActiveSourceTurn(liveSourceState);
 }
 
+export function isManagedSourceReplyWaiting(sessionShell: SessionShell) {
+  return Boolean(sessionShell?.sourceSessionId) &&
+    sessionShell?.status === "running";
+}
+
+export function isSourceTurnOutsideDeskCue(
+  sessionShell: SessionShell,
+  sourceSession: Pick<AgentSessionSummary, "attachMode"> | null,
+  options: {
+    hasDeskCuePrompt: boolean;
+    hasPromptRecovery: boolean;
+    hasWaitingPrompt: boolean;
+    isSourceSessionWorking: boolean;
+  }
+) {
+  return Boolean(sessionShell?.sourceSessionId) &&
+    sessionShell?.status === "read_only" &&
+    sourceSession?.attachMode === "read_only" &&
+    options.isSourceSessionWorking &&
+    !options.hasDeskCuePrompt &&
+    !options.hasWaitingPrompt &&
+    !options.hasPromptRecovery;
+}
+
 export function buildPromptIdentity(prompt: PendingChatPrompt) {
   return `${prompt.requestedAt}:${prompt.text}`;
 }

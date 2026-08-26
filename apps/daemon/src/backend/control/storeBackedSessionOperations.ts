@@ -15,7 +15,6 @@ import type {
   SessionLogLine,
   PreviewNetworkMode,
   SessionStatus,
-  SessionSummary,
   WorkspaceSummary
 } from "@deskcue/protocol";
 import { SourceTurnInterruptLifecycle } from "#agents/sourceTurnInterruptLifecycle";
@@ -137,6 +136,8 @@ export class StoreBackedSessionOperations {
       gitPolling: this.gitPolling,
       persistState: () => this.persistState(),
       promptDeliveries,
+      publishSessionUpdate: (session) =>
+        this.emitServerEvent({ type: "session.updated", payload: this.toSummary(session) }),
       repository: this.repository,
       sessionRunner: this.sessionRunner,
       updateSession: (sessionId, patch) => this.updateSession(sessionId, patch)
@@ -173,9 +174,7 @@ export class StoreBackedSessionOperations {
     return withSessionInputCapability(session, (sessionId) => this.sessionRunner.hasChild(sessionId));
   }
 
-  toSummary(session: SessionDetail): SessionSummary {
-    return toSessionSummary(session, (sessionId) => this.sessionRunner.hasChild(sessionId));
-  }
+  toSummary(session: SessionDetail) { return toSessionSummary(session, (id) => this.sessionRunner.hasChild(id)); }
 
   async createWorkspace(rawPath: string): Promise<WorkspaceSummary> {
     return registerWorkspace(createWorkspaceRegistrationCallbacks(this.callbackContext()), rawPath);

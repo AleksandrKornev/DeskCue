@@ -75,7 +75,7 @@ export function ChatThreadOperationStatus({
   const waitingStatusMessage = detailEntry
     ? "Showing the latest live detail until the final reply lands"
     : operation.source === "external"
-      ? "DeskCue is monitoring a turn that was already in progress"
+      ? "DeskCue is monitoring a turn started outside DeskCue"
       : "DeskCue already sent the prompt and is watching the local chat file";
 
   return (

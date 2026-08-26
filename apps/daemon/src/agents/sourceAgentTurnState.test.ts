@@ -103,6 +103,18 @@ test("source agent turn state reports completed terminal lifecycle entry", () =>
   });
 });
 
+test("source agent turn state identifies a user entry as the turn start without explicit lifecycle", () => {
+  const state = deriveSourceAgentTurnState({
+    transcript: [
+      textEntry("user-1", "2026-07-09T08:00:00.000Z", "Run it", "user"),
+      lifecycleEntry("done-1", "2026-07-09T08:00:00.000Z", "Turn completed")
+    ]
+  });
+
+  assert.equal(state.phase, "completed");
+  if (state.phase === "completed") assert.equal(state.turnStartFingerprint, "user-1");
+});
+
 test("source agent turn state starts a new turn from a prompt after completion", () => {
   const promptedAt = new Date(Date.now() - 1_000).toISOString();
   const state = deriveSourceAgentTurnState({

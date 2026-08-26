@@ -23,7 +23,6 @@ function isAtOrAfterRecovery(entryTimestamp: string, requestedAt: string) {
 }
 
 function isTerminalRecoveryEntry(entry: AgentTranscriptEntry) {
-  if (entry.role === "assistant") return entry.phase !== "non_final";
   if (entry.role !== "system") return false;
 
   const statusPart = entry.parts?.find((part) => part.type === "status");
@@ -32,12 +31,25 @@ function isTerminalRecoveryEntry(entry: AgentTranscriptEntry) {
   return label === "Turn completed" || label === "Turn interrupted" || label === "Turn failed";
 }
 
+function findRecoveryTurnEndIndex(
+  transcript: AgentTranscriptEntry[],
+  matchingUserEntryIndex: number
+) {
+  const nextUserEntryOffset = transcript
+    .slice(matchingUserEntryIndex + 1)
+    .findIndex((entry) => entry.role === "user");
+
+  return nextUserEntryOffset < 0
+    ? transcript.length
+    : matchingUserEntryIndex + 1 + nextUserEntryOffset;
+}
+
 function findMatchingRecoveryPromptIndex(
   transcript: AgentTranscriptEntry[],
   promptText: string,
   requestedAt: string
 ) {
-  for (let index = transcript.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < transcript.length; index += 1) {
     const entry = transcript[index];
 
     if (
@@ -76,8 +88,12 @@ export function reconcileSessionPromptRecovery(
     };
   }
 
+  const recoveryTurnEndIndex = findRecoveryTurnEndIndex(
+    agentSession.transcript,
+    matchingUserEntryIndex
+  );
   const hasTerminalOutcome = agentSession.transcript
-    .slice(matchingUserEntryIndex + 1)
+    .slice(matchingUserEntryIndex + 1, recoveryTurnEndIndex)
     .some(isTerminalRecoveryEntry);
 
   if (!hasTerminalOutcome) {

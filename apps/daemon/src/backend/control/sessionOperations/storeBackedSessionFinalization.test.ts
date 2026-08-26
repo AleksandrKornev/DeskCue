@@ -98,7 +98,7 @@ test("settles an active-writer conflict as retryable read-only instead of task f
   assert.equal(session.replyState.phase, "idle");
   assert.equal(session.promptRecovery?.phase, "not_sent");
   assert.equal(session.promptRecovery?.retryable, true);
-  assert.match(session.inputBlockedReason ?? "", /Codex Desktop still owns/);
+  assert.match(session.inputBlockedReason ?? "", /Another Codex client still owns/);
   assert.ok(lifecycle.includes("record:read_only:null"));
   assert.ok(lifecycle.some((entry) => entry.includes("prompt was not sent")));
 });

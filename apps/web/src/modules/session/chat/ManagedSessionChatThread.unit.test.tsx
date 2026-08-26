@@ -130,20 +130,19 @@ describe("ManagedSessionChatThread", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Inspecting the external turn")).toBeInTheDocument();
     expect(
-      screen.queryByText("DeskCue is monitoring a turn that was already in progress")
+      screen.queryByText("DeskCue is monitoring a turn started outside DeskCue")
     ).not.toBeInTheDocument();
     expect(container.querySelector(`.${styles.chatWaitingSpinner}`)).toBeInTheDocument();
   });
 
-  it("describes a pre-existing source turn without implying a different control surface", () => {
+  it("describes a pre-existing source turn as running outside DeskCue", () => {
     renderChatThread({
       waiting: { kind: "external", detailEntry: null }
     });
 
     expect(
-      screen.getByText("DeskCue is monitoring a turn that was already in progress")
+      screen.getByText("DeskCue is monitoring a turn started outside DeskCue")
     ).toBeInTheDocument();
-    expect(screen.queryByText(/outside DeskCue/i)).not.toBeInTheDocument();
   });
 
   it("shows an external Claude wait without requiring a live detail entry", () => {
@@ -154,7 +153,7 @@ describe("ManagedSessionChatThread", () => {
 
     expect(screen.getByText("Waiting for Claude Code reply")).toBeInTheDocument();
     expect(
-      screen.getByText("DeskCue is monitoring a turn that was already in progress")
+      screen.getByText("DeskCue is monitoring a turn started outside DeskCue")
     ).toBeInTheDocument();
   });
 
@@ -168,10 +167,10 @@ describe("ManagedSessionChatThread", () => {
       }
     });
 
-    expect(screen.getByText("Checking turn status")).toBeInTheDocument();
+    expect(screen.getByText("Recovering turn state")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "DeskCue restarted during this turn and no longer has verified control. It is checking agent history and will not resend the prompt."
+        "DeskCue restarted during this turn. It is checking the source agent's history and will not resend the prompt."
       )
     ).toBeInTheDocument();
     expect(screen.getByText("Checking delivery")).toBeInTheDocument();
@@ -191,7 +190,7 @@ describe("ManagedSessionChatThread", () => {
     expect(screen.getByText("Turn outcome unknown")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "DeskCue found no final result and no longer has verified control. Check this chat in Codex before continuing; DeskCue will not resend the prompt."
+        "DeskCue did not find a final reply after restarting. Check the source agent before continuing; DeskCue will not resend the prompt."
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry prompt" })).not.toBeInTheDocument();

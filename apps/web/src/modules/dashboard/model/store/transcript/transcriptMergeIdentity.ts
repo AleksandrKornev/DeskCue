@@ -31,7 +31,8 @@ export function areObservedTurnStatesEqual(
     left.evidence === right.evidence &&
     left.fingerprint === right.fingerprint &&
     left.phase === right.phase &&
-    left.startedAt === right.startedAt;
+    left.startedAt === right.startedAt &&
+    left.turnStartFingerprint === right.turnStartFingerprint;
 }
 
 function areSourceEntryRangesEqual(

@@ -205,6 +205,12 @@ test("close drains durable recovery persistence across repeated source syncs", a
     role: "assistant",
     text: "Completed",
     phase: null
+  }, {
+    id: "recovered-turn-completed",
+    timestamp: "2026-08-05T10:00:03.000Z",
+    role: "system",
+    text: "Turn completed",
+    phase: null
   });
   const result = reconciler.syncReplyState(completedAgentSession);
 
@@ -279,6 +285,12 @@ test("does not resolve the journal when recovery state persistence fails", async
     timestamp: "2026-08-05T10:00:02.000Z",
     role: "assistant",
     text: "Completed",
+    phase: null
+  }, {
+    id: "recovered-turn-completed",
+    timestamp: "2026-08-05T10:00:03.000Z",
+    role: "system",
+    text: "Turn completed",
     phase: null
   });
 

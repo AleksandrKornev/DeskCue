@@ -118,7 +118,7 @@ test("restores a persisted Codex active-writer conflict without a failed exit co
 
   assert.equal(restored?.status, "read_only");
   assert.equal(restored?.exitCode, null);
-  assert.match(restored?.inputBlockedReason ?? "", /Codex Desktop still owns this chat/);
+  assert.match(restored?.inputBlockedReason ?? "", /Another Codex client still owns this chat/);
   assert.match(restored?.logs.at(-1)?.text ?? "", /prompt was not sent/);
 });
 

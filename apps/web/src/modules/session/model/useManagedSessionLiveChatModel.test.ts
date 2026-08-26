@@ -116,7 +116,7 @@ describe("managed session live chat model", () => {
       resolveLiveHeaderStatusLabel({
         isPromptInFlight: false,
         sessionShell: {
-          inputBlockedReason: "Codex Desktop still owns this chat.",
+          inputBlockedReason: "Another Codex client still owns this chat.",
           promptRecovery: {
             phase: "not_sent",
             promptText: "Continue",
@@ -137,7 +137,7 @@ describe("managed session live chat model", () => {
 
   it("shows outcome recovery instead of running for a stale active source", () => {
     const sessionShell = {
-      inputBlockedReason: "DeskCue lost verified control of this turn.",
+      inputBlockedReason: "DeskCue lost control of this turn.",
       promptRecovery: {
         phase: "outcome_unknown" as const,
         promptText: "Continue",
@@ -162,8 +162,34 @@ describe("managed session live chat model", () => {
       isPromptInFlight: true,
       sessionShell,
       takenOverAgentSession: staleSourceSession
-    }), "outcome unknown");
+    }), "control lost");
   });
+
+  for (const terminalStatus of ["done", "stopped"] as const) {
+    it(`shows control lost instead of ready for a ${terminalStatus} shell with unresolved recovery`, () => {
+      assert.equal(
+        resolveLiveHeaderStatusLabel({
+          isPromptInFlight: false,
+          sessionShell: {
+            inputBlockedReason: "DeskCue lost control of this turn.",
+            promptRecovery: {
+              phase: "outcome_unknown",
+              promptText: "Continue",
+              requestedAt: "2026-08-25T10:00:00.000Z",
+              retryable: false
+            },
+            sourceSessionId: "source-1",
+            status: terminalStatus
+          },
+          takenOverAgentSession: {
+            attachMode: "resume",
+            workState: "idle"
+          }
+        }),
+        "control lost"
+      );
+    });
+  }
 
   it("does not hide a failed shell behind a ready source transcript", () => {
     const sessionShell = { sourceSessionId: "source-1", status: "failed" as const };

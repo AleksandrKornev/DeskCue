@@ -41,12 +41,14 @@ function shouldRetainTerminalSourceLifecycle(
     return true;
   }
 
+  if (currentTurnState.turnStartFingerprint) return currentTurnState.turnStartFingerprint === nextTurnState.fingerprint;
+
   const currentCompletedAt = Date.parse(currentTurnState.completedAt ?? "");
   const nextStartedAt = Date.parse(nextTurnState.startedAt ?? nextTurnState.activityAt ?? "");
 
   return Number.isFinite(currentCompletedAt) &&
     Number.isFinite(nextStartedAt) &&
-    nextStartedAt <= currentCompletedAt;
+    nextStartedAt < currentCompletedAt;
 }
 
 function retainTerminalSourceLifecycle(

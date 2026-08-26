@@ -22,6 +22,7 @@ function validateAgentTurnState(value: unknown) {
   const turnState = readProtocolObject(value);
 
   requireNullableStrings(turnState, "activityAt", "completedAt", "fingerprint", "startedAt");
+  requireOptionalNullableStrings(turnState, "turnStartFingerprint");
   requireStrings(turnState, "evidence", "phase");
   requireOneOf(turnState, "phase", ["idle", "active", "completed", "failed", "interrupted"]);
   requireOneOf(turnState, "evidence", [

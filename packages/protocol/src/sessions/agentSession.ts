@@ -27,6 +27,7 @@ export interface AgentSessionObservedTurnState {
   fingerprint: string | null;
   phase: "idle" | "active" | "completed" | "failed" | "interrupted";
   startedAt: string | null;
+  turnStartFingerprint?: string | null;
 }
 
 export interface AgentSessionInterruptLifecycle {
