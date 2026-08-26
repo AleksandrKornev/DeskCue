@@ -1,3 +1,4 @@
+@use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
 .chatComposer {
@@ -146,7 +147,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .chatThread {
     padding: 18px 18px 20px;
     scrollbar-gutter: auto;
@@ -190,7 +191,7 @@
 
 }
 
-@media (min-width: 721px) and (max-width: 900px) {
+@media (min-width: 721px) and (max-width: 900px) and (min-height: 641px) {
   .chatThread {
     padding-bottom: calc(var(--chat-composer-height, 0px) + 18px);
   }

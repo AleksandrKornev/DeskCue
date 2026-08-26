@@ -1,3 +1,6 @@
+@use "@assets/mixins" as *;
+@use "@assets/variables" as vars;
+
 .sessionStack {
   display: flex;
   flex-direction: column;
@@ -89,7 +92,7 @@
   display: none;
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .panelHeader {
     display: grid;
     justify-items: start;

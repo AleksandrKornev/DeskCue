@@ -1,6 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { COMPACT_CHAT_MEDIA_QUERY } from "@modules/session/chat/scroll/constants";
 
 import { LiveSessionHeader } from "./LiveSessionHeader";
 import styles from "./styles.module.scss";
@@ -8,6 +10,27 @@ import styles from "./styles.module.scss";
 vi.mock("@assets/images/icon-reload.svg?react", () => ({
   default: () => <span aria-hidden="true" />
 }));
+
+function createMatchMediaController(initialMatches = true) {
+  let matches = initialMatches;
+  const listeners = new Set<EventListener>();
+  const mediaQuery = {
+    get matches() {
+      return matches;
+    },
+    addEventListener: vi.fn((_type: string, listener: EventListener) => listeners.add(listener)),
+    removeEventListener: vi.fn((_type: string, listener: EventListener) => listeners.delete(listener))
+  } as unknown as MediaQueryList;
+  const matchMedia = vi.fn(() => mediaQuery);
+
+  return {
+    matchMedia,
+    setMatches(nextMatches: boolean) {
+      matches = nextMatches;
+      listeners.forEach((listener) => listener(new Event("change")));
+    }
+  };
+}
 
 function setScrollMetrics(
   element: HTMLElement,
@@ -24,6 +47,10 @@ function setScrollMetrics(
     });
   }
 }
+
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", createMatchMediaController(false).matchMedia);
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -149,9 +176,9 @@ describe("LiveSessionHeader", () => {
   });
 
   it("collapses on downward mobile scrolling and expands when scrolling back up", () => {
-    vi.stubGlobal("matchMedia", vi.fn(() => ({
-      matches: true
-    })));
+    const { matchMedia } = createMatchMediaController();
+
+    vi.stubGlobal("matchMedia", matchMedia);
     const toolbarRef = createRef<HTMLDivElement>();
 
     render(
@@ -185,6 +212,8 @@ describe("LiveSessionHeader", () => {
       </div>
     );
 
+    expect(matchMedia).toHaveBeenCalledWith(COMPACT_CHAT_MEDIA_QUERY);
+
     const scrollTarget = screen.getByTestId("session-scroll-target");
 
     setScrollMetrics(scrollTarget, { scrollTop: 48 });
@@ -217,9 +246,7 @@ describe("LiveSessionHeader", () => {
   });
 
   it("keeps the header expanded near the bottom and reveals it at the end of chat", () => {
-    vi.stubGlobal("matchMedia", vi.fn(() => ({
-      matches: true
-    })));
+    vi.stubGlobal("matchMedia", createMatchMediaController().matchMedia);
     const toolbarRef = createRef<HTMLDivElement>();
 
     render(
@@ -295,9 +322,7 @@ describe("LiveSessionHeader", () => {
   });
 
   it("preserves the collapsed header when the active tab changes", () => {
-    vi.stubGlobal("matchMedia", vi.fn(() => ({
-      matches: true
-    })));
+    vi.stubGlobal("matchMedia", createMatchMediaController().matchMedia);
     const toolbarRef = createRef<HTMLDivElement>();
     const onSelectTab = vi.fn();
     const renderHeader = (activeTab: "diff" | "overview") => (
@@ -347,5 +372,67 @@ describe("LiveSessionHeader", () => {
       "aria-selected",
       "true"
     );
+  });
+
+  it("resets collapse and rebinds scrolling when compact height changes", () => {
+    const media = createMatchMediaController();
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+    const toolbarRef = createRef<HTMLDivElement>();
+
+    render(
+      <div>
+        <LiveSessionHeader
+          activeTab="overview"
+          actions={<button type="button">More actions</button>}
+          adapterLabel="CODEX"
+          contextCompactionCount={0}
+          isAgentChat={false}
+          liveUpdatesConnection={{
+            lastSyncedAt: null,
+            status: "live"
+          }}
+          navigationCapabilities={{
+            changes: true,
+            conversation: true,
+            files: true,
+            output: false,
+            preview: true
+          }}
+          navigationIdPrefix="responsive-session"
+          status="running"
+          subtitle="D:\\work\\DeskCueWorkspace"
+          title="Responsive session"
+          toolbarRef={toolbarRef}
+          onExitSession={vi.fn()}
+          onSelectTab={vi.fn()}
+        />
+        <div data-testid="session-scroll-target" />
+      </div>
+    );
+
+    const scrollTarget = screen.getByTestId("session-scroll-target");
+    const collapseHeader = () => {
+      setScrollMetrics(scrollTarget, { scrollTop: 48 });
+      fireEvent.wheel(scrollTarget, { deltaY: 24 });
+      setScrollMetrics(scrollTarget, { scrollTop: 72 });
+      fireEvent.scroll(scrollTarget);
+    };
+
+    collapseHeader();
+    expect(toolbarRef.current).toHaveClass(styles.chatToolbarCollapsed);
+
+    act(() => media.setMatches(false));
+
+    expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
+    expect(toolbarRef.current?.firstElementChild).toHaveAttribute("aria-hidden", "false");
+
+    collapseHeader();
+    expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
+
+    act(() => media.setMatches(true));
+    collapseHeader();
+
+    expect(toolbarRef.current).toHaveClass(styles.chatToolbarCollapsed);
   });
 });

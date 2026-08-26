@@ -1,3 +1,4 @@
+@use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
 .srOnly {
@@ -356,7 +357,7 @@
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .inlineForm {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -372,5 +373,17 @@
   .actionDecisionButtons {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-height: vars.$breakpoint-compact-height) {
+  .chatComposerCompactViewport.chatComposerFieldFocused {
+    min-height: 132px;
+  }
+
+  .chatComposerCompactViewport.chatComposerFieldFocused .transcriptComposerWithButton {
+    height: 84px;
+    min-height: 84px;
+    max-height: 84px;
   }
 }

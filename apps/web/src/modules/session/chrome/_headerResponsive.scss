@@ -1,6 +1,7 @@
+@use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .chatToolbarShell {
     box-sizing: border-box;
     position: sticky;
@@ -232,7 +233,7 @@
   }
 }
 
-@media (max-width: 520px) {
+@include narrow-or-compact-height {
   .chatToolbarShell {
     top: 0;
     gap: 0;
@@ -371,6 +372,33 @@
   .liveConnectionCompactDetail {
     display: inline;
     max-width: none;
+  }
+}
+
+@media (max-height: vars.$breakpoint-compact-height) {
+  .chatToolbarShell {
+    gap: 2px;
+    padding-top: 6px;
+  }
+
+  .chatHeader {
+    row-gap: 4px;
+  }
+
+  .metaRow {
+    min-height: 24px;
+  }
+
+  .liveConnection {
+    min-height: 24px;
+  }
+
+  .liveConnection::before {
+    inset-block: 2px;
+  }
+
+  .liveNav {
+    margin-top: 0;
   }
 }
 

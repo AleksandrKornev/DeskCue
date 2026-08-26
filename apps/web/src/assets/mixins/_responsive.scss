@@ -1,0 +1,15 @@
+@use "../variables" as *;
+
+@mixin mobile-or-compact-height {
+  @media (max-width: $breakpoint-mobile),
+    (max-height: $breakpoint-compact-height) {
+    @content;
+  }
+}
+
+@mixin narrow-or-compact-height {
+  @media (max-width: $breakpoint-narrow),
+    (max-height: $breakpoint-compact-height) {
+    @content;
+  }
+}

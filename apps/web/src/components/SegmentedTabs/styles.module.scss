@@ -1,3 +1,4 @@
+@use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
 .nav {
@@ -44,7 +45,7 @@
   color: #f4f0e8;
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .nav {
     min-width: 0;
     overflow-x: auto;

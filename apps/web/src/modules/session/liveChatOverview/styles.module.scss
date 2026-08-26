@@ -1,3 +1,4 @@
+@use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
 $chat-composer-min-height: 120px;
@@ -71,7 +72,7 @@ $chat-toolbar-min-height: 46px;
   margin-inline: auto;
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .chatSurface {
     min-height: clamp(520px, 72dvh, 860px);
     height: clamp(520px, 72dvh, 860px);
@@ -139,14 +140,14 @@ $chat-toolbar-min-height: 46px;
   }
 }
 
-@media (min-width: 721px) and (max-width: 1120px) {
+@media (min-width: 721px) and (max-width: 1120px) and (min-height: 641px) {
   .chatComposerShell {
     width: calc(100vw - 28px);
     max-width: calc(100vw - 28px);
   }
 }
 
-@media (min-width: 721px) and (max-width: 900px) {
+@media (min-width: 721px) and (max-width: 900px) and (min-height: 641px) {
   .chatWorkspaceStickyComposer {
     padding-bottom: calc(max(var(--chat-composer-height, 0px), $chat-composer-min-height) + 20px);
   }

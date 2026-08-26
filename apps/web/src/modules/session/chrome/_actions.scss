@@ -1,3 +1,4 @@
+@use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
 .ghostButton {
@@ -156,7 +157,7 @@
   align-items: center;
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .ghostButton,
   .dangerButton {
     min-height: vars.$control-height-touch;
@@ -177,4 +178,3 @@
   }
 
 }
-
