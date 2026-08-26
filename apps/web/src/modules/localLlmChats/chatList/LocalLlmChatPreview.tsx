@@ -10,9 +10,25 @@ export type LocalLlmChatPreviewProps = {
   runtime: RuntimeSummary | null;
 };
 
+function readPreviewStatus(
+  chat: LocalLlmChatSummary,
+  runtime: RuntimeSummary | null
+) {
+  if (chat.generationState === "running") return "Generating";
+  if (chat.generationState === "waiting_approval") return "Needs approval";
+  if (chat.generationState === "failed") return "Failed";
+  if (chat.generationState === "interrupted") return "Interrupted";
+  if (!runtime) return "Runtime status unavailable";
+  if (!runtime.installed) return "Runtime unavailable";
+  if (!runtime.running) return "Runtime offline";
+
+  return "Idle";
+}
+
 export function LocalLlmChatPreview({ chat, runtime }: LocalLlmChatPreviewProps) {
   const { detail, error } = useLocalLlmChatController(chat.id);
   const runtimeLabel = runtime?.label ?? (chat.runtimeId === "lm-studio" ? "LM Studio" : "Ollama");
+  const previewStatus = readPreviewStatus(chat, runtime);
 
   const previewEntries = detail?.messages.slice(-2) ?? [];
 
@@ -26,7 +42,7 @@ export function LocalLlmChatPreview({ chat, runtime }: LocalLlmChatPreviewProps)
         <div className={styles.previewMeta}>
           <span className={styles.runtimePill}>{runtimeLabel}</span>
           <span className={styles.statusPill} data-running={chat.generationState === "running" || undefined}>
-            {chat.generationState === "running" ? "Generating" : "Ready"}
+            {previewStatus}
           </span>
           <span>{formatDate(chat.updatedAt)}</span>
         </div>
