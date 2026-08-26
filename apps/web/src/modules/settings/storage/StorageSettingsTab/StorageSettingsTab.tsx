@@ -53,6 +53,9 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
   const confirmDescription = confirmationTarget === "service"
     ? "This permanently removes all non-running session cards and DeskCue logs. Running sessions, pairing and access, workspaces, settings, recovery copies, and Ollama or LM Studio chats stay unchanged."
     : `This permanently removes ${storageStats?.migrationBackups.count ?? 0} migration recovery copies (${formatBytes(storageStats?.migrationBackups.bytes ?? 0)}). Service data and all chats stay unchanged.`;
+
+  // runtime-helper-placement: allow -- confirmation depends on current component state and store
+
   const handleConfirm = async () => {
     if (confirmationTarget === "service") {
       await storageStore.compactStorage();
@@ -65,7 +68,12 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
 
   return (
     <>
-      <article className={styles.card} role="tabpanel">
+      <article
+        aria-labelledby="settings-tab-storage"
+        className={styles.card}
+        id="settings-panel-storage"
+        role="tabpanel"
+      >
       <div className={styles.cardHeader}>
         <div>
           <span className={styles.label}>Storage</span>

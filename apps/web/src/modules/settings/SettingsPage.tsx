@@ -63,6 +63,7 @@ const SettingsPageContent = observer(function SettingsPageContent() {
           activeTab={activeTab}
           ariaLabel="Settings sections"
           className={styles.settingsTabs}
+          idPrefix="settings"
           mobileLayout="fill"
           options={settingsTabs}
           onSelectTab={handleSelectSettingsTab}
@@ -91,6 +92,7 @@ const SettingsPageContent = observer(function SettingsPageContent() {
           storageStore.savingStorageBudget ||
           storageStore.daemonSettings?.sources.storageMaxMb.source === "env"
         }
+
         isOpen={storageStore.isCustomStorageLimitDialogOpen}
         savingStorageBudget={storageStore.savingStorageBudget}
         onClose={storageStore.closeCustomStorageLimitDialog}

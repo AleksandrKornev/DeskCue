@@ -4,6 +4,25 @@ export type AccessLinkTarget = "local" | "device";
 
 const LOCAL_PAIRING_TIMEOUT_MS = 1500;
 
+export class PairingEndpointError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "PairingEndpointError";
+  }
+}
+
+async function readPairingEndpointError(response: Response) {
+  try {
+    const payload = await response.json() as { error?: unknown };
+
+    return typeof payload.error === "string" && payload.error.trim()
+      ? payload.error.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchPairingEndpoint(
   url: string,
   body: Record<string, string>,
@@ -26,7 +45,9 @@ export async function fetchPairingEndpoint(
     });
 
     if (!response.ok) {
-      throw new Error(failureMessage);
+      const responseMessage = await readPairingEndpointError(response);
+
+      throw new PairingEndpointError(responseMessage ?? failureMessage, response.status);
     }
 
     return response;
@@ -43,9 +64,8 @@ export async function fetchLocalAccessLink(daemonUrl: string, target: AccessLink
 
   try {
     const url = new URL(`${daemonUrl}/api/access/link`);
-    if (target === "device") {
-      url.searchParams.set("target", "device");
-    }
+
+    if (target === "device") url.searchParams.set("target", "device");
 
     const response = await fetch(url.toString(), {
       cache: "no-store",
@@ -53,9 +73,7 @@ export async function fetchLocalAccessLink(daemonUrl: string, target: AccessLink
       signal: controller.signal
     });
 
-    if (!response.ok) {
-      return null;
-    }
+    if (!response.ok) return null;
 
     return (await response.json()) as AccessLinkResponse;
   } catch {

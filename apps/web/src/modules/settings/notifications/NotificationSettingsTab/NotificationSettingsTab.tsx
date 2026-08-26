@@ -17,7 +17,12 @@ export const NotificationSettingsTab = observer(function NotificationSettingsTab
   }, [notificationStore]);
 
   return (
-    <article className={styles.card} role="tabpanel">
+    <article
+      aria-labelledby="settings-tab-notifications"
+      className={styles.card}
+      id="settings-panel-notifications"
+      role="tabpanel"
+    >
       <div className={styles.cardHeader}>
         <div>
           <span className={styles.label}>Notifications</span>

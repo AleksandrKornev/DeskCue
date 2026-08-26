@@ -45,6 +45,7 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
   accessDevices: AccessDeviceSummary[] = [];
   accessStatus = "";
   accessStatusKind: "error" | "success" = "success";
+  accessStatusScope: "devices" | "pairing" = "pairing";
   currentAccess: CurrentAccessState | null = null;
   daemonSettings: DaemonSettingsResponse | null = null;
   daemonSettingsDraft: AccessSettingsDraft | null = null;
@@ -142,22 +143,21 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
   }
 
   loadAccessDevices() {
-    if (this.hasLoadedAccessDevices || this.loadingAccessDevices) {
-      return;
-    }
+    if (this.hasLoadedAccessDevices || this.loadingAccessDevices) return;
 
     void this.refreshAccessDevices(true);
   }
 
   async refreshAccessDevices(showLoading = false) {
     const generation = this.requestGeneration;
-    if (showLoading) {
-      this.loadingAccessDevices = true;
-    }
+
+    if (showLoading) this.loadingAccessDevices = true;
 
     try {
       const result = await this.controller.getDevices();
+
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.accessDevices = result.devices;
         this.currentAccess = result.currentAccess;
@@ -165,6 +165,7 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
       });
     } catch {
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.accessDevices = [];
         this.currentAccess = null;
@@ -182,15 +183,30 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
   clearStatus() {
     this.accessStatus = "";
     this.accessStatusKind = "success";
+    this.accessStatusScope = "pairing";
   }
 
   setSuccess(message: string) {
     this.accessStatusKind = "success";
+    this.accessStatusScope = "pairing";
     this.accessStatus = message;
   }
 
   setError(message: string) {
     this.accessStatusKind = "error";
+    this.accessStatusScope = "pairing";
+    this.accessStatus = message;
+  }
+
+  setDeviceSuccess(message: string) {
+    this.accessStatusKind = "success";
+    this.accessStatusScope = "devices";
+    this.accessStatus = message;
+  }
+
+  setDeviceError(message: string) {
+    this.accessStatusKind = "error";
+    this.accessStatusScope = "devices";
     this.accessStatus = message;
   }
 
@@ -251,15 +267,15 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
       tone: "danger"
     });
 
-    if (!confirmed || generation !== this.requestGeneration) {
-      return;
-    }
+    if (!confirmed || generation !== this.requestGeneration) return;
 
     this.resettingOtherTokens = true;
     this.clearStatus();
 
     const result = await this.controller.revokeOtherDevices();
+
     if (generation !== this.requestGeneration) return;
+
     runInAction(() => {
       this.resettingOtherTokens = false;
     });
@@ -268,18 +284,20 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
       runInAction(() => {
         this.clearPairingDialog();
         const tokenLabel = result.data.revokedCount === 1 ? "access token" : "access tokens";
-        this.setSuccess(
+
+        this.setDeviceSuccess(
           revokesAllDeviceTokens
             ? `Revoked ${result.data.revokedCount} active ${tokenLabel}`
             : `Revoked ${result.data.revokedCount} other ${tokenLabel}`
         );
       });
+
       await this.refreshAccessDevices();
       return;
     }
 
     runInAction(() => {
-      this.setError(result.data.error ?? "Failed to revoke access token");
+      this.setDeviceError(result.data.error ?? "Failed to revoke access token");
     });
   }
 
@@ -292,12 +310,11 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
       tone: "danger"
     });
 
-    if (!confirmed || generation !== this.requestGeneration) {
-      return;
-    }
+    if (!confirmed || generation !== this.requestGeneration) return;
 
     this.forgettingCurrentBrowser = true;
     const result = await this.controller.revokeCurrentDevice();
+
     if (generation !== this.requestGeneration) return;
 
     runInAction(() => {
@@ -306,15 +323,16 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
 
     if (result.ok) {
       this.controller.forgetAccessToken();
+
       runInAction(() => {
         this.clearPairingDialog();
-        this.setSuccess("This browser was removed");
+        this.setDeviceSuccess("This browser was removed");
       });
       return;
     }
 
     runInAction(() => {
-      this.setError(result.data.error ?? "Failed to forget this browser");
+      this.setDeviceError(result.data.error ?? "Failed to forget this browser");
     });
   }
 
@@ -327,44 +345,48 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
       tone: "danger"
     });
 
-    if (!confirmed || generation !== this.requestGeneration) {
-      return;
-    }
+    if (!confirmed || generation !== this.requestGeneration) return;
 
     this.revokingAccessDeviceId = device.id;
     this.clearStatus();
 
     const result = await this.controller.revokeDevice(device.id);
+
     if (generation !== this.requestGeneration) return;
+
     runInAction(() => {
       this.revokingAccessDeviceId = null;
     });
 
     if (result.ok) {
       runInAction(() => {
-        this.setSuccess(`Revoked access token ${formatShortDeviceId(device.id)}`);
+        this.setDeviceSuccess(`Revoked access token ${formatShortDeviceId(device.id)}`);
       });
+
       await this.refreshAccessDevices();
       return;
     }
 
     runInAction(() => {
-      this.setError(result.data.error ?? "Failed to revoke access token");
+      this.setDeviceError(result.data.error ?? "Failed to revoke access token");
     });
   }
 
   async renameAccessDevice(device: AccessDeviceSummary, label: string) {
     const trimmedLabel = label.trim();
-    if (!trimmedLabel || trimmedLabel === device.label) {
-      return true;
-    }
+
+    if (!trimmedLabel || trimmedLabel === device.label) return true;
 
     const generation = this.requestGeneration;
+
     this.renamingAccessDeviceId = device.id;
+
     this.clearStatus();
 
     const result = await this.controller.renameDevice(device.id, trimmedLabel);
+
     if (generation !== this.requestGeneration) return false;
+
     runInAction(() => {
       this.renamingAccessDeviceId = null;
     });
@@ -374,13 +396,13 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
         this.accessDevices = this.accessDevices.map((currentDevice) =>
           currentDevice.id === result.data.device.id ? result.data.device : currentDevice
         );
-        this.setSuccess("Device name updated");
+        this.setDeviceSuccess("Device name updated");
       });
       return true;
     }
 
     runInAction(() => {
-      this.setError(result.data.error ?? "Failed to rename device");
+      this.setDeviceError(result.data.error ?? "Failed to rename device");
     });
     return false;
   }
@@ -391,6 +413,7 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
     this.accessDevices = [];
     this.accessStatus = "";
     this.accessStatusKind = "success";
+    this.accessStatusScope = "pairing";
     this.currentAccess = null;
     this.daemonSettings = null;
     this.daemonSettingsDraft = null;
