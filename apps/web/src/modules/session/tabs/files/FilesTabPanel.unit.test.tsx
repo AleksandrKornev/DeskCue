@@ -10,7 +10,10 @@ import {
 
 import { MAX_WORKSPACE_IMAGE_PREVIEW_BYTES } from "./constants";
 import { FilesTabPanel } from "./FilesTabPanel";
-import { readWorkspaceImagePreviewMaxBytes } from "./helpers";
+import {
+  buildWorkspaceFileLineNumberWidth,
+  readWorkspaceImagePreviewMaxBytes
+} from "./helpers";
 import styles from "./styles.module.scss";
 
 vi.mock("@api/endpoint/workspaces/endpoints", () => ({
@@ -36,6 +39,10 @@ const downloadAsset = vi.mocked(downloadLocalAsset);
 const openAsset = vi.mocked(openLocalAssetInNewTab);
 
 describe("FilesTabPanel", () => {
+  it("sizes the line-number gutter for bounded previews with five-digit line counts", () => {
+    expect(buildWorkspaceFileLineNumberWidth(10_000)).toBe("6ch");
+  });
+
   it("keeps Cloud image previews within the remote asset envelope", () => {
     expect(readWorkspaceImagePreviewMaxBytes("cloud-machine")).toBeLessThan(4 * 1024 * 1024);
     expect(readWorkspaceImagePreviewMaxBytes("local")).toBe(MAX_WORKSPACE_IMAGE_PREVIEW_BYTES);
@@ -226,6 +233,27 @@ describe("FilesTabPanel", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByRole("button", { name: "Open full-screen file view" }))
       .toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("keeps source lines intact until the user enables wrapping", async () => {
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    const sourceLine = await screen.findByText("# DeskCue");
+    const content = sourceLine.closest("pre");
+    const wrapButton = screen.getByRole("button", { name: "Enable line wrapping" });
+
+    expect(content).toHaveAttribute("tabindex", "0");
+    expect(content).toHaveStyle("--file-line-number-width: 3.5ch");
+    expect(content).not.toHaveClass(styles.fileContentWrapped);
+    expect(wrapButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(wrapButton);
+
+    expect(content).toHaveClass(styles.fileContentWrapped);
+    expect(screen.getByRole("button", { name: "Disable line wrapping" }))
+      .toHaveAttribute("aria-pressed", "true");
   });
 
   it("navigates directories lazily instead of loading the tree eagerly", async () => {
@@ -428,6 +456,7 @@ describe("FilesTabPanel", () => {
 
     expect(await screen.findByText("Binary file")).toBeInTheDocument();
     expect(getTicketBlob).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Enable line wrapping" })).not.toBeInTheDocument();
   });
 
   it("shows an image error with a working retry", async () => {

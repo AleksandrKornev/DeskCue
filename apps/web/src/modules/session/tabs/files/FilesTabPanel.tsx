@@ -1,14 +1,17 @@
 import clsx from "clsx";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { WorkspaceFileEntry } from "@deskcue/protocol";
 import ArrowUpIcon from "@assets/images/icon-arrow-up.svg?react";
 import CollapseIcon from "@assets/images/icon-collapse.svg?react";
 import ExpandIcon from "@assets/images/icon-expand.svg?react";
+import WrapLinesIcon from "@assets/images/icon-wrap-lines.svg?react";
 
 import { MAX_WORKSPACE_BROWSER_ENTRIES } from "./constants";
 import {
   buildWorkspaceBreadcrumbs,
+  buildWorkspaceFileLineNumberWidth,
   createFileViewerKeyDownHandler,
   formatFileSize,
   isWorkspaceRasterImagePath,
@@ -39,6 +42,7 @@ export function FilesTabPanel({
   const [fileViewerExpanded, setFileViewerExpanded] = useState(false);
   const [query, setQuery] = useState("");
   const [viewingFile, setViewingFile] = useState(false);
+  const [wrapLines, setWrapLines] = useState(false);
   const requestedPathRef = useRef("");
   const openRequestedPath = browser.openPath;
   const changedPaths = useMemo(() => new Set(changedFiles.map(normalizeWorkspacePath)), [changedFiles]);
@@ -53,6 +57,13 @@ export function FilesTabPanel({
     return (!changedOnly || isChanged) && (!normalizedQuery || entry.name.toLocaleLowerCase().includes(normalizedQuery));
   });
   const selectedFileChanged = browser.file ? changedPaths.has(normalizeWorkspacePath(browser.file.path)) : false;
+  const textFileLines = useMemo(
+    () => browser.file && !browser.file.binary ? (browser.file.content ?? "").split("\n") : [],
+    [browser.file]
+  );
+  const fileContentStyle = {
+    "--file-line-number-width": buildWorkspaceFileLineNumberWidth(textFileLines.length)
+  } as CSSProperties;
 
   useEffect(() => {
     if (!requestedPath) {
@@ -252,12 +263,25 @@ export function FilesTabPanel({
                 >← Files</button>
                 <div>
                   <strong>{browser.file.path}</strong>
-                  <span>{formatFileSize(browser.file.sizeBytes)}{browser.file.content ? ` · ${browser.file.content.split("\n").length} lines` : ""}</span>
+                  <span>{formatFileSize(browser.file.sizeBytes)}{browser.file.content ? ` · ${textFileLines.length} lines` : ""}</span>
                 </div>
                 <div className={styles.fileViewerActions}>
                   {browser.file.truncated ? <span className={styles.fileTruncated}>Preview truncated</span> : null}
                   {selectedFileChanged && onOpenChanges ? (
                     <button className={styles.viewChangeButton} onClick={() => onOpenChanges(browser.file!.path)} type="button">View change</button>
+                  ) : null}
+                  {!browser.file.binary ? (
+                    <button
+                      aria-label={wrapLines ? "Disable line wrapping" : "Enable line wrapping"}
+                      aria-pressed={wrapLines}
+                      className={clsx(styles.fileWrapButton, wrapLines && styles.fileWrapButtonActive)}
+                      onClick={() => setWrapLines((value) => !value)}
+                      title={wrapLines ? "Show source lines without wrapping" : "Wrap long source lines"}
+                      type="button"
+                    >
+                      <WrapLinesIcon aria-hidden="true" focusable="false" />
+                      <span>Wrap lines</span>
+                    </button>
                   ) : null}
                   <button
                     aria-label={fileViewerExpanded ? "Exit full-screen file view" : "Open full-screen file view"}
@@ -282,8 +306,13 @@ export function FilesTabPanel({
                   <p>DeskCue does not load binary file contents into the browser.</p>
                 </div>
               ) : (
-                <pre className={styles.fileContent}>
-                  {(browser.file.content ?? "").split("\n").map((line, index) => (
+                <pre
+                  aria-label="File contents"
+                  className={clsx(styles.fileContent, wrapLines && styles.fileContentWrapped)}
+                  style={fileContentStyle}
+                  tabIndex={0}
+                >
+                  {textFileLines.map((line, index) => (
                     <span className={styles.fileLine} key={`${index}-${line.length}`}>
                       <span aria-hidden="true" className={styles.fileLineNumber}>{index + 1}</span>
                       <span className={styles.fileLineText}>{line || " "}</span>

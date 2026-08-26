@@ -15,6 +15,13 @@ const WORKSPACE_RASTER_IMAGE_EXTENSIONS = new Set([
   ".png",
   ".webp"
 ]);
+const MIN_FILE_LINE_NUMBER_WIDTH_CH = 3.5;
+
+export function buildWorkspaceFileLineNumberWidth(lineCount: number) {
+  const digitCount = String(Math.max(1, lineCount)).length;
+
+  return `${Math.max(MIN_FILE_LINE_NUMBER_WIDTH_CH, digitCount + 1)}ch`;
+}
 
 export function createFileViewerKeyDownHandler(
   setFileViewerExpanded: (expanded: boolean) => void

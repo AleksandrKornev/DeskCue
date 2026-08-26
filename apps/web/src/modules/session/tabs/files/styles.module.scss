@@ -77,6 +77,7 @@
 .changedFilter,
 .viewChangeButton,
 .filesBackButton,
+.fileWrapButton,
 .fileViewerExpandButton {
   min-height: 36px;
   border: 0;
@@ -88,6 +89,11 @@
   font-size: 0.78rem;
   font-weight: 650;
   white-space: nowrap;
+}
+
+.fileWrapButtonActive {
+  background: rgba(214, 164, 103, 0.15);
+  color: #f0cca0;
 }
 
 .changedFilter {
