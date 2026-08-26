@@ -8,6 +8,7 @@ export type AssetTicket = {
   managedSessionId?: string;
   path: string;
   requestedPath: string;
+  workspaceId?: string;
 };
 
 /** Ephemeral tickets are scoped to one installed HTTP application lifecycle. */
@@ -24,27 +25,35 @@ export class AssetTicketStore {
     this.prune();
     const id = randomUUID();
     const value = { ...ticket, expiresAt: this.now() + this.ttlMs };
+
     this.tickets.set(id, value);
+
     this.prune();
     return { id, ticket: value };
   }
 
   read(id: string) {
     const ticket = this.tickets.get(id);
+
     if (!ticket || ticket.expiresAt < this.now()) {
       this.tickets.delete(id);
       return null;
     }
+
     return ticket;
   }
 
   private prune() {
     const now = this.now();
+
     for (const [id, ticket] of this.tickets) {
       if (ticket.expiresAt < now) this.tickets.delete(id);
     }
+
     const overflow = this.tickets.size - this.maxTickets;
+
     if (overflow <= 0) return;
+
     for (const id of Array.from(this.tickets.keys()).slice(0, overflow)) {
       this.tickets.delete(id);
     }

@@ -67,6 +67,7 @@ export interface CreateAssetTicketInput {
   kind: "file" | "local_image";
   managedSessionId?: string;
   path: string;
+  workspaceId?: string;
 }
 
 export interface CreateAssetTicketResponse {
@@ -98,6 +99,7 @@ export interface SecurityStatusResponse {
 
 export function parsePairAccessInput(value: unknown): PairAccessInput {
   const body = readProtocolObject(value);
+
   return { code: readRequiredProtocolString(body, "code") };
 }
 
@@ -105,15 +107,16 @@ export function parseRedeemAccessRecoveryCodeInput(
   value: unknown
 ): RedeemAccessRecoveryCodeInput {
   const body = readProtocolObject(value);
+
   return { code: readRequiredProtocolString(body, "code") };
 }
 
 export function parseUpdateAccessDeviceInput(value: unknown): UpdateAccessDeviceInput {
   const body = readProtocolObject(value);
   const label = readRequiredProtocolString(body, "label").trim();
-  if (label.length > 80) {
-    throw new ProtocolSchemaError("Field label must be 80 characters or fewer.");
-  }
+
+  if (label.length > 80) throw new ProtocolSchemaError("Field label must be 80 characters or fewer.");
+
   return { label };
 }
 
@@ -124,6 +127,7 @@ export function parseCreateAssetTicketInput(value: unknown): CreateAssetTicketIn
   if (kind !== "file" && kind !== "local_image") {
     throw new ProtocolSchemaError("Field kind must be file or local_image.");
   }
+
   if (body.download !== undefined && typeof body.download !== "boolean") {
     throw new ProtocolSchemaError("Field download must be a boolean when provided.");
   }
@@ -133,9 +137,11 @@ export function parseCreateAssetTicketInput(value: unknown): CreateAssetTicketIn
     download: body.download === true,
     kind,
     managedSessionId: readOptionalProtocolString(body, "managedSessionId"),
-    path: readRequiredProtocolString(body, "path")
+    path: readRequiredProtocolString(body, "path"),
+    workspaceId: readOptionalProtocolString(body, "workspaceId")
   };
 }
+
 import {
   ProtocolSchemaError,
   readOptionalProtocolString,

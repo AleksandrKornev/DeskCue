@@ -20,7 +20,7 @@ const LOCAL_IMAGE_EXTENSIONS = new Set([
 
 export type AssetRequestContext = Pick<
   CreateAssetTicketInput,
-  "agentSessionId" | "managedSessionId"
+  "agentSessionId" | "managedSessionId" | "workspaceId"
 >;
 
 export type AssetPolicyError = {
@@ -37,7 +37,7 @@ type AssetAccessPolicyOptions = {
   sourceAgentSessions?: SourceAgentSessionService;
   trustedFileRoots?: string[];
   trustedImageRoots?: string[];
-  listWorkspaces: () => Array<{ path: string }>;
+  listWorkspaces: () => Array<{ id?: string; path: string }>;
 };
 
 function normalizeComparablePath(assetPath: string) {
@@ -89,9 +89,12 @@ async function canonicalizeAssetPath(assetPath: string) {
 
 async function isInsideAnyCanonicalRoot(assetPath: string, roots: string[]) {
   const canonicalRoots = await Promise.all(roots.map(canonicalizeAssetPath));
+
   return canonicalRoots.some((root) => {
     if (!root) return false;
+
     const relativePath = path.relative(root, assetPath);
+
     return (
       relativePath === "" ||
       (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
@@ -115,6 +118,7 @@ function deniedFileAccess(): AssetAuthorization {
 
 function isInsideRoot(assetPath: string, root: string) {
   const relativePath = path.relative(root, assetPath);
+
   return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
 }
 
@@ -125,47 +129,71 @@ function isInsideAnyRoot(assetPath: string, roots: string[]) {
 export class AssetAccessPolicy {
   constructor(private readonly options: AssetAccessPolicyOptions) {}
 
-  normalizePath(assetPath: string) {
-    if (!assetPath) {
-      return null;
+  async resolveWorkspacePath(workspaceId: string, assetPath: string): Promise<AssetAuthorization> {
+    const workspace = this.options.listWorkspaces().find((candidate) => candidate.id === workspaceId);
+
+    if (!workspace) return denied({ statusCode: 404, message: "Workspace not found." });
+
+    if (!assetPath || path.isAbsolute(assetPath)) {
+      return denied({ statusCode: 400, message: "Workspace asset path must be relative." });
     }
 
+    const rootPath = path.resolve(workspace.path);
+    const resolvedPath = path.resolve(rootPath, assetPath);
+
+    if (!isInsideRoot(resolvedPath, rootPath)) {
+      return denied({ statusCode: 403, message: "Workspace asset path escapes its registered workspace." });
+    }
+
+    const [canonicalRoot, canonicalPath] = await Promise.all([
+      canonicalizeAssetPath(rootPath),
+      canonicalizeAssetPath(resolvedPath)
+    ]);
+
+    if (!canonicalRoot || !canonicalPath) return assetNotFound();
+
+    if (!isInsideRoot(canonicalPath, canonicalRoot)) {
+      return denied({ statusCode: 403, message: "Workspace asset path escapes its registered workspace." });
+    }
+
+    return { error: null, path: canonicalPath };
+  }
+
+  normalizePath(assetPath: string) {
+    if (!assetPath) return null;
+
     const normalizedPath = path.normalize(assetPath);
+
     return path.isAbsolute(normalizedPath) ? normalizedPath : null;
   }
 
   async authorizeFile(normalizedPath: string): Promise<AssetAuthorization> {
     const roots = this.readConfiguredRoots(this.readTrustedFileRoots());
-    if (!isInsideAnyRoot(normalizedPath, roots)) {
-      return deniedFileAccess();
-    }
+
+    if (!isInsideAnyRoot(normalizedPath, roots)) return deniedFileAccess();
+
     await waitForPendingGeneratedImage(normalizedPath);
     const canonicalPath = await canonicalizeAssetPath(normalizedPath);
-    if (!canonicalPath) {
-      return assetNotFound();
-    }
-    if (await isInsideAnyCanonicalRoot(canonicalPath, roots)) {
-      return { error: null, path: canonicalPath };
-    }
+
+    if (!canonicalPath) return assetNotFound();
+    if (await isInsideAnyCanonicalRoot(canonicalPath, roots)) return { error: null, path: canonicalPath };
 
     return deniedFileAccess();
   }
 
   async authorizeImage(normalizedPath: string): Promise<AssetAuthorization> {
     const roots = this.readConfiguredRoots(this.readTrustedImageRoots());
-    if (!isInsideAnyRoot(normalizedPath, roots)) {
-      return deniedImageAccess();
-    }
+
+    if (!isInsideAnyRoot(normalizedPath, roots)) return deniedImageAccess();
+
     await waitForPendingGeneratedImage(normalizedPath);
     const canonicalPath = await canonicalizeAssetPath(normalizedPath);
-    if (!canonicalPath) {
-      return assetNotFound();
-    }
-    if (!(await isInsideAnyCanonicalRoot(canonicalPath, roots))) {
-      return deniedImageAccess();
-    }
+
+    if (!canonicalPath) return assetNotFound();
+    if (!(await isInsideAnyCanonicalRoot(canonicalPath, roots))) return deniedImageAccess();
 
     const typeError = this.readImageTypeError(canonicalPath);
+
     return typeError ? denied(typeError) : { error: null, path: canonicalPath };
   }
 
@@ -174,6 +202,10 @@ export class AssetAccessPolicy {
     normalizedPath: string,
     requestContext: AssetRequestContext
   ): Promise<AssetAuthorization> {
+    if (requestContext.workspaceId) {
+      return this.authorizeWorkspaceTicket(kind, normalizedPath, requestContext.workspaceId);
+    }
+
     const trustedRoots = kind === "file"
       ? this.readTrustedFileRoots()
       : this.readTrustedImageRoots();
@@ -184,23 +216,46 @@ export class AssetAccessPolicy {
       requestContext
     );
 
-    if (!isRootCandidate && !isTranscriptAttachment) {
-      return deniedTicketAccess(kind);
-    }
+    if (!isRootCandidate && !isTranscriptAttachment) return deniedTicketAccess(kind);
 
     await waitForPendingGeneratedImage(normalizedPath);
     const canonicalPath = await canonicalizeAssetPath(normalizedPath);
-    if (!canonicalPath) {
-      return assetNotFound();
-    }
+
+    if (!canonicalPath) return assetNotFound();
+
     const isAllowed =
       isTranscriptAttachment ||
       (isRootCandidate && await isInsideAnyCanonicalRoot(canonicalPath, roots));
-    if (!isAllowed) {
-      return deniedTicketAccess(kind);
+    if (!isAllowed) return deniedTicketAccess(kind);
+
+    const typeError = kind === "local_image" ? this.readImageTypeError(canonicalPath) : null;
+
+    return typeError ? denied(typeError) : { error: null, path: canonicalPath };
+  }
+
+  private async authorizeWorkspaceTicket(
+    kind: "file" | "local_image",
+    normalizedPath: string,
+    workspaceId: string
+  ): Promise<AssetAuthorization> {
+    const workspace = this.options.listWorkspaces().find((candidate) => candidate.id === workspaceId);
+
+    if (!workspace) return denied({ statusCode: 404, message: "Workspace not found." });
+
+    await waitForPendingGeneratedImage(normalizedPath);
+    const [canonicalRoot, canonicalPath] = await Promise.all([
+      canonicalizeAssetPath(path.resolve(workspace.path)),
+      canonicalizeAssetPath(normalizedPath)
+    ]);
+
+    if (!canonicalRoot || !canonicalPath) return assetNotFound();
+
+    if (!isInsideRoot(canonicalPath, canonicalRoot)) {
+      return denied({ statusCode: 403, message: "Workspace asset path escapes its registered workspace." });
     }
 
     const typeError = kind === "local_image" ? this.readImageTypeError(canonicalPath) : null;
+
     return typeError ? denied(typeError) : { error: null, path: canonicalPath };
   }
 
@@ -215,38 +270,30 @@ export class AssetAccessPolicy {
     normalizedPath: string,
     requestContext: AssetRequestContext
   ) {
-    if (!this.options.sourceAgentSessions) {
-      return false;
-    }
+    if (!this.options.sourceAgentSessions) return false;
 
     const agentSessionId =
       requestContext.agentSessionId ??
       this.resolveAgentSessionIdFromManagedSession(requestContext.managedSessionId);
-    if (!agentSessionId) {
-      return false;
-    }
+    if (!agentSessionId) return false;
 
     const session = await this.options.sourceAgentSessions.getSessionDetail(agentSessionId);
+
     return session ? hasTranscriptAttachmentPath(session, normalizedPath) : false;
   }
 
   private resolveAgentSessionIdFromManagedSession(managedSessionId: string | undefined) {
-    if (!managedSessionId || !this.options.managedSessions) {
-      return null;
-    }
+    if (!managedSessionId || !this.options.managedSessions) return null;
 
     const session = this.options.managedSessions.getSession(managedSessionId);
-    if (!session?.sourceSessionId) {
-      return null;
-    }
+
+    if (!session?.sourceSessionId) return null;
 
     return `${session.adapterId}:${session.sourceSessionId}`;
   }
 
   private readImageTypeError(normalizedPath: string): AssetPolicyError | null {
-    if (LOCAL_IMAGE_EXTENSIONS.has(path.extname(normalizedPath).toLowerCase())) {
-      return null;
-    }
+    if (LOCAL_IMAGE_EXTENSIONS.has(path.extname(normalizedPath).toLowerCase())) return null;
 
     return {
       statusCode: 400,

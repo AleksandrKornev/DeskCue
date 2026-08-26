@@ -25,7 +25,8 @@ export const assetsApi = {
       download: options?.download === true,
       kind: options?.kind ?? "file",
       managedSessionId: options?.context?.managedSessionId,
-      path: assetPath
+      path: assetPath,
+      workspaceId: options?.context?.workspaceId
     });
 
     if (!result.ok) {

@@ -12,6 +12,7 @@ import {
   isCompatibleProtocolMetadata,
   parseCapturePreviewArtifactPayload,
   parseClientEvent,
+  parseCreateAssetTicketInput,
   parseCreateLocalLlmChatInput,
   parseCreateSessionInput,
   parseCreateWorkspaceInput,
@@ -39,6 +40,22 @@ import {
   parseWorkspaceDirectoryQuery,
   parseWorkspaceFileQuery
 } from "../dist/index.js";
+
+test("asset ticket input preserves an optional workspace scope", () => {
+  assert.deepEqual(parseCreateAssetTicketInput({
+    download: true,
+    kind: "file",
+    path: "docs/guide.md",
+    workspaceId: "workspace-1"
+  }), {
+    agentSessionId: undefined,
+    download: true,
+    kind: "file",
+    managedSessionId: undefined,
+    path: "docs/guide.md",
+    workspaceId: "workspace-1"
+  });
+});
 
 test("preview ticket input is owner-scoped and normalized", () => {
   assert.deepEqual(parseIssuePreviewTicketInput({

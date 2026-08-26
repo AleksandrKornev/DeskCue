@@ -282,4 +282,36 @@
   font-weight: 600;
 }
 
+.fileActionDialogActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fileActionDialogButton,
+.fileActionDialogPrimaryButton {
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  padding: 0 10px;
+  color: #f3efe8;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.fileActionDialogButton { background: rgba(255, 255, 255, 0.07); }
+.fileActionDialogPrimaryButton { background: rgba(214, 164, 103, 0.2); }
+
+.fileActionDialogButton:disabled,
+.fileActionDialogPrimaryButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.fileActionDialogPath {
+  overflow-wrap: anywhere;
+  color: #aeb3be;
+}
+
 @include fileViewer.responsive;

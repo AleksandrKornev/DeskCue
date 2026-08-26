@@ -257,12 +257,14 @@ test("cloud file, git and preview operations remain exact and bounded", () => {
     agentSessionId: "codex:one",
     download: false,
     kind: "local_image",
-    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png"
+    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png",
+    workspaceId: "workspace-1"
   }), {
     agentSessionId: "codex:one",
     download: false,
     kind: "local_image",
-    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png"
+    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png",
+    workspaceId: "workspace-1"
   });
   assert.deepEqual(parseCloudRemoteReadOperationInput("assets.ticket.read", {
     ticket: "12345678-1234-1234-1234-123456789abc"

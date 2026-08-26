@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { WorkspaceFileEntry } from "@deskcue/protocol";
 import ArrowUpIcon from "@assets/images/icon-arrow-up.svg?react";
 import CollapseIcon from "@assets/images/icon-collapse.svg?react";
 import ExpandIcon from "@assets/images/icon-expand.svg?react";
@@ -15,6 +16,12 @@ import {
 import styles from "./styles.module.scss";
 import type { FilesTabPanelProps } from "./types";
 import { useWorkspaceFileBrowser } from "./useWorkspaceFileBrowser";
+import { WorkspaceFileActionDialog } from "./WorkspaceFileActionDialog";
+
+type WorkspaceFileActionTarget = {
+  file: WorkspaceFileEntry;
+  workspaceId: string;
+};
 
 export function FilesTabPanel({
   changedFiles = [],
@@ -26,6 +33,7 @@ export function FilesTabPanel({
 }: FilesTabPanelProps) {
   const browser = useWorkspaceFileBrowser(workspaceId);
   const [changedOnly, setChangedOnly] = useState(false);
+  const [fileActionTarget, setFileActionTarget] = useState<WorkspaceFileActionTarget | null>(null);
   const [fileViewerExpanded, setFileViewerExpanded] = useState(false);
   const [query, setQuery] = useState("");
   const [viewingFile, setViewingFile] = useState(false);
@@ -67,6 +75,10 @@ export function FilesTabPanel({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fileViewerExpanded]);
+
+  useEffect(() => {
+    setFileActionTarget(null);
+  }, [workspaceId]);
 
   if (!workspaceId) {
     return (
@@ -187,12 +199,7 @@ export function FilesTabPanel({
                         setViewingFile(false);
                         onSelectFile?.("");
                         browser.openDirectory(entry.path);
-                      } else {
-                        setViewingFile(true);
-                        requestedPathRef.current = entry.path;
-                        browser.openFile(entry.path);
-                        onSelectFile?.(entry.path);
-                      }
+                      } else setFileActionTarget({ file: entry, workspaceId });
                     }}
                     title={entry.readable ? undefined : "This entry cannot be opened from DeskCue."}
                     type="button"
@@ -290,6 +297,32 @@ export function FilesTabPanel({
           </section>
         </div>
       </div>
+      <WorkspaceFileActionDialog
+        key={fileActionTarget
+          ? `${fileActionTarget.workspaceId}:${fileActionTarget.file.path}`
+          : "closed"}
+        file={fileActionTarget?.file ?? null}
+        workspaceId={fileActionTarget?.workspaceId ?? workspaceId}
+        onClose={() => {
+          const closingTarget = fileActionTarget;
+
+          setFileActionTarget((currentTarget) =>
+            currentTarget === closingTarget ? null : currentTarget
+          );
+        }}
+        onPreview={(file) => {
+          const previewTarget = fileActionTarget;
+
+          setFileActionTarget((currentTarget) =>
+            currentTarget === previewTarget ? null : currentTarget
+          );
+
+          setViewingFile(true);
+          requestedPathRef.current = file.path;
+          browser.openFile(file.path);
+          onSelectFile?.(file.path);
+        }}
+      />
     </div>
   );
 }

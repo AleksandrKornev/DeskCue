@@ -29,6 +29,7 @@ test("remote read executor maps the typed sessions.list operation to one loopbac
     capturedUrl,
     "http://127.0.0.1:4100/api/agents/sessions?limit=8&source=codex&includeLiveMetadata=1"
   );
+
   assert.deepEqual(result, { status: 200, body: { sessions: [{ id: "source-1" }] } });
 });
 
@@ -46,6 +47,7 @@ test("remote read executor rejects unknown fields before issuing a request", asy
     executor.execute("sessions.list", { limit: 8, path: "/api/secrets" }),
     ProtocolSchemaError
   );
+
   assert.equal(called, false);
 });
 
@@ -68,6 +70,7 @@ test("remote read executor resolves opaque session routes without a loopback req
     await executor.execute("sessions.resolveRoute", { cloudSessionId }),
     { status: 200, body: { route: { kind: "agent", sessionId: "codex:source-1" } } }
   );
+
   assert.equal(fetched, false);
 });
 
@@ -89,12 +92,14 @@ test("remote read executor attaches the process-local Cloud credential", async (
     daemonOrigin: "http://127.0.0.1:4100",
     fetchImplementation: async (_input, init) => {
       const headers = new Headers(init?.headers);
+
       authorized = isValidCloudProcessLocalAuthorization(
         headers.get("authorization") ?? undefined
       );
       return new Response("{}", { status: 200 });
     }
   });
+
   await executor.execute("overview.get", {});
   assert.equal(authorized, true);
 });
@@ -108,6 +113,7 @@ test("remote read executor maps overview and managed session reads without arbit
       return new Response("{}", { status: 200 });
     }
   });
+
   await executor.execute("overview.get", { sessionLimit: 16 });
   await executor.execute("managedSessions.get", {
     sessionId: "managed/session",
@@ -136,17 +142,21 @@ test("remote read executor aborts an active loopback request during shutdown", a
       requestStarted = true;
       return await new Promise<Response>((_resolve, reject) => {
         const signal = init?.signal;
+
         if (signal?.aborted) {
           reject(signal.reason);
           return;
         }
+
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
       });
     }
   });
 
   const execution = executor.execute("overview.get", {}, shutdown.signal);
+
   assert.equal(requestStarted, true);
+
   shutdown.abort(new Error("connector_shutdown"));
   await assert.rejects(execution, /connector_shutdown/);
 });
@@ -242,6 +252,7 @@ test("remote read executor preserves GET and POST semantics for transcript chang
     groupId: "changes/1",
     sourceEntryIds: ["entry-1", "entry-2"]
   };
+
   await executor.execute("changes.get", input);
   await executor.execute("changes.post", input);
 
@@ -292,7 +303,9 @@ test("remote read executor mirrors registered workspace files without a Cloud de
     daemonOrigin: "http://127.0.0.1:4100",
     fetchImplementation: async (input) => {
       const url = String(input);
+
       requests.push(url);
+
       if (url.includes("/file?")) {
         return Response.json({
           binary: false,
@@ -304,6 +317,7 @@ test("remote read executor mirrors registered workspace files without a Cloud de
           workspaceId: "workspace-1"
         });
       }
+
       return Response.json({
         entries: [
           { kind: "file", name: ".env", path: ".env", readable: true },
@@ -333,6 +347,7 @@ test("remote read executor mirrors registered workspace files without a Cloud de
     (listed.body as { entries: Array<{ path: string }> }).entries.map((entry) => entry.path),
     [".env", ".env.example", ".git", ".editorconfig", "src/index.ts"]
   );
+
   assert.equal(read.status, 200);
   assert.equal(requests.length, 2);
 });
@@ -344,6 +359,7 @@ test("remote read executor creates a scoped asset ticket and relays its binary b
     daemonOrigin: "http://127.0.0.1:4100",
     fetchImplementation: async (input, init) => {
       const url = String(input);
+
       requests.push({
         body: typeof init?.body === "string" ? init.body : null,
         method: init?.method ?? "GET",
@@ -355,6 +371,7 @@ test("remote read executor creates a scoped asset ticket and relays its binary b
           url: "/api/assets/ticket/12345678-1234-1234-1234-123456789abc"
         }, { status: 201 });
       }
+
       return new Response(image, {
         headers: {
           "content-disposition": "inline; filename=screenshot.png",
@@ -367,7 +384,8 @@ test("remote read executor creates a scoped asset ticket and relays its binary b
   const created = await executor.execute("assets.ticket.create", {
     agentSessionId: "codex:one",
     kind: "local_image",
-    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png"
+    path: "screenshots/latest.png",
+    workspaceId: "workspace-1"
   });
   const read = await executor.execute("assets.ticket.read", {
     ticket: "12345678-1234-1234-1234-123456789abc"
@@ -378,14 +396,24 @@ test("remote read executor creates a scoped asset ticket and relays its binary b
   assert.equal(read.binary, true);
   assert.ok(Buffer.isBuffer(read.body));
   const envelope = read.body as Buffer;
+
   assert.equal(envelope.subarray(0, 4).toString("ascii"), "DCA1");
   const headerBytes = envelope.readUInt32BE(4);
+
   assert.deepEqual(JSON.parse(envelope.subarray(8, 8 + headerBytes).toString("utf8")), {
     contentDisposition: "inline; filename=screenshot.png",
     contentType: "image/png"
   });
+
   assert.deepEqual(envelope.subarray(8 + headerBytes), image);
   assert.equal(requests[0]?.method, "POST");
+  assert.deepEqual(JSON.parse(requests[0]?.body ?? "null"), {
+    agentSessionId: "codex:one",
+    kind: "local_image",
+    path: "screenshots/latest.png",
+    workspaceId: "workspace-1"
+  });
+
   assert.equal(requests[1]?.method, "GET");
 });
 
@@ -444,6 +472,7 @@ test("remote read executor maps git refresh to the exact managed session route",
     sessionId: "managed/session",
     view: "diff"
   });
+
   await executor.execute("managed.git.refresh", { sessionId: "managed-2" });
 
   assert.deepEqual(requests, [

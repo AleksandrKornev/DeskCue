@@ -1,6 +1,7 @@
 export type LocalAssetLinkContext = {
   agentSessionId?: string;
   managedSessionId?: string;
+  workspaceId?: string;
 };
 
 export type BuildLocalAssetUrlOptions = {

@@ -125,6 +125,7 @@ export type CloudRemoteReadOperationInputMap = {
     kind: "file" | "local_image";
     managedSessionId?: string;
     path: string;
+    workspaceId?: string;
   };
 
   "assets.ticket.read": { ticket: string };
