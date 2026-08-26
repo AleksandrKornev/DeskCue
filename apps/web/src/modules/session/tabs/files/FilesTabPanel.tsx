@@ -44,6 +44,7 @@ export function FilesTabPanel({
   const [viewingFile, setViewingFile] = useState(false);
   const [wrapLines, setWrapLines] = useState(false);
   const requestedPathRef = useRef("");
+  const selectedPathRef = useRef("");
   const openRequestedPath = browser.openPath;
   const changedPaths = useMemo(() => new Set(changedFiles.map(normalizeWorkspacePath)), [changedFiles]);
   const breadcrumbs = buildWorkspaceBreadcrumbs(browser.currentPath);
@@ -73,11 +74,21 @@ export function FilesTabPanel({
 
     if (requestedPathRef.current === requestedPath) return;
 
+    let active = true;
+
     requestedPathRef.current = requestedPath;
+
     void openRequestedPath(requestedPath).then((kind) => {
+      if (!active) return;
+
       setViewingFile(kind === "file");
       if (kind === "directory") onSelectFile?.("");
     });
+
+    return () => {
+      active = false;
+      if (requestedPathRef.current === requestedPath) requestedPathRef.current = "";
+    };
   }, [onSelectFile, openRequestedPath, requestedPath]);
 
   useEffect(() => {
@@ -88,6 +99,24 @@ export function FilesTabPanel({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fileViewerExpanded]);
+
+  useEffect(() => {
+    if (browser.selectedPath || browser.loadingFile || browser.file) {
+      setViewingFile(true);
+      return;
+    }
+
+    setFileViewerExpanded(false);
+    setViewingFile(false);
+  }, [browser.file, browser.loadingFile, browser.selectedPath]);
+
+  useEffect(() => {
+    if (selectedPathRef.current === browser.selectedPath) return;
+
+    selectedPathRef.current = browser.selectedPath;
+    requestedPathRef.current = browser.selectedPath;
+    onSelectFile?.(browser.selectedPath);
+  }, [browser.selectedPath, onSelectFile]);
 
   useEffect(() => {
     setFileActionTarget(null);
@@ -112,7 +141,6 @@ export function FilesTabPanel({
             disabled={!browser.currentPath}
             onClick={() => {
               setViewingFile(false);
-              onSelectFile?.("");
               browser.openDirectory(browser.currentPath.split("/").slice(0, -1).join("/"));
             }}
             title={browser.currentPath ? "Go to parent folder" : "Already at workspace root"}
@@ -130,7 +158,6 @@ export function FilesTabPanel({
                     aria-current={breadcrumb.path === browser.currentPath ? "page" : undefined}
                     onClick={() => {
                       setViewingFile(false);
-                      onSelectFile?.("");
                       browser.openDirectory(breadcrumb.path);
                     }}
                     type="button"
@@ -210,7 +237,6 @@ export function FilesTabPanel({
                     onClick={() => {
                       if (isDirectory) {
                         setViewingFile(false);
-                        onSelectFile?.("");
                         browser.openDirectory(entry.path);
                       } else setFileActionTarget({ file: entry, workspaceId });
                     }}
@@ -257,7 +283,7 @@ export function FilesTabPanel({
                   className={styles.filesBackButton}
                   onClick={() => {
                     setFileViewerExpanded(false);
-                    setViewingFile(false);
+                    browser.openDirectory(browser.currentPath);
                   }}
                   type="button"
                 >← Files</button>
@@ -353,7 +379,6 @@ export function FilesTabPanel({
           setViewingFile(true);
           requestedPathRef.current = file.path;
           browser.openFile(file.path);
-          onSelectFile?.(file.path);
         }}
       />
     </div>

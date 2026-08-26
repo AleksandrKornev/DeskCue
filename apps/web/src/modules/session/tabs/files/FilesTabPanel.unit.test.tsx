@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { assetsApi } from "@api/endpoint/assets/endpoints";
@@ -37,6 +38,22 @@ const readFile = vi.mocked(workspacesApi.readFile);
 const getTicketBlob = vi.mocked(assetsApi.getTicketBlob);
 const downloadAsset = vi.mocked(downloadLocalAsset);
 const openAsset = vi.mocked(openLocalAssetInNewTab);
+
+function FilesTabPanelHistoryHarness() {
+  const [requestedPath, setRequestedPath] = useState("");
+
+  return (
+    <>
+      <output aria-label="Selected workspace path">{requestedPath || "root"}</output>
+      <FilesTabPanel
+        requestedPath={requestedPath}
+        workspaceId="workspace-1"
+        workspaceName="DeskCue"
+        onSelectFile={setRequestedPath}
+      />
+    </>
+  );
+}
 
 describe("FilesTabPanel", () => {
   it("sizes the line-number gutter for bounded previews with five-digit line counts", () => {
@@ -233,6 +250,64 @@ describe("FilesTabPanel", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByRole("button", { name: "Open full-screen file view" }))
       .toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("restores the mobile list and exits full screen when browser history leaves a file", async () => {
+    const onSelectFile = vi.fn();
+
+    render(
+      <FilesTabPanel
+        workspaceId="workspace-1"
+        workspaceName="DeskCue"
+        onSelectFile={onSelectFile}
+      />
+    );
+
+    const fileRow = await screen.findByRole("button", { name: "File README.md" });
+    const layout = fileRow.closest(`.${styles.filesLayout}`);
+
+    fireEvent.click(fileRow);
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText("# DeskCue");
+    fireEvent.click(screen.getByRole("button", { name: "Open full-screen file view" }));
+
+    expect(layout).toHaveClass(styles.filesLayoutViewing);
+    expect(screen.getByLabelText("File preview")).toHaveClass(styles.fileViewerExpanded);
+
+    fireEvent(window, new PopStateEvent("popstate", { state: {} }));
+
+    await waitFor(() => expect(layout).not.toHaveClass(styles.filesLayoutViewing));
+    expect(screen.getByLabelText("File preview")).not.toHaveClass(styles.fileViewerExpanded);
+    expect(screen.getByRole("button", { name: "File README.md" })).toBeInTheDocument();
+    expect(onSelectFile).toHaveBeenLastCalledWith("");
+  });
+
+  it("restores the file view when browser history moves forward to a file", async () => {
+    render(<FilesTabPanelHistoryHarness />);
+
+    const fileRow = await screen.findByRole("button", { name: "File README.md" });
+    const layout = fileRow.closest(`.${styles.filesLayout}`);
+
+    fireEvent.click(fileRow);
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText("# DeskCue");
+    const fileHistoryState = {
+      deskCueWorkspaceFileBrowser: {
+        kind: "file",
+        path: "README.md",
+        workspaceId: "workspace-1"
+      }
+    };
+
+    fireEvent(window, new PopStateEvent("popstate", { state: {} }));
+    await waitFor(() => expect(layout).not.toHaveClass(styles.filesLayoutViewing));
+
+    fireEvent(window, new PopStateEvent("popstate", { state: fileHistoryState }));
+
+    await waitFor(() => expect(layout).toHaveClass(styles.filesLayoutViewing));
+    expect(await screen.findByText("# DeskCue")).toBeInTheDocument();
+    expect(screen.getByLabelText("Selected workspace path")).toHaveTextContent("README.md");
+    expect(readFile).toHaveBeenCalledTimes(2);
   });
 
   it("keeps source lines intact until the user enables wrapping", async () => {
@@ -547,6 +622,21 @@ describe("FilesTabPanel", () => {
     expect(await screen.findByText("# DeskCue")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View change" }));
     expect(onOpenChanges).toHaveBeenCalledWith("README.md");
+  });
+
+  it("retries a requested file after Strict Mode replays mount effects", async () => {
+    render(
+      <StrictMode>
+        <FilesTabPanel
+          requestedPath="README.md"
+          workspaceId="workspace-1"
+          workspaceName="DeskCue"
+        />
+      </StrictMode>
+    );
+
+    expect(await screen.findByText("# DeskCue")).toBeInTheDocument();
+    expect(screen.getByLabelText("File preview")).toHaveTextContent("README.md");
   });
 
   it("filters the current folder without issuing another request", async () => {

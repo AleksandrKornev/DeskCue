@@ -61,6 +61,7 @@ describe("useWorkspaceFileBrowser", () => {
   it("keeps directory pagination and file hydration independent", async () => {
     let resolveNextPage: (value: WorkspaceDirectoryResponse) => void = () => undefined;
     let resolveFile: (value: WorkspaceFileResponse) => void = () => undefined;
+
     listFiles
       .mockResolvedValueOnce(directoryResponse([fileEntry("alpha.txt")], true, "n_YWxwaGEudHh0"))
       .mockReturnValueOnce(new Promise((resolve) => {
@@ -70,6 +71,7 @@ describe("useWorkspaceFileBrowser", () => {
       resolveFile = resolve;
     }));
     const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
     await waitFor(() => expect(result.current.entries).toHaveLength(1));
 
     act(() => {
@@ -98,6 +100,7 @@ describe("useWorkspaceFileBrowser", () => {
 
   it("ignores a late directory response after the workspace changes", async () => {
     let resolveOldWorkspace: (value: WorkspaceDirectoryResponse) => void = () => undefined;
+
     listFiles
       .mockReturnValueOnce(new Promise((resolve) => {
         resolveOldWorkspace = resolve;
@@ -129,7 +132,9 @@ describe("useWorkspaceFileBrowser", () => {
       sizeBytes: null
     }], false, null));
     const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
     await waitFor(() => expect(result.current.entries).toHaveLength(1));
+
     listFiles.mockResolvedValueOnce(directoryResponse([{
       kind: "directory",
       modifiedAt: "2026-08-07T09:00:00.000Z",
@@ -143,6 +148,7 @@ describe("useWorkspaceFileBrowser", () => {
     });
 
     let kind: "directory" | "file" | null = null;
+
     await act(async () => {
       kind = await result.current.openPath("src/");
     });
@@ -155,6 +161,7 @@ describe("useWorkspaceFileBrowser", () => {
   it("uses browser history inside nested folders and releases Back at workspace root", async () => {
     listFiles.mockImplementation((_workspaceId, options) => {
       const path = options?.path ?? "";
+
       return Promise.resolve({
       ...directoryResponse(path === "src" ? [fileEntry("src/app.ts")] : [{
         kind: "directory",
@@ -168,11 +175,13 @@ describe("useWorkspaceFileBrowser", () => {
     });
     });
     const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
     await waitFor(() => expect(result.current.entries).toHaveLength(1));
 
     act(() => result.current.openDirectory("src"));
     await waitFor(() => expect(result.current.currentPath).toBe("src"));
     const historyState = window.history.state as Record<string, unknown>;
+
     expect(historyState.deskCueWorkspaceFileBrowser).toMatchObject({
       kind: "directory",
       path: "src",
@@ -182,13 +191,95 @@ describe("useWorkspaceFileBrowser", () => {
     act(() => {
       window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
     });
+
     await waitFor(() => expect(result.current.currentPath).toBe(""));
 
     const rootRequestCount = listFiles.mock.calls.filter(([, options]) => (options?.path ?? "") === "").length;
+
     act(() => {
       window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
     });
+
     await act(async () => Promise.resolve());
     expect(listFiles.mock.calls.filter(([, options]) => (options?.path ?? "") === "")).toHaveLength(rootRequestCount);
+  });
+
+  it("does not restore a stale file after Forward is immediately followed by Back", async () => {
+    let resolveForwardDirectory: (value: WorkspaceDirectoryResponse) => void = () => undefined;
+
+    listFiles
+      .mockResolvedValueOnce(directoryResponse([fileEntry("alpha.txt")], false, null))
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveForwardDirectory = resolve;
+      }))
+      .mockResolvedValueOnce(directoryResponse([fileEntry("alpha.txt")], false, null));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(1));
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {
+        deskCueWorkspaceFileBrowser: {
+          kind: "file",
+          path: "alpha.txt",
+          workspaceId: "workspace-1"
+        }
+      } }));
+    });
+
+    await waitFor(() => expect(listFiles).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+    });
+
+    await waitFor(() => expect(listFiles).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      resolveForwardDirectory(directoryResponse([fileEntry("alpha.txt")], false, null));
+      await Promise.resolve();
+    });
+
+    expect(result.current.selectedPath).toBe("");
+    expect(result.current.file).toBeNull();
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("does not open a stale path after a newer openPath request", async () => {
+    let resolveAlphaDirectory: (value: WorkspaceDirectoryResponse) => void = () => undefined;
+    let resolveBetaDirectory: (value: WorkspaceDirectoryResponse) => void = () => undefined;
+
+    listFiles
+      .mockResolvedValueOnce(directoryResponse([
+        fileEntry("alpha.txt"),
+        fileEntry("beta.txt")
+      ], false, null))
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveAlphaDirectory = resolve;
+      }))
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveBetaDirectory = resolve;
+      }));
+    readFile.mockResolvedValueOnce(fileResponse("beta.txt", "beta"));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(2));
+
+    await act(async () => {
+      const alphaRequest = result.current.openPath("alpha.txt");
+      const betaRequest = result.current.openPath("beta.txt");
+
+      resolveBetaDirectory(directoryResponse([fileEntry("beta.txt")], false, null));
+
+      await betaRequest;
+      resolveAlphaDirectory(directoryResponse([fileEntry("alpha.txt")], false, null));
+      await alphaRequest;
+    });
+
+    expect(result.current.selectedPath).toBe("beta.txt");
+    expect(result.current.file?.content).toBe("beta");
+    expect(readFile).toHaveBeenCalledTimes(1);
+    expect(readFile.mock.calls[0]?.slice(0, 2)).toEqual(["workspace-1", "beta.txt"]);
+    expect(readFile.mock.calls[0]?.[2]?.signal).toBeInstanceOf(AbortSignal);
   });
 });
