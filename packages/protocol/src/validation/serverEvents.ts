@@ -181,7 +181,12 @@ function validateSessionSummary(payload: Record<string, unknown>) {
   requireBoolean(git, "isGitRepo");
   requireBoolean(git, "isDirty");
   requireNullableStrings(git, "branch");
-  requireStrings(git, "diff", "lastUpdatedAt");
+  requireStrings(git, "lastUpdatedAt");
+
+  if (typeof git.diff !== "string") {
+    throw new ProtocolSchemaError("Server event field diff must be a string.");
+  }
+
   if (!Array.isArray(git.changedFiles) || !git.changedFiles.every((item) => typeof item === "string")) {
     throw new ProtocolSchemaError("Server event git changedFiles must be an array of strings.");
   }

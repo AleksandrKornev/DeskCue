@@ -309,6 +309,65 @@ test("realtime server parser rejects malformed wire events", () => {
   }
 });
 
+test("realtime server parser accepts a clean managed-session git snapshot", () => {
+  const event = {
+    cursor: "cursor-1",
+    type: "session.updated",
+    payload: {
+      actionRequest: null,
+      adapterId: "generic-cli",
+      canSendInput: false,
+      command: "cmd /d /q",
+      exitCode: 0,
+      finishedAt: "2026-08-26T08:03:53.662Z",
+      git: {
+        branch: "main",
+        changedFiles: [],
+        changedFileStatuses: {},
+        diff: "",
+        isDirty: false,
+        isGitRepo: true,
+        lastUpdatedAt: "2026-08-26T08:03:52.630Z"
+      },
+      id: "managed-1",
+      inputBlockedReason: "This session is not accepting input.",
+      lastActivityAt: "2026-08-26T08:03:53.662Z",
+      preview: {
+        active: false,
+        artifacts: [],
+        networkMode: "device-direct",
+        port: null,
+        targetUrl: null
+      },
+      replyState: {
+        phase: "idle",
+        promptText: null,
+        requestedAt: null
+      },
+      sourceSessionId: null,
+      startedAt: "2026-08-26T08:03:18.000Z",
+      status: "done",
+      viewerCount: 1,
+      workspaceId: "workspace-1",
+      workspaceName: "workspace"
+    }
+  };
+
+  assert.deepEqual(parseServerEvent(event), event);
+  assert.throws(
+    () => parseServerEvent({
+      ...event,
+      payload: {
+        ...event.payload,
+        git: { ...event.payload.git, diff: 42 }
+      }
+    }),
+    (error) =>
+      error instanceof ProtocolSchemaError &&
+      error.message === "Server event field diff must be a string."
+  );
+});
+
 test("realtime server parser validates optional turn start fingerprints", () => {
   const createEvent = (turnStartFingerprint) => ({
     type: "agent.session.transcript.updated",
