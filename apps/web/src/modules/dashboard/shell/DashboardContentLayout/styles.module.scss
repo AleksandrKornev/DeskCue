@@ -1,3 +1,6 @@
+@use "@assets/mixins" as *;
+@use "@assets/variables" as vars;
+
 .layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -70,7 +73,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .focusedChat {
     margin-top: 0;
     min-height: 0;

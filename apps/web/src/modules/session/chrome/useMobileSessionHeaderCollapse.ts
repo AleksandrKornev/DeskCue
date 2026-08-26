@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useCompactChatViewport } from "@modules/session/chat/scroll/viewport/useCompactChatViewport";
+
 import {
   findVerticalScrollTarget,
   MOBILE_HEADER_BOTTOM_KEEP_EXPANDED_DISTANCE_PX,
@@ -16,15 +18,18 @@ export function useMobileSessionHeaderCollapse({
   toolbarRef
 }: Pick<LiveSessionHeaderProps, "activeTab" | "toolbarRef">) {
   const [isMobileCollapsed, setIsMobileCollapsed] = useState(false);
+  const isCompactViewport = useCompactChatViewport();
   const activeTabRef = useRef(activeTab);
   const isMobileCollapsedRef = useRef(false);
 
   activeTabRef.current = activeTab;
 
   useEffect(() => {
-    const compactViewport = window.matchMedia?.("(max-width: 520px)");
-
-    if (!compactViewport?.matches) return;
+    if (!isCompactViewport) {
+      isMobileCollapsedRef.current = false;
+      setIsMobileCollapsed(false);
+      return;
+    }
 
     const scrollLifecycle = {
       activeTarget: null as HTMLElement | null,
@@ -157,7 +162,7 @@ export function useMobileSessionHeaderCollapse({
       document.removeEventListener("wheel", scrollLifecycle.handleWheel, true);
       document.removeEventListener("scroll", scrollLifecycle.handleScroll, true);
     };
-  }, [toolbarRef]);
+  }, [isCompactViewport, toolbarRef]);
 
   return isMobileCollapsed;
 }
