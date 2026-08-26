@@ -41,6 +41,7 @@ export class SqliteSessionRepository {
         last_activity_at AS lastActivityAt,
         json_extract(json, '$.exitCode') AS exitCode,
         json_extract(json, '$.preview') AS previewJson,
+        json_extract(json, '$.promptRecovery') AS promptRecoveryJson,
         json_extract(json, '$.replyState') AS replyStateJson,
         json_extract(json, '$.actionRequest') AS actionRequestJson,
         json_extract(json, '$.git') AS gitJson
@@ -48,6 +49,7 @@ export class SqliteSessionRepository {
       ${fullSessionIds.length > 0 ? `WHERE id NOT IN (${fullSessionIds.map(() => "?").join(", ")})` : ""}
       ORDER BY started_at ASC
     `).all(...fullSessionIds) as SessionSummaryRow[];
+
     return { fullSessions, lightweightSessions };
   }
 
@@ -63,7 +65,9 @@ export class SqliteSessionRepository {
       this.database.prepare("DELETE FROM sessions").run();
       return;
     }
+
     const placeholders = ids.map(() => "?").join(", ");
+
     this.database.prepare(`DELETE FROM sessions WHERE id NOT IN (${placeholders})`).run(...ids);
   }
 
@@ -88,16 +92,20 @@ export class SqliteSessionRepository {
     `);
     const persistedRows: SessionRow[] = [];
     let skipped = 0;
+
     for (const session of sessions) {
       if (partialSessionIds.has(session.id)) {
         skipped += 1;
         continue;
       }
+
       const json = JSON.stringify(session);
+
       if (this.persistedJsonById.get(session.id) === json) {
         skipped += 1;
         continue;
       }
+
       statement.run({
         id: session.id,
         workspaceId: session.workspaceId,
@@ -109,20 +117,22 @@ export class SqliteSessionRepository {
         json,
         updatedAt
       });
+
       persistedRows.push({ id: session.id, json });
     }
+
     return { persistedRows, skipped };
   }
 
   commitSave(sessions: SessionDetail[], persistedRows: SessionRow[], pruneMissing: boolean) {
     if (pruneMissing) {
       const nextIds = new Set(sessions.map((session) => session.id));
+
       for (const id of this.persistedJsonById.keys()) {
-        if (!nextIds.has(id)) {
-          this.persistedJsonById.delete(id);
-        }
+        if (!nextIds.has(id)) this.persistedJsonById.delete(id);
       }
     }
+
     for (const row of persistedRows) {
       this.persistedJsonById.set(row.id, row.json);
     }

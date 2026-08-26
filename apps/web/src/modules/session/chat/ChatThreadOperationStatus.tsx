@@ -7,6 +7,7 @@ import { labelForTranscriptRole } from "@models/transcriptEntries";
 import { shouldRenderTranscriptEntryBare } from "@modules/transcript";
 
 import { activityEntryClassByRole } from "./constants";
+import { retryRecoveredPrompt } from "./helpers";
 import styles from "./styles.module.scss";
 import { TranscriptContent } from "./TranscriptContent";
 import type { ChatThreadOperationState } from "./types";
@@ -23,16 +24,6 @@ export function ChatThreadOperationStatus({
   onRetryRecoveredPrompt: () => Promise<boolean>;
 }) {
   const [isRetryingRecoveredPrompt, setIsRetryingRecoveredPrompt] = useState(false);
-  const handleRetryRecoveredPrompt = async () => {
-    if (operation.kind !== "recovery" || !operation.actionLabel || isRetryingRecoveredPrompt) return;
-
-    setIsRetryingRecoveredPrompt(true);
-    try {
-      await onRetryRecoveredPrompt();
-    } finally {
-      setIsRetryingRecoveredPrompt(false);
-    }
-  };
 
   if (operation.kind === "stopping") {
     return (
@@ -64,7 +55,12 @@ export function ChatThreadOperationStatus({
           <button
             className={clsx(styles.smallGhostButton, styles.chatRecoveryAction)}
             disabled={isRetryingRecoveredPrompt}
-            onClick={() => void handleRetryRecoveredPrompt()}
+            onClick={() => void retryRecoveredPrompt(
+              operation,
+              isRetryingRecoveredPrompt,
+              setIsRetryingRecoveredPrompt,
+              onRetryRecoveredPrompt
+            )}
             type="button"
           >
             {isRetryingRecoveredPrompt ? "Sending..." : operation.actionLabel}
@@ -76,6 +72,12 @@ export function ChatThreadOperationStatus({
 
   const agentDisplayName = assistantDisplayName || "agent";
   const detailEntry = operation.detailEntry;
+  const waitingStatusMessage = detailEntry
+    ? "Showing the latest live detail until the final reply lands"
+    : operation.source === "external"
+      ? "DeskCue is monitoring a turn started outside DeskCue"
+      : "DeskCue already sent the prompt and is watching the local chat file";
+
   return (
     <div
       className={clsx(
@@ -86,40 +88,31 @@ export function ChatThreadOperationStatus({
       )}
     >
       <strong>Waiting for {agentDisplayName} reply</strong>
+      <span className={styles.chatWaitingPendingRow}>
+        <span className={styles.chatWaitingSpinner} aria-hidden="true" />
+        <span>{waitingStatusMessage}</span>
+      </span>
       {detailEntry ? (
-        <>
-          <span className={styles.chatWaitingPendingRow}>
-            <span className={styles.chatWaitingSpinner} aria-hidden="true" />
-            <span>Showing the latest live detail until the final reply lands</span>
-          </span>
-          {shouldRenderTranscriptEntryBare(detailEntry) ? (
+        shouldRenderTranscriptEntryBare(detailEntry) ? (
+          <TranscriptContent assetContext={assetContext} entry={detailEntry} />
+        ) : (
+          <article
+            className={clsx(
+              styles.activityEntry,
+              activityEntryClassByRole[detailEntry.role],
+              styles.chatWaitingDetailEntry
+            )}
+          >
+            <header className={styles.activityEntryHeader}>
+              {detailEntry.role !== "commentary" ? (
+                <strong>{labelForTranscriptRole(detailEntry.role)}</strong>
+              ) : null}
+              <span>{formatDate(detailEntry.timestamp)}</span>
+            </header>
             <TranscriptContent assetContext={assetContext} entry={detailEntry} />
-          ) : (
-            <article
-              className={clsx(
-                styles.activityEntry,
-                activityEntryClassByRole[detailEntry.role],
-                styles.chatWaitingDetailEntry
-              )}
-            >
-              <header className={styles.activityEntryHeader}>
-                {detailEntry.role !== "commentary" ? (
-                  <strong>{labelForTranscriptRole(detailEntry.role)}</strong>
-                ) : null}
-                <span>{formatDate(detailEntry.timestamp)}</span>
-              </header>
-              <TranscriptContent assetContext={assetContext} entry={detailEntry} />
-            </article>
-          )}
-        </>
-      ) : (
-        <span className={styles.chatWaitingPendingRow}>
-          <span className={styles.chatWaitingSpinner} aria-hidden="true" />
-          {operation.source === "external"
-            ? "DeskCue is monitoring a turn that was already in progress"
-            : "DeskCue already sent the prompt and is watching the local chat file"}
-        </span>
-      )}
+          </article>
+        )
+      ) : null}
     </div>
   );
 }

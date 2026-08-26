@@ -26,11 +26,14 @@ test("backend drains borrowed SQLite stores before the shared context closes", a
 
   try {
     const backend = await StoreBackedSessionBackend.create(eventBus, context);
+
     await backend.close();
 
     assert.equal(context.database.open, true);
     const reviews = new SqliteAgentSessionReviewStore(context);
+
     reviews.markReviewed("session-after-backend-close");
+
     assert.ok(reviews.readReviewedAt("session-after-backend-close"));
     reviews.close();
     assert.equal(context.database.open, true);
@@ -53,6 +56,7 @@ async function recoveryFixture(adapterId: "claude-code" | "codex" | "generic-cli
     branch: null,
     createdAt: "2026-08-11T09:00:00.000Z"
   };
+
   const session: SessionDetail = {
     id: "session-1",
     workspaceId: workspace.id,
@@ -83,21 +87,28 @@ async function recoveryFixture(adapterId: "claude-code" | "codex" | "generic-cli
     logs: [],
     inputHistory: ["May still be running"]
   };
+
   const storage = new DeskCueSqliteStateStorage(context);
+
   await storage.save({ version: 1, workspaces: [workspace], sessions: [session] });
+
   storage.close();
   const eventBus: DaemonEventBus = {
     on() {},
     publishServerEvent() {}
   };
+
   return { context, directory, eventBus, session, workspace };
 }
 
 test("restart exposes a prepared prompt as definitely not sent without auto retry", async () => {
   const fixture = await recoveryFixture("codex");
+
   try {
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
+
     journal.prepare(fixture.session, "Definitely not sent");
+
     journal.close();
 
     const backend = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
@@ -109,6 +120,7 @@ test("restart exposes a prepared prompt as definitely not sent without auto retr
       requestedAt: recovered?.promptRecovery?.requestedAt,
       retryable: true
     });
+
     assert.deepEqual(recovered?.replyState, emptyReplyState());
     assert.match(recovered?.logs.at(-1)?.text ?? "", /was not sent/i);
     await backend.close();
@@ -120,8 +132,10 @@ test("restart exposes a prepared prompt as definitely not sent without auto retr
 
 test("restart terminally resolves prompt journals without a durable session", async () => {
   const fixture = await recoveryFixture("codex");
+
   try {
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
+
     journal.prepare({
       ...fixture.session,
       id: "orphan-session"
@@ -129,7 +143,9 @@ test("restart terminally resolves prompt journals without a durable session", as
     journal.close();
 
     const backend = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
+
     assert.equal(backend.getSession("orphan-session"), null);
+
     await backend.close();
 
     const phase = fixture.context.database.prepare(`
@@ -137,9 +153,12 @@ test("restart terminally resolves prompt journals without a durable session", as
       FROM prompt_delivery_journal
       WHERE session_id = ?
     `).get("orphan-session") as { phase: string } | undefined;
+
     assert.equal(phase?.phase, "interrupted");
     const recovered = new SqlitePromptDeliveryJournalStore(fixture.context);
+
     assert.deepEqual(recovered.recoverActiveAfterRestart(), []);
+
     recovered.close();
   } finally {
     fixture.context.close();
@@ -149,10 +168,13 @@ test("restart terminally resolves prompt journals without a durable session", as
 
 test("restart keeps an ambiguous source prompt recoverable across repeated restarts", async () => {
   const fixture = await recoveryFixture("claude-code");
+
   try {
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
     const deliveryId = journal.prepare(fixture.session, "May still be running");
+
     assert.equal(journal.markDispatching(deliveryId), true);
+
     assert.equal(journal.markAccepted(deliveryId), true);
     journal.close();
 
@@ -160,20 +182,25 @@ test("restart keeps an ambiguous source prompt recoverable across repeated resta
     const firstRecoveryLogCount = first.getSession(fixture.session.id)?.logs.filter(
       (log) => log.text.includes("prompt delivery")
     ).length;
+
     assert.deepEqual(first.getSession(fixture.session.id)?.promptRecovery, {
       phase: "checking",
       promptText: "May still be running",
       requestedAt: first.getSession(fixture.session.id)?.promptRecovery?.requestedAt,
       retryable: false
     });
+
     await first.close();
 
     const second = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
+
     assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "checking");
+
     assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.retryable, false);
+    assert.ok(firstRecoveryLogCount && firstRecoveryLogCount > 0);
     assert.equal(second.getSession(fixture.session.id)?.logs.filter(
       (log) => log.text.includes("prompt delivery")
-    ).length, firstRecoveryLogCount);
+    ).length, 0);
     await second.close();
   } finally {
     fixture.context.close();
@@ -183,9 +210,11 @@ test("restart keeps an ambiguous source prompt recoverable across repeated resta
 
 test("restart clears a stale session recovery after the journal observed the prompt", async () => {
   const fixture = await recoveryFixture("codex");
+
   try {
     const requestedAt = "2026-08-11T10:00:00.000Z";
     const storage = new DeskCueSqliteStateStorage(fixture.context);
+
     await storage.save({
       version: 1,
       workspaces: [fixture.workspace],
@@ -199,17 +228,22 @@ test("restart clears a stale session recovery after the journal observed the pro
         }
       }]
     });
+
     storage.close();
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
     const deliveryId = journal.prepare(fixture.session, "Observed prompt");
+
     assert.equal(journal.markDispatching(deliveryId), true);
+
     assert.equal(journal.markAccepted(deliveryId), true);
     assert.equal(journal.markOutcomeUnknown(deliveryId), true);
     assert.equal(journal.markObservedBySession(fixture.session.id), true);
     journal.close();
 
     const backend = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
+
     assert.equal(backend.getSession(fixture.session.id)?.promptRecovery, null);
+
     await backend.close();
   } finally {
     fixture.context.close();
@@ -239,17 +273,21 @@ function sourceDetail(transcript: AgentSessionDetail["transcript"]): AgentSessio
   };
 }
 
-test("observed source prompt does not reappear as unknown on the next restart", async () => {
+test("unfinished source prompt remains recoverable across repeated restarts", async () => {
   const fixture = await recoveryFixture("codex");
+
   try {
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
     const deliveryId = journal.prepare(fixture.session, "Observed active prompt");
+
     journal.markDispatching(deliveryId);
+
     journal.markAccepted(deliveryId);
     journal.close();
 
     const first = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
     const requestedAt = first.getSession(fixture.session.id)?.promptRecovery?.requestedAt;
+
     assert.ok(requestedAt);
     const reconciled = first.syncReplyStateFromAgentSession(sourceDetail([
       {
@@ -260,12 +298,27 @@ test("observed source prompt does not reappear as unknown on the next restart", 
         phase: null
       }
     ]));
-    assert.equal(reconciled?.promptRecovery, null);
-    assert.equal(reconciled?.replyState.phase, "waiting");
+
+    assert.equal(reconciled?.promptRecovery?.phase, "outcome_unknown");
+    assert.equal(reconciled?.replyState.phase, "idle");
     await first.close();
 
+    const persistedStorage = new DeskCueSqliteStateStorage(fixture.context);
+    const persistedState = await persistedStorage.load();
+
+    assert.equal(
+      persistedState.sessions.find((session) => session.id === fixture.session.id)
+        ?.promptRecovery?.phase,
+      "outcome_unknown"
+    );
+
+    persistedStorage.close();
+
     const second = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
-    assert.equal(second.getSession(fixture.session.id)?.promptRecovery, null);
+
+    assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "outcome_unknown");
+
+    assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.retryable, false);
     await second.close();
   } finally {
     fixture.context.close();
@@ -275,15 +328,20 @@ test("observed source prompt does not reappear as unknown on the next restart", 
 
 test("restart reports a daemon-owned ambiguous transport as lost instead of background work", async () => {
   const fixture = await recoveryFixture("generic-cli");
+
   try {
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
     const deliveryId = journal.prepare(fixture.session, "Owned transport prompt");
+
     journal.markDispatching(deliveryId);
+
     journal.close();
 
     const backend = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
     const recovered = backend.getSession(fixture.session.id);
+
     assert.equal(recovered?.status, "stopped");
+
     assert.equal(recovered?.promptRecovery?.phase, "outcome_unknown");
     assert.match(recovered?.logs.at(-1)?.text ?? "", /cannot continue after restart/i);
     await backend.close();
@@ -314,6 +372,7 @@ function inertPipeChild({
 
 test("graceful close preserves a source pipe transport and recovers it on next hydrate", async () => {
   const fixture = await recoveryFixture("codex");
+
   try {
     let detached = 0;
     let killed = 0;
@@ -328,7 +387,9 @@ test("graceful close preserves a source pipe transport and recovers it on next h
     const runner = new SessionRunner({ createPipe: () => child });
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
     const deliveryId = journal.prepare(fixture.session, "Continue in background");
+
     journal.markDispatching(deliveryId);
+
     journal.markAccepted(deliveryId);
     journal.close();
 
@@ -337,6 +398,7 @@ test("graceful close preserves a source pipe transport and recovers it on next h
       fixture.context,
       runner
     );
+
     runner.spawnProcess({
       command: "codex exec resume source-1",
       cwd: fixture.directory,
@@ -344,13 +406,16 @@ test("graceful close preserves a source pipe transport and recovers it on next h
       sessionId: fixture.session.id,
       spawnSpec: { args: [], file: "codex", transport: "pipe" }
     });
+
     await first.close();
 
     assert.equal(killed, 0);
     assert.equal(detached, 1);
 
     const second = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
+
     assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "checking");
+
     await second.close();
   } finally {
     fixture.context.close();

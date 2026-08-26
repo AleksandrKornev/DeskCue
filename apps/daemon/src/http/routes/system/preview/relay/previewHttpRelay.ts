@@ -5,8 +5,6 @@ import https from "node:https";
 import type { LookupFunction } from "node:net";
 import { Transform } from "node:stream";
 
-import { PreviewCookieJar } from "./egress/previewCookieJar.ts";
-import { buildPreviewEgressPath, readPreviewEgressUrl } from "./egress/previewEgressTarget.ts";
 import {
   createPreviewJavaScriptBootstrap,
   isPreviewJavaScriptContent,
@@ -21,11 +19,13 @@ import {
   copyPreviewResponseHeaders,
   isDeskCueAuthorization
 } from "./previewProxyHeaders.ts";
-import { PREVIEW_PROXY_LIMITS } from "./previewProxyLimits.ts";
-import { waitForPreviewSocketConnect } from "./previewSocketConnectDeadline.ts";
-import type { PreviewOwner, ResolvedPreviewTarget } from "./previewTargetResolver.ts";
-import type { PreviewHttpMetricTracker } from "./runtime/previewProxyMetrics.ts";
-import { PreviewRewriteAdmission } from "./runtime/previewRewriteAdmission.ts";
+import { PreviewCookieJar } from "../egress/previewCookieJar.ts";
+import { buildPreviewEgressPath, readPreviewEgressUrl } from "../egress/previewEgressTarget.ts";
+import { PREVIEW_PROXY_LIMITS } from "../previewProxyLimits.ts";
+import { waitForPreviewSocketConnect } from "../previewSocketConnectDeadline.ts";
+import type { PreviewOwner, ResolvedPreviewTarget } from "../previewTargetResolver.ts";
+import type { PreviewHttpMetricTracker } from "../runtime/previewProxyMetrics.ts";
+import { PreviewRewriteAdmission } from "../runtime/previewRewriteAdmission.ts";
 
 export type PreviewHttpContext = {
   basePath: string;
@@ -53,25 +53,33 @@ function resolvePreviewDocumentUrl(
 ) {
   try {
     const referer = request.headers.referer;
+
     if (!referer) return context.targetUrl;
+
     const parsed = new URL(referer);
     const requestUrl = `${parsed.pathname}${parsed.search}`;
     const egressUrl = readPreviewEgressUrl(requestUrl);
+
     if (egressUrl) return egressUrl;
     if (parsed.pathname === context.resourceBasePath) return new URL(`/${parsed.search}`, context.localTarget.origin);
+
     if (parsed.pathname.startsWith(`${context.resourceBasePath}/`)) {
       const suffix = parsed.pathname.slice(context.resourceBasePath.length);
+
       return new URL(`${suffix}${parsed.search}`, context.localTarget.origin);
     }
   } catch {
     // Fall back to the current resource URL when the browser omits or corrupts Referer.
   }
+
   return context.targetUrl;
 }
 
 function isLocalPreviewTarget(target: URL, localTarget: ResolvedPreviewTarget) {
   if (target.origin === localTarget.origin) return true;
+
   const hostname = target.hostname.replace(/^\[|\]$/g, "");
+
   return (
     (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") &&
     Number(target.port || (target.protocol === "https:" ? 443 : 80)) === localTarget.port
@@ -81,10 +89,13 @@ function isLocalPreviewTarget(target: URL, localTarget: ResolvedPreviewTarget) {
 function rewriteRedirect(location: string, context: PreviewHttpContext) {
   try {
     const target = new URL(location, context.targetUrl);
+
     if (target.protocol !== "http:" && target.protocol !== "https:") return null;
+
     if (isLocalPreviewTarget(target, context.localTarget)) {
       return `${context.resourceBasePath}${target.pathname}${target.search}${target.hash}`;
     }
+
     return context.localTarget.networkMode === "deskcue-host"
       ? buildPreviewEgressPath(context.resourceBasePath, target, {
         stripAuthorization: target.origin !== context.targetUrl.origin
@@ -97,6 +108,7 @@ function rewriteRedirect(location: string, context: PreviewHttpContext) {
 
 function createByteLimitTransform(maxBytes: number, onBytes?: (bytes: number) => void) {
   let bytes = 0;
+
   return new Transform({
     transform(chunk: Buffer, _encoding, callback) {
       bytes += chunk.byteLength;
@@ -108,7 +120,9 @@ function createByteLimitTransform(maxBytes: number, onBytes?: (bytes: number) =>
 
 function readContentLength(value: string | undefined) {
   if (!value || !/^\d+$/.test(value)) return null;
+
   const parsed = Number(value);
+
   return Number.isSafeInteger(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
 }
 
@@ -129,6 +143,7 @@ export class PreviewHttpRelay {
     context: PreviewHttpContext
   ) {
     const contentLength = readContentLength(request.headers["content-length"]);
+
     if (contentLength !== null && contentLength > PREVIEW_PROXY_LIMITS.maxRequestBytes) {
       response.status(413).json({ error: "Preview request body is too large." });
       return;
@@ -150,10 +165,16 @@ export class PreviewHttpRelay {
       method: request.method,
       timeout: PREVIEW_PROXY_LIMITS.idleTimeoutMs
     });
+
     this.activeRequests.add(upstreamRequest);
-    const release = () => this.activeRequests.delete(upstreamRequest);
-    upstreamRequest.once("close", release);
+    const requestLifecycle = {
+      release: () => this.activeRequests.delete(upstreamRequest)
+    };
+
+    upstreamRequest.once("close", requestLifecycle.release);
+
     upstreamRequest.once("timeout", () => upstreamRequest.destroy(new Error("Preview upstream timed out.")));
+
     upstreamRequest.once("error", () => {
       if (!response.headersSent) {
         response.status(502).json({ error: "The local preview server is unavailable." });
@@ -161,18 +182,23 @@ export class PreviewHttpRelay {
         response.destroy();
       }
     });
+
     request.once("aborted", () => upstreamRequest.destroy());
 
     const connectDeadline = setTimeout(
       () => upstreamRequest.destroy(new Error("Preview upstream connection timed out.")),
       PREVIEW_PROXY_LIMITS.connectTimeoutMs
     );
+
     connectDeadline.unref?.();
     upstreamRequest.once("socket", (socket) => {
       const stopWaiting = waitForPreviewSocketConnect(socket, () => clearTimeout(connectDeadline));
+
       upstreamRequest.once("close", stopWaiting);
     });
+
     upstreamRequest.once("close", () => clearTimeout(connectDeadline));
+
     upstreamRequest.once("response", (upstreamResponse) => {
       void this.forwardResponse(request, response, upstreamResponse, context).catch(() => {
         upstreamResponse.destroy();
@@ -188,14 +214,17 @@ export class PreviewHttpRelay {
       upstreamRequest.end();
       return;
     }
+
     const limiter = createByteLimitTransform(
       PREVIEW_PROXY_LIMITS.maxRequestBytes,
       context.metrics.addRequestBytes
     );
+
     limiter.once("error", () => {
       upstreamRequest.destroy();
       if (!response.headersSent) response.status(413).json({ error: "Preview request body is too large." });
     });
+
     request.pipe(limiter).pipe(upstreamRequest);
   }
 
@@ -206,6 +235,7 @@ export class PreviewHttpRelay {
     context: PreviewHttpContext
   ) {
     const contentLength = readContentLength(upstreamResponse.headers["content-length"]);
+
     if (contentLength !== null && contentLength > PREVIEW_PROXY_LIMITS.maxResponseBytes) {
       upstreamResponse.destroy();
       response.status(502).json({ error: "Preview response is too large." });
@@ -213,13 +243,16 @@ export class PreviewHttpRelay {
     }
 
     const location = upstreamResponse.headers.location;
+
     if (location) {
       const rewritten = rewriteRedirect(location, context);
+
       if (!rewritten) {
         upstreamResponse.destroy();
         response.status(502).json({ error: "Preview server attempted a blocked external redirect." });
         return;
       }
+
       upstreamResponse.headers.location = rewritten;
     }
 
@@ -236,7 +269,9 @@ export class PreviewHttpRelay {
       response.status(502).json({ error: "Preview JavaScript is too large to rewrite safely." });
       return;
     }
+
     const contentRewritten = isRewritablePreviewContent(contentType) || javascript;
+
     if (context.egress) {
       this.cookieJar.store(
         context.owner,
@@ -245,29 +280,39 @@ export class PreviewHttpRelay {
         upstreamResponse.headers["set-cookie"]
       );
     }
-    let rewriteLease: { release: () => void } | null = null;
-    const releaseRewriteLease = () => {
-      rewriteLease?.release();
-      rewriteLease = null;
+
+    const rewriteLifecycle = {
+      lease: null as { release: () => void } | null,
+      release() {
+        rewriteLifecycle.lease?.release();
+        rewriteLifecycle.lease = null;
+      }
     };
+
     if (rewriteApplicationJavaScript) {
       const controller = new AbortController();
-      const abort = () => controller.abort();
+      const abort = controller.abort.bind(controller);
+
       request.once("aborted", abort);
+
       response.once("close", abort);
       const admission = await this.rewriteAdmission.acquire(controller.signal);
+
       request.off("aborted", abort);
+
       response.off("close", abort);
       if (!admission.accepted) {
         upstreamResponse.destroy();
         if (admission.reason !== "aborted" && !response.destroyed) {
           response.status(503).json({ error: "Preview JavaScript rewrite capacity is busy." });
         }
+
         return;
       }
-      rewriteLease = admission;
-      response.once("finish", releaseRewriteLease);
-      response.once("close", releaseRewriteLease);
+
+      rewriteLifecycle.lease = admission;
+      response.once("finish", rewriteLifecycle.release);
+      response.once("close", rewriteLifecycle.release);
     }
 
     response.status(upstreamResponse.statusCode ?? 502);
@@ -288,6 +333,7 @@ export class PreviewHttpRelay {
         "content-security-policy",
         "sandbox allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts"
       );
+
       response.setHeader(
         "permissions-policy",
         "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
@@ -304,11 +350,12 @@ export class PreviewHttpRelay {
             upstreamUrl: resolvePreviewDocumentUrl(request, context)
           }
         ));
+
         if (rewriteApplicationJavaScript) {
-          const cancelRewrite = () => {
-            upstreamResponse.destroy();
-          };
+          const cancelRewrite = upstreamResponse.destroy.bind(upstreamResponse);
+
           response.once("close", cancelRewrite);
+
           try {
             const javascriptBody = rewritePreviewJavaScriptAssetLiterals(
               await readRewritablePreviewBody(
@@ -318,36 +365,42 @@ export class PreviewHttpRelay {
               context.resourceBasePath
             );
             const rewritten = Buffer.concat([bootstrap, javascriptBody]);
+
             context.metrics.addResponseBytes(rewritten.byteLength);
+
             response.end(rewritten, () => {
               response.off("close", cancelRewrite);
-              response.off("close", releaseRewriteLease);
-              response.off("finish", releaseRewriteLease);
-              releaseRewriteLease();
+              response.off("close", rewriteLifecycle.release);
+              response.off("finish", rewriteLifecycle.release);
+              rewriteLifecycle.release();
             });
           } catch {
             response.off("close", cancelRewrite);
-            response.off("close", releaseRewriteLease);
-            response.off("finish", releaseRewriteLease);
-            releaseRewriteLease();
+            response.off("close", rewriteLifecycle.release);
+            response.off("finish", rewriteLifecycle.release);
+            rewriteLifecycle.release();
             if (!response.headersSent) {
               response.status(502).json({ error: "Preview JavaScript is too large to rewrite safely." });
             } else {
               response.destroy();
             }
           }
+
           return;
         }
+
         const limiter = createByteLimitTransform(
           Math.max(0, PREVIEW_PROXY_LIMITS.maxResponseBytes - bootstrap.byteLength),
           context.metrics.addResponseBytes
         );
+
         limiter.once("error", () => response.destroy());
         context.metrics.addResponseBytes(bootstrap.byteLength);
         response.write(bootstrap);
         upstreamResponse.pipe(limiter).pipe(response);
         return;
       }
+
       try {
         const rewritten = rewritePreviewContent(
           await readRewritablePreviewBody(upstreamResponse),
@@ -359,12 +412,14 @@ export class PreviewHttpRelay {
             upstreamUrl: context.targetUrl
           }
         );
+
         context.metrics.addResponseBytes(rewritten.byteLength);
         response.end(rewritten);
       } catch {
         if (!response.headersSent) response.status(502).json({ error: "Preview document is too large." });
         else response.destroy();
       }
+
       return;
     }
 
@@ -372,7 +427,10 @@ export class PreviewHttpRelay {
       PREVIEW_PROXY_LIMITS.maxResponseBytes,
       context.metrics.addResponseBytes
     );
+
     limiter.once("error", () => response.destroy());
     upstreamResponse.pipe(limiter).pipe(response);
   }
 }
+
+// HTTP request/response forwarding belongs with the relay pipeline.

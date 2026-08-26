@@ -178,7 +178,7 @@ function syncCallbacks(session: SessionDetail, events: ServerEvent[] = []) {
   };
 }
 
-test("reconciles a stopped Claude recovery when the source transcript confirms its prompt", () => {
+test("keeps a stopped Claude recovery unresolved without a terminal outcome", () => {
   const session = sessionDetail({
     adapterId: "claude-code",
     sourceSessionId: "source-1",
@@ -208,13 +208,14 @@ test("reconciles a stopped Claude recovery when the source transcript confirms i
     })
   );
 
-  assert.equal(result?.promptRecovery, null);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
   assert.equal(result?.status, "read_only");
   assert.deepEqual(result?.replyState, {
-    phase: "waiting",
-    promptText: "recover Claude",
-    requestedAt: "2026-06-22T10:00:01.000Z"
+    phase: "idle",
+    promptText: null,
+    requestedAt: null
   });
+
   assert.equal(events.at(-1)?.type, "session.updated");
 });
 
@@ -244,6 +245,61 @@ test("finishes a bounded source check as outcome unknown without inventing agent
   assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
   assert.equal(result?.promptRecovery?.retryable, false);
   assert.deepEqual(result?.replyState, emptyReplyState());
+});
+
+test("publishes a fresh managed-session summary when a late terminal clears recovery", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    status: "read_only",
+    promptRecovery: {
+      phase: "outcome_unknown",
+      promptText: "recover this turn",
+      requestedAt: "2026-06-22T10:00:00.000Z",
+      retryable: false
+    }
+  });
+  const events: ServerEvent[] = [];
+
+  const result = syncManagedSessionReplyState(
+    syncCallbacks(session, events),
+    agentSessionDetail({
+      updatedAt: "2026-06-22T10:02:00.000Z",
+      transcript: [
+        {
+          id: "recovered-user",
+          timestamp: "2026-06-22T10:00:01.000Z",
+          role: "user",
+          text: "recover this turn",
+          phase: null
+        },
+        {
+          id: "recovered-final",
+          timestamp: "2026-06-22T10:02:00.000Z",
+          role: "assistant",
+          text: "Recovered",
+          phase: "final"
+        },
+        {
+          id: "recovered-turn-completed",
+          timestamp: "2026-06-22T10:02:00.000Z",
+          role: "system",
+          text: "Turn completed",
+          phase: null
+        }
+      ]
+    })
+  );
+
+  const event = events.at(-1);
+
+  assert.equal(result?.promptRecovery, null);
+  assert.equal(result?.lastActivityAt, "2026-06-22T10:02:00.000Z");
+  assert.equal(event?.type, "session.updated");
+  if (event?.type === "session.updated") {
+    assert.equal(event.payload.lastActivityAt, "2026-06-22T10:02:00.000Z");
+    assert.equal(event.payload.promptRecovery, null);
+  }
 });
 
 test("keeps a running takeover session after its prompt returns to idle", () => {
@@ -399,6 +455,113 @@ test("detaches the prompt transport when a takeover prompt completes", () => {
   assert.equal(events.length, 0);
 });
 
+test("normalizes an initial nonzero transport exit after the native Codex turn completes", async () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    status: "read_only",
+    exitCode: 1,
+    inputHistory: ["take over"],
+    logs: [
+      {
+        id: "input-sent",
+        timestamp: "2026-06-22T10:00:00.000Z",
+        stream: "system",
+        text: "Initial input sent.\n"
+      }
+    ],
+    replyState: emptyReplyState()
+  });
+  const events: ServerEvent[] = [];
+  let persisted = false;
+
+  const result = syncManagedSessionReplyState(
+    {
+      ...syncCallbacks(session, events),
+      persistState: async () => {
+        persisted = true;
+      }
+    },
+    agentSessionDetail({
+      workState: "idle",
+      transcript: [
+        {
+          id: "entry-1",
+          timestamp: "2026-06-22T10:00:01.000Z",
+          role: "user",
+          text: "take over",
+          phase: null
+        },
+        {
+          id: "entry-2",
+          timestamp: "2026-06-22T10:00:04.000Z",
+          role: "assistant",
+          text: "ok",
+          phase: "final_answer"
+        },
+        {
+          id: "entry-3",
+          timestamp: "2026-06-22T10:00:05.000Z",
+          role: "system",
+          text: "Turn completed",
+          phase: null
+        }
+      ]
+    })
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.equal(result?.status, "read_only");
+  assert.equal(result?.exitCode, 0);
+  assert.equal(persisted, true);
+  assert.equal(events.at(-1)?.type, "session.updated");
+});
+
+test("keeps a nonzero transport exit when the native Codex turn fails", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    status: "read_only",
+    exitCode: 1,
+    inputHistory: ["take over"],
+    logs: [
+      {
+        id: "input-sent",
+        timestamp: "2026-06-22T10:00:00.000Z",
+        stream: "system",
+        text: "Input sent.\n"
+      }
+    ],
+    replyState: emptyReplyState()
+  });
+
+  const result = syncManagedSessionReplyState(
+    syncCallbacks(session),
+    agentSessionDetail({
+      workState: "idle",
+      transcript: [
+        {
+          id: "entry-1",
+          timestamp: "2026-06-22T10:00:01.000Z",
+          role: "user",
+          text: "take over",
+          phase: null
+        },
+        {
+          id: "entry-2",
+          timestamp: "2026-06-22T10:00:05.000Z",
+          role: "system",
+          text: "Turn failed",
+          phase: null
+        }
+      ]
+    })
+  );
+
+  assert.equal(result?.exitCode, 1);
+});
+
 test("reconciles a read-only source session to resume when a managed takeover is running", () => {
   const session = sessionDetail({
     adapterId: "codex",
@@ -509,7 +672,9 @@ test("does not add an interrupt marker when an external Codex turn was not contr
   );
 
   const interruptEntry = reconciled.transcript.find((entry) => entry.text === "Turn interrupted");
+
   assert.equal(reconciled.attachMode, "resume");
+
   assert.equal(interruptEntry, undefined);
 });
 
@@ -548,6 +713,7 @@ test("starts a queued prompt only after the external Codex turn becomes resumabl
     callbacks,
     agentSessionDetail({ attachMode: "read_only", attachModeReason: "Active elsewhere" })
   );
+
   assert.equal(starts, 0);
 
   syncManagedSessionReplyState(callbacks, agentSessionDetail({ attachMode: "resume" }));

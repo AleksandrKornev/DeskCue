@@ -12,8 +12,10 @@ export interface AgentTranscriptPanelProps {
   attaching: boolean;
   attachedManagedSessionId: string | null;
   attachedManagedSessionInfo: AttachedManagedSessionInfo | null;
+  readyForReviewAgentSessionIds: ReadonlySet<string>;
   previewItems?: number;
   onAttach: () => void;
+  onMarkReviewed: (sessionId: string) => void;
   onOpenManagedSession: (sessionId: string) => void;
 }
 

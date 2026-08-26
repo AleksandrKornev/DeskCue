@@ -14,7 +14,7 @@ function coordinatorFor(
   onUpdateSession: (patch: Partial<SessionDetail>) => void = () => {}
 ) {
   let currentSession = session;
-  let deliveryPhase: "accepted" | "dispatching" | "outcome_unknown" | "prepared" | null = null;
+  let deliveryPhase: "accepted" | "dispatching" | "not_sent" | "outcome_unknown" | "prepared" | null = null;
 
   return new StoreBackedPromptTransportCoordinator({
     appendLog: () => {},
@@ -90,6 +90,13 @@ function coordinatorFor(
         lifecycle.push("not-sent");
         return true;
       },
+      markNotSentAfterActiveWriterConflict: () => {
+        if (!deliveryPhase) return false;
+
+        deliveryPhase = "not_sent";
+        lifecycle.push("active-writer-not-sent");
+        return true;
+      },
       markNotSentAfterSynchronousSpawnFailure: () => {
         if (deliveryPhase !== "prepared" && deliveryPhase !== "dispatching") return false;
 
@@ -125,6 +132,7 @@ function coordinatorFor(
         return "journal-1";
       }
     },
+    publishSessionUpdate: () => {},
     repository: {} as never,
     sessionRunner: {
       deleteChild: () => true,
@@ -180,6 +188,7 @@ test("prepares the journal before Codex transport and records transport ownershi
   const lifecycle: string[] = [];
   const session = sessionDetail();
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartCodexTransportProcess: async (callbacks: {
       markPromptAccepted?: (sessionId: string) => void;
       markPromptDispatching?: (sessionId: string) => void;
@@ -197,7 +206,8 @@ test("prepares the journal before Codex transport and records transport ownershi
     "prepare:Continue safely",
     "dispatching",
     "transport",
-    "accepted"
+    "accepted",
+    "published"
   ]);
 });
 
@@ -230,6 +240,7 @@ test("marks a prepared Codex delivery not sent when transport validation fails",
   const lifecycle: string[] = [];
   const session = sessionDetail();
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartCodexTransportProcess: async () => {
       lifecycle.push("transport");
       throw new Error("replacement failed");
@@ -244,7 +255,8 @@ test("marks a prepared Codex delivery not sent when transport validation fails",
   assert.deepEqual(lifecycle, [
     "prepare:Continue safely",
     "transport",
-    "not-sent"
+    "not-sent",
+    "published"
   ]);
 });
 
@@ -252,6 +264,7 @@ test("marks a dispatching Codex delivery outcome unknown when transport throws",
   const lifecycle: string[] = [];
   const session = sessionDetail();
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartCodexTransportProcess: async (callbacks: {
       markPromptDispatching?: (sessionId: string) => void;
     }) => {
@@ -270,7 +283,8 @@ test("marks a dispatching Codex delivery outcome unknown when transport throws",
     "prepare:Continue safely",
     "dispatching",
     "transport",
-    "outcome-unknown"
+    "outcome-unknown",
+    "published"
   ]);
 });
 
@@ -296,6 +310,7 @@ test("marks a confirmed Codex startup failure not sent and disposes its child", 
         callbacks.markPromptDispatching?.(session.id);
         throw new SourcePromptStartupError(new Error("nested startup failed"), child);
       },
+      publishSessionUpdate: () => lifecycle.push("published"),
       sessionRunner: {
         deleteChild: () => {
           lifecycle.push("delete-child");
@@ -322,7 +337,8 @@ test("marks a confirmed Codex startup failure not sent and disposes its child", 
     "dispatching",
     "not-sent",
     "kill-child",
-    "delete-child"
+    "delete-child",
+    "published"
   ]);
   assert.deepEqual(recoveryUpdates[0], null);
   assert.equal(recoveryUpdates[1]?.phase, "not_sent");
@@ -369,6 +385,7 @@ test("classifies a Claude pre-dispatch failure exactly once", async () => {
   const lifecycle: string[] = [];
   const session = sessionDetail({ adapterId: "claude-code" });
   const coordinator = coordinatorFor(session, lifecycle, {
+    publishSessionUpdate: () => lifecycle.push("published"),
     restartClaudePromptTransportProcess: async () => {
       lifecycle.push("transport");
       throw new Error("Claude validation failed");
@@ -383,7 +400,8 @@ test("classifies a Claude pre-dispatch failure exactly once", async () => {
   assert.deepEqual(lifecycle, [
     "prepare:Continue safely",
     "transport",
-    "not-sent"
+    "not-sent",
+    "published"
   ]);
 });
 
@@ -439,7 +457,7 @@ test("rejects empty Codex and Claude prompts before journal mutation", async () 
   assert.deepEqual(lifecycle, []);
 });
 
-test("keeps one prepared journal entry until a queued Codex prompt dispatches", async () => {
+test("dispatches a detached read-only Codex prompt immediately instead of queueing it", async () => {
   const lifecycle: string[] = [];
   const session = sessionDetail({ status: "read_only" });
   const coordinator = coordinatorFor(session, lifecycle, {
@@ -454,14 +472,13 @@ test("keeps one prepared journal entry until a queued Codex prompt dispatches", 
     }
   });
 
-  const queued = await coordinator.sendSourceInput(
+  const result = await coordinator.sendSourceInput(
     session,
     undefined,
     "Continue after the turn"
   );
 
-  await coordinator.startQueuedCodexPrompt(queued);
-
+  assert.equal(result.replyState.phase, "idle");
   assert.deepEqual(lifecycle, [
     "prepare:Continue after the turn",
     "dispatching",
@@ -637,12 +654,14 @@ test("records an interrupt before attempting to restart the Codex transport", as
       markDispatchingBySession: () => true,
       markInterrupted: () => lifecycle.push("interrupted"),
       markNotSent: () => true,
+      markNotSentAfterActiveWriterConflict: () => true,
       markNotSentBySession: () => true,
       markObservedBySession: () => true,
       markOutcomeUnknown: () => true,
       markOutcomeUnknownBySession: () => true,
       prepare: () => "journal-1"
     },
+    publishSessionUpdate: () => {},
     repository: {} as never,
     sessionRunner: sessionRunner as never,
     updateSession: () => {}
@@ -691,6 +710,85 @@ test("records a user-stopped prompt transport as interrupted even with a zero ex
   coordinator.recordSessionFinished(session.id, session, "stopped", 0);
 
   assert.deepEqual(lifecycle, ["interrupted"]);
+});
+
+test("preserves an active-writer conflict as definitely not sent", async () => {
+  const lifecycle: string[] = [];
+  const session = sessionDetail();
+  const coordinator = coordinatorFor(session, lifecycle, {
+    restartCodexTransportProcess: async (callbacks: {
+      markPromptAccepted?: (sessionId: string) => void;
+      markPromptDispatching?: (sessionId: string) => void;
+    }) => {
+      callbacks.markPromptDispatching?.(session.id);
+      callbacks.markPromptAccepted?.(session.id);
+      return session;
+    }
+  });
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  const requestedAt = new Date().toISOString();
+  const finishedSession = sessionDetail({
+    logs: [{
+      id: "writer-conflict",
+      stream: "stderr",
+      text: "thread-store conflict: thread source-1 already has an active writer",
+      timestamp: new Date(Date.parse(requestedAt) + 1).toISOString()
+    }],
+    replyState: {
+      phase: "sending",
+      promptText: "Continue safely",
+      requestedAt
+    }
+  });
+
+  coordinator.recordSessionFinished(session.id, finishedSession, "read_only", null);
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Continue safely",
+    "dispatching",
+    "accepted",
+    "active-writer-not-sent"
+  ]);
+});
+
+test("does not reuse an active-writer conflict from an earlier prompt attempt", async () => {
+  const lifecycle: string[] = [];
+  const session = sessionDetail({
+    logs: [{
+      id: "stale-writer-conflict",
+      stream: "stderr",
+      text: "thread-store conflict: thread source-1 already has an active writer",
+      timestamp: "2026-08-05T10:00:00.000Z"
+    }]
+  });
+  const coordinator = coordinatorFor(session, lifecycle, {
+    restartCodexTransportProcess: async (callbacks: {
+      markPromptAccepted?: (sessionId: string) => void;
+      markPromptDispatching?: (sessionId: string) => void;
+    }) => {
+      callbacks.markPromptDispatching?.(session.id);
+      callbacks.markPromptAccepted?.(session.id);
+      return session;
+    }
+  });
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  coordinator.recordSessionFinished(session.id, {
+    ...session,
+    replyState: {
+      phase: "sending",
+      promptText: "Continue safely",
+      requestedAt: new Date().toISOString()
+    }
+  }, "failed", 1);
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Continue safely",
+    "dispatching",
+    "accepted",
+    "interrupted"
+  ]);
 });
 
 test("shutdown exit cannot terminally resolve an accepted prompt", async () => {

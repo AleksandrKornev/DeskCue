@@ -5,30 +5,16 @@ import {
   useState
 } from "react";
 
-import type {
-  CreateLocalLlmChatInput,
-  LocalLlmChatSummary
-} from "@deskcue/protocol";
+import type { CreateLocalLlmChatInput } from "@deskcue/protocol";
 import { isConnectionEpochCurrent } from "@api/connection/events";
 import { localLlmChatsApi } from "@api/endpoint/localLlmChats/endpoints";
 
 import { readLocalChatCreationError } from "./helpers";
-
-interface UseLocalChatSubmissionOptions {
-  connectionEpoch: number;
-}
-
-interface LocalChatSubmissionController {
-  cancel: () => void;
-  clearError: () => void;
-  create: (input: CreateLocalLlmChatInput) => Promise<LocalLlmChatSummary | null>;
-  error: string | null;
-  submitting: boolean;
-}
+import type { LocalChatSubmissionController } from "./types";
 
 export function useLocalChatSubmission({
   connectionEpoch
-}: UseLocalChatSubmissionOptions): LocalChatSubmissionController {
+}: { connectionEpoch: number }): LocalChatSubmissionController {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -46,13 +32,13 @@ export function useLocalChatSubmission({
   const clearError = useCallback(() => setError(null), []);
 
   const create = useCallback(async (input: CreateLocalLlmChatInput) => {
-    if (abortRef.current) {
-      return null;
-    }
+    if (abortRef.current) return null;
 
     const abortController = new AbortController();
     const generation = generationRef.current + 1;
+
     generationRef.current = generation;
+
     abortRef.current = abortController;
     setSubmitting(true);
     setError(null);
@@ -61,6 +47,7 @@ export function useLocalChatSubmission({
       const chat = await localLlmChatsApi.create(input, {
         signal: abortController.signal
       });
+
       if (
         abortController.signal.aborted ||
         generationRef.current !== generation ||
@@ -68,6 +55,7 @@ export function useLocalChatSubmission({
       ) {
         return null;
       }
+
       return chat;
     } catch (creationError) {
       if (
@@ -80,21 +68,19 @@ export function useLocalChatSubmission({
           "Failed to create local chat"
         ));
       }
+
       return null;
     } finally {
       if (abortRef.current === abortController) {
         abortRef.current = null;
-        if (generationRef.current === generation) {
-          setSubmitting(false);
-        }
+        if (generationRef.current === generation) setSubmitting(false);
       }
     }
   }, [connectionEpoch]);
 
   useEffect(() => {
-    if (previousConnectionEpochRef.current === connectionEpoch) {
-      return;
-    }
+    if (previousConnectionEpochRef.current === connectionEpoch) return;
+
     previousConnectionEpochRef.current = connectionEpoch;
     cancel();
   }, [cancel, connectionEpoch]);

@@ -93,9 +93,8 @@ async function queueInitialInput(
 ) {
   const current = callbacks.getSession(sessionId);
   const runningChild = callbacks.getChild(sessionId);
-  if (!current || current.status !== "running" || !runningChild) {
-    return;
-  }
+
+  if (!current || current.status !== "running" || !runningChild) return;
 
   if (current.sourceSessionId && callbacks.supportsSourceInput(current.adapterId)) {
     try {
@@ -106,17 +105,22 @@ async function queueInitialInput(
         "system",
         `Initial input failed: ${error instanceof Error ? error.message : String(error)}\n`
       );
+
       await callbacks.persistState();
     }
+
     return;
   }
 
   try {
     const queuedInput = initialInput.trim();
+
     forwardSessionInput(current, runningChild, queuedInput);
+
     callbacks.updateSession(sessionId, {
       inputHistory: [...current.inputHistory, queuedInput]
     });
+
     callbacks.appendLog(sessionId, "system", "Initial input queued.\n");
     await callbacks.persistState();
   } catch (error) {
@@ -125,6 +129,7 @@ async function queueInitialInput(
       "system",
       `Initial input failed: ${error instanceof Error ? error.message : String(error)}\n`
     );
+
     await callbacks.persistState();
   }
 }
@@ -149,6 +154,7 @@ export async function launchManagedSession(
   const gitStartedAt = performance.now();
   const git = await buildGitIdentitySnapshot(workspace.path);
   const gitIdentityDurationMs = elapsedMs(gitStartedAt);
+
   callbacks.syncWorkspaceFromGit(workspace.id, git);
   const argvPrompt = argvInput?.trim();
   const requestedAt = new Date().toISOString();
@@ -193,21 +199,22 @@ export async function launchManagedSession(
     isGitRepo: git.isGitRepo,
     changedFiles: git.changedFiles.length
   });
+
   callbacks.appendLog(session.id, "system", "Started managed command.\n");
-  if (argvPrompt) {
-    callbacks.appendLog(session.id, "system", "Initial input sent.\n", requestedAt);
-  }
+  if (argvPrompt) callbacks.appendLog(session.id, "system", "Initial input sent.\n", requestedAt);
   callbacks.emitServerEvent({
     type: "session.created",
     payload: callbacks.toSummary(session)
   });
   const persistStartedAt = performance.now();
+
   await callbacks.persistState();
   const persistDurationMs = elapsedMs(persistStartedAt);
 
   const spawnStartedAt = performance.now();
   let child: RunningChild;
   let processSpawned = false;
+
   try {
     if (
       promptDeliveryId &&
@@ -216,6 +223,7 @@ export async function launchManagedSession(
     ) {
       throw new Error("Prompt delivery journal was not prepared before process spawn.");
     }
+
     child = callbacks.spawnProcess({
       command,
       cwd,
@@ -242,9 +250,8 @@ export async function launchManagedSession(
     if (promptDeliveryId) {
       const definitelyNotSent = !processSpawned &&
         callbacks.markPromptNotSentAfterSpawnFailure?.(promptDeliveryId) === true;
-      if (processSpawned) {
-        callbacks.markPromptOutcomeUnknown?.(promptDeliveryId);
-      }
+      if (processSpawned) callbacks.markPromptOutcomeUnknown?.(promptDeliveryId);
+
       callbacks.updateSession(session.id, {
         promptRecovery: {
           phase: definitelyNotSent ? "not_sent" : "outcome_unknown",
@@ -254,20 +261,25 @@ export async function launchManagedSession(
         }
       });
     }
+
     callbacks.appendLog(
       session.id,
       "system",
       `Failed to start command: ${error instanceof Error ? error.message : String(error)}\n`
     );
+
     callbacks.finishSession(session.id, "failed", null);
     await callbacks.persistState();
     throw error;
   }
+
   const spawnDurationMs = elapsedMs(spawnStartedAt);
+
   attachSessionDataHandler({
     adapterId,
     child,
     command,
+    onAppendStderrLog: (sessionId, text) => callbacks.appendLog(sessionId, "stderr", text),
     onAppendStdoutLog: (sessionId, text) => callbacks.appendLog(sessionId, "stdout", text),
     onAppendSystemLog: (sessionId, text) => callbacks.appendLog(sessionId, "system", text),
     sessionId: session.id
@@ -283,6 +295,7 @@ export async function launchManagedSession(
     spawnDurationMs,
     totalDurationMs: elapsedMs(launchStartedAt)
   });
+
   callbacks.startGitPolling(session.id, workspace.path);
 
   if (initialInput?.trim()) {

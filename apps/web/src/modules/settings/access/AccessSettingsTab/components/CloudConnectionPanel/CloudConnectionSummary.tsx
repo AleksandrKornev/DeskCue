@@ -1,33 +1,20 @@
 import type { CloudConnectorState } from "@deskcue/protocol";
 import CloudIcon from "@assets/images/icon-cloud.svg?react";
 
+import { cloudStatusLabel } from "./cloudConnectionPresentation";
 import styles from "./styles.module.scss";
-
-interface CloudConnectionSummaryProps {
-  connected: boolean;
-  onOpen(): void;
-  open: boolean;
-  state: CloudConnectorState | undefined;
-}
-
-function cloudStatusLabel(
-  connected: boolean,
-  state: CloudConnectorState | undefined
-): string {
-  if (connected) return "Cloud connected";
-  if (state === "connecting") return "Connecting";
-  if (state === "degraded") return "Cloud degraded";
-  if (state === "revoked") return "Cloud access revoked";
-
-  return "Local only";
-}
 
 export function CloudConnectionSummary({
   connected,
   onOpen,
   open,
   state
-}: CloudConnectionSummaryProps) {
+}: {
+  connected: boolean;
+  onOpen(): void;
+  open: boolean;
+  state: CloudConnectorState | undefined;
+}) {
   return (
     <button
       aria-expanded={open}

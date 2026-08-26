@@ -2,20 +2,25 @@ import { useMemo } from "react";
 
 import type {
   AgentSessionDetail,
+  AgentSessionSummary,
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
-import { isActiveSourceTurn } from "@models/agentChatWorkState";
 import type { PendingChatPrompt } from "@models/promptDelivery";
 import {
   getSessionInterruptLifecycle,
   isInterruptLifecycleWaitingSuppressed
 } from "@models/sessionInterruptLifecycle";
+import { resolveLiveSourceState } from "@modules/session/model/liveChat/helpers";
 import type { ChatTranscriptEntry } from "@modules/session/types";
 
 import {
   hasAssistantReplyAfterPrompt,
   hasShellWaitingPromptCompleted,
+  isConfirmedDeskCuePendingPrompt,
+  isManagedSourceReplyWaiting,
+  isManagedSourceSessionWorking,
+  isSourceTurnOutsideDeskCue,
   resolveInputAvailability,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
@@ -36,6 +41,7 @@ export function useManagedSessionReplyState({
   selectedSessionDetail,
   selectedSessionId,
   sessionShell,
+  sourceSessionSummary,
   takenOverAgentSession
 }: {
   canSendInputWhenReadOnly?: boolean;
@@ -49,14 +55,23 @@ export function useManagedSessionReplyState({
   selectedSessionDetail: SessionDetail | null;
   selectedSessionId: string;
   sessionShell: SessionDetail | SessionSummary | null;
+  sourceSessionSummary: AgentSessionSummary | null;
   takenOverAgentSession: AgentSessionDetail | null;
 }) {
   const isPromptTrackableSessionShell =
     Boolean(sessionShell?.sourceSessionId) &&
     (sessionShell?.status === "running" || sessionShell?.status === "read_only");
   const isSourceSessionWorking =
-    Boolean(sessionShell?.sourceSessionId) && isActiveSourceTurn(takenOverAgentSession);
-  const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
+    isManagedSourceSessionWorking(
+      sessionShell,
+      takenOverAgentSession,
+      sourceSessionSummary
+    );
+  const liveSourceState = resolveLiveSourceState(
+    takenOverAgentSession,
+    sourceSessionSummary
+  );
+  const interruptLifecycle = getSessionInterruptLifecycle(liveSourceState);
   const isServerInterruptRequested = interruptLifecycle.phase === "requested";
   const isEffectiveInterruptingPrompt = isInterruptingPrompt || isServerInterruptRequested;
   const suppressWaitingForInterruptLifecycle =
@@ -81,11 +96,24 @@ export function useManagedSessionReplyState({
     isPromptTrackableSessionShell,
     sessionShell
   });
+  const hasConfirmedRawPendingPrompt = isConfirmedDeskCuePendingPrompt(rawPendingChatPrompt);
+  const promptRecovery = sessionShell?.promptRecovery ?? null;
+  const isExternalSourceTurn = isSourceTurnOutsideDeskCue(
+    sessionShell,
+    liveSourceState,
+    {
+      hasDeskCuePrompt: hasConfirmedRawPendingPrompt,
+      hasPromptRecovery: Boolean(promptRecovery),
+      hasWaitingPrompt: Boolean(effectiveShellWaitingPrompt),
+      isSourceSessionWorking
+    }
+  );
   const isShellWaitingPromptCompleted = hasShellWaitingPromptCompleted(
     takenOverAgentSession,
     effectiveShellWaitingPrompt
   );
   const activeActionRequest = sessionShell?.actionRequest ?? null;
+  const isManagedSourceWaiting = isManagedSourceReplyWaiting(sessionShell);
 
   const baseEffectiveIsWaitingForChatReply =
     (isPromptInterruptibleSessionShell &&
@@ -100,7 +128,11 @@ export function useManagedSessionReplyState({
       rawPendingChatPrompt &&
       rawPendingChatPrompt.status !== "not_confirmed" &&
       !isRawPendingPromptCompleted
-    );
+    ) ||
+    // Other DeskCue clients do not share this browser's optimistic prompt
+    // state. The managed running shell plus an active source turn is the
+    // authoritative cross-client waiting signal.
+    isManagedSourceWaiting;
   const currentWaitingPrompt =
     effectiveShellWaitingPrompt ?? rawPendingChatPrompt ?? displayedPendingChatPrompt;
   const hasCurrentWaitingPromptAssistantReply = useMemo(
@@ -148,7 +180,10 @@ export function useManagedSessionReplyState({
     suppressWaitingForInterruptLifecycle
   });
   const isPromptQueued = sessionShell?.replyState.phase === "queued";
-  const composerPromptInFlight = activeActionRequest ? false : isPromptInFlight;
+  const composerPromptInFlight =
+    activeActionRequest || isExternalSourceTurn || promptRecovery
+      ? false
+      : isPromptInFlight;
   const shouldShowChatLoading = shouldShowManagedSessionChatLoading({
     hasConversationContent,
     hasPendingPrompt: Boolean(displayedPendingChatPrompt),
@@ -160,13 +195,32 @@ export function useManagedSessionReplyState({
     suppressWaitingForInterruptLifecycle
   });
 
-  const { canSendInput } = resolveInputAvailability(sessionShell, { canSendInputWhenReadOnly });
+  const { canSendInput } = resolveInputAvailability(sessionShell, {
+    blockExternalSourceInput: isExternalSourceTurn || Boolean(promptRecovery),
+    canSendInputWhenReadOnly
+  });
+  const inputUnavailableLabel = canSendInput
+    ? null
+    : promptRecovery
+      ? "DeskCue lost control of this turn"
+      : isExternalSourceTurn
+        ? "Turn active outside DeskCue"
+        : sessionShell?.inputBlockedReason?.trim()
+          ? sessionShell.inputBlockedReason
+          : sessionShell?.sourceSessionId
+            ? "This chat is view only"
+            : "Input unavailable";
 
   const sharedViewerCount = sessionShell?.viewerCount ?? 0;
-  const sharedSessionHint =
-    sharedViewerCount > 1 && composerPromptInFlight
-      ? `This live session is open in ${sharedViewerCount} DeskCue clients. Sending a new prompt from here will interrupt the current run first`
-      : null;
+  const sharedSessionHint = promptRecovery
+    ? "DeskCue will not resend this prompt automatically"
+    : isExternalSourceTurn
+      ? "This turn is running outside DeskCue. Finish or stop it in the controlling client before sending a follow-up"
+      : !canSendInput && sessionShell?.inputBlockedReason
+        ? sessionShell.inputBlockedReason
+        : sharedViewerCount > 1 && composerPromptInFlight
+          ? `This live session is open in ${sharedViewerCount} DeskCue clients. Sending a new prompt from here will interrupt the current run first`
+          : null;
 
   return {
     activeActionRequest,
@@ -176,7 +230,8 @@ export function useManagedSessionReplyState({
     displayedPendingChatPrompt: suppressWaitingForInterruptLifecycle ? null : displayedPendingChatPrompt,
     effectiveIsWaitingForChatReply,
     effectiveShellWaitingPrompt,
-    isSourceSessionWorking,
+    inputUnavailableLabel,
+    isExternalSourceTurn,
     isPromptQueued,
     interruptLifecycle,
     isInterruptingPrompt: isEffectiveInterruptingPrompt,

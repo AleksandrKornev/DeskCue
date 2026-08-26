@@ -5,7 +5,7 @@ import { WebSocketServer } from "ws";
 
 import { PreviewCookieJar } from "#http/routes/system/preview/egress/previewCookieJar";
 import { resolvePreviewWebSocketTargetUrls } from "#http/routes/system/preview/egress/previewWebSocketTarget";
-import { MAX_REWRITABLE_PREVIEW_JAVASCRIPT_BYTES } from "#http/routes/system/preview/previewContentRewrite";
+import { MAX_REWRITABLE_PREVIEW_JAVASCRIPT_BYTES } from "#http/routes/system/preview/relay/previewContentRewrite";
 
 import {
   executeCloudPreviewLoopbackHttp,
@@ -25,7 +25,9 @@ function close(server: import("node:http").Server) {
 
 function readAddress(server: import("node:http").Server) {
   const address = server.address();
+
   assert.ok(address && typeof address === "object");
+
   return address;
 }
 
@@ -37,6 +39,7 @@ test("loopback HTTP exposes response chunks without waiting for upstream complet
     response.flushHeaders();
     response.write("first-event");
   });
+
   await listen(server);
   const address = readAddress(server);
   const origin = `http://127.0.0.1:${address.port}`;
@@ -59,7 +62,9 @@ test("loopback HTTP exposes response chunks without waiting for upstream complet
   });
   const body = result.body[Symbol.asyncIterator]();
   const first = await body.next();
+
   assert.equal(first.done, false);
+
   assert.equal(first.value?.toString(), "first-event");
   assert.equal(readerCancelled, false);
 
@@ -72,11 +77,15 @@ test("loopback HTTP exposes response chunks without waiting for upstream complet
 test("loopback WebSocket preserves protocol, text messages, and exact target", async () => {
   const server = createServer();
   const websocketServer = new WebSocketServer({ noServer: true });
+
   server.on("upgrade", (request, socket, head) => {
     assert.equal(request.url, "/hmr");
     const address = readAddress(server);
+
     assert.equal(request.headers.origin, `http://127.0.0.1:${address.port}`);
+
     assert.equal(request.headers.referer, `http://127.0.0.1:${address.port}/hmr`);
+
     websocketServer.handleUpgrade(request, socket, head, (websocket) => {
       websocketServer.emit("connection", websocket, request);
     });
@@ -88,6 +97,7 @@ test("loopback WebSocket preserves protocol, text messages, and exact target", a
   websocketServer.on("connection", (socket) => {
     socket.on("message", (data, binary) => socket.send(data, { binary }));
   });
+
   await listen(server);
   const address = readAddress(server);
   let resolveMessage!: (message: { binary: boolean; body: Buffer }) => void;
@@ -121,14 +131,19 @@ test("loopback WebSocket preserves protocol, text messages, and exact target", a
     session.headers.find(([name]) => name === "x-preview-handshake"),
     ["x-preview-handshake", "forwarded"]
   );
+
   assert.deepEqual(
     session.headers.find(([name]) => name === "set-cookie"),
     ["set-cookie", "ws_app=opaque; Path=/"]
   );
+
   session.send(Buffer.from("vite-hmr"), false);
+
   try {
     const message = await received;
+
     assert.equal(message.binary, false);
+
     assert.equal(message.body.toString(), "vite-hmr");
   } finally {
     session.close(1000, "test_complete");
@@ -154,14 +169,18 @@ test("WebSocket target normalization preserves secure transport and secure-cooki
   assert.equal(insecure.httpUrl.href, "http://remote.example:9080/socket?channel=preview");
 
   const cookieJar = new PreviewCookieJar();
+
   cookieJar.store(owner, viewerKey, secure.httpUrl, ["secure_session=opaque; Path=/; Secure"]);
+
   assert.equal(cookieJar.read(owner, viewerKey, secure.httpUrl), "secure_session=opaque");
   assert.equal(cookieJar.read(owner, viewerKey, insecure.httpUrl), null);
 });
 
 async function collectBody(body: AsyncIterable<Buffer>) {
   const chunks: Buffer[] = [];
+
   for await (const chunk of body) chunks.push(chunk);
+
   return Buffer.concat(chunks);
 }
 
@@ -172,11 +191,14 @@ test("loopback HTTP allows bounded JavaScript chunks larger than the HTML rewrit
       "content-length": String(source.byteLength),
       "content-type": "text/javascript; charset=utf-8"
     });
+
     response.end(source);
   });
+
   await listen(server);
   const address = readAddress(server);
   const origin = `http://127.0.0.1:${address.port}`;
+
   try {
     const result = await executeCloudPreviewLoopbackHttp({
       body: Buffer.alloc(0),
@@ -209,24 +231,29 @@ test("proxy HTTP rewrites local redirects, preserves browser-direct external red
     externalRequests += 1;
     response.end("external");
   });
+
   await listen(external);
   const externalAddress = readAddress(external);
   const local = createServer((request, response) => {
     if (request.url === "/redirect-local") {
       const address = readAddress(local);
+
       response.writeHead(302, {
         location: `http://127.0.0.1:${address.port}/asset`
       }).end();
       return;
     }
+
     if (request.url === "/redirect-external") {
       response.writeHead(302, {
         location: `http://127.0.0.1:${externalAddress.port}/stolen`
       }).end();
       return;
     }
+
     assetRequestHeaders = request.headers;
     const address = readAddress(local);
+
     response.writeHead(206, {
       "access-control-allow-origin": `http://127.0.0.1:${address.port}`,
       "content-range": "bytes 0-1/2",
@@ -235,8 +262,10 @@ test("proxy HTTP rewrites local redirects, preserves browser-direct external red
       "set-cookie": "private=1; Path=/auth",
       "x-frame-options": "SAMEORIGIN"
     });
+
     response.end("ok");
   });
+
   await listen(local);
   const localAddress = readAddress(local);
   const target = {
@@ -244,6 +273,7 @@ test("proxy HTTP rewrites local redirects, preserves browser-direct external red
     origin: `http://127.0.0.1:${localAddress.port}`,
     port: localAddress.port
   };
+
   try {
     const redirect = await executeCloudPreviewLoopbackHttp({
       body: Buffer.alloc(0),
@@ -258,6 +288,7 @@ test("proxy HTTP rewrites local redirects, preserves browser-direct external red
       egress: false,
       stripAuthorization: false
     });
+
     assert.equal(redirect.status, 302);
     assert.deepEqual(redirect.headers.find(([name]) => name === "location"), ["location", "/asset"]);
     await redirect.cancel();
@@ -281,10 +312,13 @@ test("proxy HTTP rewrites local redirects, preserves browser-direct external red
       egress: false,
       stripAuthorization: false
     });
+
     assert.equal(asset.status, 206);
     assert.equal((await collectBody(asset.body)).toString(), "ok");
     const observedHeaders = assetRequestHeaders as import("node:http").IncomingHttpHeaders | null;
+
     assert.ok(observedHeaders);
+
     assert.equal(observedHeaders.range, "bytes=0-1");
     assert.equal(observedHeaders.authorization, "Bearer application-preview-token");
     assert.equal(observedHeaders.cookie, "app_session=opaque");
@@ -294,6 +328,7 @@ test("proxy HTTP rewrites local redirects, preserves browser-direct external red
       asset.headers.find(([name]) => name === "set-cookie"),
       ["set-cookie", "private=1; Path=/auth"]
     );
+
     assert.deepEqual(asset.headers.find(([name]) => name === "content-security-policy"),
       ["content-security-policy", "default-src 'self'"]);
     assert.deepEqual(asset.headers.find(([name]) => name === "x-frame-options"),
@@ -316,10 +351,12 @@ test("proxy HTTP rewrites local redirects, preserves browser-direct external red
       egress: false,
       stripAuthorization: false
     });
+
     assert.deepEqual(
       externalRedirect.headers.find(([name]) => name === "location"),
       ["location", `http://127.0.0.1:${externalAddress.port}/stolen`]
     );
+
     await externalRedirect.cancel();
     assert.equal(externalRequests, 0);
   } finally {

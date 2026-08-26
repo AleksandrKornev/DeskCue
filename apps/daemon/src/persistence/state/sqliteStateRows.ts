@@ -23,6 +23,7 @@ export type SessionSummaryRow = {
   lastActivityAt: string;
   exitCode: number | null;
   previewJson: string | null;
+  promptRecoveryJson: string | null;
   replyStateJson: string | null;
   actionRequestJson: string | null;
   gitJson: string | null;

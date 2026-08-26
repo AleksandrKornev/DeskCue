@@ -74,6 +74,10 @@
   padding-bottom: 68px;
 }
 
+.transcriptComposerWithInterruptButton {
+  padding-right: 102px;
+}
+
 .primaryButton {
   border: 0;
   border-radius: vars.$radius-md;
@@ -323,6 +327,25 @@
     0 12px 24px rgba(0, 0, 0, 0.22);
 }
 
+.interruptButtonInside {
+  width: auto;
+  min-width: 76px;
+  grid-auto-flow: column;
+  gap: 7px;
+  padding-inline: 12px;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.chatComposerMinimal:not(.chatComposerFieldFocused) .sendButtonInside.interruptButtonInside {
+  width: auto;
+  min-width: 76px;
+}
+
+.interruptButtonLabel {
+  line-height: 1;
+}
+
 .sendButtonInside:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.24);
 }
@@ -351,4 +374,3 @@
     grid-template-columns: 1fr 1fr;
   }
 }
-

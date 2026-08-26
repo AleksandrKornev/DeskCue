@@ -20,6 +20,23 @@ import type {
 
 type PromptIdentity = Pick<PendingChatPrompt, "requestedAt" | "text">;
 
+export async function retryRecoveredPrompt(
+  operation: Exclude<ChatThreadOperationState, { kind: "idle" }>,
+  isRetrying: boolean,
+  setIsRetrying: (value: boolean) => void,
+  onRetry: () => Promise<boolean>
+) {
+  if (operation.kind !== "recovery" || !operation.actionLabel || isRetrying) return;
+
+  setIsRetrying(true);
+
+  try {
+    await onRetry();
+  } finally {
+    setIsRetrying(false);
+  }
+}
+
 function getPendingPromptStatusLabel(
   status: PendingChatPrompt["status"] | PromptRecoveryState["phase"] | null | undefined
 ) {
@@ -48,19 +65,17 @@ function buildRecoveryOperation(
 ): ChatThreadOperationState {
   const hasPromptText = Boolean(recovery.promptText?.trim());
   const actionLabel =
-    recovery.phase === "outcome_unknown" && hasPromptText
-      ? "Send again anyway"
-      : recovery.phase === "not_sent" && recovery.retryable && hasPromptText
-        ? "Retry prompt"
-        : null;
+    recovery.phase === "not_sent" && recovery.retryable && hasPromptText
+      ? "Retry prompt"
+      : null;
 
   if (recovery.phase === "checking") {
     return {
       kind: "recovery",
       actionLabel,
-      detail: "DeskCue restarted during delivery. The agent may still be running in the background.",
+      detail: "DeskCue restarted during this turn. It is checking the source agent's history and will not resend the prompt.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
-      title: "Checking agent history"
+      title: "Recovering turn state"
     };
   }
 
@@ -68,9 +83,9 @@ function buildRecoveryOperation(
     return {
       kind: "recovery",
       actionLabel,
-      detail: "The agent may have continued in the background. DeskCue will not resend this prompt automatically.",
+      detail: "DeskCue did not find a final reply after restarting. Check the source agent before continuing; DeskCue will not resend the prompt.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
-      title: "Delivery outcome unknown"
+      title: "Turn outcome unknown"
     };
   }
 
@@ -92,6 +107,7 @@ function buildChatThreadOperation(
   if (input.promptRecovery) return buildRecoveryOperation(input.promptRecovery);
 
   const isPromptQueued = input.pendingChatPrompt?.status === "queued";
+
   if (
     input.waiting.kind === "idle" ||
     isPromptQueued ||
@@ -126,10 +142,10 @@ export function hasVisibleConfirmedPrompt(
 
   return visibleConversationTimeline.some((item) => {
     if (item.type !== "message" || item.role !== "user") return false;
-
     if (item.entry.text.trim() !== promptText) return false;
 
     const entryTime = new Date(item.timestamp).getTime();
+
     return !Number.isFinite(requestedAt) || entryTime >= requestedAt - 15_000;
   });
 }
@@ -141,12 +157,15 @@ export function findImmediateInterruptTargetKey(
   if (!prompt) return null;
 
   const normalizedPromptText = prompt.text.trim();
+
   if (!normalizedPromptText) return null;
 
   const requestedAt = new Date(prompt.requestedAt).getTime();
+
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     const itemTime = item.type === "message" ? new Date(item.timestamp).getTime() : Number.NaN;
+
     if (
       item.type === "message" &&
       item.role === "user" &&

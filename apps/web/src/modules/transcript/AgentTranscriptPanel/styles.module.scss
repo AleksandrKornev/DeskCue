@@ -183,6 +183,26 @@
   background: linear-gradient(120deg, rgba(216, 111, 52, 0.86), rgba(203, 86, 67, 0.86));
 }
 
+.reviewedButton {
+  min-height: vars.$control-height-touch;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: vars.$radius-md;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  color: vars.$color-text-primary;
+  font-weight: 600;
+}
+
+.reviewedButton:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.reviewedButton:focus-visible {
+  outline: 2px solid vars.$color-action-primary;
+  outline-offset: 2px;
+}
+
 .spinner {
   width: 16px;
   height: 16px;

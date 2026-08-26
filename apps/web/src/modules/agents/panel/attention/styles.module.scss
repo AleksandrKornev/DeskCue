@@ -83,6 +83,12 @@
   transform: rotate(-45deg);
 }
 
+@media (max-width: 720px) {
+  .attentionSectionHeader {
+    min-height: 44px;
+  }
+}
+
 .attentionCards {
   display: grid;
   gap: 7px;

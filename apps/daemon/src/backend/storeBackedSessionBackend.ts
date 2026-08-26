@@ -39,9 +39,11 @@ function getPromptRecoveryLog({
   if (definitelyNotSent) {
     return "DeskCue restarted before prompt dispatch began. The prompt was not sent and was not retried automatically.\n";
   }
+
   if (canReconcileSourceTranscript) {
     return "DeskCue restarted while prompt delivery was in progress. The agent may still be working; DeskCue will check the source transcript and will not send the prompt again automatically.\n";
   }
+
   return "DeskCue restarted while the managed prompt transport was active. That transport cannot continue after restart; the delivery outcome is unknown and the prompt was not sent again.\n";
 }
 
@@ -77,9 +79,8 @@ export class StoreBackedSessionBackend {
           git
         });
         const session = this.repository.getSession(sessionId);
-        if (!session) {
-          return;
-        }
+
+        if (!session) return;
 
         this.operations.publishServerEvent({
           type: "session.git",
@@ -104,7 +105,9 @@ export class StoreBackedSessionBackend {
     sessionRunner?: SessionRunner
   ) {
     const store = new StoreBackedSessionBackend(eventBus, sqliteContext, sessionRunner);
+
     await store.hydrate();
+
     return store;
   }
 
@@ -119,6 +122,7 @@ export class StoreBackedSessionBackend {
 
   getSession(id: string) {
     const session = this.repository.getSession(id);
+
     return session ? structuredClone(this.operations.withInputCapability(session)) : null;
   }
 
@@ -132,18 +136,19 @@ export class StoreBackedSessionBackend {
     const shutdownResult = await this.sessionRunner.close({
       preserve: (sessionId) => {
         const session = this.repository.getSession(sessionId);
+
         return Boolean(
           session?.sourceSessionId &&
           (session.adapterId === "codex" || session.adapterId === "claude-code")
         );
       }
     });
+
     for (const survivor of shutdownResult.survivors) {
       this.operations.markSessionRecoveryRequiredAfterShutdown(survivor);
     }
-    if (shutdownResult.survivors.length > 0) {
-      await this.persistence.persistNow();
-    }
+
+    if (shutdownResult.survivors.length > 0) await this.persistence.persistNow();
     await this.persistence.close();
     this.promptDeliveries.close();
     this.sourceTurnInterrupts.close();
@@ -262,8 +267,10 @@ export class StoreBackedSessionBackend {
       recoveredPrompts.map((prompt) => [prompt.sessionId, prompt])
     );
     let recoveryStateChanged = false;
+
     for (const prompt of latestRecoveryBySession.values()) {
       const session = this.repository.getSession(prompt.sessionId);
+
       if (!session) {
         this.promptDeliveries.markInterrupted(prompt.sessionId);
         continue;
@@ -273,14 +280,16 @@ export class StoreBackedSessionBackend {
       const canReconcileSourceTranscript =
         Boolean(prompt.sourceSessionId) &&
         (prompt.adapterId === "codex" || prompt.adapterId === "claude-code");
-      const recoveryPhase = definitelyNotSent
-        ? "not_sent"
-        : canReconcileSourceTranscript
-          ? "checking"
-          : "outcome_unknown";
       const alreadyMaterialized =
         session.promptRecovery?.promptText === prompt.promptText &&
         session.promptRecovery.requestedAt === prompt.requestedAt;
+      const recoveryPhase = definitelyNotSent
+        ? "not_sent"
+        : alreadyMaterialized && session.promptRecovery?.phase === "outcome_unknown"
+          ? "outcome_unknown"
+          : canReconcileSourceTranscript
+            ? "checking"
+            : "outcome_unknown";
       this.repository.updateSession(session.id, {
         replyState: emptyReplyState(),
         promptRecovery: {
@@ -306,6 +315,7 @@ export class StoreBackedSessionBackend {
       });
       recoveryStateChanged = true;
     }
+
     for (const session of this.repository.listSessionDetails()) {
       if (session.promptRecovery && !latestRecoveryBySession.has(session.id)) {
         this.repository.updateSession(session.id, {
@@ -314,8 +324,7 @@ export class StoreBackedSessionBackend {
         recoveryStateChanged = true;
       }
     }
-    if (recoveryStateChanged) {
-      await this.persistence.persistFull();
-    }
+
+    if (recoveryStateChanged) await this.persistence.persistFull();
   }
 }

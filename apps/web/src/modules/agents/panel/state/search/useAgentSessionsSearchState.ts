@@ -5,6 +5,10 @@ import {
   useState
 } from "react";
 
+import {
+  readAgentBrowserQuery,
+  rememberAgentBrowserQuery
+} from "@modules/agents/panel/state/agentBrowserListMemory";
 import { SOURCE_SWITCH_MIN_PLACEHOLDER_MS } from "@modules/agents/panel/state/helpers";
 import type { AgentSessionsPanelProps } from "@modules/agents/types";
 
@@ -24,7 +28,7 @@ export function useAgentSessionsSearchState({
   | "onSelectSource"
   | "selectedSourceId"
 >) {
-  const [query, setQuery] = useState("");
+  const [query, setQueryState] = useState(() => readAgentBrowserQuery());
   const [isSearchRequestPending, setIsSearchRequestPending] = useState(false);
   const [pendingSourceId, setPendingSourceId] = useState<SelectedSourceId | null>(null);
   const searchRequestIdRef = useRef(0);
@@ -44,6 +48,14 @@ export function useAgentSessionsSearchState({
     isSearchRequestPending ||
     (normalizedQuery ? agentSessionsQuery !== normalizedQuery : agentSessionsQuery !== null);
   const isSourceSwitching = isSourceReloadPending || isSourceLoadUninitialized;
+  const setQuery = useCallback((value: string) => {
+    rememberAgentBrowserQuery(value);
+    setQueryState(value);
+  }, []);
+
+  useEffect(() => {
+    return () => rememberAgentBrowserQuery(query);
+  }, [query]);
 
   const beginSourceSwitch = useCallback((sourceId: SelectedSourceId) => {
     sourceSwitchGenerationRef.current += 1;
@@ -51,6 +63,7 @@ export function useAgentSessionsSearchState({
       window.clearTimeout(sourceSwitchCompletionTimerRef.current);
       sourceSwitchCompletionTimerRef.current = null;
     }
+
     sourceSwitchStartedAtRef.current = performance.now();
     setPendingSourceId(sourceId);
     return sourceSwitchGenerationRef.current;
@@ -60,9 +73,8 @@ export function useAgentSessionsSearchState({
     sourceId: SelectedSourceId,
     generation: number
   ) => {
-    if (sourceSwitchGenerationRef.current !== generation) {
-      return;
-    }
+    if (sourceSwitchGenerationRef.current !== generation) return;
+
     const elapsedMs = performance.now() - sourceSwitchStartedAtRef.current;
     const remainingMs = Math.max(SOURCE_SWITCH_MIN_PLACEHOLDER_MS - elapsedMs, 0);
 
@@ -78,19 +90,18 @@ export function useAgentSessionsSearchState({
     loadedSourceIdRef.current = sourceId;
     onSelectSource(sourceId);
 
-    if (query.trim()) {
-      return;
-    }
+    if (query.trim()) return;
 
     const requestId = searchRequestIdRef.current + 1;
+
     searchRequestIdRef.current = requestId;
     const switchGeneration = beginSourceSwitch(sourceId);
+
     setIsSearchRequestPending(true);
+
     void onReloadAgentSessions({ sourceId }).finally(() => {
       completeSourceSwitch(sourceId, switchGeneration);
-      if (searchRequestIdRef.current === requestId) {
-        setIsSearchRequestPending(false);
-      }
+      if (searchRequestIdRef.current === requestId) setIsSearchRequestPending(false);
     });
   }, [beginSourceSwitch, completeSourceSwitch, onReloadAgentSessions, onSelectSource, query]);
 
@@ -102,9 +113,12 @@ export function useAgentSessionsSearchState({
         loadedSearchSourceIdRef.current = null;
         if (agentSessionsQuery !== null) {
           const requestId = searchRequestIdRef.current + 1;
+
           searchRequestIdRef.current = requestId;
           const switchGeneration = beginSourceSwitch(selectedSourceId);
+
           setIsSearchRequestPending(true);
+
           void onReloadAgentSessions({ sourceId: selectedSourceId }).finally(() => {
             if (searchRequestIdRef.current === requestId) {
               completeSourceSwitch(selectedSourceId, switchGeneration);
@@ -114,6 +128,7 @@ export function useAgentSessionsSearchState({
         } else {
           setIsSearchRequestPending(false);
         }
+
         return;
       }
 
@@ -127,7 +142,9 @@ export function useAgentSessionsSearchState({
 
       setIsSearchRequestPending(true);
       const requestId = searchRequestIdRef.current + 1;
+
       searchRequestIdRef.current = requestId;
+
       void onSearchAgentSessions(trimmedQuery, {
         silent: true,
         sourceId: selectedSourceId
@@ -164,12 +181,11 @@ export function useAgentSessionsSearchState({
       return;
     }
 
-    if (loadedSourceIdRef.current === selectedSourceId) {
-      return;
-    }
+    if (loadedSourceIdRef.current === selectedSourceId) return;
 
     loadedSourceIdRef.current = selectedSourceId;
     const switchGeneration = beginSourceSwitch(selectedSourceId);
+
     void onReloadAgentSessions({ sourceId: selectedSourceId }).finally(() => {
       completeSourceSwitch(selectedSourceId, switchGeneration);
     });

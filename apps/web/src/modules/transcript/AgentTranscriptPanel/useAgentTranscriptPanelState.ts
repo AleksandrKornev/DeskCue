@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import { filterHumanVisibleTranscriptEntries } from "@models/transcriptEntries";
+import { getUnavailableChatPresentation } from "@modules/agents/agentSessionAccessPresentation";
 
 import { buildTranscriptTimeline } from "./AgentTranscriptPanel.timeline";
 import {
@@ -49,26 +50,26 @@ export function useAgentTranscriptPanelState({
     displaySession?.agentId === "other" && displaySession.agentLabel === "LM Studio";
   const isSharedLiveThread = displaySession?.attachMode !== "resume";
   const isOpeningSharedLiveThread = attaching && isSharedLiveThread && !attachedManagedSessionId;
+  const unavailableChatPresentation = displaySession
+    ? getUnavailableChatPresentation(displaySession)
+    : null;
   const sourceCapabilityLabel = isHydratingSelection
     ? "Loading chat"
-    : displaySession?.workState === "running"
-      ? "Running"
-      : displaySession?.attachMode === "resume"
-        ? "Ready"
-        : "Read only";
+    : displaySession?.attachMode === "resume"
+      ? "Ready to continue"
+      : unavailableChatPresentation?.capabilityLabel ?? "View only";
   const actionButtonLabel = buildAttachActionButtonLabel({
     attachWaitStage,
     attaching,
     canResume: displaySession?.attachMode === "resume",
     hasAttachedManagedSession: Boolean(attachedManagedSessionId),
-    isOpeningSharedLiveThread
+    isOpeningSharedLiveThread,
+    unavailableActionLabel: unavailableChatPresentation?.actionLabel ?? "Open view-only chat"
   });
   const hiddenPreviewText =
     displaySession?.attachMode === "resume"
       ? "Open this local thread in DeskCue and send a prompt when you are ready"
-      : displaySession?.workState === "running"
-        ? "Open a live DeskCue mirror. Sending a prompt from DeskCue may interrupt the current Codex run first"
-        : "Open this local thread in DeskCue for review";
+      : unavailableChatPresentation?.hint ?? "Open this local thread in DeskCue for review";
   const attachedViewerCount = attachedManagedSessionInfo?.viewerCount ?? 0;
   const attachedClientLabel =
     attachedViewerCount === 1
@@ -100,14 +101,11 @@ export function useAgentTranscriptPanelState({
   );
 
   useEffect(() => {
-    if (!session?.id || isLoading) {
-      return;
-    }
+    if (!session?.id || isLoading) return;
 
     const transcriptElement = transcriptRef.current;
-    if (!transcriptElement) {
-      return;
-    }
+
+    if (!transcriptElement) return;
 
     const animationFrame = window.requestAnimationFrame(() => {
       transcriptElement.scrollTop = transcriptElement.scrollHeight;
@@ -153,6 +151,7 @@ export function useAgentTranscriptPanelState({
     sourceCapabilityLabel,
     textOnlyTranscriptEntries,
     transcriptRef,
+    unavailableChatPresentation,
     visibleTextOnlyTranscriptEntries,
     setShowModelContext
   };

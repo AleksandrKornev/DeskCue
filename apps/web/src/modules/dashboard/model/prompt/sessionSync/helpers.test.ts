@@ -132,8 +132,11 @@ describe("resolvePromptSessionSyncAction", () => {
       ...createWaitingPrompt(),
       status: "sending" as const
     };
+
     const selectedSession = createReadOnlyTakenOverSession();
+
     selectedSession.status = "running";
+
     selectedSession.replyState = {
       phase: "sending",
       promptText: prompt.text,
@@ -181,6 +184,26 @@ describe("resolvePromptSessionSyncAction", () => {
     });
 
     assert.equal(action.kind, "none");
+  });
+
+  it("clears a scoped waiting prompt after the managed shell is stopped", () => {
+    const prompt = createWaitingPrompt();
+    const selectedSession = createReadOnlyTakenOverSession();
+
+    selectedSession.status = "stopped";
+
+    const action = resolvePromptSessionSyncAction({
+      activeTakenOverAgentSession: createAgentSession([], {
+        workState: "running"
+      }),
+      awaitingChatReplySince: prompt.requestedAt,
+      isInterruptingPrompt: false,
+      isWaitingForChatReply: true,
+      pendingChatPrompt: prompt,
+      selectedSession
+    });
+
+    assert.equal(action.kind, "reset");
   });
 
   it("clears a read-only takeover waiting prompt after the source transcript has a reply", () => {

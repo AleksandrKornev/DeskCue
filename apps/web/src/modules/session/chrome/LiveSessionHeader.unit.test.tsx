@@ -32,6 +32,8 @@ afterEach(() => {
 
 describe("LiveSessionHeader", () => {
   it("keeps the agent, compaction count, and live state in the session metadata", () => {
+    const onExitSession = vi.fn();
+
     render(
       <LiveSessionHeader
         activeTab="preview"
@@ -51,11 +53,12 @@ describe("LiveSessionHeader", () => {
           preview: true
         }}
         navigationIdPrefix="test-session"
-        status="running"
-        statusLabel="Ready"
+        status="read_only"
+        statusLabel="ready"
         subtitle="D:\\work\\DeskCueWorkspace"
         title="Continue HTTPS Preview DeskCue"
         toolbarRef={createRef<HTMLDivElement>()}
+        onExitSession={onExitSession}
         onSelectTab={vi.fn()}
       />
     );
@@ -67,10 +70,82 @@ describe("LiveSessionHeader", () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText("Connecting")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Continue HTTPS Preview DeskCue" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("ready");
     expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute(
       "aria-selected",
       "true"
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to chats" }));
+    expect(onExitSession).toHaveBeenCalledOnce();
+  });
+
+  it("keeps status in session context without treating every explicit label as a warning", () => {
+    const renderHeader = (
+      status: "failed" | "read_only" | "running" | "stopped",
+      statusLabel?: string
+    ) => (
+      <LiveSessionHeader
+        activeTab="overview"
+        actions={<button type="button">More actions</button>}
+        adapterLabel="CODEX"
+        contextCompactionCount={0}
+        isAgentChat={false}
+        liveUpdatesConnection={{
+          lastSyncedAt: null,
+          status: "live"
+        }}
+        navigationCapabilities={{
+          changes: true,
+          conversation: true,
+          files: true,
+          output: false,
+          preview: true
+        }}
+        navigationIdPrefix="status-session"
+        status={status}
+        statusLabel={statusLabel}
+        subtitle="D:\\work\\DeskCueWorkspace"
+        title="A long session title that must not compete with status"
+        toolbarRef={createRef<HTMLDivElement>()}
+        onExitSession={vi.fn()}
+        onSelectTab={vi.fn()}
+      />
+    );
+    const { rerender } = render(renderHeader("read_only", "ready"));
+    const getStatusBadge = () => screen.getByRole("status").firstElementChild;
+
+    expect(screen.getByRole("status").parentElement).toHaveClass(styles.metaRow);
+    expect(getStatusBadge()).not.toHaveClass(styles.headerStatusBadgeActionable);
+    expect(screen.getByRole("heading")).toHaveTextContent(
+      "A long session title that must not compete with status"
+    );
+
+    rerender(renderHeader("read_only", "control lost"));
+
+    expect(getStatusBadge()).toHaveClass(styles.headerStatusBadgeActionable);
+    expect(getStatusBadge()).not.toHaveClass(styles.headerStatusBadgeRunning);
+
+    rerender(renderHeader("running"));
+
+    expect(getStatusBadge()).toHaveClass(styles.headerStatusBadgeRunning);
+    expect(getStatusBadge()).not.toHaveClass(styles.headerStatusBadgeActionable);
+
+    rerender(renderHeader("failed"));
+
+    expect(getStatusBadge()).toHaveClass(styles.headerStatusBadgeDanger);
+    expect(getStatusBadge()).not.toHaveClass(styles.headerStatusBadgeActionable);
+
+    rerender(renderHeader("stopped"));
+
+    expect(getStatusBadge()).toHaveClass(styles.headerStatusBadgeDanger);
+
+    rerender(renderHeader("stopped", "ready"));
+
+    expect(getStatusBadge()).not.toHaveClass(styles.headerStatusBadgeDanger);
   });
 
   it("collapses on downward mobile scrolling and expands when scrolling back up", () => {
@@ -103,6 +178,7 @@ describe("LiveSessionHeader", () => {
           subtitle="D:\\work\\DeskCueWorkspace"
           title="Continue HTTPS Preview DeskCue"
           toolbarRef={toolbarRef}
+          onExitSession={vi.fn()}
           onSelectTab={vi.fn()}
         />
         <div data-testid="session-scroll-target" />
@@ -110,7 +186,9 @@ describe("LiveSessionHeader", () => {
     );
 
     const scrollTarget = screen.getByTestId("session-scroll-target");
+
     setScrollMetrics(scrollTarget, { scrollTop: 48 });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
@@ -168,6 +246,7 @@ describe("LiveSessionHeader", () => {
           subtitle="D:\\work\\DeskCueWorkspace"
           title="Continue HTTPS Preview DeskCue"
           toolbarRef={toolbarRef}
+          onExitSession={vi.fn()}
           onSelectTab={vi.fn()}
         />
         <div data-testid="session-scroll-target" />
@@ -175,17 +254,20 @@ describe("LiveSessionHeader", () => {
     );
 
     const scrollTarget = screen.getByTestId("session-scroll-target");
+
     setScrollMetrics(scrollTarget, {
       clientHeight: 500,
       scrollHeight: 1_000,
       scrollTop: 280
     });
+
     fireEvent.wheel(scrollTarget, { deltaY: 24 });
     setScrollMetrics(scrollTarget, {
       clientHeight: 500,
       scrollHeight: 1_000,
       scrollTop: 304
     });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).toHaveClass(styles.chatToolbarCollapsed);
@@ -195,6 +277,7 @@ describe("LiveSessionHeader", () => {
       scrollHeight: 1_000,
       scrollTop: 480
     });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
@@ -205,6 +288,7 @@ describe("LiveSessionHeader", () => {
       scrollHeight: 1_000,
       scrollTop: 404
     });
+
     fireEvent.scroll(scrollTarget);
 
     expect(toolbarRef.current).not.toHaveClass(styles.chatToolbarCollapsed);
@@ -240,6 +324,7 @@ describe("LiveSessionHeader", () => {
           subtitle="D:\\work\\DeskCueWorkspace"
           title="Continue HTTPS Preview DeskCue"
           toolbarRef={toolbarRef}
+          onExitSession={vi.fn()}
           onSelectTab={onSelectTab}
         />
         <div data-testid="session-scroll-target" />

@@ -76,7 +76,7 @@ test("keeps a successful Codex one-shot resume attached and ready for the next p
       },
       0
     ),
-    "read_only"
+    "done"
   );
 });
 
@@ -87,11 +87,11 @@ test("keeps a transcript-completed Codex shell ready when transport termination 
         adapterId: "codex",
         command: "codex -c check_for_update_on_startup=false exec resume source-session continue",
         sourceSessionId: "source-session",
-        status: "read_only"
+        status: "done"
       },
       1
     ),
-    "read_only"
+    "done"
   );
 });
 
@@ -228,6 +228,8 @@ test("survive-parent-exit pipe process completes after its DeskCue parent exits"
   const moduleUrl = new URL("./sessionProcess.ts", import.meta.url).href;
   const childCode = `
     setTimeout(() => {
+      process.stdout.write("surviving stdout");
+      process.stderr.write("surviving stderr");
       require("node:fs").writeFileSync(process.argv[1], "completed");
     }, 300);
   `;
@@ -285,6 +287,61 @@ test("Windows surviving pipe confirms nested startup", {
   await waitForPipeExit(child);
 });
 
+test("Windows surviving pipe forwards nested stdout and stderr", {
+  skip: process.platform !== "win32"
+}, async () => {
+  const child = createSessionPipe(process.cwd(), {}, {
+    args: [
+      "-e",
+      "process.stdout.write('DESKCUE_SURVIVING_STDOUT'); " +
+        "process.stderr.write('DESKCUE_SURVIVING_STDERR'); process.exit(1)"
+    ],
+    file: process.execPath,
+    surviveParentExit: true,
+    transport: "pipe"
+  });
+  const output: Array<{ stream: string; text: string }> = [];
+
+  child.onData((chunk, stream) => {
+    output.push({ stream: stream ?? "stdout", text: chunk });
+  });
+
+  await child.startupReady;
+  assert.equal(await waitForPipeExit(child), 1);
+  assert.ok(output.some(({ stream, text }) =>
+    stream === "stdout" && text.includes("DESKCUE_SURVIVING_STDOUT")
+  ));
+  assert.ok(output.some(({ stream, text }) =>
+    stream === "stderr" && text.includes("DESKCUE_SURVIVING_STDERR")
+  ));
+});
+
+test("Windows surviving pipe drains a large final output tail", {
+  skip: process.platform !== "win32"
+}, async () => {
+  const outputSize = 256 * 1024;
+  const child = createSessionPipe(process.cwd(), {}, {
+    args: [
+      "-e",
+      `process.stdout.write("x".repeat(${outputSize})); ` +
+        "setImmediate(() => process.stdout.write('DESKCUE_FINAL_OUTPUT'))"
+    ],
+    file: process.execPath,
+    surviveParentExit: true,
+    transport: "pipe"
+  });
+  let stdout = "";
+
+  child.onData((chunk, stream) => {
+    if ((stream ?? "stdout") === "stdout") stdout += chunk;
+  });
+
+  await child.startupReady;
+  assert.equal(await waitForPipeExit(child), 0);
+  assert.equal(stdout.length, outputSize + "DESKCUE_FINAL_OUTPUT".length);
+  assert.ok(stdout.endsWith("DESKCUE_FINAL_OUTPUT"));
+});
+
 test("Windows surviving pipe reports an outer spawn error", {
   skip: process.platform !== "win32"
 }, async () => {
@@ -339,7 +396,7 @@ test("Windows surviving pipe kill terminates its full tree", {
     args: [
       "-e",
       "require('node:fs').writeFileSync(process.argv[1], 'started'); " +
-        "setTimeout(() => require('node:fs').writeFileSync(process.argv[2], 'orphan'), 750)",
+        "setTimeout(() => require('node:fs').writeFileSync(process.argv[2], 'orphan'), 2_500)",
       startedPath,
       markerPath
     ],
@@ -354,7 +411,7 @@ test("Windows surviving pipe kill terminates its full tree", {
     await waitForFile(startedPath);
     child.kill();
     await waitForPipeExit(child);
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    await new Promise((resolve) => setTimeout(resolve, 2_800));
     await assert.rejects(access(markerPath));
   } finally {
     await rm(directory, { force: true, recursive: true });

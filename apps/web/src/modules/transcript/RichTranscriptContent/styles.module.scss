@@ -95,7 +95,32 @@
   gap: 10px;
 }
 
+.secondaryPartsToggle {
+  min-height: 44px;
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f3eee5;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.secondaryPartsSummary {
+  margin: 0;
+  color: #b9c4d6;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
 @media (max-width: 720px) {
+  .collapseToggle {
+    min-height: 44px;
+    padding-inline: 14px;
+  }
+
   .richTranscript :global(table) {
     overflow-x: auto;
     font-size: 0.84rem;
@@ -107,4 +132,3 @@
     white-space: nowrap;
   }
 }
-

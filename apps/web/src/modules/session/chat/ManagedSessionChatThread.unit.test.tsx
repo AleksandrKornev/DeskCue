@@ -130,20 +130,19 @@ describe("ManagedSessionChatThread", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Inspecting the external turn")).toBeInTheDocument();
     expect(
-      screen.queryByText("DeskCue is monitoring a turn that was already in progress")
+      screen.queryByText("DeskCue is monitoring a turn started outside DeskCue")
     ).not.toBeInTheDocument();
     expect(container.querySelector(`.${styles.chatWaitingSpinner}`)).toBeInTheDocument();
   });
 
-  it("describes a pre-existing source turn without implying a different control surface", () => {
+  it("describes a pre-existing source turn as running outside DeskCue", () => {
     renderChatThread({
       waiting: { kind: "external", detailEntry: null }
     });
 
     expect(
-      screen.getByText("DeskCue is monitoring a turn that was already in progress")
+      screen.getByText("DeskCue is monitoring a turn started outside DeskCue")
     ).toBeInTheDocument();
-    expect(screen.queryByText(/outside DeskCue/i)).not.toBeInTheDocument();
   });
 
   it("shows an external Claude wait without requiring a live detail entry", () => {
@@ -154,11 +153,11 @@ describe("ManagedSessionChatThread", () => {
 
     expect(screen.getByText("Waiting for Claude Code reply")).toBeInTheDocument();
     expect(
-      screen.getByText("DeskCue is monitoring a turn that was already in progress")
+      screen.getByText("DeskCue is monitoring a turn started outside DeskCue")
     ).toBeInTheDocument();
   });
 
-  it("explains that an agent may continue while DeskCue checks history after restart", () => {
+  it("explains that DeskCue lost control while it checks history after restart", () => {
     renderChatThread({
       promptRecovery: {
         phase: "checking",
@@ -168,17 +167,17 @@ describe("ManagedSessionChatThread", () => {
       }
     });
 
-    expect(screen.getByText("Checking agent history")).toBeInTheDocument();
+    expect(screen.getByText("Recovering turn state")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "DeskCue restarted during delivery. The agent may still be running in the background."
+        "DeskCue restarted during this turn. It is checking the source agent's history and will not resend the prompt."
       )
     ).toBeInTheDocument();
     expect(screen.getByText("Checking delivery")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry prompt" })).not.toBeInTheDocument();
   });
 
-  it("offers only a separately labelled, confirmable resend when delivery is unknown", () => {
+  it("does not offer an unsafe resend when delivery is unknown", () => {
     renderChatThread({
       promptRecovery: {
         phase: "outcome_unknown",
@@ -188,18 +187,19 @@ describe("ManagedSessionChatThread", () => {
       }
     });
 
-    expect(screen.getByText("Delivery outcome unknown")).toBeInTheDocument();
+    expect(screen.getByText("Turn outcome unknown")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "The agent may have continued in the background. DeskCue will not resend this prompt automatically."
+        "DeskCue did not find a final reply after restarting. Check the source agent before continuing; DeskCue will not resend the prompt."
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry prompt" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send again anyway" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send again anyway" })).not.toBeInTheDocument();
   });
 
   it("offers an explicit retry only when the daemon confirms the prompt was not sent", async () => {
     const onRetryRecoveredPrompt = vi.fn(() => Promise.resolve(true));
+
     renderChatThread({
       onRetryRecoveredPrompt,
       promptRecovery: {
@@ -316,7 +316,9 @@ describe("ManagedSessionChatThread", () => {
     });
 
     const messages = container.querySelectorAll(`.${styles.chatMessageUser}`);
+
     expect(messages).toHaveLength(2);
+
     expect(messages[0]).not.toHaveTextContent("Interrupted");
     expect(messages[1]).toHaveTextContent("Interrupted");
   });

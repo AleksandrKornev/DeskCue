@@ -86,6 +86,7 @@ export function useDashboardRouteActions({
 
   const exitToDashboard = useCallback(() => {
     resetDashboardScroll();
+
     flushSync(() => {
       dashboardNavigationStore.setPendingDashboardExit(true);
       dashboardNavigationStore.setIsAgentBrowserListMode(false);
@@ -98,13 +99,24 @@ export function useDashboardRouteActions({
     navigate(
       {
         pathname: "/",
-        search: ""
+        search: buildRouteSearch({
+          sourceId: selectedSourceId,
+          agentSessionId: "",
+          overlay: null
+        })
       },
       {
         replace: false
       }
     );
-  }, [navigate, setActiveTab, setSelectedAgentSessionId, setSelectedSession, setSelectedSessionId]);
+  }, [
+    navigate,
+    selectedSourceId,
+    setActiveTab,
+    setSelectedAgentSessionId,
+    setSelectedSession,
+    setSelectedSessionId
+  ]);
 
   const handleGoHome = useCallback(() => {
     exitToDashboard();
@@ -124,25 +136,25 @@ export function useDashboardRouteActions({
 
   const handleStopAndExitSession = useCallback(async () => {
     const stopped = await handleStopSession();
-    if (!stopped) {
-      return;
-    }
+
+    if (!stopped) return;
 
     handleExitSession();
   }, [handleExitSession, handleStopSession]);
 
   const handleAttachSelectedAgentSession = useCallback(async () => {
     const agentSessionId = effectiveSelectedAgentSessionId;
+
     flushSync(() => {
       dashboardNavigationStore.setIsAgentBrowserListMode(false);
       dashboardNavigationStore.setOpeningAgentSessionId(agentSessionId);
     });
     let keepOpeningStateUntilRouteSync = false;
+
     try {
       const session = await handleAttachAgentSession();
-      if (!session) {
-        return;
-      }
+
+      if (!session) return;
 
       dashboardNavigationStore.setIsDashboardPinned(false);
       setSelectedSessionId(session.id);
@@ -157,9 +169,7 @@ export function useDashboardRouteActions({
         })
       });
     } finally {
-      if (!keepOpeningStateUntilRouteSync) {
-        dashboardNavigationStore.setOpeningAgentSessionId("");
-      }
+      if (!keepOpeningStateUntilRouteSync) dashboardNavigationStore.setOpeningAgentSessionId("");
     }
   }, [
     effectiveSelectedAgentSessionId,
@@ -173,6 +183,7 @@ export function useDashboardRouteActions({
     async (nextInstruction: string, options?: SendInputOptions) => {
       const sent = await handleSendInput(nextInstruction, options);
       const sentSessionId = typeof sent === "string" ? sent : "";
+
       if (sent && sentSessionId && sentSessionId !== routeState.sessionId) {
         dashboardNavigationStore.setPendingSendRouteSync(false);
         dashboardNavigationStore.setIsDashboardPinned(false);

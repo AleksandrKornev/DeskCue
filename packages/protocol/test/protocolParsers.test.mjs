@@ -309,6 +309,42 @@ test("realtime server parser rejects malformed wire events", () => {
   }
 });
 
+test("realtime server parser validates optional turn start fingerprints", () => {
+  const createEvent = (turnStartFingerprint) => ({
+    type: "agent.session.transcript.updated",
+    payload: {
+      agentId: "codex",
+      agentLabel: "Codex",
+      agentSessionId: "codex:1",
+      latestEntryId: null,
+      sourceSessionId: "1",
+      transcriptLength: 1,
+      turnState: {
+        activityAt: "2026-08-06T00:00:01.000Z",
+        completedAt: null,
+        evidence: "turn_lifecycle",
+        fingerprint: "active-turn",
+        phase: "active",
+        startedAt: "2026-08-06T00:00:00.000Z",
+        turnStartFingerprint
+      },
+      updatedAt: "2026-08-06T00:00:01.000Z",
+      workState: "running"
+    }
+  });
+
+  for (const fingerprint of ["turn-start", null]) {
+    const event = createEvent(fingerprint);
+
+    assert.deepEqual(parseServerEvent(event), event);
+  }
+
+  assert.throws(
+    () => parseServerEvent(createEvent(42)),
+    ProtocolSchemaError
+  );
+});
+
 test("local LLM parsers own normalization and limits", () => {
   assert.deepEqual(
     parseCreateLocalLlmChatInput({

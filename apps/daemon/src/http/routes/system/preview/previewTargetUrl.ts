@@ -7,6 +7,33 @@ type PreviewTargetUrlOptions = {
 
 const ACCESS_TOKEN_QUERY_KEYS = ["access_token", "token"] as const;
 
+function readQuerySegmentKey(segment: string) {
+  return new URLSearchParams(segment).keys().next().value ?? "";
+}
+
+function sanitizePreviewSearch(
+  search: string,
+  ticketQueryKey: string,
+  isDeskCueAccessToken: (value: string) => boolean
+) {
+  if (!search) return "";
+
+  const searchParams = new URLSearchParams(search);
+  const removedKeys = new Set<string>([ticketQueryKey]);
+
+  for (const key of ACCESS_TOKEN_QUERY_KEYS) {
+    const value = searchParams.get(key);
+
+    if (value && isDeskCueAccessToken(value)) removedKeys.add(key);
+  }
+
+  const sanitizedQuery = search.slice(1)
+    .split("&")
+    .filter((segment) => !removedKeys.has(readQuerySegmentKey(segment)))
+    .join("&");
+  return sanitizedQuery ? `?${sanitizedQuery}` : "";
+}
+
 export function buildPreviewTargetUrl(
   requestUrl: string,
   origin: string,
@@ -18,11 +45,11 @@ export function buildPreviewTargetUrl(
   }: PreviewTargetUrlOptions
 ) {
   const incoming = new URL(requestUrl || "/", "http://deskcue.local");
-  incoming.searchParams.delete(ticketQueryKey);
-  for (const key of ACCESS_TOKEN_QUERY_KEYS) {
-    const value = incoming.searchParams.get(key);
-    if (value && isDeskCueAccessToken(value)) incoming.searchParams.delete(key);
-  }
+  const sanitizedSearch = sanitizePreviewSearch(
+    incoming.search,
+    ticketQueryKey,
+    isDeskCueAccessToken
+  );
 
   const sourcePath = basePath && incoming.pathname.startsWith(basePath)
     ? incoming.pathname.slice(basePath.length)
@@ -32,5 +59,6 @@ export function buildPreviewTargetUrl(
     ""
   );
   const pathname = `/${withoutTicketPath.replace(/^\/+/, "")}`.replace(/\\/g, "/");
-  return new URL(`${pathname}${incoming.search}`, origin);
+
+  return new URL(`${pathname}${sanitizedSearch}`, origin);
 }

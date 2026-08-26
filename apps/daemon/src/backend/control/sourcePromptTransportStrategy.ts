@@ -36,10 +36,7 @@ export function createCodexPromptTransportStrategy(
   options: StoreBackedPromptTransportCoordinatorOptions
 ): SourcePromptTransportStrategy {
   return {
-    queuePolicy: {
-      kind: "detached_read_only",
-      queuedMessage: "Input queued until the current Codex turn completes.\n"
-    },
+    queuePolicy: { kind: "never" },
     start: (session, prompt, journalHooks) =>
       (options.restartCodexTransportProcess ?? restartCodexTransportProcess)(
         {
@@ -59,6 +56,8 @@ export function createClaudePromptTransportStrategy(
     queuePolicy: { kind: "never" },
     start: (session, prompt, journalHooks) =>
       (options.restartClaudePromptTransportProcess ?? restartClaudePromptTransportProcess)({
+        appendStderrLog: (sessionId, text) =>
+          options.appendLog(sessionId, "stderr", text),
         appendStdoutLog: (sessionId, text) =>
           options.appendLog(sessionId, "stdout", text),
         appendSystemLog: (sessionId, text, timestamp) =>

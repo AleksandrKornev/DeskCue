@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import { codexAdapter, genericCliAdapter } from "@deskcue/adapters";
 import type { SessionDetail } from "@deskcue/protocol";
+import {
+  CODEX_ACTIVE_WRITER_BLOCKED_REASON,
+  hasCodexActiveWriterConflict
+} from "#agents/codex/session/codexWriterConflict";
 import { normalizeSessionLogs } from "#sessions/logs/sessionLogs";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
 
@@ -13,22 +17,25 @@ export type HydratedSessionState = {
   sessions: SessionDetail[];
 };
 
-function shouldRestoreCodexAttachedShell(session: SessionDetail) {
+function hasRestorableCodexActiveWriterConflict(session: SessionDetail) {
   if (
-    session.adapterId !== codexAdapter.id ||
-    !session.sourceSessionId ||
-    session.exitCode !== null
+    session.inputBlockedReason === CODEX_ACTIVE_WRITER_BLOCKED_REASON &&
+    session.promptRecovery?.phase === "not_sent"
   ) {
-    return false;
-  }
-
-  if (session.status === "running") {
     return true;
   }
 
-  if (session.status === "failed") {
-    return true;
-  }
+  const requestedAt = session.replyState.requestedAt ?? session.promptRecovery?.requestedAt ?? null;
+
+  return hasCodexActiveWriterConflict(session, { requestedAt });
+}
+
+function shouldRestoreCodexAttachedShell(session: SessionDetail) {
+  if (session.adapterId !== codexAdapter.id || !session.sourceSessionId) return false;
+  if (hasRestorableCodexActiveWriterConflict(session)) return true;
+  if (session.exitCode !== null) return false;
+  if (session.status === "running") return true;
+  if (session.status === "failed") return true;
 
   return (
     session.status === "stopped" &&
@@ -51,17 +58,22 @@ export function hydratePersistedSessions(sessions: SessionDetail[]): HydratedSes
 
   for (const session of sessions) {
     const restored = structuredClone(session);
+
     restored.adapterId = restored.adapterId || genericCliAdapter.id;
+
     restored.sourceSessionId = restored.sourceSessionId ?? null;
     restored.preview = {
       ...emptyPreview(),
       ...restored.preview,
       artifacts: restored.preview?.artifacts ?? []
     };
+
     restored.replyState = restored.replyState ?? emptyReplyState();
     restored.promptRecovery = restored.promptRecovery ?? null;
     restored.actionRequest = restored.actionRequest ?? null;
     if (shouldRestoreCodexAttachedShell(restored)) {
+      const activeWriterConflict = hasRestorableCodexActiveWriterConflict(restored);
+
       restoredCodexAttachedSessions += 1;
       restored.status = "read_only";
       restored.finishedAt = restored.finishedAt ?? new Date().toISOString();
@@ -69,13 +81,18 @@ export function hydratePersistedSessions(sessions: SessionDetail[]): HydratedSes
       restored.exitCode = null;
       restored.replyState = emptyReplyState();
       restored.actionRequest = null;
+      restored.inputBlockedReason = activeWriterConflict
+        ? CODEX_ACTIVE_WRITER_BLOCKED_REASON
+        : restored.inputBlockedReason;
       restored.logs = [
         ...restored.logs,
         {
           id: randomUUID(),
           timestamp: new Date().toISOString(),
           stream: "system",
-          text: "DeskCue restored this Codex chat after daemon restart. The local transport is detached; send a prompt to resume control.\n"
+          text: activeWriterConflict
+            ? `${CODEX_ACTIVE_WRITER_BLOCKED_REASON} DeskCue restored the chat as read-only; the prompt was not sent.\n`
+            : "DeskCue restored this Codex chat after daemon restart. The local transport is detached; send a prompt to resume control.\n"
         }
       ];
     } else if (restored.status === "running") {
@@ -95,6 +112,7 @@ export function hydratePersistedSessions(sessions: SessionDetail[]): HydratedSes
         }
       ];
     }
+
     if (
       restored.status === "failed" &&
       restored.sourceSessionId &&
@@ -118,6 +136,7 @@ export function hydratePersistedSessions(sessions: SessionDetail[]): HydratedSes
     }
 
     const normalizedLogs = normalizeSessionLogs(restored.logs);
+
     if (normalizedLogs.changed) {
       prunedPersistedSessions += 1;
       restored.logs = normalizedLogs.logs;

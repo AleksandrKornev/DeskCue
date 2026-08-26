@@ -5,6 +5,7 @@ import {
 } from "@models/promptDelivery";
 import type { PendingChatPrompt } from "@models/promptDelivery";
 import {
+  PROMPT_REPLY_WATCHDOG_HARD_TIMEOUT_MS,
   PROMPT_REPLY_WATCHDOG_TERMINAL_GRACE_MS
 } from "@modules/dashboard/model/prompt/constants";
 
@@ -23,21 +24,13 @@ export type PromptWatch = {
   stopped: boolean;
 };
 
-export function isManagedReplyActive(
-  phase: SessionDetail["replyState"]["phase"] | undefined
-) {
-  return phase === "sending" || phase === "waiting";
-}
-
-export function isSourceTurnActive(session: AgentSessionDetail) {
-  return session.turnState?.phase === "active" || session.workState === "running";
-}
-
-export function isSourceTurnTerminal(session: AgentSessionDetail) {
-  const phase = session.turnState?.phase;
-
-  return phase === "completed" || phase === "failed" || phase === "interrupted";
-}
+export type PromptWatchCandidate = {
+  agentSessionId: string;
+  managedPromptActive: boolean;
+  managedSessionId: string;
+  prompt: PendingChatPrompt;
+  sourceSessionId: string | null;
+};
 
 export function buildPromptKey(
   prompt: PendingChatPrompt,
@@ -58,6 +51,52 @@ export function extendTranscriptGrace(watch: PromptWatch, now: number) {
     watch.graceDeadline,
     now + PROMPT_REPLY_WATCHDOG_TERMINAL_GRACE_MS
   );
+}
+
+export function createPromptWatch(candidate: PromptWatchCandidate, now: number): PromptWatch {
+  const { agentSessionId, managedPromptActive, managedSessionId, prompt, sourceSessionId } =
+    candidate;
+
+  return {
+    agentSessionId,
+    graceDeadline: now + PROMPT_REPLY_WATCHDOG_TERMINAL_GRACE_MS,
+    hardDeadline: now + PROMPT_REPLY_WATCHDOG_HARD_TIMEOUT_MS,
+    key: buildPromptKey(prompt, agentSessionId, sourceSessionId),
+    managedPromptActive,
+    managedSessionId,
+    observedCurrentSourceActive: false,
+    observedSourceTerminal: false,
+    prompt,
+    sourcePromptActive: false,
+    sourceSessionId,
+    stopped: false
+  };
+}
+
+export function updatePromptWatchActivity(
+  watch: PromptWatch,
+  managedPromptActive: boolean,
+  now: number
+) {
+  if (watch.managedPromptActive && !managedPromptActive) extendTranscriptGrace(watch, now);
+
+  watch.managedPromptActive = managedPromptActive;
+}
+
+export function isManagedReplyActive(
+  phase: SessionDetail["replyState"]["phase"] | undefined
+) {
+  return phase === "sending" || phase === "waiting";
+}
+
+export function isSourceTurnActive(session: AgentSessionDetail) {
+  return session.turnState?.phase === "active" || session.workState === "running";
+}
+
+export function isSourceTurnTerminal(session: AgentSessionDetail) {
+  const phase = session.turnState?.phase;
+
+  return phase === "completed" || phase === "failed" || phase === "interrupted";
 }
 
 export function canPoll(watch: PromptWatch, now: number) {

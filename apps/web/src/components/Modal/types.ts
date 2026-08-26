@@ -7,6 +7,7 @@ export type ModalProps = {
   children?: ReactNode;
   className?: string;
   closeLabel?: string;
+  closeOnHistoryBack?: boolean;
   description?: ReactNode;
   eyebrow?: ReactNode;
   footer?: ReactNode;

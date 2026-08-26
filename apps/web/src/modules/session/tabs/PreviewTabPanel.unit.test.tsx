@@ -63,6 +63,7 @@ describe("PreviewTabPanel", () => {
       "sandbox",
       "allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts"
     );
+
     expect(screen.queryByRole("textbox", { name: "Preview port" })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Loading preview page" })).toBeInTheDocument();
     fireEvent.load(screen.getByTitle("DeskCue preview"));
@@ -77,14 +78,29 @@ describe("PreviewTabPanel", () => {
     });
 
     const frame = screen.getByTitle("DeskCue preview");
+
     fireEvent.load(frame);
 
     expect(screen.getByRole("note", { name: "Limited browser features" })).toHaveTextContent(
       "Web Crypto, Service Workers, camera access, and WebAuthn may be unavailable"
     );
-    expect(screen.getByRole("status", { name: "Live · port 5173" })).toBeInTheDocument();
+
+    expect(screen.getByRole("status", { name: "Loaded · port 5173" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(frame).toBeInTheDocument();
+  });
+
+  it("keeps an intentionally blank loaded preview available without claiming it is live", () => {
+    renderPanel({
+      configuredPreviewPort: 5173,
+      previewPort: "5173",
+      previewUrl: stablePreviewUrl
+    });
+
+    fireEvent.load(screen.getByTitle("DeskCue preview"));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loaded · port 5173" })).toBeInTheDocument();
   });
 
   it.each([
@@ -106,6 +122,7 @@ describe("PreviewTabPanel", () => {
 
   it("delegates an active Cloud preview to the host without rendering a localhost frame", () => {
     const onLaunchPreview = vi.fn().mockResolvedValue(undefined);
+
     renderPanel({
       configuredPreviewPort: 5173,
       onLaunchPreview,
@@ -151,6 +168,7 @@ describe("PreviewTabPanel", () => {
     const onStopPreview = vi.fn(() => new Promise<boolean>((resolve) => {
       finishStop = resolve;
     }));
+
     renderPanel({
       configuredPreviewPort: 5173,
       onStopPreview,
@@ -160,7 +178,9 @@ describe("PreviewTabPanel", () => {
 
     const stopButton = screen.getByRole("button", { name: "Stop preview" });
     const previewStatus = screen.getByRole("status", { name: "Loading · port 5173" });
+
     expect(previewStatus.parentElement).toContainElement(stopButton);
+
     expect(stopButton).toHaveAttribute(
       "title",
       "Stop DeskCue preview without stopping the local app"
@@ -176,12 +196,14 @@ describe("PreviewTabPanel", () => {
       finishStop(true);
       await Promise.resolve();
     });
+
     expect(stopButton).toBeEnabled();
     expect(stopButton).toHaveTextContent("Stop");
   });
 
   it("offers the two explicit external-request routing modes", () => {
     const onChangePreviewNetworkMode = vi.fn();
+
     renderPanel({ onChangePreviewNetworkMode });
 
     fireEvent.click(screen.getByRole("radio", { name: /Through DeskCue host/ }));
@@ -197,6 +219,7 @@ describe("PreviewTabPanel", () => {
       previewUrl: stablePreviewUrl
     });
     const frame = screen.getByTitle("DeskCue preview");
+
     fireEvent.load(frame);
 
     rerender(
@@ -218,6 +241,7 @@ describe("PreviewTabPanel", () => {
       previewUrl: stablePreviewUrl
     });
     const frame = screen.getByTitle("DeskCue preview");
+
     fireEvent.load(frame);
 
     rerender(
@@ -228,7 +252,9 @@ describe("PreviewTabPanel", () => {
     );
 
     const reloadedFrame = screen.getByTitle("DeskCue preview");
+
     expect(reloadedFrame).not.toBe(frame);
+
     expect(reloadedFrame).toHaveAttribute("src", stablePreviewUrl);
 
     rerender(
@@ -237,6 +263,7 @@ describe("PreviewTabPanel", () => {
         previewDocumentRevision={1}
       />
     );
+
     expect(screen.getByTitle("DeskCue preview")).toBe(reloadedFrame);
   });
 
@@ -247,9 +274,11 @@ describe("PreviewTabPanel", () => {
       previewUrl: stablePreviewUrl
     });
     const oldFrame = screen.getByTitle("DeskCue preview");
+
     fireEvent.load(oldFrame);
 
     const nextUrl = "/api/preview/sessions/session-2/";
+
     rerender(
       <PreviewTabPanel
         {...props}
@@ -258,7 +287,9 @@ describe("PreviewTabPanel", () => {
     );
 
     const nextFrame = screen.getByTitle("DeskCue preview");
+
     expect(nextFrame).not.toBe(oldFrame);
+
     expect(nextFrame).toHaveAttribute("src", nextUrl);
     expect(screen.getByRole("status", { name: "Loading preview page" })).toBeInTheDocument();
 
@@ -276,6 +307,7 @@ describe("PreviewTabPanel", () => {
       previewUrl: legacyUrl
     });
     const legacyFrame = screen.getByTitle("DeskCue preview");
+
     fireEvent.load(legacyFrame);
 
     rerender(
@@ -287,7 +319,9 @@ describe("PreviewTabPanel", () => {
     );
 
     const stableFrame = screen.getByTitle("DeskCue preview");
+
     expect(stableFrame).not.toBe(legacyFrame);
+
     expect(stableFrame).toHaveAttribute("src", stablePreviewUrl);
 
     rerender(
@@ -297,6 +331,7 @@ describe("PreviewTabPanel", () => {
         previewUrl={stablePreviewUrl}
       />
     );
+
     expect(screen.getByTitle("DeskCue preview")).toBe(stableFrame);
   });
 
@@ -309,6 +344,7 @@ describe("PreviewTabPanel", () => {
       previewUrl: stablePreviewUrl
     });
     const firstFrame = screen.getByTitle("DeskCue preview");
+
     fireEvent.load(firstFrame);
 
     fireEvent.click(screen.getByRole("button", { name: "Reload" }));
@@ -325,7 +361,9 @@ describe("PreviewTabPanel", () => {
     );
 
     const reloadedFrame = screen.getByTitle("DeskCue preview");
+
     expect(reloadedFrame).not.toBe(firstFrame);
+
     expect(reloadedFrame).toHaveAttribute("src", stablePreviewUrl);
     expect(onReloadPreview).toHaveBeenCalledTimes(1);
   });
@@ -340,6 +378,7 @@ describe("PreviewTabPanel", () => {
       previewUrl: stablePreviewUrl
     });
     const frame = screen.getByTitle("DeskCue preview");
+
     fireEvent.load(frame);
 
     rerender(
@@ -349,6 +388,7 @@ describe("PreviewTabPanel", () => {
         previewUrl={stablePreviewUrl}
       />
     );
+
     expect(screen.getByTitle("DeskCue preview")).toBe(frame);
     expect(screen.queryByRole("status", { name: "Loading preview page" })).not.toBeInTheDocument();
 
@@ -360,8 +400,11 @@ describe("PreviewTabPanel", () => {
         previewUrl={stablePreviewUrl}
       />
     );
+
     const reloadedFrame = screen.getByTitle("DeskCue preview");
+
     expect(reloadedFrame).not.toBe(frame);
+
     expect(reloadedFrame).toHaveAttribute("src", stablePreviewUrl);
     expect(screen.getByRole("status", { name: "Loading preview page" })).toBeInTheDocument();
 
@@ -373,6 +416,7 @@ describe("PreviewTabPanel", () => {
         previewUrl={stablePreviewUrl}
       />
     );
+
     expect(screen.getByTitle("DeskCue preview")).toBe(reloadedFrame);
   });
 
@@ -408,6 +452,7 @@ describe("PreviewTabPanel", () => {
 
   it("shows the only detected app without overwriting the port draft", () => {
     const onChangePreviewPort = vi.fn();
+
     renderPanel({
       previewCandidates: [{ configured: false, port: 5173 }],
       onChangePreviewPort
@@ -431,6 +476,7 @@ describe("PreviewTabPanel", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Preview port" }), {
       target: { value: "" }
     });
+
     expect(onChangePreviewPort).toHaveBeenLastCalledWith("");
 
     rerender(<PreviewTabPanel {...props} previewPort="" />);

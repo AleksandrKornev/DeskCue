@@ -3,58 +3,17 @@ import { useEffect, useRef } from "react";
 import type { PendingChatPrompt } from "@models/promptDelivery";
 import { PROMPT_REPLY_SYNC_WATCHDOG_DELAY_MS } from "@modules/dashboard/model/liveUpdates/helpers";
 
-import {
-  PROMPT_REPLY_WATCHDOG_HARD_TIMEOUT_MS,
-  PROMPT_REPLY_WATCHDOG_TERMINAL_GRACE_MS
-} from "./constants";
 import { buildSourceAgentSessionId, isPendingPromptForSelection } from "./helpers";
 import type { UseDashboardPromptReplyWatchdogArgs } from "./types";
 import { PromptReplyWatchdogController } from "./watchdog/promptReplyWatchdogController";
 import {
   buildPromptKey,
   canPoll,
-  extendTranscriptGrace,
-  isManagedReplyActive
+  createPromptWatch,
+  isManagedReplyActive,
+  updatePromptWatchActivity
 } from "./watchdog/promptReplyWatchdogState";
 import type { PromptWatch } from "./watchdog/promptReplyWatchdogState";
-
-interface PromptWatchCandidate {
-  agentSessionId: string;
-  managedPromptActive: boolean;
-  managedSessionId: string;
-  prompt: PendingChatPrompt;
-  sourceSessionId: string | null;
-}
-
-function createPromptWatch(candidate: PromptWatchCandidate, now: number): PromptWatch {
-  const { agentSessionId, managedPromptActive, managedSessionId, prompt, sourceSessionId } =
-    candidate;
-
-  return {
-    agentSessionId,
-    graceDeadline: now + PROMPT_REPLY_WATCHDOG_TERMINAL_GRACE_MS,
-    hardDeadline: now + PROMPT_REPLY_WATCHDOG_HARD_TIMEOUT_MS,
-    key: buildPromptKey(prompt, agentSessionId, sourceSessionId),
-    managedPromptActive,
-    managedSessionId,
-    observedCurrentSourceActive: false,
-    observedSourceTerminal: false,
-    prompt,
-    sourcePromptActive: false,
-    sourceSessionId,
-    stopped: false
-  };
-}
-
-function updatePromptWatchActivity(
-  watch: PromptWatch,
-  managedPromptActive: boolean,
-  now: number
-) {
-  if (watch.managedPromptActive && !managedPromptActive) extendTranscriptGrace(watch, now);
-
-  watch.managedPromptActive = managedPromptActive;
-}
 
 export function useDashboardPromptReplyWatchdog({
   activeTab,
@@ -123,7 +82,8 @@ export function useDashboardPromptReplyWatchdog({
         managedSessionId: selectedSessionId,
         prompt,
         sourceSessionId: selectedSourceSessionId
-      } satisfies PromptWatchCandidate;
+      };
+
       const promptKey = buildPromptKey(prompt, agentSessionId, selectedSourceSessionId);
 
       if (promptWatchRef.current?.key !== promptKey) promptWatchRef.current = createPromptWatch(candidate, now);

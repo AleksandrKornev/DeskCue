@@ -99,9 +99,8 @@ export function buildAgentSessionId(agentId: string, sourceSessionId: string) {
 
 export function parseAgentSessionId(agentSessionId: string) {
   const separator = agentSessionId.indexOf(":");
-  if (separator <= 0) {
-    return null;
-  }
+
+  if (separator <= 0) return null;
 
   return {
     agentId: agentSessionId.slice(0, separator),
@@ -146,7 +145,8 @@ function toAgentSessionObservedTurnState(turnState: SourceAgentTurnState) {
     evidence: turnState.evidence,
     fingerprint: turnState.fingerprint,
     phase: turnState.phase,
-    startedAt: null
+    startedAt: null,
+    turnStartFingerprint: turnState.turnStartFingerprint
   };
 }
 
@@ -195,10 +195,10 @@ function toCodexAgentSessionDetail(session: CodexSessionDetail): AgentSessionDet
     attachModeReason: attachState.reason,
     transcript: session.transcript
   };
+
   const readMode = readCodexSessionDetailReadMode(session);
-  if (readMode) {
-    markSourceAgentDetailMetadata(detail, { readMode });
-  }
+
+  if (readMode) markSourceAgentDetailMetadata(detail, { readMode });
 
   return detail;
 }
@@ -208,15 +208,14 @@ export const sourceAgentDescriptors: SourceAgentDescriptor[] = [
     adapterId: "codex",
     async listSessions({ force, includeLiveMetadata, limit }) {
       const sessions = await listCodexSessions(limit, force);
+
       if (!includeLiveMetadata) {
         return sessions.map((session) => toCodexAgentSessionSummary(session));
       }
 
       return Promise.all(
         sessions.map(async (session, index) => {
-          if (index >= CODEX_LIST_ATTACH_STATE_LIMIT) {
-            return toCodexAgentSessionSummary(session);
-          }
+          if (index >= CODEX_LIST_ATTACH_STATE_LIMIT) return toCodexAgentSessionSummary(session);
 
           const detail = await getCodexSessionDetail(
             session.id,
@@ -229,6 +228,7 @@ export const sourceAgentDescriptors: SourceAgentDescriptor[] = [
               readExpandedTailWhenMissingUser: false
             }
           );
+
           return toCodexAgentSessionSummary(
             session,
             detail ? getCodexAttachState(detail.transcript) : undefined
@@ -251,10 +251,12 @@ export const sourceAgentDescriptors: SourceAgentDescriptor[] = [
           readExpandedTailWhenMissingUser: !shouldUseLightweightPayload
         }
       );
+
       return session ? toCodexAgentSessionDetail(session) : null;
     },
     async getSessionVersion(sourceSessionId, { force }) {
       const version = await getCodexSessionVersion(sourceSessionId, force);
+
       return version
         ? {
             ...version,

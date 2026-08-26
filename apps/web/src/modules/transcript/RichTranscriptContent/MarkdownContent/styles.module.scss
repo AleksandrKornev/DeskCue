@@ -46,6 +46,17 @@
   white-space: pre-wrap;
 }
 
+.markdown img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(520px, 60vh);
+  margin: 0.65rem auto;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
 .markdown ul,
 .markdown ol {
   padding-left: 1.45rem;
@@ -228,7 +239,46 @@
   cursor: default;
 }
 
+.localAssetDialog {
+  width: min(480px, 100%);
+}
+
+.localAssetDialogAction,
+.localAssetDialogActionPrimary {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #f1ede4;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.localAssetDialogAction {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.localAssetDialogActionPrimary {
+  background: rgba(246, 213, 156, 0.2);
+  color: #f6d59c;
+}
+
+.localAssetDialogAction:disabled,
+.localAssetDialogActionPrimary:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.localAssetDialogPath {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @media (max-width: 720px) {
+  .markdown img {
+    max-height: min(320px, 42vh);
+  }
+
   .markdown ul,
   .markdown ol {
     padding-left: 1.35rem;

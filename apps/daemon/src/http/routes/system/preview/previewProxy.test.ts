@@ -12,16 +12,16 @@ import {
 } from "./egress/previewEgressTarget.ts";
 import type { PreviewEgressResolver } from "./egress/previewEgressTarget.ts";
 import { discoverPreviewCandidates, probePreviewPort } from "./previewCandidateDiscovery.ts";
+import { PreviewProxyController } from "./previewProxy.ts";
+import { PREVIEW_PROXY_LIMITS } from "./previewProxyLimits.ts";
+import { resolveLoopbackPreviewTarget } from "./previewTargetResolver.ts";
 import {
   createPreviewJavaScriptBootstrap,
   MAX_REWRITABLE_PREVIEW_JAVASCRIPT_BYTES,
   rewritePreviewJavaScriptAssetLiterals,
   rewritePreviewContent
-} from "./previewContentRewrite.ts";
-import { PreviewProxyController } from "./previewProxy.ts";
-import { buildPreviewRequestHeaders } from "./previewProxyHeaders.ts";
-import { PREVIEW_PROXY_LIMITS } from "./previewProxyLimits.ts";
-import { resolveLoopbackPreviewTarget } from "./previewTargetResolver.ts";
+} from "./relay/previewContentRewrite.ts";
+import { buildPreviewRequestHeaders } from "./relay/previewProxyHeaders.ts";
 
 test("derives preview targets only from an active bounded port", () => {
   assert.deepEqual(resolveLoopbackPreviewTarget({
@@ -34,6 +34,7 @@ test("derives preview targets only from an active bounded port", () => {
     origin: "http://localhost:5173",
     port: 5173
   });
+
   assert.equal(resolveLoopbackPreviewTarget({ active: false, networkMode: "device-direct", port: 5173, targetUrl: null }), null);
   assert.equal(resolveLoopbackPreviewTarget({ active: true, networkMode: "device-direct", port: 0, targetUrl: null }), null);
   assert.equal(resolveLoopbackPreviewTarget({ active: true, networkMode: "device-direct", port: 65_536, targetUrl: null }), null);
@@ -41,6 +42,7 @@ test("derives preview targets only from an active bounded port", () => {
 
 test("discovers a preview app bound only to the IPv6 loopback address", async () => {
   const server = createServer((_request, response) => response.end());
+
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "::1", resolve);
@@ -48,7 +50,9 @@ test("discovers a preview app bound only to the IPv6 loopback address", async ()
 
   try {
     const address = server.address();
+
     assert(address && typeof address !== "string");
+
     assert.equal(await probePreviewPort(address.port), true);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -57,6 +61,7 @@ test("discovers a preview app bound only to the IPv6 loopback address", async ()
 
 test("discovers common and configured preview ports with bounded unique results", async () => {
   const probed: number[] = [];
+
   assert.deepEqual(await discoverPreviewCandidates({
     configuredPort: 9000,
     excludedPort: 4100,
@@ -88,6 +93,20 @@ test("does not forward browser fetch metadata to the local preview server", () =
   assert.equal(headers["sec-fetch-dest"], undefined);
   assert.equal(headers["sec-fetch-mode"], undefined);
   assert.equal(headers["sec-fetch-site"], undefined);
+});
+
+test("does not forward conditional validators into mutable Preview resources", () => {
+  const headers = buildPreviewRequestHeaders({
+    accept: "text/html",
+    "if-modified-since": "Sun, 23 Aug 2026 05:00:00 GMT",
+    "if-none-match": 'W/"stale-preview-body"',
+    "if-range": 'W/"stale-preview-range"'
+  }, new URL("http://127.0.0.1:3000/"));
+
+  assert.equal(headers.accept, "text/html");
+  assert.equal(headers["if-modified-since"], undefined);
+  assert.equal(headers["if-none-match"], undefined);
+  assert.equal(headers["if-range"], undefined);
 });
 
 test("routes static resources and navigation through the credential resource path", () => {
@@ -139,6 +158,7 @@ test("routes static resources and navigation through the credential resource pat
       upstreamUrl: new URL("http://127.0.0.1:3000/styles/app.css")
     }
   ).toString();
+
   assert.match(css, new RegExp(`${basePath}/fonts/app\\.woff2`));
   assert.match(css, /https:\/\/cdn\.example\.test\/bg\.png/);
 });
@@ -204,7 +224,9 @@ test("rewrites escaped Next Flight resource URLs without inserting a hydration-v
   ).toString();
 
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+
   assert.equal(scripts.length, 3);
+
   assert.equal(scripts[0]?.[1], 'document.documentElement.dataset.theme="dark"');
   assert.doesNotMatch(html, /__deskcuePreviewShim/);
   assert.match(html, new RegExp(`href="${basePath}/favicon\\.svg"`));
@@ -213,8 +235,10 @@ test("rewrites escaped Next Flight resource URLs without inserting a hydration-v
     const serialized = /self\.__next_f\.push\(\[1,("(?:\\.|[^"\\])*")\]\)/
       .exec(match[1])?.[1];
     assert.ok(serialized);
+
     return JSON.parse(serialized) as string;
   }).join("");
+
   assert.match(rewrittenFlight, new RegExp(`${basePath}/favicon\\.svg`));
   assert.match(rewrittenFlight, new RegExp(`${basePath}/_next/static/css/app\\.css`));
   assert.match(rewrittenFlight, /"href":"\/privacy"/);
@@ -246,6 +270,7 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
           ? input.url
           : input.toString();
       calls.push(`fetch:${url}`);
+
       return new Response(null, { status: 204 });
     }
   };
@@ -260,8 +285,10 @@ test("device-direct shim routes dynamic chunks and HMR without proxying external
     navigator: {},
     window: browserWindow
   });
+
   await browserWindow.fetch("/_next/static/chunks/app.js");
   const socket = new browserWindow.WebSocket("ws://deskcue.test:4100/_next/webpack-hmr");
+
   socket.addEventListener("message", (event) => {
     messages.push((event as MessageEvent).data as string);
   });
@@ -331,6 +358,7 @@ test("JavaScript bootstrap resolves relative requests from the stable document U
     navigator: {},
     window: browserWindow
   });
+
   await browserWindow.fetch("api/profile");
 
   assert.deepEqual(calls, [
@@ -367,6 +395,7 @@ test("navigation shim safely routes black-box URLs with invalid percent sequence
     navigator: {},
     window: browserWindow
   });
+
   await browserWindow.fetch("http://localhost:9302/remoteEntry.build-%s.js");
   await browserWindow.fetch("http://localhost:9302/already-%25-safe.js");
 
@@ -408,10 +437,12 @@ test("navigation shim patches dynamic Next resource and navigation DOM sinks", (
       this.attributes.set(name, String(value));
     }
   }
+
   const createUrlElement = (tagName: string, property: string) => {
     class BrowserUrlElement extends BrowserElement {
       constructor() { super(tagName); }
     }
+
     Object.defineProperty(BrowserUrlElement.prototype, property, {
       configurable: true,
       get(this: BrowserElement) { return this.urlValue; },
@@ -419,9 +450,11 @@ test("navigation shim patches dynamic Next resource and navigation DOM sinks", (
     });
     return BrowserUrlElement;
   };
+
   const BrowserAnchorElement = createUrlElement("A", "href");
   const BrowserFormElement = createUrlElement("FORM", "action");
   const BrowserImageElement = createUrlElement("IMG", "src");
+
   Object.defineProperty(BrowserImageElement.prototype, "srcset", {
     configurable: true,
     get(this: BrowserElement) { return this.urlValue; },
@@ -430,6 +463,7 @@ test("navigation shim patches dynamic Next resource and navigation DOM sinks", (
   const BrowserLinkElement = createUrlElement("LINK", "href");
   const BrowserScriptElement = createUrlElement("SCRIPT", "src");
   const BrowserSourceElement = createUrlElement("SOURCE", "src");
+
   Object.defineProperty(BrowserSourceElement.prototype, "srcset", {
     configurable: true,
     get(this: BrowserElement) { return this.urlValue; },
@@ -450,6 +484,7 @@ test("navigation shim patches dynamic Next resource and navigation DOM sinks", (
   } = {};
   let assignedLocation: string | null = null;
   const browserLocation = new URL("http://deskcue.test:4100/api/preview/sessions/session-1/");
+
   Object.assign(browserLocation, {
     assign(value: string) { assignedLocation = value; }
   });
@@ -484,23 +519,32 @@ test("navigation shim patches dynamic Next resource and navigation DOM sinks", (
   });
 
   const scriptElement = new BrowserScriptElement();
+
   Reflect.set(scriptElement, "src", "/_next/static/chunks/runtime.js");
+
   assert.equal(
     scriptElement.urlValue,
     `http://deskcue.test:4100${resourceBasePath}/_next/static/chunks/runtime.js`
   );
+
   const image = new BrowserImageElement();
+
   image.setAttribute("srcset", "/image-1.png 1x, /image-2.png 2x");
+
   assert.equal(
     image.attributes.get("srcset"),
     `http://deskcue.test:4100${resourceBasePath}/image-1.png 1x, ` +
       `http://deskcue.test:4100${resourceBasePath}/image-2.png 2x`
   );
+
   const anchor = new BrowserAnchorElement();
+
   anchor.setAttribute("href", "/docs");
+
   assert.equal(anchor.attributes.get("href"), "/docs");
   assert.ok(listeners.click);
   let clickPrevented = false;
+
   listeners.click({
     altKey: false,
     button: 0,
@@ -511,10 +555,13 @@ test("navigation shim patches dynamic Next resource and navigation DOM sinks", (
     shiftKey: false,
     target: anchor
   });
+
   assert.equal(clickPrevented, true);
   assert.equal(assignedLocation, `http://deskcue.test:4100${resourceBasePath}/docs`);
   const form = new BrowserFormElement();
+
   assert.ok(listeners.submit);
+
   listeners.submit({ target: form });
   assert.equal(form.urlValue, `http://deskcue.test:4100${resourceBasePath}/`);
 });
@@ -545,14 +592,17 @@ test("generated host-routing shim executes and intercepts external browser trans
           ? input.url
           : input.toString();
       calls.push(`fetch:${url}`);
+
       return new Response(null, { status: 204 });
     }
   };
+
   class BrowserXmlHttpRequest {
     open(_method: string, url: string | URL) {
       calls.push(`xhr:${url.toString()}`);
     }
   }
+
   const navigator = {
     sendBeacon(url: string | URL) {
       calls.push(`beacon:${url.toString()}`);
@@ -569,6 +619,7 @@ test("generated host-routing shim executes and intercepts external browser trans
     navigator,
     window: browserWindow
   });
+
   await browserWindow.fetch("http://100.64.0.23:43121/set");
   new browserWindow.WebSocket("ws://100.64.0.23:43121/socket");
   navigator.sendBeacon("http://100.64.0.23:43121/beacon");
@@ -579,6 +630,7 @@ test("generated host-routing shim executes and intercepts external browser trans
     assert.match(call, /deskcue\.test:4100\/api\/preview\/sessions\/session-1\/__deskcue_egress__\//);
     assert.doesNotMatch(call, /100\.90\.9\.23:43121\/(?:set|socket|beacon|check)$/);
   }
+
   assert.match(calls[1], /^ws:ws:\/\//);
 });
 
@@ -589,6 +641,7 @@ function createTestEgressResolver(): PreviewEgressResolver {
         callback(null, [{ address: "127.0.0.1", family: 4 }]);
         return;
       }
+
       callback(null, "127.0.0.1", 4);
     },
     url
@@ -604,16 +657,21 @@ function readCookieHeader(response: Response) {
 function readBootstrappedJavaScriptBody(value: string) {
   const interactions = value.indexOf("__deskcuePreviewInteractions");
   const separator = value.indexOf("\n", interactions);
+
   assert.ok(separator > 0, "Expected the Preview bootstrap before the JavaScript payload.");
+
   assert.match(value.slice(0, separator), /__deskcuePreviewShim/);
   return value.slice(separator + 1);
 }
 
 function readFirstEvalArgument(value: string) {
   const serialized = /\beval\(\s*(?:[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.ts\(\s*)?("(?:\\.|[^"\\])*")/.exec(value)?.[1];
+
   assert.ok(serialized, "Expected an eval-wrapped Next module.");
   const decoded: unknown = JSON.parse(serialized);
+
   assert.equal(typeof decoded, "string");
+
   return decoded as string;
 }
 
@@ -660,10 +718,13 @@ test("rewrites root-relative Vite module literals", () => {
 function listen(server: Server) {
   return new Promise<number>((resolve, reject) => {
     server.once("error", reject);
+
     server.listen(0, "127.0.0.1", () => {
       server.off("error", reject);
       const address = server.address();
+
       if (!address || typeof address === "string") throw new Error("Expected TCP server address.");
+
       resolve(address.port);
     });
   });
@@ -695,14 +756,18 @@ async function createProxyFixture(
         origin: `http://127.0.0.1:${port}`,
         port
       }
+
       : null
   });
+
   controller.installProxyRoutes(app);
   app.use(express.json());
   controller.installTicketRoute(app);
   const server = createServer(app);
+
   controller.attach(server);
   const proxyPort = await listen(server);
+
   return {
     baseUrl: `http://127.0.0.1:${proxyPort}`,
     controller,
@@ -809,16 +874,19 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       response.end(originalAsset);
       return;
     }
+
     if (request.url === "/_next/static/chunks/app/page.js") {
       response.setHeader("content-type", "application/javascript; charset=utf-8");
       response.end(nextPageAsset);
       return;
     }
+
     if (request.url === "/_next/static/chunks/main-app.js") {
       response.setHeader("content-type", "application/javascript; charset=utf-8");
       response.end(mainAppAsset);
       return;
     }
+
     response.setHeader("content-type", "text/html; charset=utf-8");
     response.setHeader("content-security-policy", "default-src 'none'");
     response.setHeader("x-frame-options", "DENY");
@@ -826,6 +894,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       "link",
       '</favicon.svg>; rel=preload; as=image, </icons/app.svg>; rel=preload; as=image, <https://cdn.example.test/app.svg>; rel=preload; as=image'
     );
+
     response.setHeader("set-cookie", "preview_app=value; Path=/");
     response.end('<html><head></head><body><script src="/_next/static/chunks/main.js"></script><script src="/_next/static/chunks/app/page.js"></script><script src="/_next/static/chunks/main-app.js"></script></body></html>');
   });
@@ -839,15 +908,18 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       headers: { "content-type": "application/json" },
       method: "POST"
     });
+
     assert.equal(issued.status, 201);
     const ticket = await issued.json() as {
       credentialRevision: string;
       previewUrl: string;
     };
+
     assert.equal(ticket.previewUrl, "/api/preview/sessions/session-1/");
     assert.equal("ticket" in ticket, false);
     assert.match(ticket.credentialRevision, /^[A-Za-z0-9_-]{16}$/);
     const ticketCookies = readCookieHeader(issued);
+
     assert.match(ticketCookies, /deskcue_preview=/);
 
     authRequired = true;
@@ -857,6 +929,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
         cookie: ticketCookies
       }
     });
+
     assert.equal(preview.status, 200);
     assert.equal(receivedAuthorization, "Bearer application-preview-token");
     assert.equal(receivedCookie, undefined);
@@ -864,52 +937,72 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
     assert.match(preview.headers.get("content-security-policy") ?? "", /allow-same-origin/);
     assert.equal(preview.headers.get("x-frame-options"), null);
     const cookies = preview.headers.getSetCookie();
+
     assert.equal(
       cookies.some((value) => value.includes("preview_app=value") && value.includes("Path=/api/preview/sessions/session-1")),
       true
     );
+
     const html = await preview.text();
     const basePath = ticket.previewUrl.replace(/\/$/, "");
+
     assert.doesNotMatch(html, /<base\s/i);
     const nextAssetPath = /<script src="([^"]+)"/.exec(html)?.[1];
+
     assert.ok(nextAssetPath);
+
     assert.match(nextAssetPath, new RegExp(`^${basePath}/__deskcue_ticket__/[A-Za-z0-9_-]+/_next/`));
     const resourceBasePath = nextAssetPath.slice(0, nextAssetPath.indexOf("/_next/"));
     const linkHeader = preview.headers.get("link") ?? "";
+
     assert.match(linkHeader, new RegExp(`<${resourceBasePath}/favicon\\.svg>`));
+
     assert.match(linkHeader, new RegExp(`<${resourceBasePath}/icons/app\\.svg>`));
     assert.match(linkHeader, /<https:\/\/cdn\.example\.test\/app\.svg>/);
     assert.doesNotMatch(html, /__deskcuePreviewShim/);
 
     const opaqueAsset = await fetch(`${fixture.baseUrl}${nextAssetPath}`);
+
     assert.equal(opaqueAsset.status, 200);
     const opaqueAssetScript = await opaqueAsset.text();
+
     assert.match(opaqueAssetScript, /__deskcuePreviewShim/);
+
     assert.equal(readBootstrappedJavaScriptBody(opaqueAssetScript), originalAsset);
     const pageAssetPath = [...html.matchAll(/<script src="([^"]+)"/g)][1]?.[1];
+
     assert.ok(pageAssetPath);
     const pageAsset = await fetch(`${fixture.baseUrl}${pageAssetPath}`);
+
     assert.equal(pageAsset.status, 200);
     const rewrittenPageAsset = readBootstrappedJavaScriptBody(await pageAsset.text());
     const pageResourceBase = pageAssetPath.slice(0, pageAssetPath.indexOf("/_next/"));
+
     assert.equal(
       rewrittenPageAsset,
       `const icon="${pageResourceBase}/favicon.svg";` +
         `const font="${pageResourceBase}/__nextjs_font/inter.woff2";`
     );
+
     const mainAppPath = [...html.matchAll(/<script src="([^"]+)"/g)][2]?.[1];
+
     assert.ok(mainAppPath);
     const mainApp = await fetch(`${fixture.baseUrl}${mainAppPath}`);
+
     assert.equal(mainApp.status, 200);
     const rewrittenMainApp = readBootstrappedJavaScriptBody(await mainApp.text());
+
     assert.doesNotThrow(() => new Function(rewrittenMainApp));
+
     assert.match(rewrittenMainApp, /^eval\(__webpack_require__\.ts\(/);
     assert.match(rewrittenMainApp, /\)\);$/);
     const decodedMainApp = readFirstEvalArgument(rewrittenMainApp);
+
     assert.match(
       decodedMainApp,
       new RegExp(`url\\(${resourceBasePath}/__nextjs_font/geist-latin\\.woff2\\)`)
     );
+
     assert.match(decodedMainApp, /matcher=\/\["'\]\\\/icons\\\/app\\\.svg\/g/);
     assert.match(decodedMainApp, /api="\/api\/items\.json"/);
 
@@ -917,6 +1010,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       headers: { referer: `${fixture.baseUrl}${ticket.previewUrl}` },
       redirect: "manual"
     });
+
     assert.equal(unauthorizedRootAsset.status, 404);
 
     const rootAsset = await fetch(`${fixture.baseUrl}/_next/static/chunks/main.js`, {
@@ -927,6 +1021,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       },
       redirect: "manual"
     });
+
     assert.equal(rootAsset.status, 307);
     assert.equal(rootAsset.headers.get("location"), `${basePath}/_next/static/chunks/main.js`);
     assert.equal(rootAsset.headers.get("access-control-allow-origin"), "null");
@@ -938,6 +1033,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       },
       redirect: "manual"
     });
+
     assert.equal(opaqueSandboxAsset.status, 307);
     assert.equal(opaqueSandboxAsset.headers.get("location"), `${basePath}/_next/static/chunks/main.js`);
 
@@ -949,6 +1045,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       },
       redirect: "manual"
     });
+
     assert.equal(iframeNavigation.status, 307);
     assert.equal(iframeNavigation.headers.get("location"), `${basePath}/login`);
 
@@ -959,6 +1056,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       },
       redirect: "manual"
     });
+
     assert.equal(ordinaryDeskCueAsset.status, 404);
 
     const foreignRefererAsset = await fetch(`${fixture.baseUrl}/_next/static/chunks/main.js`, {
@@ -968,11 +1066,13 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       },
       redirect: "manual"
     });
+
     assert.equal(foreignRefererAsset.status, 404);
 
     const asset = await fetch(`${fixture.baseUrl}${basePath}/_next/static/chunks/main.js`, {
       headers: { cookie: ticketCookies }
     });
+
     assert.equal(asset.status, 200);
     assert.equal(readBootstrappedJavaScriptBody(await asset.text()), originalAsset);
 
@@ -987,6 +1087,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
     const legacy = await fetch(
       `${fixture.baseUrl}${basePath}/__deskcue_ticket__/${encodeURIComponent(legacyTicket)}/`
     );
+
     assert.equal(legacy.status, 200);
     assert.match(readCookieHeader(legacy), /deskcue_preview=/);
 
@@ -1000,6 +1101,7 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
       credentialRevision: string;
       previewUrl: string;
     };
+
     assert.equal(rotated.previewUrl, ticket.previewUrl);
     assert.equal(rotated.credentialRevision, ticket.credentialRevision);
     assert.equal("ticket" in rotated, false);
@@ -1007,12 +1109,14 @@ test("issues an owner-scoped ticket, forwards app auth and strips DeskCue cookie
     const rotatedPreview = await fetch(`${fixture.baseUrl}${rotated.previewUrl}`, {
       headers: { cookie: readCookieHeader(rotatedResponse) }
     });
+
     assert.equal(/<script src="([^"]+)"/.exec(await rotatedPreview.text())?.[1], nextAssetPath);
     authRequired = true;
 
     const wrongOwner = await fetch(
       `${fixture.baseUrl}/api/preview/sessions/session-2/?deskcuePreviewTicket=${encodeURIComponent(legacyTicket)}`
     );
+
     assert.equal(wrongOwner.status, 401);
   } finally {
     await fixture.close();
@@ -1037,8 +1141,11 @@ test("a fresh daemon registry replaces the non-secret Preview credential revisio
       credentialRevision: string;
       previewUrl: string;
     };
+
     const staleCookie = readCookieHeader(firstResponse);
+
     await first.close();
+
     firstClosed = true;
 
     second = await createProxyFixture(targetPort, () => false);
@@ -1051,6 +1158,7 @@ test("a fresh daemon registry replaces the non-secret Preview credential revisio
       credentialRevision: string;
       previewUrl: string;
     };
+
     assert.equal(secondTicket.previewUrl, firstTicket.previewUrl);
     assert.notEqual(secondTicket.credentialRevision, firstTicket.credentialRevision);
     assert.equal("ticket" in secondTicket, false);
@@ -1076,6 +1184,7 @@ test("rewrites same-target redirects and leaves external redirects device-direct
     const internal = await fetch(`${fixture.baseUrl}/api/preview/sessions/session-1/start`, {
       redirect: "manual"
     });
+
     assert.equal(internal.status, 302);
     assert.equal(
       internal.headers.get("location"),
@@ -1085,6 +1194,7 @@ test("rewrites same-target redirects and leaves external redirects device-direct
     const external = await fetch(`${fixture.baseUrl}/api/preview/sessions/session-1/external`, {
       redirect: "manual"
     });
+
     assert.equal(external.status, 302);
     assert.equal(external.headers.get("location"), "https://example.com/escape");
   } finally {
@@ -1096,6 +1206,7 @@ test("rewrites same-target redirects and leaves external redirects device-direct
 test("does not issue a preview ticket when the configured app is unavailable", async () => {
   const target = createServer();
   const targetPort = await listen(target);
+
   await close(target);
   const fixture = await createProxyFixture(targetPort, () => true);
 
@@ -1105,6 +1216,7 @@ test("does not issue a preview ticket when the configured app is unavailable", a
       headers: { "content-type": "application/json" },
       method: "POST"
     });
+
     assert.equal(response.status, 409);
     assert.deepEqual(await response.json(), {
       error: "The local preview server is unavailable."
@@ -1124,7 +1236,9 @@ test("rejects an oversized upstream response before streaming it to the browser"
 
   try {
     const response = await fetch(`${fixture.baseUrl}/api/preview/sessions/session-1/large`);
+
     assert.equal(response.status, 502);
+
     assert.deepEqual(await response.json(), { error: "Preview response is too large." });
   } finally {
     await fixture.close();
@@ -1140,6 +1254,7 @@ test("rejects oversized Next application JavaScript before buffering it for rewr
   });
   const targetPort = await listen(target);
   const fixture = await createProxyFixture(targetPort, () => false);
+
   try {
     const issued = await fetch(`${fixture.baseUrl}/api/preview/tickets`, {
       body: JSON.stringify({ kind: "session", ownerId: "session-1" }),
@@ -1151,6 +1266,7 @@ test("rejects oversized Next application JavaScript before buffering it for rewr
       `${fixture.baseUrl}/api/preview/sessions/session-1/_next/static/chunks/app/page.js`,
       { headers: { cookie } }
     );
+
     assert.equal(response.status, 502);
     assert.deepEqual(await response.json(), {
       error: "Preview JavaScript is too large to rewrite safely."
@@ -1178,9 +1294,12 @@ test("rewrites proxied Vite application modules", async () => {
 
   try {
     const response = await fetch(`${fixture.baseUrl}${basePath}/src/main.tsx`);
+
     assert.equal(response.status, 200);
     const rewritten = readBootstrappedJavaScriptBody(await response.text());
+
     assert.match(rewritten, new RegExp(`import "${basePath}/src/issues\\.css"`));
+
     assert.match(rewritten, new RegExp(`from "${basePath}/src/IssueRow\\.tsx"`));
     assert.match(rewritten, new RegExp(`from "${basePath}/node_modules/\\.vite/deps/react\\.js\\?v=449c2f80"`));
   } finally {
@@ -1192,6 +1311,7 @@ test("rewrites proxied Vite application modules", async () => {
 test("proxies preview WebSocket traffic through the DeskCue listener", async () => {
   const targetServer = createServer((_request, response) => response.writeHead(204).end());
   const targetWebSocket = new WebSocketServer({ server: targetServer });
+
   targetWebSocket.on("connection", (socket) => {
     socket.on("message", (data) => socket.send(`echo:${data.toString()}`));
   });
@@ -1207,19 +1327,26 @@ test("proxies preview WebSocket traffic through the DeskCue listener", async () 
     });
     const issued = await issueResponse.json() as { previewUrl: string };
     const ticketCookies = readCookieHeader(issueResponse);
+
     authRequired = true;
     const reply = await new Promise<string>((resolve, reject) => {
       const socketUrl = new URL(issued.previewUrl, fixture.baseUrl);
+
       socketUrl.pathname = `${socketUrl.pathname}hmr`;
+
       socketUrl.protocol = "ws:";
       const socket = new WebSocket(socketUrl, { headers: { cookie: ticketCookies } });
+
       socket.once("open", () => socket.send("ready"));
+
       socket.once("message", (data) => {
         resolve(data.toString());
         socket.close();
       });
+
       socket.once("error", reject);
     });
+
     assert.equal(reply, "echo:ready");
   } finally {
     await fixture.close();
@@ -1243,6 +1370,7 @@ test("host-routed preview proxies external HTTP redirects and keeps cookies orig
       response.end();
       return;
     }
+
     response.setHeader("content-type", "text/event-stream");
     response.end("data: connected\n\n");
   });
@@ -1264,6 +1392,7 @@ test("host-routed preview proxies external HTTP redirects and keeps cookies orig
         cookie: "deskcue_access=must-not-leak; app_browser_cookie=also-must-not-leak"
       }
     });
+
     assert.equal(response.status, 200);
     assert.equal(await response.text(), "data: connected\n\n");
     assert.equal(response.headers.getSetCookie().some((value) => value.includes("vpn_session")), false);
@@ -1288,6 +1417,7 @@ test("host-routed preview proxies external HTTP redirects and keeps cookies orig
 test("host-routed preview rewrites external resources and relays external WebSockets", async () => {
   const externalServer = createServer((_request, response) => response.writeHead(204).end());
   const externalWebSocket = new WebSocketServer({ server: externalServer });
+
   externalWebSocket.on("connection", (socket) => {
     socket.on("message", (data) => {
       socket.send(`vpn:${data.toString()}`);
@@ -1308,7 +1438,9 @@ test("host-routed preview rewrites external resources and relays external WebSoc
   try {
     const preview = await fetch(`${fixture.baseUrl}/api/preview/sessions/session-1/`);
     const html = await preview.text();
+
     assert.match(html, /__deskcue_egress__/);
+
     assert.doesNotMatch(html, /src="http:\/\/assets\.corp\.test/);
     assert.doesNotMatch(html, /__deskcuePreviewShim/);
     assert.doesNotThrow(() => new Function(createPreviewJavaScriptBootstrap(
@@ -1327,16 +1459,21 @@ test("host-routed preview rewrites external resources and relays external WebSoc
     );
     const reply = await new Promise<string>((resolve, reject) => {
       const socketUrl = new URL(externalPath, fixture.baseUrl);
+
       socketUrl.protocol = "ws:";
       const socket = new WebSocket(socketUrl);
       let received: string | null = null;
+
       socket.once("open", () => socket.send("ready"));
+
       socket.once("message", (data) => {
         received = data.toString();
       });
+
       socket.once("close", () => received ? resolve(received) : reject(new Error("Preview WebSocket closed before its reply.")));
       socket.once("error", reject);
     });
+
     assert.equal(reply, "vpn:ready");
   } finally {
     await fixture.close();
@@ -1355,11 +1492,13 @@ test("host-routed external documents keep root-relative assets on their egress o
       response.end("window.previewBundleLoaded = true;");
       return;
     }
+
     response.setHeader("content-type", "text/html; charset=utf-8");
     response.setHeader(
       "referrer-policy",
       request.url === "/origin-policy" ? "origin" : "no-referrer"
     );
+
     response.end('<html><head></head><body><script src="/bundle.js"></script></body></html>');
   });
   const externalPort = await listen(external);
@@ -1386,14 +1525,19 @@ test("host-routed external documents keep root-relative assets on their egress o
       const documentResponse = await fetch(`${fixture.baseUrl}${egressDocumentPath}`, {
         headers: { cookie: ticketCookies }
       });
+
       assert.equal(documentResponse.status, 200);
       assert.equal(documentResponse.headers.get("referrer-policy"), "same-origin");
       const documentHtml = await documentResponse.text();
       const routedAssetPath = /<script src="([^"]+)"/.exec(documentHtml)?.[1];
+
       assert.ok(routedAssetPath);
+
       assert.match(routedAssetPath, /__deskcue_ticket__\/[A-Za-z0-9_-]+\/__deskcue_egress__\//);
       const routedAssetResponse = await fetch(`${fixture.baseUrl}${routedAssetPath}`);
+
       assert.equal(routedAssetResponse.status, 200);
+
       assert.match(await routedAssetResponse.text(), /window\.previewBundleLoaded = true;$/);
 
       const rootAssetRedirect = await fetch(`${fixture.baseUrl}/bundle.js`, {
@@ -1403,19 +1547,23 @@ test("host-routed external documents keep root-relative assets on their egress o
         },
         redirect: "manual"
       });
+
       assert.equal(rootAssetRedirect.status, 307);
       const expectedAssetPath = buildPreviewEgressPath(
         issued.previewUrl.replace(/\/$/, ""),
         new URL("/bundle.js", externalOrigin)
       );
+
       assert.equal(rootAssetRedirect.headers.get("location"), expectedAssetPath);
 
       const assetResponse = await fetch(`${fixture.baseUrl}${expectedAssetPath}`, {
         headers: { cookie: ticketCookies }
       });
+
       assert.equal(assetResponse.status, 200);
       assert.match(await assetResponse.text(), /window\.previewBundleLoaded = true;$/);
     }
+
     assert.equal(received.filter((entry) => entry.endsWith("/bundle.js")).length, 4);
   } finally {
     await fixture.close();
@@ -1433,13 +1581,16 @@ test("detached Preview response failures return a bounded gateway error", async 
   const relay = (fixture.controller as unknown as {
     httpRelay: { forwardResponse: (...args: unknown[]) => Promise<void> };
   }).httpRelay;
+
   relay.forwardResponse = async () => {
     throw new Error("synthetic detached response failure");
   };
 
   try {
     const response = await fetch(`${fixture.baseUrl}/api/preview/sessions/session-1/`);
+
     assert.equal(response.status, 502);
+
     assert.deepEqual(await response.json(), {
       error: "The preview response could not be processed."
     });
@@ -1460,8 +1611,10 @@ test("host-routed cross-origin redirects do not forward application authorizatio
       response.end();
       return;
     }
+
     response.end("ok");
   });
+
   externalPort = await listen(external);
   const fixture = await createProxyFixture(externalPort, () => false, {
     networkMode: "deskcue-host",
@@ -1476,6 +1629,7 @@ test("host-routed cross-origin redirects do not forward application authorizatio
     const response = await fetch(`${fixture.baseUrl}${path}`, {
       headers: { authorization: "Bearer app-session-token" }
     });
+
     assert.equal(await response.text(), "ok");
     assert.deepEqual(receivedAuthorization, ["Bearer app-session-token", undefined]);
   } finally {
@@ -1495,15 +1649,19 @@ test("device-direct preview rejects egress routes and production egress blocks l
       new URL(`http://example.test:${targetPort}/private`)
     );
     const response = await fetch(`${fixture.baseUrl}${path}`);
+
     assert.equal(response.status, 403);
+
     await assert.rejects(
       resolvePreviewEgressTarget(new URL(`http://127.0.0.1:${targetPort}/private`)),
       /not allowed|protected address/
     );
+
     const allowedCompanion = await resolvePreviewEgressTarget(
       new URL(`http://localhost:${targetPort}/private`),
       { allowLoopback: true }
     );
+
     assert.equal(allowedCompanion.url.href, `http://localhost:${targetPort}/private`);
     for (const address of [
       "::ffff:7f00:1",

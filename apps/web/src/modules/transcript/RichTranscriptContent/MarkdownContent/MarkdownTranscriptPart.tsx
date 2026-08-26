@@ -9,9 +9,13 @@ import {
   normalizeTranscriptMarkdown,
   normalizeMarkdownLocalAssetPath
 } from "@modules/transcript/RichTranscriptContent/helpers";
-import { openLocalAssetInNewTab } from "@modules/transcript/RichTranscriptContent/localAssetActions";
 import { TranscriptDiffList } from "@modules/transcript/RichTranscriptContent/TranscriptDiff";
 
+import {
+  isMarkdownLocalImagePath,
+  transformTranscriptUrl
+} from "./helpers";
+import { LocalMarkdownAssetLink } from "./LocalMarkdownAssetLink";
 import { LocalMarkdownImage } from "./LocalMarkdownImage";
 import styles from "./styles.module.scss";
 import type { MarkdownTranscriptPartProps } from "./types";
@@ -24,12 +28,11 @@ export function MarkdownTranscriptPart(props: MarkdownTranscriptPartProps) {
     <div className={styles.markdown}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        urlTransform={transformTranscriptUrl}
         components={{
           pre: ({ children }) => <>{children}</>,
           a: ({ href, children }) => {
-            if (!href) {
-              return <span>{children}</span>;
-            }
+            if (!href) return <span>{children}</span>;
 
             const localAssetPath = normalizeMarkdownLocalAssetPath(href);
 
@@ -37,16 +40,13 @@ export function MarkdownTranscriptPart(props: MarkdownTranscriptPartProps) {
               const displayName = flattenMarkdownCodeChildren(children).trim() || localAssetPath;
 
               return (
-                <button
-                  className={styles.localAssetButton}
-                  onClick={() => {
-                    void openLocalAssetInNewTab(localAssetPath, displayName, assetContext);
-                  }}
-                  title={localAssetPath}
-                  type="button"
+                <LocalMarkdownAssetLink
+                  assetContext={assetContext}
+                  assetPath={localAssetPath}
+                  displayName={displayName}
                 >
                   {children}
-                </button>
+                </LocalMarkdownAssetLink>
               );
             }
 
@@ -67,12 +67,25 @@ export function MarkdownTranscriptPart(props: MarkdownTranscriptPartProps) {
             );
           },
           img: ({ src, alt }) => {
-            if (!src) {
-              return null;
-            }
+            if (!src) return null;
 
             const localAssetPath = normalizeMarkdownLocalAssetPath(src);
+
             if (localAssetPath) {
+              if (!isMarkdownLocalImagePath(localAssetPath)) {
+                const displayName = alt?.trim() || localAssetPath.split(/[\\/]/u).pop() || localAssetPath;
+
+                return (
+                  <LocalMarkdownAssetLink
+                    assetContext={assetContext}
+                    assetPath={localAssetPath}
+                    displayName={displayName}
+                  >
+                    {displayName}
+                  </LocalMarkdownAssetLink>
+                );
+              }
+
               return (
                 <LocalMarkdownImage
                   alt={alt ?? ""}
@@ -89,9 +102,7 @@ export function MarkdownTranscriptPart(props: MarkdownTranscriptPartProps) {
             const language = extractMarkdownCodeLanguage(className);
             const isBlock = Boolean(className) || codeText.includes("\n");
 
-            if (!isBlock) {
-              return <code>{children}</code>;
-            }
+            if (!isBlock) return <code>{children}</code>;
 
             if (language === "diff" || language === "patch" || looksLikeUnifiedDiff(codeText)) {
               return (

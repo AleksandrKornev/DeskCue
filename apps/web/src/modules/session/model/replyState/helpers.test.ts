@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { SessionSummary } from "@deskcue/protocol";
+import type { AgentSessionDetail, AgentSessionSummary, SessionSummary } from "@deskcue/protocol";
 
 import {
+  isConfirmedDeskCuePendingPrompt,
+  isManagedSourceReplyWaiting,
+  isManagedSourceSessionWorking,
+  isSourceTurnOutsideDeskCue,
   resolveInputAvailability,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
@@ -61,6 +65,78 @@ function transcriptUser(id: string, text: string) {
 }
 
 describe("managed session reply state helpers", () => {
+  it("ignores stale active source metadata after the managed transport is done", () => {
+    const activeSource = {
+      turnState: { phase: "active" },
+      workState: "running"
+    } as AgentSessionDetail;
+
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "done" }),
+      activeSource
+    ), false);
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "stopped" }),
+      activeSource
+    ), false);
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "running" }),
+      activeSource
+    ), true);
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "read_only" }),
+      activeSource
+    ), true);
+  });
+
+  it("uses a newer terminal source summary instead of stale active detail", () => {
+    const activeSource = {
+      attachMode: "resume",
+      turnState: {
+        activityAt: "2026-07-29T18:00:00.000Z",
+        completedAt: null,
+        evidence: "recent_non_final_activity",
+        fingerprint: "start-1",
+        phase: "active",
+        startedAt: "2026-07-29T18:00:00.000Z"
+      },
+      workState: "running"
+    } as AgentSessionDetail;
+    const terminalSummary = {
+      ...activeSource,
+      turnState: {
+        activityAt: null,
+        completedAt: "2026-07-29T18:00:05.000Z",
+        evidence: "terminal_lifecycle",
+        fingerprint: "terminal-1",
+        phase: "completed",
+        startedAt: null
+      },
+      workState: "idle"
+    } as AgentSessionSummary;
+
+    assert.equal(isManagedSourceSessionWorking(
+      createSessionShell({ status: "read_only" }),
+      activeSource,
+      terminalSummary
+    ), false);
+  });
+
+  it("does not treat an outcome-unknown prompt as DeskCue-owned control", () => {
+    assert.equal(isConfirmedDeskCuePendingPrompt({
+      sessionId: "session-1",
+      status: "not_confirmed",
+      text: "Ambiguous prompt",
+      requestedAt
+    }), false);
+    assert.equal(isConfirmedDeskCuePendingPrompt({
+      sessionId: "session-1",
+      status: "waiting",
+      text: "Confirmed prompt",
+      requestedAt
+    }), true);
+  });
+
   it("restores the pending prompt bubble from a read-only waiting source shell", () => {
     const sessionShell = createSessionShell({
       replyState: {
@@ -117,6 +193,7 @@ describe("managed session reply state helpers", () => {
       text: "New prompt",
       requestedAt: "2026-07-29T17:59:00.000Z"
     });
+
     assert.equal(result.displayedPendingChatPrompt?.text, "New prompt");
   });
 
@@ -209,6 +286,75 @@ describe("managed session reply state helpers", () => {
     }), true);
   });
 
+  it("restores waiting for passive clients from the managed source lifecycle", () => {
+    assert.equal(isManagedSourceReplyWaiting(
+      createSessionShell({ status: "running" })
+    ), true);
+    assert.equal(isManagedSourceReplyWaiting(
+      createSessionShell({ status: "read_only" })
+    ), false);
+    assert.equal(isManagedSourceReplyWaiting({
+      ...createSessionShell({ status: "running" }),
+      sourceSessionId: null
+    }), false);
+  });
+
+  it("recognizes an externally controlled source turn without depending on the agent adapter", () => {
+    const sourceSession = { attachMode: "read_only" as const };
+    const options = {
+      hasDeskCuePrompt: false,
+      hasPromptRecovery: false,
+      hasWaitingPrompt: false,
+      isSourceSessionWorking: true
+    };
+
+    assert.equal(isSourceTurnOutsideDeskCue(
+      createSessionShell({ adapterId: "codex", status: "read_only" }),
+      sourceSession,
+      options
+    ), true);
+    assert.equal(isSourceTurnOutsideDeskCue(
+      createSessionShell({ adapterId: "claude-code", status: "read_only" }),
+      sourceSession,
+      options
+    ), true);
+  });
+
+  it("does not call a DeskCue-owned or recovering source turn external", () => {
+    const sessionShell = createSessionShell({ status: "read_only" });
+
+    assert.equal(isSourceTurnOutsideDeskCue(
+      sessionShell,
+      { attachMode: "resume" },
+      {
+        hasDeskCuePrompt: false,
+        hasPromptRecovery: false,
+        hasWaitingPrompt: false,
+        isSourceSessionWorking: true
+      }
+    ), false);
+    assert.equal(isSourceTurnOutsideDeskCue(
+      sessionShell,
+      { attachMode: "read_only" },
+      {
+        hasDeskCuePrompt: true,
+        hasPromptRecovery: false,
+        hasWaitingPrompt: false,
+        isSourceSessionWorking: true
+      }
+    ), false);
+    assert.equal(isSourceTurnOutsideDeskCue(
+      sessionShell,
+      { attachMode: "read_only" },
+      {
+        hasDeskCuePrompt: false,
+        hasPromptRecovery: true,
+        hasWaitingPrompt: false,
+        isSourceSessionWorking: true
+      }
+    ), false);
+  });
+
   it("permits a DeskCue-owned read-only shell only when the explicit capability is set", () => {
     const localChatShell = createSessionShell({
       canSendInput: false,
@@ -220,6 +366,10 @@ describe("managed session reply state helpers", () => {
     assert.equal(resolveInputAvailability(localChatShell, {
       canSendInputWhenReadOnly: true
     }).canSendInput, true);
+    assert.equal(resolveInputAvailability(localChatShell, {
+      blockExternalSourceInput: true,
+      canSendInputWhenReadOnly: true
+    }).canSendInput, false);
   });
 
   it("keeps the transcript skeleton during reload even when a pending prompt is restored", () => {

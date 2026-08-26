@@ -23,6 +23,7 @@ export class SourcePromptStartupError extends Error {
 }
 
 export type SourcePromptProcessCallbacks = {
+  appendStderrLog?: (sessionId: string, text: string) => void;
   appendStdoutLog: (sessionId: string, text: string) => void;
   appendSystemLog: (sessionId: string, text: string, timestamp?: string) => void;
   finishSession: (sessionId: string, status: SessionStatus, exitCode: number | null) => void;
@@ -86,6 +87,7 @@ export async function runSourcePromptProcessLifecycle(
     adapterId: session.adapterId,
     child,
     command: lifecycle.command,
+    onAppendStderrLog: callbacks.appendStderrLog,
     onAppendStdoutLog: callbacks.appendStdoutLog,
     onAppendSystemLog: callbacks.appendSystemLog,
     sessionId: session.id
@@ -99,6 +101,7 @@ export async function runSourcePromptProcessLifecycle(
     status: "running",
     finishedAt: null,
     exitCode: null,
+    inputBlockedReason: null,
     inputHistory: [...session.inputHistory, lifecycle.prompt],
     replyState: {
       phase: "sending",

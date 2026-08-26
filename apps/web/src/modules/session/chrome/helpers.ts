@@ -8,29 +8,39 @@ import {
 const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
+const ATTENTION_SESSION_STATUS_LABELS = new Set([
+  "control lost",
+  "interrupt unconfirmed",
+  "recovering",
+  "retry required",
+  "stopping"
+]);
+
+export function isAttentionSessionStatus(statusLabel?: string) {
+  return Boolean(statusLabel && ATTENTION_SESSION_STATUS_LABELS.has(statusLabel));
+}
+
+export function isDangerSessionStatus(
+  status: SessionSummary["status"],
+  statusLabel?: string
+) {
+  if (status === "failed") return true;
+
+  return status === "stopped" && (statusLabel?.trim().toLowerCase() ?? status) === "stopped";
+}
 
 export function formatConnectionAge(lastSyncedAt: string | null, now: number) {
-  if (!lastSyncedAt) {
-    return null;
-  }
+  if (!lastSyncedAt) return null;
 
   const lastSyncedTime = new Date(lastSyncedAt).getTime();
-  if (Number.isNaN(lastSyncedTime)) {
-    return null;
-  }
+
+  if (Number.isNaN(lastSyncedTime)) return null;
 
   const elapsedMs = Math.max(0, now - lastSyncedTime);
-  if (elapsedMs < 10 * SECOND_MS) {
-    return "now";
-  }
 
-  if (elapsedMs < MINUTE_MS) {
-    return `${Math.floor(elapsedMs / SECOND_MS)}s ago`;
-  }
-
-  if (elapsedMs < HOUR_MS) {
-    return `${Math.floor(elapsedMs / MINUTE_MS)}m ago`;
-  }
+  if (elapsedMs < 10 * SECOND_MS) return "now";
+  if (elapsedMs < MINUTE_MS) return `${Math.floor(elapsedMs / SECOND_MS)}s ago`;
+  if (elapsedMs < HOUR_MS) return `${Math.floor(elapsedMs / MINUTE_MS)}m ago`;
 
   return `${Math.floor(elapsedMs / HOUR_MS)}h ago`;
 }
@@ -73,13 +83,20 @@ export function getLiveConnectionCopy(
   };
 }
 
+export function getLiveConnectionFreshnessLabel(
+  copy: ReturnType<typeof getLiveConnectionCopy>
+) {
+  const freshness = copy.detail
+    .replace(/^updated\s+/i, "")
+    .replace(/^last update\s+/i, "");
+  return `Last update ${freshness}`;
+}
+
 export function findSourceAgentSession(
   session: SessionSummary,
   agentSessions: AgentSessionSummary[]
 ) {
-  if (!session.sourceSessionId) {
-    return null;
-  }
+  if (!session.sourceSessionId) return null;
 
   return agentSessions.find(
     (agentSession) =>

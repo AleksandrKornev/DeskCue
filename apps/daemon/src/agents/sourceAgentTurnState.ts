@@ -80,11 +80,12 @@ function findLatestUnansweredUserTurn(
 
   for (let index = entries.length - 1; index > afterIndex; index -= 1) {
     const entry = entries[index];
+
     latestActivityEntry ??= entry;
 
     const label = readLifecycleLabel(entry);
-    if (isTerminalLifecycleLabel(label) || label === "Turn started") return null;
 
+    if (isTerminalLifecycleLabel(label) || label === "Turn started") return null;
     if (entry.role === "assistant" && !isNonFinalAssistantEntry(entry)) return null;
 
     if (entry.role === "user") {
@@ -100,9 +101,10 @@ function findLatestUnansweredUserTurn(
 
 function findMatchingTurnStart(entries: AgentTranscriptEntry[], terminalIndex: number) {
   for (let index = terminalIndex - 1; index >= 0; index -= 1) {
-    const label = readLifecycleLabel(entries[index]);
-    if (label === "Turn started") return entries[index];
+    const entry = entries[index];
+    const label = readLifecycleLabel(entry);
 
+    if (label === "Turn started" || entry.role === "user") return entry;
     if (isTerminalLifecycleLabel(label)) return null;
   }
 
@@ -123,6 +125,7 @@ export function findSourceAgentTerminalTurns(
   for (let index = 0; index < transcript.length; index += 1) {
     const entry = transcript[index];
     const label = readLifecycleLabel(entry);
+
     if (!isTerminalLifecycleLabel(label)) continue;
 
     terminalTurns.push({
@@ -168,16 +171,19 @@ export function deriveSourceAgentTurnState(
 
   for (let index = session.transcript.length - 1; index >= 0; index -= 1) {
     const entry = session.transcript[index];
+
     if (!latestActivityTimestamp) {
       latestActivityTimestamp = entry.timestamp;
       latestEntry = entry;
     }
 
     const label = readLifecycleLabel(entry);
+
     if (!label) continue;
 
     if (label === "Turn completed" || label === "Turn failed") {
       const newUserTurn = findLatestUnansweredUserTurn(session.transcript, index);
+
       if (newUserTurn) return toUnansweredUserTurnState(newUserTurn, entry);
 
       return {
@@ -191,6 +197,7 @@ export function deriveSourceAgentTurnState(
 
     if (label === "Turn interrupted") {
       const newUserTurn = findLatestUnansweredUserTurn(session.transcript, index);
+
       if (newUserTurn) return toUnansweredUserTurnState(newUserTurn, entry);
 
       return {
@@ -222,6 +229,7 @@ export function deriveSourceAgentTurnState(
   }
 
   const unansweredUserTurn = findLatestUnansweredUserTurn(session.transcript);
+
   if (unansweredUserTurn) return toUnansweredUserTurnState(unansweredUserTurn);
 
   if (latestEntry && isFreshNonFinalActivity(latestEntry)) {

@@ -20,6 +20,7 @@ import {
   ManagedSessionSwitcher
 } from "./chrome";
 import { SessionDiagnosticsDialog } from "./diagnostics";
+import { stopExternalClaudeBackground } from "./helpers";
 import { LiveChatOverview } from "./liveChatOverview";
 import { ManagedSessionSurface } from "./ManagedSessionSurface";
 import {
@@ -86,6 +87,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     composerPromptInFlight,
     contextCompactionCount,
     debugEntries,
+    inputUnavailableLabel,
     isCompactViewport,
     isInterruptingPrompt,
     isPromptQueued,
@@ -133,10 +135,6 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
   const hasPreviewTab = availableSessionTabs.some((tab) => tab.key === "preview");
   const effectiveActiveTab = resolveAvailableSessionTab(activeTab, availableSessionTabs);
   const navigationIdPrefix = `managed-session-${sessionShell?.id ?? selectedSessionId}`;
-  const handleStopExternalClaudeBackground = async () => {
-    await onInterruptPrompt();
-    externalClaudeBackgroundStop.refresh();
-  };
 
   useEffect(() => {
     setShowDiagnostics(false);
@@ -181,7 +179,10 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                     sessionStatus={sessionShell.status}
                     showTools={showTools}
                     onExitSession={onExitSession}
-                    onStopExternalClaudeBackground={handleStopExternalClaudeBackground}
+                    onStopExternalClaudeBackground={() => void stopExternalClaudeBackground(
+                      onInterruptPrompt,
+                      externalClaudeBackgroundStop.refresh
+                    )}
                     onStopSession={onStopSession}
                     onStopAndExitSession={onStopAndExitSession}
                     onToggleModelContext={() => setShowModelContext((current) => !current)}
@@ -189,6 +190,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                     onToggleTools={onToggleTools}
                   />
                 }
+
                 adapterLabel={sessionShell.adapterId.toUpperCase()}
                 agentLabel={takenOverAgentSession?.agentLabel}
                 navigationCapabilities={navigationCapabilities}
@@ -203,6 +205,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                 subtitle={liveSessionSubtitle}
                 title={liveSessionTitle}
                 toolbarRef={chatToolbarRef}
+                onExitSession={onExitSession}
               />
             ) : (
               <ManualSessionChrome
@@ -247,6 +250,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                     activePromptText,
                     actionRequest: activeActionRequest,
                     canSendInput,
+                    inputUnavailableLabel,
                     isPromptInFlight: composerPromptInFlight,
                     isPromptQueued,
                     sharedSessionHint,
@@ -290,6 +294,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                   draftScopeKey={`inline:${selectedSessionDetail?.id ?? sessionShell.id}:${effectiveActiveTab}`}
                   hasSelectedSession={Boolean(selectedSessionDetail)}
                   hasSourceSession={Boolean(sessionShell.sourceSessionId)}
+                  inputUnavailableLabel={inputUnavailableLabel}
                   isInterruptingPrompt={isInterruptingPrompt}
                   isPromptInFlight={composerPromptInFlight}
                   isPromptQueued={isPromptQueued}

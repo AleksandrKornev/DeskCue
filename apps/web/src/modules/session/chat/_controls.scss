@@ -18,7 +18,7 @@
   justify-content: center;
   gap: 8px;
   min-width: min(260px, 100%);
-  min-height: 34px;
+  min-height: 44px;
   padding: 9px 12px;
   background: rgba(255, 255, 255, 0.08);
   color: vars.$color-text-primary;
@@ -165,9 +165,13 @@
   }
 
   .chatMessageActivityChip {
-    min-height: 24px;
+    min-height: vars.$control-height-touch;
     padding-inline: 9px;
     font-size: 0.7rem;
+  }
+
+  .chatMessageActivityChip::before {
+    inset-block: 10px;
   }
 
   .chatMessageTurnStatus {
@@ -191,4 +195,3 @@
     padding-bottom: calc(var(--chat-composer-height, 0px) + 18px);
   }
 }
-

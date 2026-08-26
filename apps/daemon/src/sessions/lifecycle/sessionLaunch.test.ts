@@ -14,13 +14,15 @@ function createLaunchFixture(cwd: string, child?: RunningChild) {
   let persistCount = 0;
   const events: ServerEvent[] = [];
   const logs: string[] = [];
+  const logStreams: string[] = [];
   const workspace = {
     id: "workspace-1",
     name: "Workspace",
     path: cwd
   } as WorkspaceSummary;
   const callbacks: Parameters<typeof launchManagedSession>[0] = {
-    appendLog(_sessionId: string, _stream: string, text: string) {
+    appendLog(_sessionId: string, stream: string, text: string) {
+      logStreams.push(stream);
       logs.push(text);
     },
     emitServerEvent(event: ServerEvent) {
@@ -28,12 +30,14 @@ function createLaunchFixture(cwd: string, child?: RunningChild) {
     },
     finishSession(_sessionId: string, status: SessionDetail["status"], exitCode: number | null) {
       if (!session) return;
+
       session = {
         ...session,
         exitCode,
         finishedAt: new Date().toISOString(),
         status
       };
+
       events.push({ type: "session.updated", payload: session });
     },
     getChild: () => child,
@@ -54,6 +58,7 @@ function createLaunchFixture(cwd: string, child?: RunningChild) {
     },
     spawnProcess: () => {
       if (!child) throw new Error("spawn failed");
+
       return child;
     },
     startGitPolling: () => {},
@@ -64,11 +69,15 @@ function createLaunchFixture(cwd: string, child?: RunningChild) {
       if (session) session = { ...session, ...patch };
     }
   };
+
   return {
     callbacks,
     events,
     get logs() {
       return logs;
+    },
+    get logStreams() {
+      return logStreams;
     },
     get persistCount() {
       return persistCount;
@@ -79,6 +88,41 @@ function createLaunchFixture(cwd: string, child?: RunningChild) {
     workspace
   };
 }
+
+test("preserves stderr from a managed pipe in session logs", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-launch-stderr-"));
+  let dataHandler: Parameters<RunningChild["onData"]>[0] | undefined;
+  const child: RunningChild = {
+    kill() {},
+    onData(handler) {
+      dataHandler = handler;
+      return { dispose() {} };
+    },
+    onExit: () => ({ dispose() {} }),
+    pid: 42,
+    write() {}
+  };
+
+  const fixture = createLaunchFixture(cwd, child);
+
+  try {
+    await launchManagedSession(fixture.callbacks, {
+      adapterId: "codex",
+      command: "codex exec resume source-1 prompt",
+      cwd,
+      env: {},
+      sourceSessionId: "source-1",
+      workspace: fixture.workspace
+    });
+
+    dataHandler?.("Codex failed\n", "stderr");
+
+    assert.equal(fixture.logs.at(-1), "Codex failed\n");
+    assert.equal(fixture.logStreams.at(-1), "stderr");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
 
 test("marks a persisted session failed when process spawn throws", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-launch-failure-"));
@@ -125,12 +169,14 @@ test("routes delayed Codex input through the owned scheduler and contains delive
   const child = fakeChild();
   const fixture = createLaunchFixture(cwd, child);
   let scheduledAction: (() => Promise<void>) | null = null;
+
   fixture.callbacks.scheduleDelayedAction = (
     _sessionId: string,
     action: () => Promise<void>
   ) => {
     scheduledAction = action;
   };
+
   fixture.callbacks.sendSourceInput = async () => {
     throw new Error("delivery failed");
   };
@@ -161,23 +207,28 @@ test("journals argv input before spawning the detached agent process", async () 
   const fixture = createLaunchFixture(cwd, fakeChild());
   const lifecycle: string[] = [];
   let preparedRequestedAt: string | undefined;
+
   fixture.callbacks.preparePromptDelivery = (_session, prompt, requestedAt) => {
     preparedRequestedAt = requestedAt;
     lifecycle.push(`prepare:${prompt}:${requestedAt}`);
     return "delivery-1";
   };
+
   fixture.callbacks.markPromptDispatching = (deliveryId) => {
     lifecycle.push(`dispatching:${deliveryId}`);
     return true;
   };
+
   fixture.callbacks.markPromptAccepted = (deliveryId) => {
     lifecycle.push(`accepted:${deliveryId}`);
     return true;
   };
+
   fixture.callbacks.spawnProcess = () => {
     lifecycle.push("spawn");
     return fakeChild();
   };
+
   fixture.callbacks.persistState = async () => {
     lifecycle.push("persist");
   };
@@ -211,14 +262,17 @@ test("marks argv input not sent when process spawn fails synchronously", async (
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-launch-not-sent-"));
   const fixture = createLaunchFixture(cwd);
   const lifecycle: string[] = [];
+
   fixture.callbacks.preparePromptDelivery = () => {
     lifecycle.push("prepare");
     return "delivery-1";
   };
+
   fixture.callbacks.markPromptDispatching = () => {
     lifecycle.push("dispatching");
     return true;
   };
+
   fixture.callbacks.markPromptNotSentAfterSpawnFailure = () => {
     lifecycle.push("not_sent");
     return true;
@@ -254,15 +308,19 @@ test("keeps argv input outcome unknown when accepted persistence fails after spa
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-launch-accepted-failure-"));
   const fixture = createLaunchFixture(cwd, fakeChild());
   const lifecycle: string[] = [];
+
   fixture.callbacks.preparePromptDelivery = () => "delivery-1";
+
   fixture.callbacks.markPromptDispatching = () => true;
   fixture.callbacks.markPromptAccepted = () => {
     throw new Error("journal unavailable");
   };
+
   fixture.callbacks.markPromptNotSentAfterSpawnFailure = () => {
     lifecycle.push("not_sent");
     return true;
   };
+
   fixture.callbacks.markPromptOutcomeUnknown = () => {
     lifecycle.push("outcome_unknown");
     return true;

@@ -14,6 +14,8 @@ import type { CloudPreviewHeader } from "@deskcue/protocol/cloud";
 import { PreviewCookieJar } from "#http/routes/system/preview/egress/previewCookieJar";
 import { buildPreviewEgressPath } from "#http/routes/system/preview/egress/previewEgressTarget";
 import { resolvePreviewWebSocketTargetUrls } from "#http/routes/system/preview/egress/previewWebSocketTarget";
+import { PREVIEW_PROXY_LIMITS } from "#http/routes/system/preview/previewProxyLimits";
+import { waitForPreviewSocketConnect } from "#http/routes/system/preview/previewSocketConnectDeadline";
 import {
   createPreviewJavaScriptBootstrap,
   isPreviewJavaScriptContent,
@@ -22,16 +24,14 @@ import {
   readRewritablePreviewBody,
   rewritePreviewContent,
   rewritePreviewJavaScriptAssetLiterals
-} from "#http/routes/system/preview/previewContentRewrite";
+} from "#http/routes/system/preview/relay/previewContentRewrite";
 import {
   buildPreviewRequestHeaders,
-  copyPreviewResponseHeaders,
   isDeskCueAuthorization
-} from "#http/routes/system/preview/previewProxyHeaders";
-import { PREVIEW_PROXY_LIMITS } from "#http/routes/system/preview/previewProxyLimits";
-import { waitForPreviewSocketConnect } from "#http/routes/system/preview/previewSocketConnectDeadline";
+} from "#http/routes/system/preview/relay/previewProxyHeaders";
 
 import type { AuthorizedCloudPreviewRequest } from "./cloudPreviewRequestPolicy.ts";
+import { collectCloudPreviewResponseHeaders } from "./cloudPreviewResponseHeaders.ts";
 import type {
   CloudPreviewHttpResult,
   CloudPreviewWebSocketEvents,
@@ -40,48 +40,11 @@ import type {
 
 const MAX_LOCAL_WS_BUFFERED_BYTES = 4 * 1024 * 1024;
 
-function collectResponseHeaders(
-  input: IncomingHttpHeaders,
-  options: {
-    contentRewritten: boolean;
-    exposeCookies: boolean;
-    preserveCookiePaths?: boolean;
-    preserveSecurityHeaders?: boolean;
-    requestOrigin: string | undefined;
-    upstreamOrigin: string;
-  }
-) {
-  const values = new Map<string, number | string | string[]>();
-  copyPreviewResponseHeaders(input, {
-    getHeader: (name) => values.get(name),
-    setHeader(name, value) {
-      const storedValue = typeof value === "number" || typeof value === "string"
-        ? value
-        : Array.from(value);
-      values.set(name, storedValue);
-    }
-  }, {
-    basePath: "",
-    contentRewritten: options.contentRewritten,
-    exposeCookies: options.exposeCookies,
-    preserveCookiePaths: options.preserveCookiePaths,
-    preserveSecurityHeaders: options.preserveSecurityHeaders,
-    requestOrigin: options.requestOrigin,
-    resourceBasePath: "",
-    upstreamOrigin: options.upstreamOrigin
-  });
-  const headers: CloudPreviewHeader[] = [];
-  for (const [name, rawValue] of values) {
-    for (const value of Array.isArray(rawValue) ? rawValue : [rawValue]) {
-      headers.push([name, String(value)]);
-    }
-  }
-  return headers;
-}
-
 function isLocalPreviewTarget(target: URL, localTarget: AuthorizedCloudPreviewRequest["target"]) {
   if (target.origin === localTarget.origin) return true;
+
   const hostname = target.hostname.replace(/^\[|\]$/gu, "");
+
   return (
     (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") &&
     Number(target.port || (target.protocol === "https:" ? 443 : 80)) === localTarget.port
@@ -91,9 +54,11 @@ function isLocalPreviewTarget(target: URL, localTarget: AuthorizedCloudPreviewRe
 function rewriteRedirect(location: string, request: AuthorizedCloudPreviewRequest) {
   try {
     const target = new URL(location, request.targetUrl);
+
     if (target.protocol !== "http:" && target.protocol !== "https:") return null;
     if (isLocalPreviewTarget(target, request.target)) return `${target.pathname}${target.search}${target.hash}`;
     if (request.target.networkMode === "device-direct") return target.href;
+
     return buildPreviewEgressPath("", target, {
       stripAuthorization: target.origin !== request.targetUrl.origin
     });
@@ -107,8 +72,10 @@ function resolveCloudPreviewDocumentUrl(
   request: AuthorizedCloudPreviewRequest
 ) {
   if (!referer) return request.targetUrl;
+
   try {
     const parsed = new URL(referer);
+
     return new URL(`${parsed.pathname}${parsed.search}`, request.target.origin);
   } catch {
     return request.targetUrl;
@@ -117,12 +84,16 @@ function resolveCloudPreviewDocumentUrl(
 
 async function* boundedBody(response: IncomingMessage, signal: AbortSignal) {
   let total = 0;
+
   try {
     for await (const rawChunk of response) {
       signal.throwIfAborted();
       const chunk = Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk);
+
       total += chunk.byteLength;
+
       if (total > CLOUD_PREVIEW_HTTP_MAX_RESPONSE_BYTES) throw new Error("preview_response_too_large");
+
       for (let offset = 0; offset < chunk.byteLength; offset += CLOUD_PREVIEW_CHUNK_BYTES) {
         yield chunk.subarray(offset, offset + CLOUD_PREVIEW_CHUNK_BYTES);
       }
@@ -141,6 +112,7 @@ async function pumpRequestBody(
     signal.throwIfAborted();
     if (!request.write(chunk)) await once(request, "drain");
   }
+
   request.end();
 }
 
@@ -164,19 +136,24 @@ function toIncomingHeaders(headers: ReadonlyArray<readonly [string, string]>) {
 
 function readDeclaredResponseLength(value: string | undefined) {
   if (value === undefined || !/^\d+$/u.test(value)) return null;
+
   const length = Number(value);
+
   return Number.isSafeInteger(length) ? length : null;
 }
 
 function toBuffer(data: RawData) {
   if (Buffer.isBuffer(data)) return Buffer.from(data);
   if (Array.isArray(data)) return Buffer.concat(data);
+
   return Buffer.from(data);
 }
 
 function abortError() {
   const error = new Error("The operation was aborted.");
+
   error.name = "AbortError";
+
   return error;
 }
 
@@ -217,35 +194,48 @@ export class CloudPreviewProxyTransport {
         method: request.method,
         timeout: PREVIEW_PROXY_LIMITS.idleTimeoutMs
       });
-      let settled = false;
-      const abort = () => upstream.destroy(abortError());
-      const cleanup = () => request.signal.removeEventListener("abort", abort);
-      const fail = (error: Error) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        reject(error);
+      const lifecycle = {
+        abort() {
+          upstream.destroy(abortError());
+        },
+        cleanup() {
+          request.signal.removeEventListener("abort", lifecycle.abort);
+        },
+        fail(error: Error) {
+          if (lifecycle.settled) return;
+
+          lifecycle.settled = true;
+          lifecycle.cleanup();
+          reject(error);
+        },
+        settled: false
       };
-      request.signal.addEventListener("abort", abort, { once: true });
+
+      request.signal.addEventListener("abort", lifecycle.abort, { once: true });
       upstream.once("timeout", () => upstream.destroy(new Error("preview_upstream_idle_timeout")));
-      upstream.once("error", fail);
+      upstream.once("error", lifecycle.fail);
       const connectDeadline = setTimeout(
         () => upstream.destroy(new Error("preview_upstream_connect_timeout")),
         PREVIEW_PROXY_LIMITS.connectTimeoutMs
       );
+
       connectDeadline.unref?.();
       upstream.once("socket", (socket) => {
         const stopWaiting = waitForPreviewSocketConnect(socket, () => clearTimeout(connectDeadline));
+
         upstream.once("close", stopWaiting);
       });
+
       upstream.once("close", () => clearTimeout(connectDeadline));
+
       upstream.once("response", (response) => {
-        if (settled) {
+        if (lifecycle.settled) {
           response.destroy();
           return;
         }
-        settled = true;
-        cleanup();
+
+        lifecycle.settled = true;
+        lifecycle.cleanup();
         void this.createHttpResult(request, inputHeaders, response).then(resolve, reject);
       });
       void pumpRequestBody(upstream, request.body, request.signal).catch((error: Error) => {
@@ -279,13 +269,17 @@ export class CloudPreviewProxyTransport {
     });
 
     return new Promise((resolve, reject) => {
-      let settled = false;
       let responseHeaders: CloudPreviewHeader[] = [];
-      const abort = () => {
-        socket.terminate();
-        if (!settled) reject(abortError());
+      const lifecycle = {
+        abort() {
+          socket.terminate();
+          if (!lifecycle.settled) reject(abortError());
+        },
+        settled: false
       };
-      request.signal.addEventListener("abort", abort, { once: true });
+
+      request.signal.addEventListener("abort", lifecycle.abort, { once: true });
+
       socket.once("upgrade", (response) => {
         if (request.egress) {
           this.cookieJar.store(
@@ -295,7 +289,8 @@ export class CloudPreviewProxyTransport {
             response.headers["set-cookie"]
           );
         }
-        responseHeaders = collectResponseHeaders(response.headers, {
+
+        responseHeaders = collectCloudPreviewResponseHeaders(response.headers, {
           contentRewritten: false,
           exposeCookies: !request.egress,
           preserveCookiePaths: true,
@@ -306,10 +301,11 @@ export class CloudPreviewProxyTransport {
       });
       socket.once("open", () => {
         if (request.signal.aborted) {
-          abort();
+          lifecycle.abort();
           return;
         }
-        settled = true;
+
+        lifecycle.settled = true;
         resolve({
           close(code, reason) {
             if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
@@ -324,6 +320,7 @@ export class CloudPreviewProxyTransport {
               socket.close(1013, "preview_backpressure");
               return;
             }
+
             socket.send(messageBody, { binary }, (error) => {
               if (error && socket.readyState === WebSocket.OPEN) socket.close(1011, "preview_send_failed");
             });
@@ -331,22 +328,23 @@ export class CloudPreviewProxyTransport {
         });
       });
       socket.on("message", (data, binary) => {
-        if (settled) events.onMessage(toBuffer(data), binary);
+        if (lifecycle.settled) events.onMessage(toBuffer(data), binary);
       });
       socket.once("close", (code, reason) => {
-        request.signal.removeEventListener("abort", abort);
-        if (!settled) {
+        request.signal.removeEventListener("abort", lifecycle.abort);
+        if (!lifecycle.settled) {
           reject(new Error("preview_websocket_closed_before_open"));
           return;
         }
+
         events.onClose(code, reason.toString());
       });
       socket.once("error", (error) => {
-        if (!settled) reject(error);
+        if (!lifecycle.settled) reject(error);
       });
       socket.once("unexpected-response", (_request, response) => {
         response.resume();
-        if (!settled) reject(new Error("preview_websocket_upgrade_rejected"));
+        if (!lifecycle.settled) reject(new Error("preview_websocket_upgrade_rejected"));
         socket.terminate();
       });
     });
@@ -358,10 +356,12 @@ export class CloudPreviewProxyTransport {
     response: IncomingMessage
   ): Promise<CloudPreviewHttpResult> {
     const declaredLength = readDeclaredResponseLength(response.headers["content-length"]);
+
     if (declaredLength !== null && declaredLength > CLOUD_PREVIEW_HTTP_MAX_RESPONSE_BYTES) {
       response.destroy();
       throw new Error("preview_response_too_large");
     }
+
     if (request.egress) {
       this.cookieJar.store(
         request.owner,
@@ -370,13 +370,17 @@ export class CloudPreviewProxyTransport {
         response.headers["set-cookie"]
       );
     }
+
     const location = response.headers.location;
+
     if (location) {
       const rewritten = rewriteRedirect(location, request);
+
       if (!rewritten) {
         response.destroy();
         throw new Error("preview_external_origin_rejected");
       }
+
       response.headers.location = rewritten;
     }
 
@@ -386,7 +390,7 @@ export class CloudPreviewProxyTransport {
       /^\/_next\/static\/chunks\/(?:app(?:\/|-pages-internals)|main-app(?:\.|\/)|pages\/)/u
         .test(request.targetUrl.pathname);
     const rewrittenContent = isRewritablePreviewContent(contentType) || javascript;
-    const headers = collectResponseHeaders(response.headers, {
+    const headers = collectCloudPreviewResponseHeaders(response.headers, {
       contentRewritten: rewrittenContent,
       exposeCookies: !request.egress,
       preserveCookiePaths: true,
@@ -394,6 +398,7 @@ export class CloudPreviewProxyTransport {
       requestOrigin: inputHeaders.origin,
       upstreamOrigin: request.targetUrl.origin
     });
+
     if (request.method === "HEAD" || !response.readable) {
       response.resume();
       return emptyResult(response.statusCode ?? 502, headers);
@@ -405,12 +410,14 @@ export class CloudPreviewProxyTransport {
         : undefined;
       const source = await readRewritablePreviewBody(response, maxBytes);
       let body: Buffer;
+
       if (javascript) {
         const bootstrap = Buffer.from(createPreviewJavaScriptBootstrap("", {
           localOrigin: request.target.origin,
           networkMode: request.target.networkMode,
           upstreamUrl: resolveCloudPreviewDocumentUrl(inputHeaders.referer, request)
         }));
+
         body = Buffer.concat([
           bootstrap,
           rewriteNextJavaScript
@@ -424,7 +431,9 @@ export class CloudPreviewProxyTransport {
           upstreamUrl: request.targetUrl
         });
       }
+
       if (body.byteLength > CLOUD_PREVIEW_HTTP_MAX_RESPONSE_BYTES) throw new Error("preview_response_too_large");
+
       return bufferResult(response.statusCode ?? 502, headers, body);
     }
 

@@ -3,7 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Tooltip } from "@components/Tooltip";
 
-import { getLiveConnectionCopy } from "./helpers";
+import {
+  getLiveConnectionCopy,
+  getLiveConnectionFreshnessLabel
+} from "./helpers";
 import styles from "./styles.module.scss";
 import type { LiveConnectionIndicatorProps } from "./types";
 
@@ -28,12 +31,10 @@ export function LiveConnectionIndicator({
     () => getLiveConnectionCopy(connection, now),
     [connection, now]
   );
-  const accessibleLabel = `${copy.label} ${copy.detail}; ${copy.label} ${copy.compactDetail}`;
-  const tooltipLabel = `${copy.label}, ${copy.detail}`;
+  const tooltipLabel = getLiveConnectionFreshnessLabel(copy);
 
   return (
     <Tooltip
-      ariaLabel={accessibleLabel}
       className={clsx(
         styles.liveConnection,
         connection.status === "live" && styles.liveConnectionLive,

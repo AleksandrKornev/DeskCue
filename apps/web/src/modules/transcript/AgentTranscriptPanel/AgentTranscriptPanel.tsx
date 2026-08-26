@@ -2,11 +2,14 @@ import clsx from "clsx";
 import { memo } from "react";
 
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
+import { requestConfirmation } from "@components/ModalDialog";
 import { Tooltip } from "@components/Tooltip";
 import { formatDate } from "@lib/format";
+import { useCurrentAgentSessionActionGuard } from "@modules/agents/useCurrentAgentSessionActionGuard";
 import { ModelRuntimePanel } from "@modules/modelRuntime";
 import { getDeskCueRuntime } from "@runtime";
 
+import { getMarkReviewedSessionId } from "./helpers";
 import styles from "./styles.module.scss";
 import { TranscriptPreviewEntry } from "./TranscriptPreview";
 import type { AgentTranscriptPanelProps } from "./types";
@@ -20,9 +23,11 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attaching,
     isLoading,
     previewItems,
+    readyForReviewAgentSessionIds,
     session,
     sessionSummary,
     onAttach,
+    onMarkReviewed,
     onOpenManagedSession,
   } = props;
 
@@ -42,6 +47,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     sourceCapabilityLabel,
     textOnlyTranscriptEntries,
     transcriptRef,
+    unavailableChatPresentation,
     visibleTextOnlyTranscriptEntries,
     setShowModelContext
   } = useAgentTranscriptPanelState({
@@ -53,6 +59,9 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     session,
     sessionSummary
   });
+  const currentDisplaySessionIdRef = useCurrentAgentSessionActionGuard(
+    displaySession?.id ?? null
+  );
 
   if (isLoading && !displaySession) {
     return (
@@ -98,6 +107,13 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     );
   }
 
+  const markReviewedSessionId = getMarkReviewedSessionId({
+    displaySessionId: displaySession.id,
+    isHydratingSelection,
+    readyForReviewAgentSessionIds,
+    sessionCommandsEnabled
+  });
+
   return (
     <div className={clsx(styles.detail, isHydratingSelection && styles.detailSettling)}>
       <div className={styles.meta}>
@@ -142,7 +158,11 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
       {session && textOnlyTranscriptEntries.length > 0 ? (
         <div className={styles.transcript} ref={transcriptRef}>
           {visibleTextOnlyTranscriptEntries.map((entry) => (
-            <TranscriptPreviewEntry entry={entry} key={entry.id} />
+            <TranscriptPreviewEntry
+              assetContext={{ agentSessionId: displaySession.id }}
+              entry={entry}
+              key={entry.id}
+            />
           ))}
         </div>
       ) : isTranscriptPreviewLoading ? (
@@ -167,7 +187,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
       <div className={clsx(styles.bottom, styles.bottomAttached)}>
         {!sessionCommandsEnabled ? (
           <p className={styles.nextMessageSubtle}>
-            This Cloud connection currently provides read-only session review.
+            Remote control is disabled for this Cloud connection. Transcript review remains available.
           </p>
         ) : isReviewOnlyRuntime ? (
           <p className={styles.nextMessageSubtle}>
@@ -177,11 +197,27 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
           <button
             className={clsx(styles.accentButton, isActionPending && styles.accentButtonLoading)}
             disabled={isActionPending}
-            onClick={() => {
+            onClick={async () => {
+              const actionSessionId = displaySession.id;
+
               if (attachedManagedSessionId) {
                 onOpenManagedSession(attachedManagedSessionId);
                 return;
               }
+
+              if (displaySession.attachMode !== "resume") {
+                const confirmed = await requestConfirmation({
+                  confirmLabel: unavailableChatPresentation?.confirmLabel ?? "Open view-only chat",
+                  description:
+                    unavailableChatPresentation?.description ??
+                    "DeskCue will open the transcript and artifacts. Sending is unavailable for this chat.",
+                  title: unavailableChatPresentation?.title ?? "Open view-only chat?"
+                });
+
+                if (!confirmed || currentDisplaySessionIdRef.current !== actionSessionId) return;
+              }
+
+              if (currentDisplaySessionIdRef.current !== actionSessionId) return;
 
               onAttach();
             }}
@@ -191,6 +227,15 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
             <span>{actionButtonLabel}</span>
           </button>
         )}
+        {markReviewedSessionId ? (
+          <button
+            className={styles.reviewedButton}
+            onClick={() => onMarkReviewed(markReviewedSessionId)}
+            type="button"
+          >
+            Mark reviewed
+          </button>
+        ) : null}
         {!isReviewOnlyRuntime && attachWaitStage === "slow" ? (
           <p className={styles.nextMessageSubtle}>
             {isOpeningSharedLiveThread

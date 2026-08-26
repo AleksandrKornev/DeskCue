@@ -18,6 +18,7 @@ function parseStoredEntity<T>(
 ): T[] {
   try {
     const value: unknown = JSON.parse(row.json);
+
     if (!validate(value)) {
       logger.warn("Quarantining invalid persisted SQLite row", {
         id: row.id,
@@ -25,6 +26,7 @@ function parseStoredEntity<T>(
       });
       return [];
     }
+
     return [value];
   } catch (error) {
     logger.warn("Skipping malformed persisted SQLite row", {
@@ -71,6 +73,7 @@ function isNullableString(value: unknown): value is string | null {
 
 function isWorkspaceSummary(value: unknown): value is WorkspaceSummary {
   if (!isRecord(value)) return false;
+
   return hasStrings(value, ["id", "name", "path", "createdAt"]) &&
     typeof value.isGitRepo === "boolean" &&
     isNullableString(value.branch);
@@ -88,6 +91,7 @@ function isReplyState(value: unknown): value is SessionDetail["replyState"] {
 
 function isPromptRecoveryState(value: unknown): value is SessionDetail["promptRecovery"] {
   if (value === undefined || value === null) return true;
+
   return isRecord(value) &&
     (value.phase === "checking" || value.phase === "outcome_unknown" || value.phase === "not_sent") &&
     isNullableString(value.promptText) && typeof value.requestedAt === "string" &&
@@ -119,6 +123,7 @@ function isPreview(value: unknown): value is StoredPreviewConfig {
 
 function isSessionDetail(value: unknown): value is StoredSessionDetail {
   if (!isRecord(value)) return false;
+
   return hasStrings(value, [
     "id", "workspaceId", "workspaceName", "adapterId", "command", "startedAt", "lastActivityAt"
   ]) &&
@@ -144,11 +149,11 @@ export function deserializeFullSessions(rows: SessionRow[]) {
 }
 
 function parseJsonValue<T>(value: unknown, validate: (value: unknown) => value is T): T | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
+  if (value === null || value === undefined) return null;
+
   try {
     const parsed: unknown = typeof value === "string" ? JSON.parse(value) : value;
+
     return validate(parsed) ? parsed : null;
   } catch {
     return null;
@@ -160,7 +165,9 @@ function buildLightweightSession(row: SessionSummaryRow): SessionDetail[] {
     logger.warn("Quarantining invalid persisted SQLite session summary", { id: row.id });
     return [];
   }
+
   const preview = parseJsonValue(row.previewJson, isPreview);
+  const promptRecovery = parseJsonValue(row.promptRecoveryJson, isPromptRecoveryState);
   const replyState = parseJsonValue(row.replyStateJson, isReplyState);
   const actionRequest = parseJsonValue(row.actionRequestJson, isActionRequest);
   const git = parseJsonValue(row.gitJson, isGitSnapshot);
@@ -189,6 +196,7 @@ function buildLightweightSession(row: SessionSummaryRow): SessionDetail[] {
       promptText: null,
       requestedAt: null
     },
+    ...(promptRecovery ? { promptRecovery } : {}),
     actionRequest: actionRequest ?? null,
     git: {
       isGitRepo: git?.isGitRepo ?? false,

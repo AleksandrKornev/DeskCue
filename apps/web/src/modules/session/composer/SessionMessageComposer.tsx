@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { getDeskCueRuntime } from "@runtime";
 
 import { ActionDecisionPanel } from "./ActionDecisionPanel";
+import { normalizeComposerNotice } from "./helpers";
 import styles from "./styles.module.scss";
 import type { SessionMessageComposerProps } from "./types";
 import { useSessionMessageComposerController } from "./useSessionMessageComposerController";
@@ -13,9 +14,10 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
     mode,
     compactViewport = false,
     canSendInput,
-    sharedSessionHint,
+    inputUnavailableLabel,
     isInterruptingPrompt
   } = props;
+  const disabledInputLabel = normalizeComposerNotice(inputUnavailableLabel) ?? "This chat is view only";
 
   const {
     buttonActsAsInterrupt,
@@ -50,14 +52,15 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
         </p>
       );
     }
+
     return (
       <div className={clsx(styles.chatComposer, compactViewport && styles.chatComposerMinimal)}>
         <div className={styles.chatComposerInputWrap}>
           <textarea
-            aria-label="Remote session is read only"
+            aria-label="Remote control disabled"
             className={clsx(styles.field, styles.fieldTextarea)}
             disabled
-            placeholder="Remote session is read only"
+            placeholder="Remote control disabled"
           />
         </div>
       </div>
@@ -79,8 +82,16 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
           <input
             className={styles.field}
             disabled={!canSendInput}
-            placeholder="continue, explain, fix, or approve"
+            placeholder={canSendInput ? "continue, explain, fix, or approve" : disabledInputLabel}
             ref={textInputRef}
+            title={
+              shouldShowSharedSessionHint
+                ? sharedSessionHintText ?? undefined
+                : canSendInput
+                  ? undefined
+                  : disabledInputLabel
+            }
+
             onChange={(event) => syncHasDraft(event.target.value)}
             onBlur={handleComposerFieldBlur}
             onFocus={handleComposerFieldFocus}
@@ -91,7 +102,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
         </form>
         {shouldShowSharedSessionHint ? (
           <p className={clsx(styles.nextMessageSubtle, styles.sharedSessionHint)}>
-            {sharedSessionHint}
+            {sharedSessionHintText}
           </p>
         ) : null}
       </>
@@ -126,7 +137,8 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
             className={clsx(
               styles.field,
               styles.fieldTextarea,
-              styles.transcriptComposerWithButton
+              styles.transcriptComposerWithButton,
+              buttonActsAsInterrupt && styles.transcriptComposerWithInterruptButton
             )}
             disabled={!canSendInput}
             id={composerInputId}
@@ -136,10 +148,18 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
                 ? compactViewport
                   ? "continue, explain, or unblock the agent"
                   : "continue with the next change, explain the diff, or unblock the agent"
-                : "This session is read only"
+                : disabledInputLabel
             }
+
             ref={textAreaRef}
-            title={sharedSessionHint ?? undefined}
+            title={
+              shouldShowSharedSessionHint
+                ? sharedSessionHintText ?? undefined
+                : canSendInput
+                  ? undefined
+                  : disabledInputLabel
+            }
+
             onChange={(event) => syncHasDraft(event.target.value)}
             onBlur={handleComposerFieldBlur}
             onFocus={handleComposerFieldFocus}
@@ -153,11 +173,16 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
                   ? interruptButtonLabel
                   : sendButtonLabel
             }
-            className={styles.sendButtonInside}
+
+            className={clsx(
+              styles.sendButtonInside,
+              buttonActsAsInterrupt && styles.interruptButtonInside
+            )}
             disabled={
               isInterruptingPrompt ||
               (buttonActsAsInterrupt ? !canSendInput : (!hasDraft || !canSubmitDraft))
             }
+
             onClick={handleChatSendButtonClick}
             onPointerDown={handleSendPointerDown}
             title={
@@ -167,11 +192,15 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
                   ? interruptButtonLabel
                   : sendButtonLabel
             }
+
             type="button"
           >
             <span aria-hidden="true">
               {isInterruptingPrompt ? "…" : buttonActsAsInterrupt ? "■" : "↑"}
             </span>
+            {buttonActsAsInterrupt && !isInterruptingPrompt ? (
+              <span className={styles.interruptButtonLabel}>Stop</span>
+            ) : null}
           </button>
         </div>
       )}

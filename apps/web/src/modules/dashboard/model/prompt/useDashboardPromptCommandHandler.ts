@@ -22,13 +22,15 @@ export function useDashboardPromptCommandHandler(args: UseDashboardPromptCommand
     options?: SendInputOptions
   ): Promise<string | false> {
     const normalizedInstruction = nextInstruction.trim();
+
     if (!selectedSessionId || !normalizedInstruction) return false;
+
     const operation = beginPromptOperation(promptOperationRef, selectedSessionId);
-    const operationIsCurrent = () => isPromptOperationCurrent(
-      promptOperationRef,
-      selectedSessionIdRef,
-      operation
-    );
+    const operationState = {
+      isCurrent() {
+        return isPromptOperationCurrent(promptOperationRef, selectedSessionIdRef, operation);
+      }
+    };
 
     setError("");
 
@@ -37,16 +39,18 @@ export function useDashboardPromptCommandHandler(args: UseDashboardPromptCommand
     const shouldReplaceRunningPrompt = await resolveShouldReplaceRunningPrompt({
       actionDecisionProvided: Boolean(options?.actionDecision),
       adapterId: target.adapterId,
+      managedSessionStatus: args.selectedSession?.status ?? null,
       replacementRequested: Boolean(options?.replaceRunningPrompt),
       sourceSessionId: target.sourceSessionId
     });
-    if (!operationIsCurrent()) return false;
+
+    if (!operationState.isCurrent()) return false;
 
     if (shouldReplaceRunningPrompt) {
       const interrupted =
         await promptDelivery.interruptPromptBeforeSendingReplacement(selectedSessionId, operation);
 
-      if (!interrupted || !operationIsCurrent()) return false;
+      if (!interrupted || !operationState.isCurrent()) return false;
     } else {
       promptDelivery.setIsInterruptingPrompt(false);
     }
@@ -54,7 +58,7 @@ export function useDashboardPromptCommandHandler(args: UseDashboardPromptCommand
     return executePromptCommand({
       ...args,
       normalizedInstruction,
-      operationIsCurrent,
+      operationIsCurrent: operationState.isCurrent,
       options,
       retry: handleSendInput,
       target

@@ -64,6 +64,7 @@ function sessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetail {
 
 test("confirms a stale owned transport before decorating the attached source session", () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail());
   const lifecycle: string[] = [];
   const reconciler = new StoreBackedAttachedSessionReconciler({
@@ -95,7 +96,9 @@ test("confirms a stale owned transport before decorating the attached source ses
 
 test("reconciles stale ownership only for the matching runtime and source session", () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail());
+
   repository.setSession(sessionDetail({
     adapterId: "claude-code",
     id: "session-2"
@@ -146,6 +149,7 @@ function agentSessionDetail(): AgentSessionDetail {
 
 test("close drains durable recovery persistence across repeated source syncs", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail({
     promptRecovery: {
       phase: "checking",
@@ -192,15 +196,24 @@ test("close drains durable recovery persistence across repeated source syncs", a
   });
 
   const completedAgentSession = agentSessionDetail();
+
   completedAgentSession.workState = "idle";
+
   completedAgentSession.transcript.push({
     id: "recovered-assistant",
     timestamp: "2026-08-05T10:00:02.000Z",
     role: "assistant",
     text: "Completed",
     phase: null
+  }, {
+    id: "recovered-turn-completed",
+    timestamp: "2026-08-05T10:00:03.000Z",
+    role: "system",
+    text: "Turn completed",
+    phase: null
   });
   const result = reconciler.syncReplyState(completedAgentSession);
+
   reconciler.syncReplyState(completedAgentSession);
 
   assert.equal(result?.promptRecovery, null);
@@ -210,6 +223,7 @@ test("close drains durable recovery persistence across repeated source syncs", a
   const close = reconciler.close().then(() => {
     closeCompleted = true;
   });
+
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(closeCompleted, false);
   releasePersist?.();
@@ -220,6 +234,7 @@ test("close drains durable recovery persistence across repeated source syncs", a
 
 test("does not resolve the journal when recovery state persistence fails", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail({
     promptRecovery: {
       phase: "checking",
@@ -253,9 +268,7 @@ test("does not resolve the journal when recovery state persistence fails", async
     markPromptObserved: () => journalTransitions.push("observed"),
     persistState: async () => {
       persistAttempts += 1;
-      if (persistAttempts === 1) {
-        throw new Error("disk unavailable");
-      }
+      if (persistAttempts === 1) throw new Error("disk unavailable");
     },
     repository,
     sessionRunner: { hasChild: () => false } as never,
@@ -263,11 +276,29 @@ test("does not resolve the journal when recovery state persistence fails", async
     startQueuedPrompt: async (session) => session
   });
 
-  reconciler.syncReplyState(agentSessionDetail());
+  const completedAgentSession = agentSessionDetail();
+
+  completedAgentSession.workState = "idle";
+
+  completedAgentSession.transcript.push({
+    id: "recovered-assistant",
+    timestamp: "2026-08-05T10:00:02.000Z",
+    role: "assistant",
+    text: "Completed",
+    phase: null
+  }, {
+    id: "recovered-turn-completed",
+    timestamp: "2026-08-05T10:00:03.000Z",
+    role: "system",
+    text: "Turn completed",
+    phase: null
+  });
+
+  reconciler.syncReplyState(completedAgentSession);
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.deepEqual(journalTransitions, []);
-  reconciler.syncReplyState(agentSessionDetail());
+  reconciler.syncReplyState(completedAgentSession);
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.deepEqual(journalTransitions, ["observed"]);
+  assert.deepEqual(journalTransitions, ["completed"]);
 });

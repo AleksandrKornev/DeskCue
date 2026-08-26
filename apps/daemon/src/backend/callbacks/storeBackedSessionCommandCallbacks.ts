@@ -51,6 +51,7 @@ export function createSessionReplyStateSyncCallbacks(
     detachAttachedSession: context.detachAttachedSession,
     detachPromptTransport: (sessionId: string, reason: string) => {
       const child = context.sessionRunner.getChild(sessionId);
+
       void context.sessionRunner.killChild(sessionId, child, reason).catch((error) => {
         logger.error("Failed to terminate completed prompt transport", {
           message: error instanceof Error ? error.message : String(error),
@@ -61,7 +62,7 @@ export function createSessionReplyStateSyncCallbacks(
       // response. Treat that as the authoritative completion signal even if a
       // Windows CLI hook keeps the child-process stream open after its parent
       // has exited.
-      context.finishSession(sessionId, "read_only", 0);
+      context.finishSession(sessionId, "done", 0);
     },
     emitServerEvent: context.emitServerEvent,
     getPublicSession: context.getSession,

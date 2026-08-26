@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {
+  AgentSessionDetail,
   AgentSessionSummary,
   CodexSessionDetail,
   SessionDetail,
@@ -58,6 +59,7 @@ function session(overrides: Partial<SessionDetail>): SessionDetail {
 
 function activeCodexSession(): CodexSessionDetail {
   const timestamp = new Date().toISOString();
+
   return {
     id: "codex-source",
     threadName: "Active Codex thread",
@@ -86,6 +88,7 @@ function activeCodexSession(): CodexSessionDetail {
 
 function resumableCodexSession(): CodexSessionDetail {
   const timestamp = new Date().toISOString();
+
   return {
     ...activeCodexSession(),
     transcript: [
@@ -196,11 +199,11 @@ test("launches Codex resume instead of reusing stale read-only shell", async () 
   assert.equal(launchedArgs[launchedArgs.indexOf("-m") + 1], "gpt-5.5");
 });
 
-test("forwards prompt to an existing read-only Codex shell", async () => {
+test("rejects a prompt while the Codex thread is active in another client", async () => {
   const existing = session({});
   let sentPrompt = "";
 
-  const result = await resumeCodexAgentSession(
+  await assert.rejects(resumeCodexAgentSession(
     {
       createReadOnlyCodexSession: async () => session({ id: "new-read-only" }),
       createWorkspace: async () => workspace(),
@@ -216,10 +219,37 @@ test("forwards prompt to an existing read-only Codex shell", async () => {
     },
     activeCodexSession(),
     "  continue  "
-  );
+  ), /active in another client/);
 
-  assert.equal(result.id, "sent");
-  assert.equal(sentPrompt, "continue");
+  assert.equal(sentPrompt, "");
+});
+
+test("does not bypass Codex ownership checks when a reusable shell exists", async () => {
+  const existing = session({ status: "running" });
+  let sentPrompt = "";
+
+  await assert.rejects(resumeDiscoveredAgentSession(
+    {
+      createReadOnlyCodexSession: async () => session({ id: "read-only" }),
+      createWorkspace: async () => workspace(),
+      findReadOnlyAttachedSession: () => null,
+      findReusableAttachedSession: () => existing,
+      getSession: () => existing,
+      launchSession: async () => session({ id: "launched" }),
+      restartCodexTransport: async () => session({ id: "restarted" }),
+      sendInput: async (_sessionId, input) => {
+        sentPrompt = input;
+        return session({ id: "sent" });
+      }
+    },
+    {
+      ...discoveredAgentSession(),
+      transcript: activeCodexSession().transcript
+    } as AgentSessionDetail,
+    "continue"
+  ), /active in another client/);
+
+  assert.equal(sentPrompt, "");
 });
 
 test("routes a discovered Codex session through its attach strategy", async () => {
@@ -244,6 +274,38 @@ test("routes a discovered Codex session through its attach strategy", async () =
 
   assert.equal(result.id, "discovered-read-only");
   assert.equal(readOnlySourceSessionId, "codex-source");
+});
+
+test("opens a resumable discovered Codex session as read-only until a prompt is sent", async () => {
+  let launchCalls = 0;
+  let reason = "";
+
+  const result = await resumeDiscoveredAgentSession(
+    {
+      createReadOnlyCodexSession: async (_codexSession, nextReason) => {
+        reason = nextReason;
+        return session({ id: "completed-review" });
+      },
+      createWorkspace: async () => workspace(),
+      findReadOnlyAttachedSession: () => null,
+      findReusableAttachedSession: () => null,
+      getSession: () => null,
+      launchSession: async () => {
+        launchCalls += 1;
+        return session({ id: "launched" });
+      },
+      restartCodexTransport: async () => session({ id: "restarted" }),
+      sendInput: async () => session({ id: "sent" })
+    },
+    {
+      ...discoveredAgentSession({ attachMode: "resume", workState: "idle" }),
+      transcript: resumableCodexSession().transcript
+    } as AgentSessionDetail
+  );
+
+  assert.equal(result.id, "completed-review");
+  assert.equal(launchCalls, 0);
+  assert.match(reason, /Sending a follow-up continues it/);
 });
 
 test("rejects a discovered source agent without a registered attach strategy", async () => {

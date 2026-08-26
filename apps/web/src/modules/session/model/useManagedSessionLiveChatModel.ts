@@ -5,9 +5,11 @@ import { formatManagedSessionSubtitle, formatManagedSessionTitle } from "@models
 import { compareSwitchableManagedSessions } from "@modules/session/helpers";
 
 import {
+  findManagedSourceSessionSummary,
   resolveContextCompactionCount,
   resolveLiveHeaderStatus,
-  resolveLiveHeaderStatusLabel
+  resolveLiveHeaderStatusLabel,
+  resolveLiveSourceState
 } from "./liveChat/helpers";
 
 export function useManagedSessionLiveChatModel({
@@ -33,17 +35,20 @@ export function useManagedSessionLiveChatModel({
   const liveSessionSubtitle = formatManagedSessionSubtitle(sessionShell, takenOverAgentSession);
   const activeTakenOverAgentSessionSummary = useMemo(
     () =>
-      agentSessions.find(
-        (session) =>
-          session.id === takenOverAgentSession?.id ||
-          (sessionShell?.sourceSessionId &&
-            session.sourceSessionId === sessionShell.sourceSessionId)
-      ) ?? null,
-    [agentSessions, sessionShell?.sourceSessionId, takenOverAgentSession?.id]
+      findManagedSourceSessionSummary(
+        agentSessions,
+        sessionShell,
+        takenOverAgentSession
+      ),
+    [agentSessions, sessionShell, takenOverAgentSession]
   );
   const contextCompactionCount = resolveContextCompactionCount(
     takenOverAgentSession?.contextCompactionCount,
     activeTakenOverAgentSessionSummary?.contextCompactionCount
+  );
+  const liveSourceState = resolveLiveSourceState(
+    takenOverAgentSession,
+    activeTakenOverAgentSessionSummary
   );
   const switchableManagedSessions = useMemo(
     () =>
@@ -79,12 +84,12 @@ export function useManagedSessionLiveChatModel({
   const liveHeaderStatusLabel = resolveLiveHeaderStatusLabel({
     isPromptInFlight,
     sessionShell,
-    takenOverAgentSession
+    takenOverAgentSession: liveSourceState
   });
   const liveHeaderStatus = resolveLiveHeaderStatus({
     isPromptInFlight,
     sessionShell,
-    takenOverAgentSession
+    takenOverAgentSession: liveSourceState
   });
 
   return {

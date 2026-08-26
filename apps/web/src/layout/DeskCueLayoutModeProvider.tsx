@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import {
   DeskCueEmbeddedReadyContext,
   DeskCueLayoutModeContext
-} from "./DeskCueLayoutMode";
-import type { DeskCueLayoutMode } from "./DeskCueLayoutMode";
+} from "./DeskCueLayoutModeContext";
+import type { DeskCueLayoutMode } from "./DeskCueLayoutModeContext";
 
 export function DeskCueLayoutModeProvider({
   children,

@@ -1,44 +1,17 @@
 import type { CloudEnrollmentAttempt } from "@deskcue/protocol";
 
+import {
+  connectionDescription,
+  connectionHeading
+} from "./cloudConnectionPresentation";
 import styles from "./styles.module.scss";
 
-interface CloudConnectionOverviewProps {
+export function CloudConnectionOverview(props: {
   connected: boolean;
   enrollmentAttempt: CloudEnrollmentAttempt | null;
   hasCloudProfile: boolean;
   pendingEventCount: number;
-}
-
-function connectionHeading(
-  connected: boolean,
-  hasCloudProfile: boolean
-): string {
-  if (connected) return "Connected to DeskCue Cloud";
-  if (hasCloudProfile) return "Reconnecting to DeskCue Cloud";
-
-  return "Cloud connector available";
-}
-
-function connectionDescription({
-  connected,
-  enrollmentAttempt,
-  hasCloudProfile,
-  pendingEventCount
-}: CloudConnectionOverviewProps): string {
-  if (connected) {
-    return `Outbound relay active${pendingEventCount ? ` · ${pendingEventCount} pending` : ""}.`;
-  }
-  if (hasCloudProfile) {
-    return "Your saved permissions remain active while the outbound relay reconnects.";
-  }
-  if (enrollmentAttempt) {
-    return "Finish signing in and approve this machine in DeskCue Cloud.";
-  }
-
-  return "Open DeskCue Cloud, sign in, and approve this machine.";
-}
-
-export function CloudConnectionOverview(props: CloudConnectionOverviewProps) {
+}) {
   return (
     <>
       <div className={styles.buildNotice}>

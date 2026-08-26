@@ -21,6 +21,40 @@ type WindowsLauncherControlMessage = {
   status: "error" | "ready";
 };
 
+function createDiscardRemainingOutput(
+  source: NodeJS.ReadableStream,
+  destination: NodeJS.WriteStream
+) {
+  return () => {
+    source.unpipe(destination);
+    source.resume();
+  };
+}
+
+function createRemoveDestinationErrorHandler(
+  destination: NodeJS.WriteStream,
+  discardRemainingOutput: () => void
+) {
+  return () => destination.off("error", discardRemainingOutput);
+}
+
+function relayChildOutput(
+  source: NodeJS.ReadableStream | null,
+  destination: NodeJS.WriteStream
+) {
+  if (!source) return;
+
+  const discardRemainingOutput = createDiscardRemainingOutput(source, destination);
+  const removeDestinationErrorHandler = createRemoveDestinationErrorHandler(
+    destination,
+    discardRemainingOutput
+  );
+
+  destination.once("error", discardRemainingOutput);
+  source.once("close", removeDestinationErrorHandler);
+  source.pipe(destination, { end: false });
+}
+
 function getSafeErrorProperty(error: unknown, property: "code" | "syscall") {
   const value = (error as Record<string, unknown> | null)?.[property];
 
@@ -82,18 +116,20 @@ class WindowsSurvivingPipeLauncherRuntime {
       cwd: process.cwd(),
       env: process.env,
       shell: false,
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true
     });
 
+    relayChildOutput(child.stdout, process.stdout);
+    relayChildOutput(child.stderr, process.stderr);
     child.once("error", this.fail);
 
     child.once("spawn", () => {
       this.payload = "";
       this.sendControl({ pid: child.pid, status: "ready" });
     });
-    child.once("exit", (exitCode) => {
-      process.exit(exitCode ?? 1);
+    child.once("close", (exitCode) => {
+      process.exitCode = exitCode ?? 1;
     });
   };
 

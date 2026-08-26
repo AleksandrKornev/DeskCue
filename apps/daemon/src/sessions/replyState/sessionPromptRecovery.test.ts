@@ -54,11 +54,12 @@ function transcriptEntry(
   id: string,
   role: "assistant" | "user",
   text: string,
-  timestamp: string
+  timestamp: string,
+  phase: AgentSessionDetail["transcript"][number]["phase"] = null
 ): AgentSessionDetail["transcript"][number] {
   return {
     id,
-    phase: null,
+    phase,
     role,
     text,
     timestamp
@@ -102,7 +103,7 @@ test("does not confuse an identical earlier prompt with the recovered delivery",
   assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
 });
 
-test("restores waiting when the source transcript confirms the recovered prompt", () => {
+test("keeps recovery unresolved when the prompt is visible without a terminal outcome", () => {
   const result = reconcileSessionPromptRecovery(
     recoverySession("checking"),
     sourceSession([
@@ -112,21 +113,109 @@ test("restores waiting when the source transcript confirms the recovered prompt"
 
   assert.deepEqual(result, {
     confirmed: true,
-    promptRecovery: null,
-    replyState: {
-      phase: "waiting",
+    promptRecovery: {
+      phase: "outcome_unknown",
       promptText: "Recover me",
-      requestedAt: "2026-08-11T10:00:02.000Z"
+      requestedAt: "2026-08-11T10:00:00.000Z",
+      retryable: false
+    },
+    replyState: {
+      phase: "idle",
+      promptText: null,
+      requestedAt: null
     }
   });
 });
 
-test("restores completed state when the recovered prompt already has a reply", () => {
+test("does not treat non-final assistant activity as a terminal outcome", () => {
+  const result = reconcileSessionPromptRecovery(
+    recoverySession("checking"),
+    sourceSession([
+      transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
+      transcriptEntry(
+        "recovered-commentary",
+        "assistant",
+        "Still working",
+        "2026-08-11T10:00:03.000Z",
+        "non_final"
+      )
+    ])
+  );
+
+  assert.equal(result?.confirmed, true);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
+  assert.deepEqual(result?.replyState, {
+    phase: "idle",
+    promptText: null,
+    requestedAt: null
+  });
+});
+
+test("does not treat an assistant entry without terminal lifecycle evidence as completed", () => {
   const result = reconcileSessionPromptRecovery(
     recoverySession("outcome_unknown"),
     sourceSession([
       transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
       transcriptEntry("recovered-answer", "assistant", "Done", "2026-08-11T10:00:03.000Z")
+    ])
+  );
+
+  assert.equal(result?.confirmed, true);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
+});
+
+test("does not use a later turn's terminal result to resolve recovery", () => {
+  const result = reconcileSessionPromptRecovery(
+    recoverySession("outcome_unknown"),
+    sourceSession([
+      transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
+      transcriptEntry("later-user", "user", "Different turn", "2026-08-11T10:00:03.000Z"),
+      {
+        id: "later-turn-completed",
+        phase: null,
+        role: "system",
+        text: "Turn completed",
+        timestamp: "2026-08-11T10:00:04.000Z"
+      }
+    ])
+  );
+
+  assert.equal(result?.confirmed, true);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
+});
+
+test("does not let a later identical prompt steal recovery association", () => {
+  const result = reconcileSessionPromptRecovery(
+    recoverySession("outcome_unknown"),
+    sourceSession([
+      transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
+      transcriptEntry("repeated-user", "user", "Recover me", "2026-08-11T10:00:03.000Z"),
+      {
+        id: "repeated-turn-completed",
+        phase: null,
+        role: "system",
+        text: "Turn completed",
+        timestamp: "2026-08-11T10:00:04.000Z"
+      }
+    ])
+  );
+
+  assert.equal(result?.confirmed, true);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
+});
+
+test("clears an existing unknown outcome after a late terminal lifecycle entry", () => {
+  const result = reconcileSessionPromptRecovery(
+    recoverySession("outcome_unknown"),
+    sourceSession([
+      transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
+      {
+        id: "turn-completed",
+        phase: null,
+        role: "system",
+        text: "Turn completed",
+        timestamp: "2026-08-11T10:00:04.000Z"
+      }
     ])
   );
 

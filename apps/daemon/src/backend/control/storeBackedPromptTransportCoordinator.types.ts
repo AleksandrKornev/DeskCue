@@ -1,4 +1,4 @@
-import type { SessionDetail, SessionStatus } from "@deskcue/protocol";
+import type { SessionDetail, SessionLogLine, SessionStatus } from "@deskcue/protocol";
 import type { restartClaudePromptTransport } from "#agents/claude/session/claudePromptDelivery";
 import type { restartCodexTransport } from "#agents/codex/session/codexPromptDelivery";
 import type { SessionGitPolling } from "#sessions/git/sessionGitPolling";
@@ -16,6 +16,7 @@ export type PromptDeliveryJournal = {
   markDispatchingBySession: (sessionId: string) => boolean;
   markInterrupted: (sessionId: string) => void;
   markNotSent: (deliveryId: string) => boolean;
+  markNotSentAfterActiveWriterConflict: (sessionId: string) => boolean;
   markNotSentAfterSynchronousSpawnFailure?: (deliveryId: string) => boolean;
   markNotSentBySession: (sessionId: string) => boolean;
   markObservedBySession: (sessionId: string) => boolean;
@@ -31,7 +32,7 @@ export type PromptDeliveryJournal = {
 export type StoreBackedPromptTransportCoordinatorOptions = {
   appendLog: (
     sessionId: string,
-    stream: "stdout" | "system",
+    stream: SessionLogLine["stream"],
     text: string,
     timestamp?: string
   ) => void;
@@ -45,6 +46,7 @@ export type StoreBackedPromptTransportCoordinatorOptions = {
   gitPolling: SessionGitPolling;
   persistState: () => Promise<void>;
   promptDeliveries: PromptDeliveryJournal;
+  publishSessionUpdate: (session: SessionDetail) => void;
   repository: SessionRepository;
   restartClaudePromptTransportProcess?: typeof restartClaudePromptTransport;
   restartCodexTransportProcess?: typeof restartCodexTransport;

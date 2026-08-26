@@ -1,3 +1,5 @@
+@use "./fileViewer";
+
 .filesBrowser {
   flex: 1 1 auto;
   min-width: 0;
@@ -45,8 +47,8 @@
 .filesPathText { min-width: 0; }
 
 .filesUpButton {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
@@ -111,7 +113,7 @@
 
 .filesSearch input {
   min-width: 0;
-  height: 38px;
+  height: 44px;
   border: 0;
   outline: 0;
   background: transparent;
@@ -138,7 +140,9 @@
 
 .filesBreadcrumbs button {
   border: 0;
-  padding: 2px 3px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 2px 7px;
   background: transparent;
   color: #b9c8ef;
   font: inherit;
@@ -269,7 +273,7 @@
 
 .filesLoadMore {
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   margin-top: 6px;
   border: 0;
   border-radius: 10px;
@@ -278,251 +282,4 @@
   font-weight: 600;
 }
 
-.fileViewer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
-  overflow: hidden;
-  background: #090b0f;
-}
-
-.fileViewerExpanded {
-  position: fixed;
-  z-index: 1000;
-  inset: 0;
-  width: 100dvw;
-  height: 100dvh;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.fileViewerHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 11px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.fileViewerHeader div {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.fileViewerHeader > div:nth-of-type(1) { flex: 1 1 auto; }
-
-.fileViewerActions {
-  flex: 0 0 auto;
-  justify-content: flex-end;
-}
-
-.fileViewerExpandButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.fileViewerExpandButton svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-}
-
-.filesBackButton { display: none; }
-
-.fileViewerHeader strong {
-  min-width: 0;
-  overflow: hidden;
-  color: #f0f1f4;
-  font-size: 0.86rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fileViewerHeader span,
-.fileTruncated {
-  color: #9297a2;
-  font-size: 0.76rem;
-  white-space: nowrap;
-}
-
-.fileContent {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  min-height: 100%;
-  margin: 0;
-  padding: 16px;
-  overflow: auto;
-  color: #d9e4d4;
-  font-family: "Cascadia Code", "Consolas", monospace;
-  font-size: 0.82rem;
-  line-height: 1.55;
-  tab-size: 2;
-  white-space: pre;
-}
-
-.fileViewerEmpty,
-.filesEmptyState {
-  display: grid;
-  place-content: center;
-  min-height: 260px;
-  padding: 24px;
-  color: #969ba6;
-  text-align: center;
-}
-
-.fileViewerEmpty strong,
-.filesEmptyState strong {
-  margin-bottom: 7px;
-  color: #f0f1f4;
-}
-
-.fileViewerEmpty p,
-.filesEmptyState p,
-.filesMuted {
-  margin: 0;
-  color: #969ba6;
-  font-size: 0.84rem;
-  line-height: 1.45;
-}
-
-.filesMuted {
-  padding: 16px 10px;
-}
-
-.filesLoadingState {
-  min-height: 220px;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 12px;
-  padding: 24px;
-  color: #aeb3bd;
-  font-size: 0.84rem;
-}
-
-.filesLoadingSpinner {
-  width: 22px;
-  height: 22px;
-  border: 2px solid rgba(214, 164, 103, 0.18);
-  border-top-color: #d6a467;
-  border-radius: 999px;
-  animation: filesLoadingSpin 760ms linear infinite;
-}
-
-@keyframes filesLoadingSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .filesLoadingSpinner {
-    animation: none;
-  }
-}
-
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-@media (min-width: 1100px) {
-  .filesToolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(390px, 520px);
-    align-items: center;
-  }
-
-  .filesFilters {
-    width: 100%;
-    grid-template-columns: minmax(280px, 420px) auto;
-    justify-content: end;
-  }
-}
-
-@media (min-width: 1800px) {
-  .filesLayout {
-    grid-template-columns: clamp(320px, 24%, 520px) minmax(0, 1fr);
-  }
-
-  .filesToolbar {
-    padding: 14px 16px;
-  }
-
-  .filesFilters {
-    grid-template-columns: minmax(320px, 480px) auto;
-  }
-
-  .fileContent {
-    padding: 20px;
-    font-size: 0.85rem;
-  }
-}
-
-@media (min-width: 3200px) {
-  .filesLayout {
-    grid-template-columns: clamp(440px, 22%, 620px) minmax(0, 1fr);
-  }
-
-  .fileRow {
-    padding: 11px 12px;
-  }
-
-  .fileName {
-    font-size: 0.9rem;
-  }
-
-  .fileContent {
-    padding: 24px;
-    font-size: 0.9rem;
-    line-height: 1.6;
-  }
-}
-
-@media (max-width: 720px) {
-  .filesBrowser {
-    min-height: calc(100dvh - 260px);
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
-  }
-
-  .filesLayout {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .filesLayoutViewing .filesList { display: none; }
-  .filesLayout:not(.filesLayoutViewing) .fileViewer { display: none; }
-  .filesFiltersViewingFile { display: none; }
-
-  .filesList {
-    border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .fileRow {
-    min-height: 44px;
-  }
-
-  .filesBackButton { display: inline-flex; align-items: center; }
-  .fileViewerHeader { flex-wrap: wrap; }
-  .fileViewerHeader > div:nth-of-type(1) { order: 3; flex-basis: 100%; }
-  .fileViewerExpandButton { width: 36px; padding: 0; }
-  .fileViewerExpandButton span { display: none; }
-}
-
-@media (max-width: 380px) {
-  .filesToolbar { padding-inline: 10px; }
-  .filesFilters { gap: 7px; }
-  .changedFilter { min-width: 0; padding-inline: 8px; }
-}
+@include fileViewer.responsive;

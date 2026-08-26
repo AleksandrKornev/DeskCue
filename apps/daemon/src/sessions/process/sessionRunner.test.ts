@@ -227,6 +227,38 @@ test("restart termination releases ownership before the old child exits", async 
   assert.equal(runner.hasChild("session-restart"), false);
 });
 
+test("preserves a source-confirmed successful outcome when its redundant transport exits non-zero", () => {
+  const child = fakeChild({ exitDelayMs: null });
+  const session = {
+    adapterId: "codex",
+    command: "codex exec resume source-session continue",
+    exitCode: 0,
+    sourceSessionId: "source-session",
+    status: "read_only"
+  } as SessionDetail;
+  let finished: { exitCode: number | null; status: string } | null = null;
+  let systemLog = "";
+
+  attachSessionExitHandler({
+    child,
+    getSession: () => session,
+    isCurrentChild: () => true,
+    onAppendSystemLog: (_sessionId, text) => {
+      systemLog += text;
+    },
+    onFinishSession: (_sessionId, status, exitCode) => {
+      finished = { exitCode, status };
+    },
+    sessionId: "session-source-completed"
+  });
+
+  child.emitExit(1);
+
+  assert.deepEqual(finished, { exitCode: 0, status: "read_only" });
+  assert.match(systemLog, /exited with code 1/);
+  assert.match(systemLog, /preserving the successful session outcome/);
+});
+
 test("restart termination restores current ownership when the old child does not exit", async () => {
   const child = fakeChild({ exitDelayMs: null });
   const runner = new SessionRunner({ createPipe: () => child });

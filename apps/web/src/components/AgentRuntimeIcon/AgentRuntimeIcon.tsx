@@ -5,10 +5,6 @@ import LmStudioLogo from "@assets/images/logo-lm-studio.svg?react";
 import OllamaLogo from "@assets/images/logo-ollama.svg?react";
 import OpenAiLogo from "@assets/images/logo-openai.svg?react";
 
-interface AgentRuntimeIconProps extends SVGProps<SVGSVGElement> {
-  runtimeId: string;
-}
-
 function GenericCliIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} fill="none" viewBox="0 0 24 24">
@@ -24,7 +20,10 @@ function GenericCliIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function AgentRuntimeIcon({ runtimeId, ...props }: AgentRuntimeIconProps) {
+export function AgentRuntimeIcon({
+  runtimeId,
+  ...props
+}: SVGProps<SVGSVGElement> & { runtimeId: string }) {
   const normalizedRuntime = runtimeId.trim().replaceAll("_", "-").toLowerCase();
   const iconProps = {
     ...props,
@@ -32,6 +31,7 @@ export function AgentRuntimeIcon({ runtimeId, ...props }: AgentRuntimeIconProps)
     "data-runtime-icon": normalizedRuntime,
     focusable: false
   };
+
   if (normalizedRuntime === "codex") return <OpenAiLogo {...iconProps} />;
   if (normalizedRuntime === "claude-code") return <ClaudeLogo {...iconProps} />;
   if (normalizedRuntime === "ollama") return <OllamaLogo {...iconProps} />;

@@ -3,32 +3,11 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 import { getDeskCueRuntime } from "@runtime";
 
+import { usesInsecureNetworkOrigin } from "./helpers";
 import { PreviewConnectionForm, PreviewToolbarIcon } from "./preview";
 import { resolvePreviewFrameUrl } from "./preview/previewUrlIdentity";
 import styles from "./styles.module.scss";
 import type { PreviewTabPanelProps } from "./types";
-
-function isLoopbackHostname(hostname: string) {
-  const normalizedHostname = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-
-  return normalizedHostname === "localhost" ||
-    normalizedHostname.endsWith(".localhost") ||
-    normalizedHostname === "::1" ||
-    /^127(?:\.\d{1,3}){3}$/.test(normalizedHostname);
-}
-
-function usesInsecureNetworkOrigin(previewUrl: string | null) {
-  if (!previewUrl) return false;
-
-  try {
-    const resolvedPreviewUrl = new URL(previewUrl, window.location.href);
-
-    return resolvedPreviewUrl.protocol === "http:" &&
-      !isLoopbackHostname(resolvedPreviewUrl.hostname);
-  } catch {
-    return false;
-  }
-}
 
 export function PreviewTabPanel({
   configuredPreviewNetworkMode,
@@ -72,7 +51,7 @@ export function PreviewTabPanel({
     : activePreviewError
       ? "Preview unavailable"
       : previewUrl && configuredPreviewPort
-        ? frameReady ? `Live · port ${configuredPreviewPort}` : `Loading · port ${configuredPreviewPort}`
+        ? frameReady ? `Loaded · port ${configuredPreviewPort}` : `Loading · port ${configuredPreviewPort}`
         : isPreviewActive
           ? `Configured on port ${configuredPreviewPort}`
           : "Preview is off";
@@ -106,7 +85,10 @@ export function PreviewTabPanel({
           <div aria-label={previewStatus} className={styles.previewReviewStatus} role="status">
             <span
               aria-hidden="true"
-              className={clsx(styles.previewStatusDot, previewUrl && frameReady && styles.previewStatusDotLive)}
+              className={clsx(
+                styles.previewStatusDot,
+                previewUrl && frameReady && styles.previewStatusDotLive
+              )}
             />
             <span className={styles.previewStatusLong}>{previewStatus}</span>
             <span className={styles.previewStatusCompact}>{compactPreviewStatus}</span>
@@ -236,9 +218,14 @@ export function PreviewTabPanel({
             <div className={styles.previewShellViewport}>
               <iframe
                 key={frameKey}
-                className={clsx(styles.previewShellFrame, frameReady && styles.previewShellFrameReady)}
+                className={clsx(
+                  styles.previewShellFrame,
+                  frameReady && styles.previewShellFrameReady
+                )}
                 onLoad={() => {
-                  if (frameKeyRef.current === frameKey) setLoadedFrameKey(frameKey);
+                  if (frameKeyRef.current !== frameKey) return;
+
+                  setLoadedFrameKey(frameKey);
                 }}
                 sandbox="allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts"
                 src={frameUrl ?? previewUrl}

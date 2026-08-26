@@ -1,0 +1,80 @@
+@mixin responsive {
+@media (max-width: 720px) {
+  .flow,
+  .dataBoundary ul,
+  .action,
+  .connectionForm,
+  .permissionsGrid,
+  .presetGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .presetButton {
+    min-height: 0;
+  }
+
+  .action {
+    gap: 11px;
+  }
+
+  .connectButton {
+    width: 100%;
+  }
+
+  .buttonGroup {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .permissionsActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .permissionsActions .connectButton {
+    width: 100%;
+  }
+
+  .enrollmentPending,
+  .advancedFields {
+    grid-template-columns: 1fr;
+  }
+
+  .enrollmentPending a,
+  .enrollmentPending button,
+  .advancedFields .connectButton {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 460px) {
+  .modalBody {
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .summaryCard {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    width: calc(100% - 16px);
+    min-height: 70px;
+    margin: 8px 8px 10px;
+    padding: 10px;
+  }
+
+  .summaryMeta {
+    flex-wrap: wrap;
+    gap: 3px 6px;
+  }
+
+  .cloudIconShell {
+    width: 38px;
+    height: 38px;
+  }
+
+  .summaryAction > span:first-child {
+    display: none;
+  }
+}
+}

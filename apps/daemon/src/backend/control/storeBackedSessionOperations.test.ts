@@ -39,6 +39,7 @@ function sessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetail {
 
 test("rejects an active external Codex turn without a verified control channel", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail());
 
   const operations = new StoreBackedSessionOperations({
@@ -63,6 +64,7 @@ test("rejects an active external Codex turn without a verified control channel",
 
 test("does not advertise interrupt for an external Codex Desktop chat", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail());
 
   const operations = new StoreBackedSessionOperations({
@@ -80,6 +82,7 @@ test("does not advertise interrupt for an external Codex Desktop chat", async ()
     await operations.getExternalDesktopInterruptCapability("session-1"),
     { kind: "unavailable", reason: "desktop_interrupt_not_supported" }
   );
+
   await assert.rejects(
     operations.interruptExternalDesktopSession("session-1"),
     /cannot interrupt an external Codex Desktop chat/
@@ -88,6 +91,7 @@ test("does not advertise interrupt for an external Codex Desktop chat", async ()
 
 test("journals and serializes prompt writes for a daemon-owned Generic PTY", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail({
     adapterId: "generic-cli",
     command: "local-agent",
@@ -108,6 +112,7 @@ test("journals and serializes prompt writes for a daemon-owned Generic PTY", asy
     onExit: () => ({ dispose: () => {} }),
     write: (value: string) => writes.push(value)
   };
+
   const operations = new StoreBackedSessionOperations({
     eventBus: { publishServerEvent: () => {} } as never,
     gitPolling: {} as never,
@@ -130,6 +135,7 @@ test("journals and serializes prompt writes for a daemon-owned Generic PTY", asy
       markDispatchingBySession: () => true,
       markInterrupted: () => {},
       markNotSent: () => true,
+      markNotSentAfterActiveWriterConflict: () => true,
       markNotSentBySession: () => true,
       markObservedBySession: () => true,
       markOutcomeUnknown: () => true,
@@ -148,23 +154,28 @@ test("journals and serializes prompt writes for a daemon-owned Generic PTY", asy
   });
 
   const first = operations.sendInput("session-1", "First prompt");
+
   await Promise.resolve();
+
   assert.deepEqual(promptLifecycle, ["prepared:First prompt"]);
   assert.equal(writes.length, 0);
   await assert.rejects(
     operations.sendInput("session-1", "Second prompt"),
     /already handling input/
   );
+
   let drained = false;
   const shutdown = operations.beginShutdown().then(() => {
     drained = true;
   });
+
   await Promise.resolve();
   assert.equal(drained, false);
   await assert.rejects(
     operations.sendInput("session-1", "Prompt during shutdown"),
     /shutting down/
   );
+
   releasePersist();
   await Promise.all([first, shutdown]);
 
@@ -181,6 +192,7 @@ test("journals and serializes prompt writes for a daemon-owned Generic PTY", asy
 
 test("opens only an external Codex Desktop session on the host", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail());
   const openedSourceSessionIds: string[] = [];
   const operations = new StoreBackedSessionOperations({
@@ -204,6 +216,7 @@ test("opens only an external Codex Desktop session on the host", async () => {
 
 test("records and confirms an owned interrupt after a synchronous managed transport exit", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail({ status: "running", finishedAt: null }));
   const lifecycle: string[] = [];
   let hasChild = true;
@@ -215,6 +228,7 @@ test("records and confirms an owned interrupt after a synchronous managed transp
     onExit: () => ({ dispose: () => {} }),
     write: () => {}
   };
+
   const operations = new StoreBackedSessionOperations({
     eventBus: {
       publishServerEvent: () => {}
@@ -257,8 +271,9 @@ test("records and confirms an owned interrupt after a synchronous managed transp
   assert.deepEqual(lifecycle, ["transport-exit", "request:turn-1", "confirm"]);
 });
 
-test("journals queued Codex delivery and durably cancels it before terminal resolution", async () => {
+test("does not leave a detached Codex prompt queued when transport cannot start", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail({ status: "read_only" }));
   const lifecycle: string[] = [];
   let journalRequestedAt: string | undefined;
@@ -282,6 +297,7 @@ test("journals queued Codex delivery and durably cancels it before terminal reso
       markDispatchingBySession: () => true,
       markInterrupted: () => lifecycle.push("interrupted"),
       markNotSent: () => true,
+      markNotSentAfterActiveWriterConflict: () => true,
       markNotSentBySession: () => true,
       markObservedBySession: () => true,
       markOutcomeUnknown: () => true,
@@ -294,35 +310,34 @@ test("journals queued Codex delivery and durably cancels it before terminal reso
     },
     repository,
     sessionRunner: {
+      deleteChild: () => false,
       getChild: () => undefined,
-      hasChild: () => false
+      hasChild: () => false,
+      isCurrentChild: () => false,
+      killChild: async () => {},
+      spawnProcess: () => {
+        throw new Error("unexpected spawn");
+      }
     } as never,
     sourceTurnInterrupts: {} as never
   });
 
-  const result = await operations.sendInput("session-1", "Continue safely");
+  await assert.rejects(
+    operations.sendInput("session-1", "Continue safely"),
+    /not accepting input/
+  );
 
+  const result = repository.getSession("session-1");
+
+  assert.equal(result?.replyState.phase, "idle");
+  assert.equal(result?.promptRecovery?.phase, "not_sent");
+  assert.equal(result?.promptRecovery?.requestedAt, journalRequestedAt);
   assert.deepEqual(lifecycle, ["prepare:Continue safely", "persist"]);
-  assert.deepEqual(result.replyState, {
-    phase: "queued",
-    promptText: "Continue safely",
-    requestedAt: result.replyState.requestedAt
-  });
-  assert.equal(result.replyState.requestedAt, journalRequestedAt);
-
-  const cancelled = await operations.interruptSession("session-1");
-
-  assert.equal(cancelled.replyState.phase, "idle");
-  assert.deepEqual(lifecycle, [
-    "prepare:Continue safely",
-    "persist",
-    "persist",
-    "interrupted"
-  ]);
 });
 
 test("marks an unconfirmed shutdown survivor as recovery-required instead of stopped", () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail({ status: "running", finishedAt: null }));
   const events: string[] = [];
   const operations = new StoreBackedSessionOperations({
@@ -345,6 +360,7 @@ test("marks an unconfirmed shutdown survivor as recovery-required instead of sto
       markDispatchingBySession: () => true,
       markInterrupted: (sessionId) => events.push(`prompt-interrupted:${sessionId}`),
       markNotSent: () => true,
+      markNotSentAfterActiveWriterConflict: () => true,
       markNotSentBySession: () => true,
       markObservedBySession: () => true,
       markOutcomeUnknown: () => true,
@@ -368,7 +384,9 @@ test("marks an unconfirmed shutdown survivor as recovery-required instead of sto
   });
 
   const session = repository.getSession("session-1");
+
   assert.equal(session?.status, "read_only");
+
   assert.equal(session?.exitCode, null);
   assert.equal(session?.replyState.phase, "idle");
   assert.match(session?.logs.at(-1)?.text ?? "", /requires recovery/);

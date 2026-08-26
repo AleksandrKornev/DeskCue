@@ -10,12 +10,12 @@ import type { LocalLlmChatSummary } from "@deskcue/protocol";
 import type {
   AgentSessionsPanelProps
 } from "@modules/agents/types";
-import { rememberAgentBrowserListScrollTop } from "@modules/dashboard/shell/route/agentBrowserListScrollMemory";
 import { LocalLlmChatPreview } from "@modules/localLlmChats";
 import { AgentTranscriptPanel } from "@modules/transcript";
 import { getDeskCueRuntime } from "@runtime";
 import { useDeskCueLayoutMode } from "@web/layout";
 
+import { reviewAndSelectAgentSession } from "./actions";
 import { AgentSessionsAttention } from "./attention/AgentSessionsAttention";
 import { useAgentSessionsAttentionState } from "./attention/useAgentSessionsAttentionState";
 import { INITIAL_PANEL_SETTLE_MS } from "./constants";
@@ -140,6 +140,12 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     hasLoaded: hasLoadedAttentionAgentSessions,
     sessions: loadedAttentionAgentSessions
   } = useAttentionAgentSessionSummaries(isCompactViewport && !collapsed);
+  const filteredAttentionAgentSessions = useMemo(
+    () => selectedSourceId === "all"
+      ? loadedAttentionAgentSessions
+      : loadedAttentionAgentSessions.filter((session) => session.agentId === selectedSourceId),
+    [loadedAttentionAgentSessions, selectedSourceId]
+  );
   const {
     clearSelectedChat: clearSelectedLocalLlmChat,
     filteredChats: filteredLocalLlmChats,
@@ -169,7 +175,8 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     effectiveReadyForReviewAgentSessionIds,
     workIndicatorsBySourceSessionId
   } = useAgentSessionsAttentionState({
-    agentSessions: loadedAttentionAgentSessions,
+    agentSessions: filteredAttentionAgentSessions,
+    cacheScopeKey: selectedSourceId,
     managedSessions,
     pendingChatPrompt,
     readyForReviewAgentSessionIds
@@ -207,6 +214,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     totalAgentSessionsCount
   });
   const [initialPanelReady, setInitialPanelReady] = useState(false);
+
   useEffect(() => {
     if (
       initialPanelReady ||
@@ -220,6 +228,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     const timerId = window.setTimeout(() => {
       setInitialPanelReady(true);
     }, INITIAL_PANEL_SETTLE_MS);
+
     return () => window.clearTimeout(timerId);
   }, [
     hasLoadedAttentionAgentSessions,
@@ -228,15 +237,6 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     isCompactViewport,
     isListLoading
   ]);
-
-  function handleReviewAndSelectAgentSession(sessionId: string) {
-    if (isCompactViewport && layoutMode === "viewport") {
-      rememberAgentBrowserListScrollTop(window.scrollY);
-    }
-    clearSelectedLocalLlmChat();
-    if (features.sessionCommands) onMarkAgentSessionReviewed(sessionId);
-    handleSelectAgentSession(sessionId);
-  }
 
   const sessionsList = (
     <AgentSessionsList
@@ -257,21 +257,31 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
       sessions={selectedLocalRuntime ? [] : visibleSessions}
       localLlmChats={filteredLocalLlmChats}
       showAllLocalLlmChats={Boolean(selectedLocalRuntime) || Boolean(query.trim())}
-      onSelectAgentSession={handleReviewAndSelectAgentSession}
+      onSelectAgentSession={(sessionId) => reviewAndSelectAgentSession(
+        sessionId,
+        isCompactViewport && layoutMode === "viewport",
+        clearSelectedLocalLlmChat,
+        handleSelectAgentSession
+      )}
       onOpenLocalLlmChat={setSelectedLocalLlmChat}
       onShowFewerSessions={showFewerSessions}
       onShowMoreSessions={showMoreSessions}
     />
   );
 
-  const attentionSections = isCompactViewport ? (
+  const attentionSections = isCompactViewport && !isSourceSwitching ? (
     <AgentSessionsAttention
       approvalRequestedSourceSessionIds={approvalRequestedSourceSessionIds}
       readyForReviewAgentSessionIds={effectiveReadyForReviewAgentSessionIds}
       selectedAgentSessionId={selectedAgentSessionId}
       sessions={attentionSessions}
       workIndicatorsBySourceSessionId={workIndicatorsBySourceSessionId}
-      onSelectAgentSession={handleReviewAndSelectAgentSession}
+      onSelectAgentSession={(sessionId) => reviewAndSelectAgentSession(
+        sessionId,
+        isCompactViewport && layoutMode === "viewport",
+        clearSelectedLocalLlmChat,
+        handleSelectAgentSession
+      )}
     />
   ) : null;
 
@@ -281,8 +291,10 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
       attachedManagedSessionInfo={attachedManagedSessionInfo}
       attaching={attaching}
       onAttach={onAttachAgentSession}
+      onMarkReviewed={onMarkAgentSessionReviewed}
       onOpenManagedSession={onOpenManagedSession}
       previewItems={isCompactViewport ? 2 : undefined}
+      readyForReviewAgentSessionIds={effectiveReadyForReviewAgentSessionIds}
       session={selectedAgentSession}
       sessionSummary={selectedAgentSessionSummary}
       isLoading={isAgentSessionLoading || isSelectedAgentSessionSettling}
@@ -321,6 +333,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
         agentSessionLabel={
           selectedLocalLlmChat?.title ?? selectedAgentSessionDisplay?.title ?? ""
         }
+
         sessionsList={sessionsList}
         showFocusedDetail={showActiveMobileDetail}
         transcriptPanel={activeTranscriptPanel}
@@ -406,6 +419,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
             ? "loading"
             : localChatCreation.catalog.status
         }
+
         runtimes={createLocalChatRuntimes}
         selectedModelId={localChatCreation.selectedModelKey}
         selectedRuntimeId={localChatCreation.runtimeId}

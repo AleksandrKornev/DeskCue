@@ -1,4 +1,5 @@
 import type {
+  CreateLocalLlmChatInput,
   LocalLlmChatSummary,
   LocalLlmRuntimeId,
   RuntimeSummary
@@ -16,12 +17,14 @@ export type LocalChatRuntimeCatalogState =
     runtime: null;
     status: "idle" | "starting_runtime";
   }
+
   | {
     error: null;
     models: LocalChatCreationModel[];
     runtime: RuntimeSummary;
     status: "loading_models" | "ready";
   }
+
   | {
     error: string;
     models: LocalChatCreationModel[];
@@ -50,4 +53,18 @@ export interface LocalChatCreationController {
 export interface UseLocalChatCreationOptions {
   defaultRuntimeId?: LocalLlmRuntimeId;
   onCreated: (chat: LocalLlmChatSummary) => void;
+}
+
+export interface LocalChatSubmissionController {
+  cancel: () => void;
+  clearError: () => void;
+  create: (input: CreateLocalLlmChatInput) => Promise<LocalLlmChatSummary | null>;
+  error: string | null;
+  submitting: boolean;
+}
+
+export interface LocalRuntimeCatalogController {
+  cancel: () => void;
+  retry: () => void;
+  state: LocalChatRuntimeCatalogState;
 }

@@ -1,8 +1,10 @@
 import type {
   AgentSessionDetail,
+  AgentSessionSummary,
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
+import { isActiveSourceTurn } from "@models/agentChatWorkState";
 import {
   hasPromptCompletionInTranscript
 } from "@models/promptDelivery";
@@ -12,9 +14,48 @@ import {
   isLocalAgentStartupVisible,
   isPendingPromptForSession
 } from "@modules/session/helpers";
+import { resolveLiveSourceState } from "@modules/session/model/liveChat/helpers";
 import type { ChatTranscriptEntry } from "@modules/session/types";
 
 type SessionShell = SessionDetail | SessionSummary | null;
+
+export function isManagedSourceSessionWorking(
+  sessionShell: SessionShell,
+  sourceSession: AgentSessionDetail | null,
+  sourceSessionSummary: AgentSessionSummary | null = null
+) {
+  const canSurfaceSourceWork =
+    sessionShell?.status === "running" || sessionShell?.status === "read_only";
+  const liveSourceState = resolveLiveSourceState(sourceSession, sourceSessionSummary);
+
+  return Boolean(sessionShell?.sourceSessionId) &&
+    canSurfaceSourceWork &&
+    isActiveSourceTurn(liveSourceState);
+}
+
+export function isManagedSourceReplyWaiting(sessionShell: SessionShell) {
+  return Boolean(sessionShell?.sourceSessionId) &&
+    sessionShell?.status === "running";
+}
+
+export function isSourceTurnOutsideDeskCue(
+  sessionShell: SessionShell,
+  sourceSession: Pick<AgentSessionSummary, "attachMode"> | null,
+  options: {
+    hasDeskCuePrompt: boolean;
+    hasPromptRecovery: boolean;
+    hasWaitingPrompt: boolean;
+    isSourceSessionWorking: boolean;
+  }
+) {
+  return Boolean(sessionShell?.sourceSessionId) &&
+    sessionShell?.status === "read_only" &&
+    sourceSession?.attachMode === "read_only" &&
+    options.isSourceSessionWorking &&
+    !options.hasDeskCuePrompt &&
+    !options.hasWaitingPrompt &&
+    !options.hasPromptRecovery;
+}
 
 export function buildPromptIdentity(prompt: PendingChatPrompt) {
   return `${prompt.requestedAt}:${prompt.text}`;
@@ -25,12 +66,13 @@ function findLastUserPromptIndex(
   promptText: string
 ) {
   const normalizedPromptText = promptText.trim();
+
   for (let index = chatTranscriptEntries.length - 1; index >= 0; index -= 1) {
     const entry = chatTranscriptEntries[index];
-    if (entry.role === "user" && entry.text.trim() === normalizedPromptText) {
-      return index;
-    }
+
+    if (entry.role === "user" && entry.text.trim() === normalizedPromptText) return index;
   }
+
   return -1;
 }
 
@@ -39,9 +81,7 @@ function chooseOwnedPrompt(
   shellPrompt: PendingChatPrompt | null,
   chatTranscriptEntries: ChatTranscriptEntry[]
 ) {
-  if (!clientPrompt || !shellPrompt) {
-    return clientPrompt ?? shellPrompt;
-  }
+  if (!clientPrompt || !shellPrompt) return clientPrompt ?? shellPrompt;
 
   if (buildPromptIdentity(clientPrompt) === buildPromptIdentity(shellPrompt)) {
     // The server-confirmed phase is authoritative for the same turn.
@@ -67,9 +107,8 @@ function chooseOwnedPrompt(
     chatTranscriptEntries,
     shellPrompt.text
   );
-  if (clientTranscriptIndex > shellTranscriptIndex) {
-    return clientPrompt;
-  }
+
+  if (clientTranscriptIndex > shellTranscriptIndex) return clientPrompt;
 
   // Once the local prompt is no longer in its submission phase, the daemon
   // shell is authoritative unless transcript order proves the client prompt
@@ -81,6 +120,10 @@ export function isRunningSourceSessionPrompt(
   session: { sourceSessionId?: string | null; status?: string } | null | undefined
 ) {
   return Boolean(session?.sourceSessionId) && session?.status === "running";
+}
+
+export function isConfirmedDeskCuePendingPrompt(prompt: PendingChatPrompt | null) {
+  return Boolean(prompt && prompt.status !== "not_confirmed");
 }
 
 export function resolvePendingChatPrompt({
@@ -198,41 +241,45 @@ export function hasAssistantReplyAfterPrompt(
   let promptTime = Number.isFinite(requestedAt) ? requestedAt : 0;
 
   for (const entry of chatTranscriptEntries) {
-    if (entry.role !== "user" || entry.text.trim() !== promptText) {
-      continue;
-    }
+    if (entry.role !== "user" || entry.text.trim() !== promptText) continue;
 
     const entryTime = new Date(entry.timestamp).getTime();
-    if (Number.isFinite(entryTime) && entryTime >= promptTime - 15_000) {
-      promptTime = entryTime;
-    }
+
+    if (Number.isFinite(entryTime) && entryTime >= promptTime - 15_000) promptTime = entryTime;
   }
 
   return chatTranscriptEntries.some((entry) => {
     const entryTime = new Date(entry.timestamp).getTime();
+
     return entry.role === "assistant" && Number.isFinite(entryTime) && entryTime >= promptTime;
   });
 }
 
 export function resolveInputAvailability(
   sessionShell: SessionShell,
-  options: { canSendInputWhenReadOnly?: boolean } = {}
+  options: {
+    blockExternalSourceInput?: boolean;
+    canSendInputWhenReadOnly?: boolean;
+  } = {}
 ) {
   const canResumeAdapterSession =
     Boolean(sessionShell?.sourceSessionId) &&
-    (sessionShell?.status === "read_only" || sessionShell?.status === "stopped") &&
+    (sessionShell?.status === "done" ||
+      sessionShell?.status === "read_only" ||
+      sessionShell?.status === "stopped") &&
     sessionShell?.canSendInput === true;
   const canSendOwnedReadOnlyInput =
     options.canSendInputWhenReadOnly === true &&
     sessionShell?.status === "read_only";
 
-  const canSendInput =
+  const canSendInput = !options.blockExternalSourceInput && (
     canSendOwnedReadOnlyInput ||
     canResumeAdapterSession ||
     (Boolean(sessionShell?.sourceSessionId) &&
       sessionShell?.status === "running" &&
       sessionShell.canSendInput !== false) ||
-    (sessionShell?.status === "running" && sessionShell.canSendInput !== false);
+    (sessionShell?.status === "running" && sessionShell.canSendInput !== false)
+  );
 
   return {
     canSendInput
@@ -282,9 +329,7 @@ export function shouldShowManagedSessionChatLoading({
   // A durable pending prompt is restored before the source transcript after a
   // page reload. Keep the transcript skeleton visible until that initial load
   // finishes instead of briefly rendering the prompt as the entire history.
-  if (isTranscriptLoading && !hasConversationContent) {
-    return true;
-  }
+  if (isTranscriptLoading && !hasConversationContent) return true;
 
   return (
     (isSessionShellLoading || isTranscriptSyncing) &&

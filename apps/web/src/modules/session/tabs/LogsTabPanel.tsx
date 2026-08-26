@@ -15,6 +15,7 @@ export function LogsTabPanel({
   draftScopeKey,
   hasSelectedSession,
   hasSourceSession,
+  inputUnavailableLabel,
   isInterruptingPrompt,
   isPromptInFlight,
   isPromptQueued,
@@ -50,6 +51,7 @@ export function LogsTabPanel({
             actionRequest={actionRequest}
             canSendInput={canSendInput}
             draftScopeKey={draftScopeKey}
+            inputUnavailableLabel={inputUnavailableLabel}
             isInterruptingPrompt={isInterruptingPrompt}
             isPromptInFlight={isPromptInFlight}
             isPromptQueued={isPromptQueued}

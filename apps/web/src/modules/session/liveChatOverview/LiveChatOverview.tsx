@@ -30,6 +30,7 @@ export type LiveChatOverviewProps = {
     | "activePromptText"
     | "actionRequest"
     | "canSendInput"
+    | "inputUnavailableLabel"
     | "isPromptInFlight"
     | "isPromptQueued"
     | "onInterruptPrompt"

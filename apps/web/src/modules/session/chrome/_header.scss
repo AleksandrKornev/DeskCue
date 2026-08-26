@@ -66,6 +66,10 @@
   align-items: flex-start;
 }
 
+.mobileBackButton {
+  display: none;
+}
+
 .chatMain {
   display: grid;
   flex: 1 1 auto;
@@ -119,10 +123,6 @@
 }
 
 .titleRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: nowrap;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -157,6 +157,12 @@
   flex-wrap: wrap;
 }
 
+.headerStatus {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .headerStatusBadge {
   min-height: 22px;
   padding: 0 8px;
@@ -167,7 +173,6 @@
 }
 
 .headerStatusBadge[class] {
-  align-self: center;
   flex-shrink: 0;
   min-height: 22px;
   padding: 0 7px;
@@ -178,7 +183,6 @@
   line-height: 1;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  transform: translateY(1px);
   white-space: nowrap;
 }
 
@@ -195,6 +199,11 @@
 .headerStatusBadgeActionable[class] {
   background: rgba(214, 164, 103, 0.16);
   color: #f2dfbf;
+}
+
+.headerStatusBadgeDanger[class] {
+  background: rgba(179, 63, 63, 0.22);
+  color: #ffaaaa;
 }
 
 .path {

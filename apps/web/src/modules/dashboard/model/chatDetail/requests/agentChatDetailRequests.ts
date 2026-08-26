@@ -70,6 +70,7 @@ export function buildAgentChatDetailFetchOptions({
   transcriptDetail
 }: BuildAgentChatDetailFetchOptionsArgs): FetchAgentSessionOptions {
   const includeTranscriptView = shouldIncludeAgentChatTranscriptView(activeTab, transcriptDetail);
+
   return {
     chatMessageTail:
       transcriptDetail === "summary"
@@ -115,9 +116,7 @@ function mergeTranscriptViewDelta(
   baseTranscriptView: AgentTranscriptViewResponse,
   delta: AgentSessionTranscriptUpdatesResponse
 ): AgentTranscriptViewResponse {
-  if (!delta.replaceFromItemKey || baseTranscriptView.sessionId !== delta.sessionId) {
-    return delta;
-  }
+  if (!delta.replaceFromItemKey || baseTranscriptView.sessionId !== delta.sessionId) return delta;
 
   const replaceIndex = baseTranscriptView.items.findIndex(
     (item) => item.key === delta.replaceFromItemKey
@@ -135,11 +134,11 @@ function mergeTranscriptViewDelta(
 
 function readTranscriptEntryLineRef(entryId: string) {
   const separatorIndex = entryId.lastIndexOf("-");
-  if (separatorIndex < 0 || separatorIndex === entryId.length - 1) {
-    return null;
-  }
+
+  if (separatorIndex < 0 || separatorIndex === entryId.length - 1) return null;
 
   const lineIndex = Number(entryId.slice(separatorIndex + 1));
+
   return Number.isInteger(lineIndex) && lineIndex >= 0
     ? {
         lineIndex,
@@ -148,59 +147,79 @@ function readTranscriptEntryLineRef(entryId: string) {
     : null;
 }
 
+type TranscriptSourceEntryCandidate = {
+  entryId: string;
+  lineIndex: number;
+  prefix: string;
+};
+
+function rememberTranscriptSourceEntryId(
+  candidates: TranscriptSourceEntryCandidate[],
+  entryId: string | null | undefined
+) {
+  const normalizedEntryId = entryId ?? null;
+  const parsed = normalizedEntryId ? readTranscriptEntryLineRef(normalizedEntryId) : null;
+
+  if (!parsed || !normalizedEntryId) return;
+
+  candidates.push({
+    entryId: normalizedEntryId,
+    ...parsed
+  });
+}
+
+function rememberTranscriptSourceRefs(
+  candidates: TranscriptSourceEntryCandidate[],
+  sourceRefs: Pick<
+    AgentTranscriptActivityGroup | AgentTranscriptEntry,
+    "sourceEntryIds" | "sourceEntryRanges" | "sourceEntrySpans"
+  >
+) {
+  for (const entryId of sourceRefs.sourceEntryIds ?? []) {
+    rememberTranscriptSourceEntryId(candidates, entryId);
+  }
+
+  for (const range of [
+    ...(sourceRefs.sourceEntryRanges ?? []),
+    ...(sourceRefs.sourceEntrySpans ?? [])
+  ]) {
+    rememberTranscriptSourceEntryId(candidates, `${range.prefix}${range.end}`);
+  }
+}
+
+function rememberTranscriptActivitySourceRefs(
+  candidates: TranscriptSourceEntryCandidate[],
+  activity: AgentTranscriptActivityGroup
+) {
+  rememberTranscriptSourceRefs(candidates, activity);
+
+  for (const entryId of activity.entryIds) {
+    rememberTranscriptSourceEntryId(candidates, entryId);
+  }
+}
+
 function readLatestTranscriptViewItemSourceEntryId(
   item: AgentTranscriptViewResponse["items"][number]
 ) {
-  const candidates: Array<{ entryId: string; lineIndex: number; prefix: string }> = [];
-  const rememberEntryId = (entryId: string | null | undefined) => {
-    const normalizedEntryId = entryId ?? null;
-    const parsed = normalizedEntryId ? readTranscriptEntryLineRef(normalizedEntryId) : null;
-    if (parsed && normalizedEntryId) {
-      candidates.push({
-        entryId: normalizedEntryId,
-        ...parsed
-      });
-    }
-  };
-  const rememberSourceRefs = (
-    sourceRefs: Pick<
-      AgentTranscriptActivityGroup | AgentTranscriptEntry,
-      "sourceEntryIds" | "sourceEntryRanges" | "sourceEntrySpans"
-    >
-  ) => {
-    for (const entryId of sourceRefs.sourceEntryIds ?? []) {
-      rememberEntryId(entryId);
-    }
-    for (const range of [
-      ...(sourceRefs.sourceEntryRanges ?? []),
-      ...(sourceRefs.sourceEntrySpans ?? [])
-    ]) {
-      rememberEntryId(`${range.prefix}${range.end}`);
-    }
-  };
-  const rememberActivity = (
-    activity: AgentTranscriptActivityGroup
-  ) => {
-    rememberSourceRefs(activity);
-    for (const entryId of activity.entryIds) {
-      rememberEntryId(entryId);
-    }
-  };
+  const candidates: TranscriptSourceEntryCandidate[] = [];
 
   if (item.type === "message") {
-    rememberEntryId(item.entry.id);
-    rememberSourceRefs(item.entry);
+    rememberTranscriptSourceEntryId(candidates, item.entry.id);
+    rememberTranscriptSourceRefs(candidates, item.entry);
+
     for (const activity of [...item.activities, ...item.changeActivities]) {
-      rememberActivity(activity);
+      rememberTranscriptActivitySourceRefs(candidates, activity);
     }
   } else {
-    rememberActivity(item.activity);
+    rememberTranscriptActivitySourceRefs(candidates, item.activity);
   }
 
   const latest = candidates.sort((left, right) => {
     const lineDelta = right.lineIndex - left.lineIndex;
+
     return lineDelta === 0 ? left.prefix.localeCompare(right.prefix) : lineDelta;
   })[0];
+
   return latest?.entryId ?? null;
 }
 
@@ -261,7 +280,7 @@ export async function readAgentChatDetail(
       agentSessionId,
       {
         ...options,
-        includeSessionSummary: !baseDetail
+        includeSessionSummary: options.fullTranscript === true || !baseDetail
       },
       baseDetail
     );

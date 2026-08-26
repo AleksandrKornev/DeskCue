@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-embed/
 coverage/
+test-results/
 .DS_Store
 *.log
 *.sqlite
