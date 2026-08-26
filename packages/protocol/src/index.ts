@@ -146,6 +146,7 @@ export type {
   UpdateAccessDeviceResponse
 } from "./access.ts";
 export {
+  MAX_ASSET_TICKET_BYTES,
   parseCreateAssetTicketInput,
   parsePairAccessInput,
   parseRedeemAccessRecoveryCodeInput,
@@ -274,6 +275,8 @@ export {
   CLOUD_RELAY_MAX_FRAME_BYTES,
   CLOUD_RELAY_PROTOCOL_VERSION,
   CLOUD_RELAY_STREAM,
+  CLOUD_REMOTE_ASSET_ENVELOPE_RESERVE_BYTES,
+  CLOUD_REMOTE_ASSET_MAX_BODY_BYTES,
   CLOUD_REMOTE_READ_CAPABILITY,
   CLOUD_REMOTE_FILES_CAPABILITY,
   CLOUD_REMOTE_READ_CHUNK_BYTES,

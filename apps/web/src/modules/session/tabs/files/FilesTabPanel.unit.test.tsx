@@ -1,19 +1,27 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { assetsApi } from "@api/endpoint/assets/endpoints";
 import { workspacesApi } from "@api/endpoint/workspaces/endpoints";
 import {
   downloadLocalAsset,
   openLocalAssetInNewTab
 } from "@modules/transcript/RichTranscriptContent/localAssetActions";
 
+import { MAX_WORKSPACE_IMAGE_PREVIEW_BYTES } from "./constants";
 import { FilesTabPanel } from "./FilesTabPanel";
+import { readWorkspaceImagePreviewMaxBytes } from "./helpers";
 import styles from "./styles.module.scss";
 
 vi.mock("@api/endpoint/workspaces/endpoints", () => ({
   workspacesApi: {
     listFiles: vi.fn(),
     readFile: vi.fn()
+  }
+}));
+vi.mock("@api/endpoint/assets/endpoints", () => ({
+  assetsApi: {
+    getTicketBlob: vi.fn()
   }
 }));
 vi.mock("@modules/transcript/RichTranscriptContent/localAssetActions", () => ({
@@ -23,16 +31,32 @@ vi.mock("@modules/transcript/RichTranscriptContent/localAssetActions", () => ({
 
 const listFiles = vi.mocked(workspacesApi.listFiles);
 const readFile = vi.mocked(workspacesApi.readFile);
+const getTicketBlob = vi.mocked(assetsApi.getTicketBlob);
 const downloadAsset = vi.mocked(downloadLocalAsset);
 const openAsset = vi.mocked(openLocalAssetInNewTab);
 
 describe("FilesTabPanel", () => {
+  it("keeps Cloud image previews within the remote asset envelope", () => {
+    expect(readWorkspaceImagePreviewMaxBytes("cloud-machine")).toBeLessThan(4 * 1024 * 1024);
+    expect(readWorkspaceImagePreviewMaxBytes("local")).toBe(MAX_WORKSPACE_IMAGE_PREVIEW_BYTES);
+  });
+
   beforeEach(() => {
     window.history.replaceState({}, "", "/");
     listFiles.mockReset();
     readFile.mockReset();
+    getTicketBlob.mockReset();
     downloadAsset.mockReset();
     openAsset.mockReset();
+    getTicketBlob.mockResolvedValue(new Blob(["image"], { type: "image/png" }));
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:workspace-image")
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
     listFiles.mockResolvedValue({
       entries: [
         {
@@ -291,7 +315,7 @@ describe("FilesTabPanel", () => {
     expect(link).toHaveAttribute("title", "This entry cannot be opened from DeskCue.");
   });
 
-  it("renders binary metadata without putting binary content in the page", async () => {
+  it("renders a bounded raster preview through a workspace-scoped ticket", async () => {
     readFile.mockResolvedValue({
       binary: true,
       content: null,
@@ -320,9 +344,162 @@ describe("FilesTabPanel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "File image.png" }));
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
+    const image = await screen.findByRole("img", { name: "Preview of image.png" });
+
+    expect(image).toHaveAttribute("src", "blob:workspace-image");
+    expect(screen.getByText("Loading image preview…")).toBeInTheDocument();
+    fireEvent.load(image);
+    expect(screen.queryByText("Loading image preview…")).not.toBeInTheDocument();
+
+    expect(getTicketBlob).toHaveBeenCalledWith("image.png", "image.png", expect.objectContaining({
+      context: { workspaceId: "workspace-1" },
+      kind: "local_image",
+      maxBytes: MAX_WORKSPACE_IMAGE_PREVIEW_BYTES
+    }));
+    expect(getTicketBlob.mock.calls[0]?.[2]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("aborts an in-flight image preview when the viewer unmounts", async () => {
+    getTicketBlob.mockImplementation(() => new Promise(() => undefined));
+    readFile.mockResolvedValue({
+      binary: true,
+      content: null,
+      modifiedAt: "2026-08-07T09:00:00.000Z",
+      path: "image.png",
+      sizeBytes: 512,
+      truncated: false,
+      workspaceId: "workspace-1"
+    });
+    listFiles.mockResolvedValue({
+      entries: [{
+        kind: "file",
+        modifiedAt: "2026-08-07T09:00:00.000Z",
+        name: "image.png",
+        path: "image.png",
+        readable: true,
+        sizeBytes: 512
+      }],
+      hasMore: false,
+      nextCursor: null,
+      path: "",
+      workspaceId: "workspace-1"
+    });
+
+    const view = render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "File image.png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await waitFor(() => expect(getTicketBlob).toHaveBeenCalledTimes(1));
+    const options = getTicketBlob.mock.calls[0]?.[2];
+
+    expect(options?.signal?.aborted).toBe(false);
+    view.unmount();
+    expect(options?.signal?.aborted).toBe(true);
+  });
+
+  it("keeps non-image binary content out of the page", async () => {
+    readFile.mockResolvedValue({
+      binary: true,
+      content: null,
+      modifiedAt: "2026-08-07T09:00:00.000Z",
+      path: "archive.zip",
+      sizeBytes: 512,
+      truncated: false,
+      workspaceId: "workspace-1"
+    });
+    listFiles.mockResolvedValue({
+      entries: [{
+        kind: "file",
+        modifiedAt: "2026-08-07T09:00:00.000Z",
+        name: "archive.zip",
+        path: "archive.zip",
+        readable: true,
+        sizeBytes: 512
+      }],
+      hasMore: false,
+      nextCursor: null,
+      path: "",
+      workspaceId: "workspace-1"
+    });
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+    fireEvent.click(await screen.findByRole("button", { name: "File archive.zip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
     expect(await screen.findByText("Binary file")).toBeInTheDocument();
-    expect(screen.getByText("DeskCue does not load binary file contents into the browser."))
-      .toBeInTheDocument();
+    expect(getTicketBlob).not.toHaveBeenCalled();
+  });
+
+  it("shows an image error with a working retry", async () => {
+    getTicketBlob
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(new Blob(["image"], { type: "image/png" }));
+    readFile.mockResolvedValue({
+      binary: true,
+      content: null,
+      modifiedAt: "2026-08-07T09:00:00.000Z",
+      path: "image.png",
+      sizeBytes: 512,
+      truncated: false,
+      workspaceId: "workspace-1"
+    });
+    listFiles.mockResolvedValue({
+      entries: [{
+        kind: "file",
+        modifiedAt: "2026-08-07T09:00:00.000Z",
+        name: "image.png",
+        path: "image.png",
+        readable: true,
+        sizeBytes: 512
+      }],
+      hasMore: false,
+      nextCursor: null,
+      path: "",
+      workspaceId: "workspace-1"
+    });
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+    fireEvent.click(await screen.findByRole("button", { name: "File image.png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to preview image");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("img", { name: "Preview of image.png" })).toBeInTheDocument();
+    expect(getTicketBlob).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not fetch an image above the preview byte limit", async () => {
+    readFile.mockResolvedValue({
+      binary: true,
+      content: null,
+      modifiedAt: "2026-08-07T09:00:00.000Z",
+      path: "huge.png",
+      sizeBytes: 26 * 1024 * 1024,
+      truncated: false,
+      workspaceId: "workspace-1"
+    });
+    listFiles.mockResolvedValue({
+      entries: [{
+        kind: "file",
+        modifiedAt: "2026-08-07T09:00:00.000Z",
+        name: "huge.png",
+        path: "huge.png",
+        readable: true,
+        sizeBytes: 26 * 1024 * 1024
+      }],
+      hasMore: false,
+      nextCursor: null,
+      path: "",
+      workspaceId: "workspace-1"
+    });
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+    fireEvent.click(await screen.findByRole("button", { name: "File huge.png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(await screen.findByText("Image preview is limited to 25 MB")).toBeInTheDocument();
+    expect(getTicketBlob).not.toHaveBeenCalled();
   });
 
   it("opens a requested changed file and links back to its change", async () => {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   mkdir,
   mkdtemp,
+  rename,
   rm,
   symlink,
   writeFile
@@ -119,6 +120,7 @@ test("asset tickets resolve relative paths inside their registered workspace", a
         body: JSON.stringify({
           download: true,
           kind: "file",
+          maxBytes: 64,
           path: "artifact.txt",
           workspaceId: "workspace-1"
         }),
@@ -144,6 +146,99 @@ test("asset tickets resolve relative paths inside their registered workspace", a
       assert.equal(escapedResponse.status, 403);
       assert.deepEqual(await escapedResponse.json(), {
         error: "Workspace asset path escapes its registered workspace."
+      });
+    });
+  } finally {
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("bounded asset tickets reject a file that grows after ticket creation", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-bounded-assets-"));
+  const workspacePath = join(tempDir, "workspace");
+  const imagePath = join(workspacePath, "image.png");
+
+  try {
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(imagePath, "small", "utf8");
+    const app = express();
+
+    app.use(express.json());
+
+    installAssetRoutes(app, {
+      workspaces: {
+        listWorkspaces: () => [{ id: "workspace-1", path: workspacePath }]
+      }
+    });
+
+    await withServer(app, async (baseUrl) => {
+      const ticketResponse = await fetch(`${baseUrl}/api/assets/ticket`, {
+        body: JSON.stringify({
+          kind: "local_image",
+          maxBytes: 8,
+          path: "image.png",
+          workspaceId: "workspace-1"
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      const ticket = await ticketResponse.json() as { url: string };
+
+      await writeFile(imagePath, "now too large", "utf8");
+
+      const assetResponse = await fetch(`${baseUrl}${ticket.url}`);
+
+      assert.equal(ticketResponse.status, 201);
+      assert.equal(assetResponse.status, 413);
+      assert.deepEqual(await assetResponse.json(), {
+        error: "Local asset exceeds this preview ticket's byte limit."
+      });
+    });
+  } finally {
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("asset tickets reject same-path file replacement after authorization", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-replaced-assets-"));
+  const workspacePath = join(tempDir, "workspace");
+  const imagePath = join(workspacePath, "image.png");
+
+  try {
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(imagePath, "original", "utf8");
+    const app = express();
+
+    app.use(express.json());
+
+    installAssetRoutes(app, {
+      workspaces: {
+        listWorkspaces: () => [{ id: "workspace-1", path: workspacePath }]
+      }
+    });
+
+    await withServer(app, async (baseUrl) => {
+      const ticketResponse = await fetch(`${baseUrl}/api/assets/ticket`, {
+        body: JSON.stringify({
+          kind: "local_image",
+          maxBytes: 64,
+          path: "image.png",
+          workspaceId: "workspace-1"
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      const ticket = await ticketResponse.json() as { url: string };
+
+      await rename(imagePath, join(workspacePath, "original.png"));
+      await writeFile(imagePath, "replacement", "utf8");
+
+      const assetResponse = await fetch(`${baseUrl}${ticket.url}`);
+
+      assert.equal(ticketResponse.status, 201);
+      assert.equal(assetResponse.status, 403);
+      assert.deepEqual(await assetResponse.json(), {
+        error: "The local asset changed after this link was created. Open it again from DeskCue."
       });
     });
   } finally {

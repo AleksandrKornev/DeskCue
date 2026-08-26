@@ -25,6 +25,9 @@ export const CLOUD_RELAY_MAX_FRAME_BYTES = 16_384;
 export const CLOUD_REMOTE_READ_CHUNK_BYTES = 8 * 1024;
 export const CLOUD_REMOTE_READ_MAX_REQUEST_BYTES = 256 * 1024;
 export const CLOUD_REMOTE_READ_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+export const CLOUD_REMOTE_ASSET_ENVELOPE_RESERVE_BYTES = 8 + 2 * 1024;
+export const CLOUD_REMOTE_ASSET_MAX_BODY_BYTES =
+  CLOUD_REMOTE_READ_MAX_RESPONSE_BYTES - CLOUD_REMOTE_ASSET_ENVELOPE_RESERVE_BYTES;
 
 export const CLOUD_REMOTE_READ_OPERATIONS = [
   // Overview and sessions.
@@ -124,6 +127,7 @@ export type CloudRemoteReadOperationInputMap = {
     download?: boolean;
     kind: "file" | "local_image";
     managedSessionId?: string;
+    maxBytes?: number;
     path: string;
     workspaceId?: string;
   };

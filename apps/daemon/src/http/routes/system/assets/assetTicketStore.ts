@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
 
+import type { LocalAssetFileIdentity } from "./assetFileResponse.ts";
+
 export type AssetTicket = {
   agentSessionId?: string;
   download: boolean;
   expiresAt: number;
+  fileIdentity: LocalAssetFileIdentity;
   kind: "file" | "local_image";
   managedSessionId?: string;
+  maxBytes?: number;
   path: string;
   requestedPath: string;
   workspaceId?: string;

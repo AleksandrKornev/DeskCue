@@ -1,2 +1,6 @@
+import { CLOUD_REMOTE_ASSET_MAX_BODY_BYTES } from "@deskcue/protocol/cloud";
+
 export const MAX_WORKSPACE_BROWSER_ENTRIES = 800;
+export const MAX_CLOUD_WORKSPACE_IMAGE_PREVIEW_BYTES = CLOUD_REMOTE_ASSET_MAX_BODY_BYTES;
+export const MAX_WORKSPACE_IMAGE_PREVIEW_BYTES = 25 * 1024 * 1024;
 export const WORKSPACE_FILE_HISTORY_KEY = "deskCueWorkspaceFileBrowser";

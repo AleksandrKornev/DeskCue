@@ -6,7 +6,11 @@ import type { ManagedSessionService } from "#application/managedSessionService";
 import type { SourceAgentSessionService } from "#application/sourceAgentSessionService";
 
 import { AssetAccessPolicy } from "./assetAccessPolicy.ts";
-import { sendExpiredAssetTicketResponse, sendLocalAssetFile } from "./assetFileResponse.ts";
+import {
+  readLocalAssetFileIdentity,
+  sendExpiredAssetTicketResponse,
+  sendLocalAssetFile
+} from "./assetFileResponse.ts";
 import { AssetTicketStore } from "./assetTicketStore.ts";
 
 const ASSET_TICKET_TTL_MS = 15 * 60_000;
@@ -82,11 +86,22 @@ export function installAssetRoutes(
         return;
       }
 
+      const fileIdentity = await readLocalAssetFileIdentity(authorization.path);
+
+      if (!fileIdentity) {
+        response.status(403).json({
+          error: "The local asset changed while this link was being created. Open it again from DeskCue."
+        });
+        return;
+      }
+
       const { id: ticket, ticket: storedTicket } = assetTickets.create({
         agentSessionId: input.agentSessionId,
         download: input.download === true,
+        fileIdentity,
         kind: input.kind,
         managedSessionId: input.managedSessionId,
+        maxBytes: input.maxBytes,
         path: authorization.path,
         requestedPath: normalizedPath,
         workspaceId: input.workspaceId
@@ -135,7 +150,13 @@ export function installAssetRoutes(
         return;
       }
 
-      sendLocalAssetFile(response, authorization.path, ticket.download);
+      await sendLocalAssetFile(
+        response,
+        authorization.path,
+        ticket.download,
+        ticket.maxBytes,
+        ticket.fileIdentity
+      );
     } catch (error) {
       next(error);
     }
@@ -161,7 +182,7 @@ export function installAssetRoutes(
         return;
       }
 
-      sendLocalAssetFile(response, authorization.path, request.query.download === "1");
+      await sendLocalAssetFile(response, authorization.path, request.query.download === "1");
     } catch (error) {
       next(error);
     }
@@ -187,7 +208,7 @@ export function installAssetRoutes(
         return;
       }
 
-      sendLocalAssetFile(response, authorization.path, false);
+      await sendLocalAssetFile(response, authorization.path, false);
     } catch (error) {
       next(error);
     }

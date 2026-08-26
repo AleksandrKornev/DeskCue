@@ -1,4 +1,5 @@
 import {
+  CLOUD_REMOTE_ASSET_MAX_BODY_BYTES,
   CLOUD_REMOTE_READ_MAX_RESPONSE_BYTES,
   parseCloudRemoteReadOperationInput
 } from "@deskcue/protocol/cloud";
@@ -10,7 +11,6 @@ import { createCloudProcessLocalAuthorization } from "#security/cloudProcessLoca
 
 import { readBoundedCloudResponse } from "./cloudBoundedResponse.ts";
 import {
-  CLOUD_REMOTE_ASSET_ENVELOPE_RESERVE_BYTES,
   encodeCloudRemoteAssetEnvelope
 } from "./cloudRemoteAssetEnvelope.ts";
 
@@ -87,43 +87,57 @@ function buildRequest(
   // Overview and sessions.
   if (operation === "assets.ticket.create") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
+
     return { method: "POST", path: "/api/assets/ticket", body: input };
   }
+
   if (operation === "assets.ticket.read") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
+
     return {
       method: "GET",
       path: `/api/assets/ticket/${encodeURIComponent(input.ticket)}`
     };
   }
+
   if (operation === "overview.get") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const query = new URLSearchParams();
+
     setNumber(query, "sessionLimit", input.sessionLimit);
+
     return { method: "GET", path: `/api/overview${query.size ? `?${query}` : ""}` };
   }
+
   if (operation === "managedSessions.get") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const query = new URLSearchParams();
+
     setString(query, "view", input.view);
+
     setNumber(query, "logTail", input.debugLogTail);
     return {
       method: "GET",
       path: `/api/sessions/${encodeURIComponent(input.sessionId)}${query.size ? `?${query}` : ""}`
     };
   }
+
   if (operation === "sessions.list") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const query = new URLSearchParams();
+
     setNumber(query, "limit", input.limit);
+
     setNumber(query, "offset", input.offset);
     setString(query, "query", input.query);
     setString(query, "source", input.sourceId);
     if (input.includeLiveMetadata === true) query.set("includeLiveMetadata", "1");
     return { method: "GET", path: `/api/agents/sessions${query.size ? `?${query}` : ""}` };
   }
+
   if (operation === "sessions.reviewed.post") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
+
     return {
       method: "POST",
       path: `/api/agents/sessions/${encodeURIComponent(input.agentSessionId)}/reviewed`,
@@ -135,7 +149,9 @@ function buildRequest(
   if (operation === "workspace.files.list") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const query = new URLSearchParams();
+
     setString(query, "path", input.path);
+
     setString(query, "cursor", input.cursor);
     setNumber(query, "limit", input.limit);
     return {
@@ -145,18 +161,23 @@ function buildRequest(
       }`
     };
   }
+
   if (operation === "workspace.files.read") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const query = new URLSearchParams({ path: input.path });
+
     return {
       method: "GET",
       path: `/api/workspaces/${encodeURIComponent(input.workspaceId)}/file?${query}`
     };
   }
+
   if (operation === "managed.git.refresh") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const query = new URLSearchParams();
+
     setString(query, "view", input.view);
+
     return {
       method: "POST",
       path: `/api/sessions/${encodeURIComponent(input.sessionId)}/refresh-git${
@@ -164,9 +185,11 @@ function buildRequest(
       }`
     };
   }
+
   if (operation === "preview.candidates") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const query = new URLSearchParams({ kind: input.kind, ownerId: input.ownerId });
+
     return { method: "GET", path: `/api/preview/candidates?${query}` };
   }
 
@@ -175,43 +198,55 @@ function buildRequest(
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const sessionId = encodeURIComponent(input.agentSessionId);
     const query = new URLSearchParams();
+
     setString(query, "beforeEntryId", input.beforeEntryId);
+
     setNumber(query, "limit", input.limit);
     return {
       method: "GET",
       path: `/api/agents/sessions/${sessionId}/transcript-page?${query}`
     };
   }
+
   if (operation === "transcript.entries.get") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const sessionId = encodeURIComponent(input.agentSessionId);
     const query = new URLSearchParams();
+
     setStringArray(query, "entryIds", input.entryIds);
+
     return {
       method: "GET",
       path: `/api/agents/sessions/${sessionId}/transcript-entries?${query}`
     };
   }
+
   if (operation === "transcript.entries.post") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const sessionId = encodeURIComponent(input.agentSessionId);
+
     return {
       method: "POST",
       path: `/api/agents/sessions/${sessionId}/transcript-entries`,
       body: { entryIds: input.entryIds }
     };
   }
+
   if (operation === "changes.get" || operation === "changes.post") {
     const input = parseCloudRemoteReadOperationInput(operation, value);
     const sessionId = encodeURIComponent(input.agentSessionId);
     const path = `/api/agents/sessions/${sessionId}/changes/${encodeURIComponent(input.groupId)}`;
+
     if (operation === "changes.get") {
       const query = new URLSearchParams();
+
       setStringArray(query, "entryIds", input.sourceEntryIds);
+
       setJson(query, "entryRanges", input.sourceEntryRanges);
       setJson(query, "entrySpans", input.sourceEntrySpans);
       return { method: "GET", path: `${path}${query.size ? `?${query}` : ""}` };
     }
+
     return {
       method: "POST",
       path,
@@ -229,7 +264,9 @@ function buildRequest(
   const suffix = operation === "sessions.get" ? "" : operation === "transcript.view"
     ? "/transcript-view" : "/transcript-updates";
   const query = new URLSearchParams();
+
   setNumber(query, "chatMessageTail", input.chatMessageTail);
+
   setNumber(query, "overlapItemCount", input.overlapItemCount);
   setNumber(query, "transcriptTail", input.transcriptTail);
   setString(query, "baseItemKey", input.baseItemKey);
@@ -254,10 +291,12 @@ export class CloudRemoteReadExecutor {
 
   constructor(options: CloudRemoteReadExecutorOptions) {
     const origin = new URL(options.daemonOrigin);
+
     if (origin.protocol !== "http:" || origin.hostname !== "127.0.0.1" ||
         origin.pathname !== "/" || origin.search || origin.hash || origin.username || origin.password) {
       throw new Error("Cloud remote reads require a trusted loopback daemon origin.");
     }
+
     this.daemonOrigin = origin.origin;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
     this.resolveSessionRoute = options.resolveSessionRoute;
@@ -271,18 +310,21 @@ export class CloudRemoteReadExecutor {
   ): Promise<CloudRemoteReadResult> {
     if (operation === "sessions.resolveRoute") {
       const input = parseCloudRemoteReadOperationInput(operation, value);
-      if (!this.resolveSessionRoute) {
-        return { status: 503, body: { error: "remote_read_unavailable" } };
-      }
+
+      if (!this.resolveSessionRoute) return { status: 503, body: { error: "remote_read_unavailable" } };
+
       try {
         shutdownSignal?.throwIfAborted();
         const route = await this.resolveSessionRoute(input.cloudSessionId);
+
         shutdownSignal?.throwIfAborted();
+
         return route
           ? { status: 200, body: { route } }
           : { status: 404, body: { error: "session_not_found" } };
       } catch (error) {
         if (shutdownSignal?.aborted) throw error;
+
         return { status: 503, body: { error: "remote_read_unavailable" } };
       }
     }
@@ -298,7 +340,9 @@ export class CloudRemoteReadExecutor {
       ? AbortSignal.any([controller.signal, shutdownSignal])
       : controller.signal;
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
     timeout.unref?.();
+
     try {
       const response = await this.fetchImplementation(`${this.daemonOrigin}${request.path}`, {
         method: request.method,
@@ -311,16 +355,18 @@ export class CloudRemoteReadExecutor {
         redirect: "error",
         signal
       });
+
       shutdownSignal?.throwIfAborted();
       const isSuccessfulAssetRead = operation === "assets.ticket.read" && response.ok;
       const responseLimit = isSuccessfulAssetRead
-        ? CLOUD_REMOTE_READ_MAX_RESPONSE_BYTES - CLOUD_REMOTE_ASSET_ENVELOPE_RESERVE_BYTES
+        ? CLOUD_REMOTE_ASSET_MAX_BODY_BYTES
         : CLOUD_REMOTE_READ_MAX_RESPONSE_BYTES;
       const bytes = await readBoundedCloudResponse(response, responseLimit);
+
       shutdownSignal?.throwIfAborted();
-      if (!bytes) {
-        return { status: 502, body: { error: "remote_response_too_large" } };
-      }
+
+      if (!bytes) return { status: 502, body: { error: "remote_response_too_large" } };
+
       if (isSuccessfulAssetRead) {
         return {
           status: response.status,
@@ -328,34 +374,41 @@ export class CloudRemoteReadExecutor {
           binary: true
         };
       }
+
       try {
         const body = JSON.parse(bytes.toString("utf8")) as unknown;
+
         if (response.ok && operation === "workspace.files.list") {
           const sanitized = sanitizeWorkspaceDirectoryResponse(
             body,
             workspaceFileInput?.workspaceId ?? "",
             workspaceFileInput?.path ?? ""
           );
+
           return sanitized
             ? { status: response.status, body: sanitized }
             : { status: 502, body: { error: "invalid_remote_response" } };
         }
+
         if (response.ok && operation === "workspace.files.read") {
           const sanitized = sanitizeWorkspaceFileResponse(
             body,
             workspaceFileInput?.workspaceId ?? "",
             workspaceFileInput?.path ?? ""
           );
+
           return sanitized
             ? { status: response.status, body: sanitized }
             : { status: 502, body: { error: "invalid_remote_response" } };
         }
+
         return { status: response.status, body };
       } catch {
         return { status: 502, body: { error: "invalid_remote_response" } };
       }
     } catch (error) {
       if (shutdownSignal?.aborted) throw error;
+
       return {
         status: 503,
         body: {

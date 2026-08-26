@@ -61,11 +61,14 @@ export interface UpdateAccessDeviceResponse {
   device: AccessDeviceSummary;
 }
 
+export const MAX_ASSET_TICKET_BYTES = 100 * 1024 * 1024;
+
 export interface CreateAssetTicketInput {
   agentSessionId?: string;
   download?: boolean;
   kind: "file" | "local_image";
   managedSessionId?: string;
+  maxBytes?: number;
   path: string;
   workspaceId?: string;
 }
@@ -132,11 +135,24 @@ export function parseCreateAssetTicketInput(value: unknown): CreateAssetTicketIn
     throw new ProtocolSchemaError("Field download must be a boolean when provided.");
   }
 
+  if (
+    body.maxBytes !== undefined &&
+    (typeof body.maxBytes !== "number" ||
+      !Number.isSafeInteger(body.maxBytes) ||
+      body.maxBytes < 1 ||
+      body.maxBytes > MAX_ASSET_TICKET_BYTES)
+  ) {
+    throw new ProtocolSchemaError(
+      `Field maxBytes must be a positive safe integer no greater than ${MAX_ASSET_TICKET_BYTES}.`
+    );
+  }
+
   return {
     agentSessionId: readOptionalProtocolString(body, "agentSessionId"),
     download: body.download === true,
     kind,
     managedSessionId: readOptionalProtocolString(body, "managedSessionId"),
+    maxBytes: body.maxBytes as number | undefined,
     path: readRequiredProtocolString(body, "path"),
     workspaceId: readOptionalProtocolString(body, "workspaceId")
   };

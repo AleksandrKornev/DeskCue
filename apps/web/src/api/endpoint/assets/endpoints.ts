@@ -25,13 +25,12 @@ export const assetsApi = {
       download: options?.download === true,
       kind: options?.kind ?? "file",
       managedSessionId: options?.context?.managedSessionId,
+      maxBytes: options?.maxBytes,
       path: assetPath,
       workspaceId: options?.context?.workspaceId
-    });
+    }, { signal: options?.signal });
 
-    if (!result.ok) {
-      throw new Error(result.data.error ?? "Unable to create asset link.");
-    }
+    if (!result.ok) throw new Error(result.data.error ?? "Unable to create asset link.");
 
     return {
       expiresAt: result.data.expiresAt,
@@ -54,9 +53,12 @@ export const assetsApi = {
   ) {
     const ticket = await assetsApi.createLocalAssetLink(assetPath, {
       context: options?.context,
-      kind: options?.kind
+      kind: options?.kind,
+      maxBytes: options?.maxBytes,
+      signal: options?.signal
     });
-    return getBlob(ticket.url, `Unable to preview ${displayName}.`);
+
+    return getBlob(ticket.url, `Unable to preview ${displayName}.`, { signal: options?.signal });
   },
 
   async getTicketText(
@@ -67,6 +69,7 @@ export const assetsApi = {
     const ticket = await assetsApi.createLocalAssetLink(assetPath, {
       context: options?.context
     });
+
     return getText(ticket.url, `Unable to preview ${displayName}.`);
   },
 
@@ -75,9 +78,7 @@ export const assetsApi = {
       path: assetPath
     });
 
-    if (options?.download) {
-      query.set("download", "1");
-    }
+    if (options?.download) query.set("download", "1");
 
     return buildApiUrl(`/api/assets/file?${query.toString()}`);
   },

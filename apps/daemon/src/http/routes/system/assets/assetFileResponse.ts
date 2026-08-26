@@ -1,40 +1,136 @@
 import type express from "express";
+import type { BigIntStats } from "node:fs";
+import { open, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 
-// AssetAccessPolicy has already canonicalized and authorized the path. Express
-// must not reject trusted agent roots merely because they contain `.codex` or
-// another hidden directory segment.
-const AUTHORIZED_ASSET_SEND_OPTIONS = {
-  dotfiles: "allow" as const
+export type LocalAssetFileIdentity = {
+  deviceId: bigint;
+  inodeId: bigint;
 };
 
-export function sendLocalAssetFile(
+function normalizeComparablePath(filePath: string) {
+  const normalizedPath = path.resolve(filePath);
+
+  return process.platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
+}
+
+function readFileIdentity(stats: BigIntStats): LocalAssetFileIdentity {
+  return {
+    deviceId: stats.dev,
+    inodeId: stats.ino
+  };
+}
+
+function hasSameFileIdentity(
+  openedStats: BigIntStats,
+  expectedIdentity: LocalAssetFileIdentity
+) {
+  return openedStats.ino !== 0n &&
+    openedStats.dev === expectedIdentity.deviceId &&
+    openedStats.ino === expectedIdentity.inodeId;
+}
+
+async function isOpenedAuthorizedFile(
+  normalizedPath: string,
+  openedStats: BigIntStats
+) {
+  const [currentCanonicalPath, currentStats] = await Promise.all([
+    realpath(normalizedPath),
+    stat(normalizedPath, { bigint: true })
+  ]);
+
+  return normalizeComparablePath(currentCanonicalPath) === normalizeComparablePath(normalizedPath) &&
+    hasSameFileIdentity(openedStats, readFileIdentity(currentStats));
+}
+
+export async function readLocalAssetFileIdentity(normalizedPath: string) {
+  let fileHandle;
+
+  try {
+    fileHandle = await open(normalizedPath, "r");
+    const stats = await fileHandle.stat({ bigint: true });
+
+    if (!stats.isFile() || !(await isOpenedAuthorizedFile(normalizedPath, stats))) return null;
+
+    return readFileIdentity(stats);
+  } catch {
+    return null;
+  } finally {
+    await fileHandle?.close();
+  }
+}
+
+export async function sendLocalAssetFile(
   response: express.Response,
   normalizedPath: string,
-  download: boolean
+  download: boolean,
+  maxBytes?: number,
+  expectedIdentity?: LocalAssetFileIdentity
 ) {
-  response.setHeader("X-Content-Type-Options", "nosniff");
-  const onComplete = (error?: Error & { statusCode?: number }) => {
-    if (!error || response.headersSent) {
+  let fileHandle;
+
+  try {
+    fileHandle = await open(normalizedPath, "r");
+    const stats = await fileHandle.stat({ bigint: true });
+
+    if (!stats.isFile()) {
+      response.status(404).json({ error: "Local asset not found." });
       return;
     }
 
-    response.status(typeof error.statusCode === "number" ? error.statusCode : 404).json({
-      error: "Local asset not found."
+    if (!(await isOpenedAuthorizedFile(normalizedPath, stats))) {
+      response.status(403).json({
+        error: "The local asset changed after it was authorized. Open it again from DeskCue."
+      });
+      return;
+    }
+
+    if (expectedIdentity && !hasSameFileIdentity(stats, expectedIdentity)) {
+      response.status(403).json({
+        error: "The local asset changed after this link was created. Open it again from DeskCue."
+      });
+      return;
+    }
+
+    if (maxBytes !== undefined && stats.size > BigInt(maxBytes)) {
+      response.status(413).json({
+        error: "Local asset exceeds this preview ticket's byte limit."
+      });
+      return;
+    }
+
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("Content-Length", stats.size.toString());
+
+    if (download || path.extname(normalizedPath).toLowerCase() === ".svg") {
+      response.attachment(path.basename(normalizedPath));
+    } else {
+      response.type(normalizedPath);
+    }
+
+    if (stats.size === 0n) {
+      response.end();
+      return;
+    }
+
+    const fileStream = fileHandle.createReadStream({
+      autoClose: false,
+      end: Number(stats.size - 1n),
+      start: 0
     });
-  };
 
-  if (download || path.extname(normalizedPath).toLowerCase() === ".svg") {
-    response.download(
-      normalizedPath,
-      path.basename(normalizedPath),
-      AUTHORIZED_ASSET_SEND_OPTIONS,
-      onComplete
-    );
-    return;
+    await pipeline(fileStream, response);
+  } catch (error) {
+    if (response.headersSent) {
+      response.destroy(error instanceof Error ? error : undefined);
+      return;
+    }
+
+    response.status(404).json({ error: "Local asset not found." });
+  } finally {
+    await fileHandle?.close();
   }
-
-  response.sendFile(normalizedPath, AUTHORIZED_ASSET_SEND_OPTIONS, onComplete);
 }
 
 export function sendExpiredAssetTicketResponse(
@@ -42,6 +138,7 @@ export function sendExpiredAssetTicketResponse(
   response: express.Response
 ) {
   const message = "This temporary DeskCue file link expired. Open the asset again from DeskCue.";
+
   if (request.accepts(["html", "json"]) === "html") {
     response
       .status(404)
@@ -62,6 +159,7 @@ export function sendExpiredAssetTicketResponse(
       color: #f3eee5;
       font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+
     main {
       width: min(420px, calc(100vw - 48px));
       padding: 24px;
@@ -69,10 +167,12 @@ export function sendExpiredAssetTicketResponse(
       border-radius: 12px;
       background: #18191f;
     }
+
     h1 {
       margin: 0 0 8px;
       font-size: 20px;
     }
+
     p {
       margin: 0;
       color: #b9c2d8;

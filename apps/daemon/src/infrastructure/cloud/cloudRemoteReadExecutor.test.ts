@@ -384,6 +384,7 @@ test("remote read executor creates a scoped asset ticket and relays its binary b
   const created = await executor.execute("assets.ticket.create", {
     agentSessionId: "codex:one",
     kind: "local_image",
+    maxBytes: 25 * 1024 * 1024,
     path: "screenshots/latest.png",
     workspaceId: "workspace-1"
   });
@@ -410,6 +411,7 @@ test("remote read executor creates a scoped asset ticket and relays its binary b
   assert.deepEqual(JSON.parse(requests[0]?.body ?? "null"), {
     agentSessionId: "codex:one",
     kind: "local_image",
+    maxBytes: 25 * 1024 * 1024,
     path: "screenshots/latest.png",
     workspaceId: "workspace-1"
   });

@@ -1,4 +1,5 @@
 import { ProtocolSchemaError, readProtocolObject } from "../schema.ts";
+import { MAX_ASSET_TICKET_BYTES } from "../access.ts";
 
 import {
   CLOUD_REMOTE_READ_CHUNK_BYTES,
@@ -162,10 +163,14 @@ export function parseCloudRemoteReadOperationInput(
 
   // Workspace and Preview resources.
   if (operation === "assets.ticket.create") {
-    requireOnlyKeys(input, ["agentSessionId", "download", "kind", "managedSessionId", "path", "workspaceId"]);
+    requireOnlyKeys(input, [
+      "agentSessionId", "download", "kind", "managedSessionId", "maxBytes", "path", "workspaceId"
+    ]);
     if ((input.agentSessionId !== undefined && !isStringBetween(input.agentSessionId, 1, 512)) ||
         (input.managedSessionId !== undefined && !isStringBetween(input.managedSessionId, 1, 512)) ||
         (input.workspaceId !== undefined && !isStringBetween(input.workspaceId, 1, 512)) ||
+        (input.maxBytes !== undefined &&
+          !isSafeIntegerBetween(input.maxBytes, 1, MAX_ASSET_TICKET_BYTES)) ||
         (input.download !== undefined && typeof input.download !== "boolean") ||
         (input.kind !== "file" && input.kind !== "local_image") ||
         !isStringBetween(input.path, 1, 4096) || input.path.includes("\0")) invalidReadInput();

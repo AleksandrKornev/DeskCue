@@ -9,6 +9,7 @@ test("asset tickets are isolated per HTTP application lifecycle", () => {
   const second = new AssetTicketStore(2, 10, () => now);
   const created = first.create({
     download: false,
+    fileIdentity: { deviceId: 1n, inodeId: 2n },
     kind: "file",
     path: "C:\\tmp\\artifact.txt",
     requestedPath: "C:\\tmp\\artifact-link.txt"

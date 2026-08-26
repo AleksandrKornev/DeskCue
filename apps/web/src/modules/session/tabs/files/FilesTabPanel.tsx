@@ -11,12 +11,14 @@ import {
   buildWorkspaceBreadcrumbs,
   createFileViewerKeyDownHandler,
   formatFileSize,
+  isWorkspaceRasterImagePath,
   normalizeWorkspacePath
 } from "./helpers";
 import styles from "./styles.module.scss";
 import type { FilesTabPanelProps } from "./types";
 import { useWorkspaceFileBrowser } from "./useWorkspaceFileBrowser";
 import { WorkspaceFileActionDialog } from "./WorkspaceFileActionDialog";
+import { WorkspaceImagePreview } from "./WorkspaceImagePreview";
 
 type WorkspaceFileActionTarget = {
   file: WorkspaceFileEntry;
@@ -272,7 +274,9 @@ export function FilesTabPanel({
                   </button>
                 </div>
               </header>
-              {browser.file.binary ? (
+              {browser.file.binary && isWorkspaceRasterImagePath(browser.file.path) ? (
+                <WorkspaceImagePreview file={browser.file} workspaceId={workspaceId} />
+              ) : browser.file.binary ? (
                 <div className={styles.fileViewerEmpty}>
                   <strong>Binary file</strong>
                   <p>DeskCue does not load binary file contents into the browser.</p>
