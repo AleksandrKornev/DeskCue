@@ -11,6 +11,10 @@ import {
   getSessionTabLabel,
   getSessionTabsForCapabilities
 } from "@models/sessionTabs";
+import {
+  getDeskCueRuntime,
+  resolveSessionCommandsUnavailableReason
+} from "@runtime";
 
 import styles from "./styles.module.scss";
 import type { ManualSessionChromeProps } from "./types";
@@ -27,6 +31,10 @@ export function ManualSessionChrome({
   onSelectTab,
   onStopSession,
 }: ManualSessionChromeProps) {
+  const runtime = getDeskCueRuntime();
+  const sessionCommandsEnabled = runtime.features.sessionCommands;
+  const sessionCommandsUnavailableReason = resolveSessionCommandsUnavailableReason(runtime);
+
   return (
     <>
       <div className={styles.sessionHeader}>
@@ -41,6 +49,11 @@ export function ManualSessionChrome({
           <p className={styles.muted}>
             {formatManagedSessionSubtitle(sessionShell, takenOverAgentSession)}
           </p>
+          {!sessionCommandsEnabled && sessionShell.status === "running" ? (
+            <p className={styles.muted}>
+              {sessionCommandsUnavailableReason}
+            </p>
+          ) : null}
         </div>
         <div className={styles.actions}>
           {onRefreshGit ? (
@@ -51,7 +64,7 @@ export function ManualSessionChrome({
           <button className={styles.ghostButton} onClick={onExitSession} type="button">
             Back
           </button>
-          {sessionShell.status === "running" ? (
+          {sessionCommandsEnabled && sessionShell.status === "running" ? (
             <button className={styles.dangerButton} onClick={onStopSession} type="button">
               Stop
             </button>

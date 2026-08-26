@@ -12,6 +12,14 @@ import type {
 
 import { requestConfirmation } from "@components/ModalDialog";
 
+import { getComposerConnectionNotice, isComposerTransportAvailable } from "./connection";
+import {
+  clearComposerDraft,
+  isComposerDraftRevisionCurrent,
+  readComposerDraft,
+  rememberComposerDraft,
+  subscribeComposerDraft
+} from "./draftStore";
 import {
   blurComposerField,
   buildSharedSessionTakeoverConfirmation,
@@ -21,6 +29,7 @@ import {
   shouldSubmitComposerOnEnter,
   TOUCH_SEND_BLUR_DELAY_MS
 } from "./helpers";
+import { syncComposerSubmissionLifecycle } from "./submissionLifecycle";
 import type { SessionMessageComposerProps } from "./types";
 
 export function useSessionMessageComposerController({
@@ -32,13 +41,14 @@ export function useSessionMessageComposerController({
   isInterruptingPrompt,
   isPromptInFlight,
   isPromptQueued = false,
+  liveUpdatesConnection,
   mode,
   onInterruptPrompt,
   onSendInput,
   sharedSessionHint,
   viewerCount = 0
 }: SessionMessageComposerProps) {
-  const [hasDraft, setHasDraft] = useState(false);
+  const [hasDraft, setHasDraft] = useState(() => Boolean(readComposerDraft(draftScopeKey).trim()));
   const [pendingActionDecision, setPendingActionDecision] = useState<"approve" | "reject" | null>(null);
   const [isComposerFieldFocused, setIsComposerFieldFocused] = useState(false);
   const composerInputId = useId();
@@ -46,18 +56,21 @@ export function useSessionMessageComposerController({
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const handledTouchSendPointerRef = useRef(false);
+  const draftRestorationGenerationRef = useRef(0);
   const visibleActionRequest = actionRequest;
+  const connectionNotice = getComposerConnectionNotice(liveUpdatesConnection?.status);
+  const canUseInput = canSendInput && isComposerTransportAvailable(liveUpdatesConnection?.status);
   const isActionDecisionPending = Boolean(actionRequest);
-  const isActionDecisionDisabled = Boolean(pendingActionDecision) || !canSendInput || isInterruptingPrompt;
+  const isActionDecisionDisabled = Boolean(pendingActionDecision) || !canUseInput || isInterruptingPrompt;
 
   const canReplaceRunningPrompt =
-    canSendInput &&
+    canUseInput &&
     !isActionDecisionPending &&
     isPromptInFlight;
 
   const shouldSubmitReplacement = canReplaceRunningPrompt && hasDraft;
   const canSubmitDraft =
-    canSendInput &&
+    canUseInput &&
     !isInterruptingPrompt &&
     (!isPromptInFlight || isActionDecisionPending || shouldSubmitReplacement);
 
@@ -78,6 +91,22 @@ export function useSessionMessageComposerController({
     normalizedSharedSessionHint && compactViewport && viewerCount > 1
       ? `${viewerCount} DeskCue clients open. Sending may interrupt the current run`
       : normalizedSharedSessionHint;
+  const submissionLifecycleRef = useRef<ReturnType<typeof syncComposerSubmissionLifecycle> | null>(null);
+  const submissionLifecycle = syncComposerSubmissionLifecycle(
+    submissionLifecycleRef.current,
+    draftScopeKey,
+    {
+      canSubmitDraft,
+      isActionDecisionPending,
+      shouldSubmitReplacement
+    }
+  );
+
+  submissionLifecycleRef.current = submissionLifecycle;
+
+  useEffect(() => () => {
+    submissionLifecycle.generation += 1;
+  }, [draftScopeKey, submissionLifecycle]);
 
   const actions = {
     async confirmSharedSessionTakeover() {
@@ -97,7 +126,7 @@ export function useSessionMessageComposerController({
         return;
       }
 
-      if (buttonActsAsInterrupt && !isInterruptingPrompt && canSendInput) {
+      if (buttonActsAsInterrupt && !isInterruptingPrompt && canUseInput) {
         onInterruptPrompt();
         return;
       }
@@ -140,10 +169,16 @@ export function useSessionMessageComposerController({
       void actions.submitDraft();
     },
     async sendActionDecision(decision: "approve" | "reject") {
-      if (!canSendInput || isInterruptingPrompt) return;
+      if (!canUseInput || isInterruptingPrompt) return;
 
       const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
+      const pendingSubmissionGeneration = submissionLifecycle.generation;
+      const decisionDraftRevision = rememberComposerDraft(
+        draftScopeKey,
+        field?.value ?? readComposerDraft(draftScopeKey)
+      );
 
+      draftRestorationGenerationRef.current += 1;
       blurComposerField(field);
 
       if (field) field.value = "";
@@ -154,27 +189,47 @@ export function useSessionMessageComposerController({
         actionDecision: decision
       });
 
+      if (sent) clearComposerDraft(draftScopeKey, decisionDraftRevision);
+      if (submissionLifecycle.generation !== pendingSubmissionGeneration) return;
+
       if (!sent) {
         setPendingActionDecision(null);
-        setHasDraft(false);
+
+        if (isComposerDraftRevisionCurrent(draftScopeKey, decisionDraftRevision)) setHasDraft(false);
+        return;
       }
     },
     async submitDraft(options?: { blurDelayMs?: number }) {
       const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
       const nextDraft = field?.value.trim() ?? "";
+      const pendingSubmissionGeneration = submissionLifecycle.generation;
 
       if (!nextDraft || !canSubmitDraft) return;
       if (!(await actions.confirmSharedSessionTakeover())) return;
+      if (submissionLifecycle.generation !== pendingSubmissionGeneration) return;
 
+      const currentSubmissionState = submissionLifecycle.state;
+
+      if (!currentSubmissionState.canSubmitDraft) return;
+
+      const submissionDraftRevision = rememberComposerDraft(draftScopeKey, nextDraft);
+
+      draftRestorationGenerationRef.current += 1;
       blurComposerField(field, options?.blurDelayMs);
       if (field) field.value = "";
       setHasDraft(false);
 
-      const actionDecision = isActionDecisionPending ? getDraftActionDecision(nextDraft) : undefined;
+      const actionDecision = currentSubmissionState.isActionDecisionPending
+        ? getDraftActionDecision(nextDraft)
+        : undefined;
       const sent = await onSendInput(nextDraft, {
         actionDecision,
-        replaceRunningPrompt: shouldSubmitReplacement
+        replaceRunningPrompt: currentSubmissionState.shouldSubmitReplacement
       });
+
+      if (sent) clearComposerDraft(draftScopeKey, submissionDraftRevision);
+      if (submissionLifecycle.generation !== pendingSubmissionGeneration) return;
+      if (!isComposerDraftRevisionCurrent(draftScopeKey, submissionDraftRevision)) return;
 
       if (!sent) {
         if (field) field.value = nextDraft;
@@ -187,22 +242,34 @@ export function useSessionMessageComposerController({
     syncHasDraft(nextValue: string) {
       const nextHasDraft = nextValue.trim().length > 0;
 
+      rememberComposerDraft(draftScopeKey, nextValue);
       setHasDraft((current) => (current === nextHasDraft ? current : nextHasDraft));
     }
   };
 
   useEffect(() => {
     const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
+    const cachedDraft = readComposerDraft(draftScopeKey);
+    const restorationGeneration = draftRestorationGenerationRef.current + 1;
 
-    if (field) field.value = "";
+    draftRestorationGenerationRef.current = restorationGeneration;
 
-    setHasDraft(false);
+    if (field) field.value = cachedDraft;
+
+    setHasDraft(Boolean(cachedDraft.trim()));
 
     const draftRestoration = {
       sync() {
-        const restoredField = mode === "chat" ? textAreaRef.current : textInputRef.current;
+        if (draftRestorationGenerationRef.current !== restorationGeneration) return;
 
-        setHasDraft(Boolean(restoredField?.value.trim()));
+        const restoredField = mode === "chat" ? textAreaRef.current : textInputRef.current;
+        const cachedDraft = readComposerDraft(draftScopeKey);
+        const restoredDraft = restoredField?.value || cachedDraft;
+
+        if (restoredField && !restoredField.value && restoredDraft) restoredField.value = restoredDraft;
+        if (restoredDraft !== cachedDraft) rememberComposerDraft(draftScopeKey, restoredDraft);
+
+        setHasDraft(Boolean(restoredDraft.trim()));
       }
     };
 
@@ -210,10 +277,20 @@ export function useSessionMessageComposerController({
     const restoredDraftTimer = window.setTimeout(draftRestoration.sync, 250);
 
     return () => {
+      if (draftRestorationGenerationRef.current === restorationGeneration) draftRestorationGenerationRef.current += 1;
+
       window.cancelAnimationFrame(frame);
       window.clearTimeout(restoredDraftTimer);
     };
   }, [draftScopeKey, mode]);
+
+  useEffect(() => subscribeComposerDraft(draftScopeKey, (draft) => {
+    const field = mode === "chat" ? textAreaRef.current : textInputRef.current;
+
+    if (field && field.value !== draft) field.value = draft;
+
+    setHasDraft(Boolean(draft.trim()));
+  }), [draftScopeKey, mode]);
 
   useEffect(() => {
     if (!actionRequest) setPendingActionDecision(null);
@@ -221,8 +298,10 @@ export function useSessionMessageComposerController({
 
   return {
     buttonActsAsInterrupt,
+    canUseInput,
     canSubmitDraft,
     composerInputId,
+    connectionNotice,
     handleChatSendButtonClick: actions.handleChatSendButtonClick,
     handleComposerFieldBlur: actions.handleComposerFieldBlur,
     handleComposerFieldFocus: actions.handleComposerFieldFocus,

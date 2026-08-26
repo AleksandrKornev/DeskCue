@@ -7,7 +7,10 @@ import { Tooltip } from "@components/Tooltip";
 import { formatDate } from "@lib/format";
 import { useCurrentAgentSessionActionGuard } from "@modules/agents/useCurrentAgentSessionActionGuard";
 import { ModelRuntimePanel } from "@modules/modelRuntime";
-import { getDeskCueRuntime } from "@runtime";
+import {
+  getDeskCueRuntime,
+  resolveSessionCommandsUnavailableReason
+} from "@runtime";
 
 import { getMarkReviewedSessionId } from "./helpers";
 import styles from "./styles.module.scss";
@@ -16,7 +19,9 @@ import type { AgentTranscriptPanelProps } from "./types";
 import { useAgentTranscriptPanelState } from "./useAgentTranscriptPanelState";
 
 export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: AgentTranscriptPanelProps) {
-  const sessionCommandsEnabled = getDeskCueRuntime().features.sessionCommands;
+  const runtime = getDeskCueRuntime();
+  const sessionCommandsEnabled = runtime.features.sessionCommands;
+  const sessionCommandsUnavailableReason = resolveSessionCommandsUnavailableReason(runtime);
   const {
     attachedManagedSessionId,
     attachedManagedSessionInfo,
@@ -187,7 +192,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
       <div className={clsx(styles.bottom, styles.bottomAttached)}>
         {!sessionCommandsEnabled ? (
           <p className={styles.nextMessageSubtle}>
-            Remote control is disabled for this Cloud connection. Transcript review remains available.
+            {sessionCommandsUnavailableReason}
           </p>
         ) : isReviewOnlyRuntime ? (
           <p className={styles.nextMessageSubtle}>

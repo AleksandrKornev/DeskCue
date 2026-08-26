@@ -1,6 +1,9 @@
 import clsx from "clsx";
 
-import { getDeskCueRuntime } from "@runtime";
+import {
+  getDeskCueRuntime,
+  resolveSessionCommandsUnavailableReason
+} from "@runtime";
 
 import { ActionDecisionPanel } from "./ActionDecisionPanel";
 import { normalizeComposerNotice } from "./helpers";
@@ -9,11 +12,12 @@ import type { SessionMessageComposerProps } from "./types";
 import { useSessionMessageComposerController } from "./useSessionMessageComposerController";
 
 export function SessionMessageComposer(props: SessionMessageComposerProps) {
-  const sessionCommandsEnabled = getDeskCueRuntime().features.sessionCommands;
+  const runtime = getDeskCueRuntime();
+  const sessionCommandsEnabled = runtime.features.sessionCommands;
+  const sessionCommandsUnavailableReason = resolveSessionCommandsUnavailableReason(runtime);
   const {
     mode,
     compactViewport = false,
-    canSendInput,
     inputUnavailableLabel,
     isInterruptingPrompt
   } = props;
@@ -21,8 +25,10 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
 
   const {
     buttonActsAsInterrupt,
+    canUseInput,
     canSubmitDraft,
     composerInputId,
+    connectionNotice,
     handleChatSendButtonClick,
     handleComposerFieldBlur,
     handleComposerFieldFocus,
@@ -48,7 +54,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
     if (mode === "inline") {
       return (
         <p className={styles.nextMessageSubtle}>
-          Remote control is not enabled for this Cloud connection.
+          {sessionCommandsUnavailableReason}
         </p>
       );
     }
@@ -57,12 +63,22 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
       <div className={clsx(styles.chatComposer, compactViewport && styles.chatComposerMinimal)}>
         <div className={styles.chatComposerInputWrap}>
           <textarea
-            aria-label="Remote control disabled"
+            aria-describedby={`${composerInputId}-control-unavailable`}
+            aria-label="Review-only chat"
             className={clsx(styles.field, styles.fieldTextarea)}
             disabled
-            placeholder="Remote control disabled"
+            id={composerInputId}
+            name="session-message"
+            placeholder="Review only"
+            title={sessionCommandsUnavailableReason}
           />
         </div>
+        <p
+          className={styles.nextMessageSubtle}
+          id={`${composerInputId}-control-unavailable`}
+        >
+          {sessionCommandsUnavailableReason}
+        </p>
       </div>
     );
   }
@@ -80,16 +96,17 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
         ) : null}
         <form className={styles.inlineForm} onSubmit={handleSubmit}>
           <input
+            aria-describedby={connectionNotice ? `${composerInputId}-connection` : undefined}
             className={styles.field}
-            disabled={!canSendInput}
-            placeholder={canSendInput ? "continue, explain, fix, or approve" : disabledInputLabel}
+            disabled={!canUseInput}
+            placeholder={canUseInput ? "continue, explain, fix, or approve" : connectionNotice ?? disabledInputLabel}
             ref={textInputRef}
             title={
               shouldShowSharedSessionHint
                 ? sharedSessionHintText ?? undefined
-                : canSendInput
+                : canUseInput
                   ? undefined
-                  : disabledInputLabel
+                  : connectionNotice ?? disabledInputLabel
             }
 
             onChange={(event) => syncHasDraft(event.target.value)}
@@ -100,6 +117,11 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
             {shouldSubmitReplacement ? "Take over" : "Send"}
           </button>
         </form>
+        {connectionNotice ? (
+          <p aria-live="polite" className={styles.nextMessageSubtle} id={`${composerInputId}-connection`}>
+            {connectionNotice}
+          </p>
+        ) : null}
         {shouldShowSharedSessionHint ? (
           <p className={clsx(styles.nextMessageSubtle, styles.sharedSessionHint)}>
             {sharedSessionHintText}
@@ -133,6 +155,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
       ) : (
         <div className={styles.chatComposerInputWrap}>
           <textarea
+            aria-describedby={connectionNotice ? `${composerInputId}-connection` : undefined}
             aria-labelledby={`${composerInputId}-label`}
             className={clsx(
               styles.field,
@@ -140,11 +163,11 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
               styles.transcriptComposerWithButton,
               buttonActsAsInterrupt && styles.transcriptComposerWithInterruptButton
             )}
-            disabled={!canSendInput}
+            disabled={!canUseInput}
             id={composerInputId}
             name="session-message"
             placeholder={
-              canSendInput
+              canUseInput
                 ? compactViewport
                   ? "continue, explain, or unblock the agent"
                   : "continue with the next change, explain the diff, or unblock the agent"
@@ -155,9 +178,9 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
             title={
               shouldShowSharedSessionHint
                 ? sharedSessionHintText ?? undefined
-                : canSendInput
+                : canUseInput
                   ? undefined
-                  : disabledInputLabel
+                  : connectionNotice ?? disabledInputLabel
             }
 
             onChange={(event) => syncHasDraft(event.target.value)}
@@ -180,7 +203,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
             )}
             disabled={
               isInterruptingPrompt ||
-              (buttonActsAsInterrupt ? !canSendInput : (!hasDraft || !canSubmitDraft))
+              (buttonActsAsInterrupt ? !canUseInput : (!hasDraft || !canSubmitDraft))
             }
 
             onClick={handleChatSendButtonClick}
@@ -204,6 +227,11 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
           </button>
         </div>
       )}
+      {connectionNotice ? (
+        <p aria-live="polite" className={styles.nextMessageSubtle} id={`${composerInputId}-connection`}>
+          {connectionNotice}
+        </p>
+      ) : null}
       {shouldShowSharedSessionHint ? (
         <p className={clsx(styles.nextMessageSubtle, styles.sharedSessionHint)}>
           {sharedSessionHintText}

@@ -29,6 +29,8 @@ export type DeskCueRuntime = {
   getCacheScope: () => string | null;
   getRealtimeScope: () => string | null;
   mode: DeskCueRuntimeMode;
+  /** Explains why session mutations are unavailable in a host-controlled runtime. */
+  sessionCommandsUnavailableReason?: string;
   /**
    * Opens an active managed-session preview using a host-owned transport.
    * Cloud injects this boundary so DeskCue never constructs or embeds a
