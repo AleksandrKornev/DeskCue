@@ -47,11 +47,33 @@ describe("SessionMessageComposer", () => {
     try {
       renderComposer({ onSendInput });
 
-      expect(screen.getByRole("textbox", { name: "Remote control disabled" }))
+      expect(screen.getByRole("textbox", { name: "Review-only chat" }))
         .toBeDisabled();
+      expect(screen.getByText(
+        "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+      )).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Review only")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Send message" }))
         .not.toBeInTheDocument();
       expect(onSendInput).not.toHaveBeenCalled();
+    } finally {
+      resetDeskCueRuntimeForTests();
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("owns the single missing-Control reason for read-only inline input", () => {
+    window.history.replaceState({}, "", "/machines/machine-01/deskcue/");
+    initializeDeskCueRuntime(createCloudMachineDeskCueRuntime(window.location));
+
+    try {
+      renderComposer({ mode: "inline" });
+
+      expect(screen.getAllByText(
+        "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+      )).toHaveLength(1);
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument();
     } finally {
       resetDeskCueRuntimeForTests();
       window.history.replaceState({}, "", "/");

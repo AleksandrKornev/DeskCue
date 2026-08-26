@@ -11,6 +11,7 @@ import {
   buildCloudLoginUrl,
   createCloudMachineDeskCueRuntime,
   createLocalDeskCueRuntime,
+  resolveSessionCommandsUnavailableReason,
   releaseDeskCueRuntime,
   readCloudMutationCsrfToken,
   resetDeskCueRuntimeForTests
@@ -78,6 +79,22 @@ describe("DeskCue runtime boundary", () => {
     expect(runtime.features.gitRefresh).toBe(false);
     expect(runtime.features.preview).toBe(false);
     expect(runtime.features.previewControl).toBe(false);
+    expect(runtime.sessionCommandsUnavailableReason).toBe(
+      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+    );
+    expect(resolveSessionCommandsUnavailableReason(runtime)).toBe(
+      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+    );
+  });
+
+  it("normalizes unavailable-command reasons across read-only surfaces", () => {
+    const runtime = {
+      ...createLocalDeskCueRuntime(),
+      sessionCommandsUnavailableReason: "   "
+    };
+
+    expect(resolveSessionCommandsUnavailableReason(runtime))
+      .toBe("Remote control is unavailable for this connection.");
   });
 
   it("rejects malformed machine routes and cross-origin resource URLs", () => {

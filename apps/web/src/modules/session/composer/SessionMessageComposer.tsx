@@ -1,6 +1,9 @@
 import clsx from "clsx";
 
-import { getDeskCueRuntime } from "@runtime";
+import {
+  getDeskCueRuntime,
+  resolveSessionCommandsUnavailableReason
+} from "@runtime";
 
 import { ActionDecisionPanel } from "./ActionDecisionPanel";
 import { normalizeComposerNotice } from "./helpers";
@@ -9,7 +12,9 @@ import type { SessionMessageComposerProps } from "./types";
 import { useSessionMessageComposerController } from "./useSessionMessageComposerController";
 
 export function SessionMessageComposer(props: SessionMessageComposerProps) {
-  const sessionCommandsEnabled = getDeskCueRuntime().features.sessionCommands;
+  const runtime = getDeskCueRuntime();
+  const sessionCommandsEnabled = runtime.features.sessionCommands;
+  const sessionCommandsUnavailableReason = resolveSessionCommandsUnavailableReason(runtime);
   const {
     mode,
     compactViewport = false,
@@ -49,7 +54,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
     if (mode === "inline") {
       return (
         <p className={styles.nextMessageSubtle}>
-          Remote control is not enabled for this Cloud connection.
+          {sessionCommandsUnavailableReason}
         </p>
       );
     }
@@ -58,12 +63,22 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
       <div className={clsx(styles.chatComposer, compactViewport && styles.chatComposerMinimal)}>
         <div className={styles.chatComposerInputWrap}>
           <textarea
-            aria-label="Remote control disabled"
+            aria-describedby={`${composerInputId}-control-unavailable`}
+            aria-label="Review-only chat"
             className={clsx(styles.field, styles.fieldTextarea)}
             disabled
-            placeholder="Remote control disabled"
+            id={composerInputId}
+            name="session-message"
+            placeholder="Review only"
+            title={sessionCommandsUnavailableReason}
           />
         </div>
+        <p
+          className={styles.nextMessageSubtle}
+          id={`${composerInputId}-control-unavailable`}
+        >
+          {sessionCommandsUnavailableReason}
+        </p>
       </div>
     );
   }

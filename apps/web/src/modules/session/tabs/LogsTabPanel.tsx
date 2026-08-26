@@ -1,6 +1,7 @@
 import clsx from "clsx";
 
 import { SessionMessageComposer } from "@modules/session/composer";
+import { getDeskCueRuntime } from "@runtime";
 
 import { DebugEventList } from "./DebugEventList";
 import styles from "./styles.module.scss";
@@ -25,6 +26,8 @@ export function LogsTabPanel({
   onInterruptPrompt,
   onSendInput,
 }: LogsTabPanelProps) {
+  const sessionCommandsEnabled = getDeskCueRuntime().features.sessionCommands;
+
   return (
     <div className={clsx(styles.tabPanel, styles.stackLarge)}>
       <TabPanelSurface
@@ -42,7 +45,7 @@ export function LogsTabPanel({
         />
       </TabPanelSurface>
 
-      {!hasSourceSession ? (
+      {!hasSourceSession && sessionCommandsEnabled ? (
         <TabPanelSurface
           title="Send message"
           subtitle="Use this to reply to a manual command"
