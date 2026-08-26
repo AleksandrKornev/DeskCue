@@ -19,6 +19,7 @@ export function LogsTabPanel({
   isInterruptingPrompt,
   isPromptInFlight,
   isPromptQueued,
+  liveUpdatesConnection,
   sharedSessionHint,
   viewerCount,
   onInterruptPrompt,
@@ -55,6 +56,7 @@ export function LogsTabPanel({
             isInterruptingPrompt={isInterruptingPrompt}
             isPromptInFlight={isPromptInFlight}
             isPromptQueued={isPromptQueued}
+            liveUpdatesConnection={liveUpdatesConnection}
             mode="inline"
             onInterruptPrompt={onInterruptPrompt}
             onSendInput={onSendInput}

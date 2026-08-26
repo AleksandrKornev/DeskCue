@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createCloudMachineDeskCueRuntime,
@@ -10,10 +10,16 @@ import {
 import { SessionMessageComposer } from "./SessionMessageComposer";
 import type { SessionMessageComposerProps } from "./types";
 
+const requestConfirmation = vi.hoisted(() => vi.fn());
+
+vi.mock("@components/ModalDialog", () => ({ requestConfirmation }));
+
+let composerSequence = 0;
+
 function renderComposer(overrides: Partial<SessionMessageComposerProps> = {}) {
   const props: SessionMessageComposerProps = {
     canSendInput: true,
-    draftScopeKey: "session:test",
+    draftScopeKey: `session:test:${composerSequence += 1}`,
     isInterruptingPrompt: false,
     isPromptInFlight: false,
     mode: "chat",
@@ -22,12 +28,17 @@ function renderComposer(overrides: Partial<SessionMessageComposerProps> = {}) {
     ...overrides
   };
 
-  render(<SessionMessageComposer {...props} />);
+  const view = render(<SessionMessageComposer {...props} />);
 
-  return props;
+  return { props, ...view };
 }
 
 describe("SessionMessageComposer", () => {
+  beforeEach(() => {
+    requestConfirmation.mockReset();
+    requestConfirmation.mockResolvedValue(true);
+  });
+
   it("does not expose remote commands when the Cloud transport is read only", () => {
     window.history.replaceState({}, "", "/machines/machine-01/deskcue/");
     initializeDeskCueRuntime(createCloudMachineDeskCueRuntime(window.location));
@@ -218,5 +229,428 @@ describe("SessionMessageComposer", () => {
         actionDecision: "approve"
       });
     });
+  });
+
+  it("keeps a draft visible but blocks sending until live updates reconnect", () => {
+    const draftScopeKey = "session:offline-draft";
+    const onSendInput = vi.fn(() => Promise.resolve(true));
+    const firstView = renderComposer({
+      draftScopeKey,
+      liveUpdatesConnection: { lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "live" },
+      onSendInput
+    });
+    const liveField = screen.getByRole("textbox", { name: "Next message" });
+
+    fireEvent.change(liveField, { target: { value: "keep this reconnect draft" } });
+
+    firstView.rerender(
+      <SessionMessageComposer
+        {...firstView.props}
+        liveUpdatesConnection={{ lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "offline" }}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("keep this reconnect draft");
+    expect(screen.getByText(/Offline — your draft is saved/u)).toBeInTheDocument();
+
+    firstView.unmount();
+
+    const reconnectView = renderComposer({
+      draftScopeKey,
+      liveUpdatesConnection: { lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "reconnecting" },
+      onSendInput
+    });
+    const reconnectingField = screen.getByRole("textbox", { name: "Next message" });
+
+    expect(reconnectingField).toBeDisabled();
+    expect(reconnectingField).toHaveValue("keep this reconnect draft");
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    expect(screen.getByText(/Reconnecting — your draft is saved/u)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(onSendInput).not.toHaveBeenCalled();
+
+    reconnectView.rerender(
+      <SessionMessageComposer
+        {...reconnectView.props}
+        liveUpdatesConnection={{ lastSyncedAt: "2026-08-26T10:00:05.000Z", status: "live" }}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "Next message" })).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("keep this reconnect draft");
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+  });
+
+  it("clears the cached draft only after the send is accepted", async () => {
+    const draftScopeKey = "session:accepted-draft";
+    const onSendInput = vi.fn(() => Promise.resolve(true));
+    const firstView = renderComposer({ draftScopeKey, onSendInput });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "accepted once" }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(onSendInput).toHaveBeenCalledOnce());
+
+    firstView.unmount();
+    renderComposer({ draftScopeKey, onSendInput });
+
+    expect(screen.getByRole("textbox", { name: "Next message" })).toHaveValue("");
+  });
+
+  it("blocks approval and interrupt actions while offline", () => {
+    const onInterruptPrompt = vi.fn();
+    const onSendInput = vi.fn(() => Promise.resolve(true));
+    const offlineConnection = { lastSyncedAt: null, status: "offline" } as const;
+    const approvalView = renderComposer({
+      actionRequest: {
+        command: "apply patch",
+        kind: "approval",
+        reason: "Agent wants to edit files",
+        requestedAt: "2026-08-26T10:00:00.000Z"
+      },
+      liveUpdatesConnection: offlineConnection,
+      onSendInput
+    });
+
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(onSendInput).not.toHaveBeenCalled();
+
+    approvalView.unmount();
+    renderComposer({
+      isPromptInFlight: true,
+      liveUpdatesConnection: offlineConnection,
+      onInterruptPrompt
+    });
+
+    expect(screen.getByRole("button", { name: "Interrupt prompt" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Interrupt prompt" }));
+    expect(onInterruptPrompt).not.toHaveBeenCalled();
+  });
+
+  it("rechecks transport after a pending takeover confirmation", async () => {
+    let resolveConfirmation: ((confirmed: boolean) => void) | undefined;
+    const confirmation = new Promise<boolean>((resolve) => {
+      resolveConfirmation = resolve;
+    });
+    const onSendInput = vi.fn(() => Promise.resolve(true));
+    const view = renderComposer({
+      isPromptInFlight: true,
+      liveUpdatesConnection: { lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "live" },
+      onSendInput,
+      viewerCount: 2
+    });
+
+    requestConfirmation.mockReturnValue(confirmation);
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "replace after confirmation" }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Interrupt current prompt and send message" }));
+
+    await waitFor(() => expect(requestConfirmation).toHaveBeenCalledOnce());
+
+    view.rerender(
+      <SessionMessageComposer
+        {...view.props}
+        liveUpdatesConnection={{ lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "offline" }}
+      />
+    );
+
+    await act(() => {
+      resolveConfirmation?.(true);
+      return confirmation;
+    });
+
+    expect(onSendInput).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("replace after confirmation");
+  });
+
+  it("invalidates a pending takeover confirmation when the composer unmounts", async () => {
+    let resolveConfirmation: ((confirmed: boolean) => void) | undefined;
+    const confirmation = new Promise<boolean>((resolve) => {
+      resolveConfirmation = resolve;
+    });
+    const draftScopeKey = "session:unmounted-confirmation";
+    const oldOnSendInput = vi.fn(() => Promise.resolve(true));
+    const oldView = renderComposer({
+      draftScopeKey,
+      isPromptInFlight: true,
+      liveUpdatesConnection: { lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "live" },
+      onSendInput: oldOnSendInput,
+      viewerCount: 2
+    });
+
+    requestConfirmation.mockReturnValue(confirmation);
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "survive composer replacement" }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Interrupt current prompt and send message" }));
+
+    await waitFor(() => expect(requestConfirmation).toHaveBeenCalledOnce());
+
+    oldView.unmount();
+
+    const newOnSendInput = vi.fn(() => Promise.resolve(true));
+
+    renderComposer({
+      draftScopeKey,
+      liveUpdatesConnection: { lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "offline" },
+      onSendInput: newOnSendInput
+    });
+
+    await act(() => {
+      resolveConfirmation?.(true);
+      return confirmation;
+    });
+
+    expect(oldOnSendInput).not.toHaveBeenCalled();
+    expect(newOnSendInput).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("survive composer replacement");
+  });
+
+  it("invalidates a pending takeover confirmation when the draft scope changes", async () => {
+    let resolveConfirmation: ((confirmed: boolean) => void) | undefined;
+    const confirmation = new Promise<boolean>((resolve) => {
+      resolveConfirmation = resolve;
+    });
+    const oldOnSendInput = vi.fn(() => Promise.resolve(true));
+    const view = renderComposer({
+      draftScopeKey: "session:old-scope",
+      isPromptInFlight: true,
+      liveUpdatesConnection: { lastSyncedAt: "2026-08-26T10:00:00.000Z", status: "live" },
+      onSendInput: oldOnSendInput,
+      viewerCount: 2
+    });
+
+    requestConfirmation.mockReturnValue(confirmation);
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "old scope draft" }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Interrupt current prompt and send message" }));
+
+    await waitFor(() => expect(requestConfirmation).toHaveBeenCalledOnce());
+
+    const newOnSendInput = vi.fn(() => Promise.resolve(true));
+
+    view.rerender(
+      <SessionMessageComposer
+        {...view.props}
+        draftScopeKey="session:new-scope"
+        isPromptInFlight={false}
+        onSendInput={newOnSendInput}
+      />
+    );
+
+    await act(() => {
+      resolveConfirmation?.(true);
+      return confirmation;
+    });
+
+    expect(oldOnSendInput).not.toHaveBeenCalled();
+    expect(newOnSendInput).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Next message" })).toHaveValue("");
+  });
+
+  it("does not clear a newer same-scope draft when an obsolete send is accepted", async () => {
+    let resolveSend: ((sent: boolean) => void) | undefined;
+    const pendingSend = new Promise<boolean>((resolve) => {
+      resolveSend = resolve;
+    });
+    const draftScopeKey = "session:accepted-after-remount";
+    const oldOnSendInput = vi.fn(() => pendingSend);
+    const oldView = renderComposer({ draftScopeKey, onSendInput: oldOnSendInput });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "old accepted draft" }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(oldOnSendInput).toHaveBeenCalledOnce());
+
+    oldView.unmount();
+
+    const newView = renderComposer({ draftScopeKey });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "new draft after accepted send" }
+    });
+
+    await act(() => {
+      resolveSend?.(true);
+      return pendingSend;
+    });
+
+    newView.unmount();
+    renderComposer({ draftScopeKey });
+
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("new draft after accepted send");
+  });
+
+  it("clears an accepted draft from a same-scope composer mounted while send was pending", async () => {
+    let resolveSend: ((sent: boolean) => void) | undefined;
+    const pendingSend = new Promise<boolean>((resolve) => {
+      resolveSend = resolve;
+    });
+    const draftScopeKey = "session:accepted-after-unedited-remount";
+    const oldOnSendInput = vi.fn(() => pendingSend);
+    const oldView = renderComposer({ draftScopeKey, onSendInput: oldOnSendInput });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "accepted draft must not return" }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(oldOnSendInput).toHaveBeenCalledOnce());
+
+    oldView.unmount();
+
+    const newView = renderComposer({ draftScopeKey });
+
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("accepted draft must not return");
+
+    await act(() => {
+      resolveSend?.(true);
+      return pendingSend;
+    });
+
+    expect(screen.getByRole("textbox", { name: "Next message" })).toHaveValue("");
+
+    newView.unmount();
+    renderComposer({ draftScopeKey });
+
+    expect(screen.getByRole("textbox", { name: "Next message" })).toHaveValue("");
+  });
+
+  it("does not restore a submitted cached draft while its send is pending", async () => {
+    let resolveSend: ((sent: boolean) => void) | undefined;
+    const pendingSend = new Promise<boolean>((resolve) => {
+      resolveSend = resolve;
+    });
+    const draftScopeKey = "session:pending-restoration-timer";
+    const preloadView = renderComposer({ draftScopeKey });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "cached draft sent before timer" }
+    });
+
+    preloadView.unmount();
+
+    const onSendInput = vi.fn(() => pendingSend);
+
+    renderComposer({ draftScopeKey, onSendInput });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(onSendInput).toHaveBeenCalledOnce());
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 300)));
+
+    expect(screen.getByRole("textbox", { name: "Next message" })).toHaveValue("");
+
+    await act(() => {
+      resolveSend?.(true);
+      return pendingSend;
+    });
+
+    expect(screen.getByRole("textbox", { name: "Next message" })).toHaveValue("");
+  });
+
+  it("does not restore an obsolete rejected draft over a newer same-scope draft", async () => {
+    let resolveSend: ((sent: boolean) => void) | undefined;
+    const pendingSend = new Promise<boolean>((resolve) => {
+      resolveSend = resolve;
+    });
+    const draftScopeKey = "session:rejected-after-remount";
+    const oldOnSendInput = vi.fn(() => pendingSend);
+    const oldView = renderComposer({ draftScopeKey, onSendInput: oldOnSendInput });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "old rejected draft" }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(oldOnSendInput).toHaveBeenCalledOnce());
+
+    oldView.unmount();
+
+    const newView = renderComposer({ draftScopeKey });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "new draft after rejected send" }
+    });
+
+    await act(() => {
+      resolveSend?.(false);
+      return pendingSend;
+    });
+
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("new draft after rejected send");
+
+    newView.unmount();
+    renderComposer({ draftScopeKey });
+
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("new draft after rejected send");
+  });
+
+  it("does not clear a newer draft when an approval decision finishes", async () => {
+    let resolveDecision: ((sent: boolean) => void) | undefined;
+    const pendingDecision = new Promise<boolean>((resolve) => {
+      resolveDecision = resolve;
+    });
+    const draftScopeKey = "session:approval-with-new-draft";
+    const onSendInput = vi.fn(() => pendingDecision);
+    const view = renderComposer({
+      actionRequest: {
+        command: "apply patch",
+        kind: "approval",
+        reason: "Agent wants to edit files",
+        requestedAt: "2026-08-26T10:00:00.000Z"
+      },
+      draftScopeKey,
+      onSendInput
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(onSendInput).toHaveBeenCalledOnce());
+
+    view.unmount();
+
+    const newView = renderComposer({ draftScopeKey });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Next message" }), {
+      target: { value: "draft typed while approval is pending" }
+    });
+
+    await act(() => {
+      resolveDecision?.(true);
+      return pendingDecision;
+    });
+
+    newView.unmount();
+    renderComposer({ draftScopeKey });
+
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveValue("draft typed while approval is pending");
   });
 });

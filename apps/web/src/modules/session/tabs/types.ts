@@ -6,6 +6,7 @@ import type {
   SessionActionRequest,
   SessionDetail
 } from "@deskcue/protocol";
+import type { LiveUpdatesConnectionState } from "@models/liveUpdatesConnection";
 import type { SendInputOptions } from "@models/promptDelivery";
 import type { DiffPart } from "@modules/transcript";
 
@@ -34,6 +35,7 @@ export type LogsTabPanelProps = {
   isInterruptingPrompt: boolean;
   isPromptInFlight: boolean;
   isPromptQueued: boolean;
+  liveUpdatesConnection: LiveUpdatesConnectionState;
   sharedSessionHint: string | null;
   viewerCount: number;
   onInterruptPrompt: () => void;

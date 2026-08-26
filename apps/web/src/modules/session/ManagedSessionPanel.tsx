@@ -298,6 +298,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                   isInterruptingPrompt={isInterruptingPrompt}
                   isPromptInFlight={composerPromptInFlight}
                   isPromptQueued={isPromptQueued}
+                  liveUpdatesConnection={liveUpdatesConnection}
                   onInterruptPrompt={onInterruptPrompt}
                   onSendInput={onSendInput}
                   sharedSessionHint={sharedSessionHint}
