@@ -18,6 +18,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
   const {
     mode,
     compactViewport = false,
+    canSendInput,
     inputUnavailableLabel,
     isInterruptingPrompt
   } = props;
@@ -49,6 +50,8 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
     textInputRef,
     visibleActionRequest
   } = useSessionMessageComposerController(props);
+  const composerNotice = canSendInput ? connectionNotice : disabledInputLabel;
+  const unavailableInputLabel = canSendInput ? "Waiting for connection" : "Input unavailable";
 
   if (!sessionCommandsEnabled) {
     if (mode === "inline") {
@@ -96,18 +99,15 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
         ) : null}
         <form className={styles.inlineForm} onSubmit={handleSubmit}>
           <input
-            aria-describedby={connectionNotice ? `${composerInputId}-connection` : undefined}
+            aria-describedby={composerNotice ? `${composerInputId}-unavailable` : undefined}
+            aria-label="Next message"
             className={styles.field}
             disabled={!canUseInput}
-            placeholder={canUseInput ? "continue, explain, fix, or approve" : connectionNotice ?? disabledInputLabel}
+            id={composerInputId}
+            name="session-message"
+            placeholder={canUseInput ? "continue, explain, fix, or approve" : unavailableInputLabel}
             ref={textInputRef}
-            title={
-              shouldShowSharedSessionHint
-                ? sharedSessionHintText ?? undefined
-                : canUseInput
-                  ? undefined
-                  : connectionNotice ?? disabledInputLabel
-            }
+            title={shouldShowSharedSessionHint ? sharedSessionHintText ?? undefined : undefined}
 
             onChange={(event) => syncHasDraft(event.target.value)}
             onBlur={handleComposerFieldBlur}
@@ -117,9 +117,9 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
             {shouldSubmitReplacement ? "Take over" : "Send"}
           </button>
         </form>
-        {connectionNotice ? (
-          <p aria-live="polite" className={styles.nextMessageSubtle} id={`${composerInputId}-connection`}>
-            {connectionNotice}
+        {composerNotice ? (
+          <p aria-live="polite" className={styles.nextMessageSubtle} id={`${composerInputId}-unavailable`}>
+            {composerNotice}
           </p>
         ) : null}
         {shouldShowSharedSessionHint ? (
@@ -155,7 +155,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
       ) : (
         <div className={styles.chatComposerInputWrap}>
           <textarea
-            aria-describedby={connectionNotice ? `${composerInputId}-connection` : undefined}
+            aria-describedby={composerNotice ? `${composerInputId}-unavailable` : undefined}
             aria-labelledby={`${composerInputId}-label`}
             className={clsx(
               styles.field,
@@ -171,17 +171,11 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
                 ? compactViewport
                   ? "continue, explain, or unblock the agent"
                   : "continue with the next change, explain the diff, or unblock the agent"
-                : disabledInputLabel
+                : unavailableInputLabel
             }
 
             ref={textAreaRef}
-            title={
-              shouldShowSharedSessionHint
-                ? sharedSessionHintText ?? undefined
-                : canUseInput
-                  ? undefined
-                  : connectionNotice ?? disabledInputLabel
-            }
+            title={shouldShowSharedSessionHint ? sharedSessionHintText ?? undefined : undefined}
 
             onChange={(event) => syncHasDraft(event.target.value)}
             onBlur={handleComposerFieldBlur}
@@ -227,9 +221,9 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
           </button>
         </div>
       )}
-      {connectionNotice ? (
-        <p aria-live="polite" className={styles.nextMessageSubtle} id={`${composerInputId}-connection`}>
-          {connectionNotice}
+      {composerNotice ? (
+        <p aria-live="polite" className={styles.nextMessageSubtle} id={`${composerInputId}-unavailable`}>
+          {composerNotice}
         </p>
       ) : null}
       {shouldShowSharedSessionHint ? (

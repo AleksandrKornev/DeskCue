@@ -1,6 +1,7 @@
 import type {
   AgentSessionDetail,
   AgentSessionSummary,
+  PromptRecoveryState,
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
@@ -284,6 +285,35 @@ export function resolveInputAvailability(
   return {
     canSendInput
   };
+}
+
+export function resolveInputUnavailableLabel({
+  canSendInput,
+  inputBlockedReason,
+  isExternalSourceTurn,
+  promptRecovery,
+  sourceSessionId
+}: {
+  canSendInput: boolean;
+  inputBlockedReason: string | null | undefined;
+  isExternalSourceTurn: boolean;
+  promptRecovery: PromptRecoveryState | null;
+  sourceSessionId: string | null | undefined;
+}) {
+  if (canSendInput) return null;
+  if (isExternalSourceTurn) return "Turn active outside DeskCue";
+
+  const explicitInputBlockedReason = inputBlockedReason?.trim();
+
+  if (promptRecovery?.phase === "not_sent" && explicitInputBlockedReason) {
+    return explicitInputBlockedReason;
+  }
+
+  if (promptRecovery) return "DeskCue lost control of this turn";
+  if (explicitInputBlockedReason) return explicitInputBlockedReason;
+  if (sourceSessionId) return "This chat is view only";
+
+  return "Input unavailable";
 }
 
 export function resolvePromptInFlight({
