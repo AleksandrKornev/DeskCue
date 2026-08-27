@@ -53,6 +53,7 @@ export function TranscriptAttachmentCard(props: {
     handleOpenLocalAsset,
     notifyDownloadStarting,
     openPreview,
+    retryImagePreview,
     setPreviewOpen
   } = useTranscriptAttachmentPreview({
     assetContext,
@@ -67,6 +68,9 @@ export function TranscriptAttachmentCard(props: {
     part.kind === "local-image" &&
     !effectivePreviewUrl &&
     imagePreviewState !== "error";
+  const isImagePreviewError = hasImagePreview && imagePreviewState === "error";
+
+  // runtime-helper-placement: allow -- card action dispatch depends on this render's preview and asset state.
 
   function handlePrimaryCardAction() {
     if (previewKind !== "none" && previewUrl) {
@@ -79,9 +83,7 @@ export function TranscriptAttachmentCard(props: {
       return;
     }
 
-    if (openHref) {
-      window.open(openHref, "_blank", "noopener,noreferrer");
-    }
+    if (openHref) window.open(openHref, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -97,9 +99,9 @@ export function TranscriptAttachmentCard(props: {
       >
         {hasImagePreview ? (
           <button
-            aria-label={`Preview ${displayName}`}
+            aria-label={isImagePreviewError ? `Retry preview ${displayName}` : `Preview ${displayName}`}
             className={styles.attachmentPreview}
-            onClick={openPreview}
+            onClick={isImagePreviewError ? retryImagePreview : openPreview}
             type="button"
           >
             {effectivePreviewUrl ? (
@@ -107,6 +109,11 @@ export function TranscriptAttachmentCard(props: {
             ) : isImagePreviewPending ? (
               <span className={styles.attachmentPreviewLoading} aria-label="Loading image preview">
                 <span className={styles.attachmentPreviewSpinner} aria-hidden="true" />
+              </span>
+            ) : isImagePreviewError ? (
+              <span aria-live="polite" className={styles.attachmentPreviewError}>
+                <strong>Preview unavailable</strong>
+                <span>Retry</span>
               </span>
             ) : (
               <span className={styles.attachmentPreviewPlaceholder} aria-hidden="true">
