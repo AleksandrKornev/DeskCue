@@ -23,6 +23,7 @@ export function formatCount(count: number, exact: boolean) {
 export function isTimestampOlder(incoming: string, current: string) {
   const incomingTimestamp = Date.parse(incoming);
   const currentTimestamp = Date.parse(current);
+
   if (Number.isFinite(incomingTimestamp) && Number.isFinite(currentTimestamp)) {
     return incomingTimestamp < currentTimestamp;
   }
@@ -30,14 +31,15 @@ export function isTimestampOlder(incoming: string, current: string) {
   return incoming < current;
 }
 
-export function findSelectedManagedSessionSummary(
+function findSelectedManagedSessionIdentity(
   sessions: SessionSummary[],
   selectedSessionId: string,
   selectedSession: SessionDetail | null
 ) {
-  return selectedSessionId && selectedSession?.id !== selectedSessionId
-    ? sessions.find((session) => session.id === selectedSessionId) ?? null
-    : null;
+  if (!selectedSessionId) return null;
+  if (selectedSession?.id === selectedSessionId) return selectedSession;
+
+  return sessions.find((session) => session.id === selectedSessionId) ?? null;
 }
 
 export function findActiveTakenOverAgentSessionSummary(
@@ -46,14 +48,13 @@ export function findActiveTakenOverAgentSessionSummary(
   selectedSessionId: string,
   selectedSession: SessionDetail | null
 ) {
-  const selectedSessionSummary = findSelectedManagedSessionSummary(
+  const selectedManagedSession = findSelectedManagedSessionIdentity(
     sessions,
     selectedSessionId,
     selectedSession
   );
-  const adapterId = selectedSession?.adapterId ?? selectedSessionSummary?.adapterId;
-  const sourceSessionId =
-    selectedSession?.sourceSessionId ?? selectedSessionSummary?.sourceSessionId;
+  const adapterId = selectedManagedSession?.adapterId;
+  const sourceSessionId = selectedManagedSession?.sourceSessionId;
 
   return sourceSessionId
     ? agentSessions.find(
@@ -81,14 +82,13 @@ export function getActiveTakenOverAgentSessionSummaryId(
     return activeSummary.id;
   }
 
-  const selectedSessionSummary = findSelectedManagedSessionSummary(
+  const selectedManagedSession = findSelectedManagedSessionIdentity(
     sessions,
     selectedSessionId,
     selectedSession
   );
-  const adapterId = selectedSession?.adapterId ?? selectedSessionSummary?.adapterId;
-  const sourceSessionId =
-    selectedSession?.sourceSessionId ?? selectedSessionSummary?.sourceSessionId;
+  const adapterId = selectedManagedSession?.adapterId;
+  const sourceSessionId = selectedManagedSession?.sourceSessionId;
 
   return adapterId && sourceSessionId ? `${adapterId}:${sourceSessionId}` : "";
 }
@@ -107,6 +107,7 @@ export function isStructurallyEqual(left: unknown, right: unknown) {
 
 export function hasSameObjectFields(target: object, patch: object) {
   const indexedTarget = target as Record<string, unknown>;
+
   return Object.entries(patch).every(([key, value]) =>
     isStructurallyEqual(indexedTarget[key], value)
   );
