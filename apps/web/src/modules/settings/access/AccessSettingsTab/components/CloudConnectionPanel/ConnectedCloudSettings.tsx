@@ -54,7 +54,7 @@ export function ConnectedCloudSettings({
         />
         <p className={styles.permissionsBoundary}>
           DeskCue Cloud cannot increase these permissions. Changes are accepted only from
-          this machine in Settings → Access → Cloud.
+          this machine in Settings → Connections → DeskCue Cloud.
         </p>
         <PermissionFields
           className={styles.permissionsGrid}

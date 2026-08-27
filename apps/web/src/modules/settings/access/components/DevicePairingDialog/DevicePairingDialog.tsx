@@ -90,7 +90,8 @@ export function DevicePairingDialog({
           placeholder="https://deskcue.example.com or http://<your-lan-ip>:4100"
         />
         <small>
-          Select saved hosts from Security, or use custom for a one-time LAN IP, domain, VPN name, or proxy URL.
+          Select saved addresses from Connections, or use custom for a one-time LAN IP,
+          domain, VPN name, or proxy URL.
         </small>
       </label>
       <PairingQrCode value={activePairingWebUrl} />
@@ -166,7 +167,8 @@ export function DevicePairingDialog({
       ) : null}
       {!pairingLink.warnings?.length && isLoopbackPairingLink(pairingLink.webUrl) ? (
         <p className={styles.pairingWarning}>
-          This link uses localhost; add a reachable address in Access and create a new link
+          This link uses localhost; add a reachable address under Connections → Manage
+          device access and create a new link
         </p>
       ) : null}
     </Modal>

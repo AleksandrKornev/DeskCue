@@ -17,9 +17,9 @@ the same LAN.
    http://127.0.0.1:4100/settings?tab=access
    ```
 
-3. Enable `Require access token` on the Security tab
+3. Under Connections → Access protection, enable `Require access token`
 
-4. Open the Access tab and create a device pairing link
+4. Under Connections → Pair devices, create a device pairing link
 
 5. Open that pairing link from the target device or browser
 

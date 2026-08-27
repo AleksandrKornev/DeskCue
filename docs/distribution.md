@@ -38,7 +38,7 @@ builds and serves the dashboard from the daemon. `npm run dev` is still
 available for contributors who want Vite hot reload on
 `http://localhost:4173`.
 
-The source-checkout daemon listens on LAN by default. The Access page shows the
+The source-checkout daemon listens on LAN by default. The Connections tab shows the
 current exposure level and highlights when access protection is off. For another
 browser or phone on the same LAN, request a pairing link from the host machine:
 

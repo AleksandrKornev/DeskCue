@@ -61,7 +61,7 @@ See [Environment Configuration](./environment.md).
 
 ## Access from another device
 
-Authentication is enabled by default. Open Settings > Access on the host and
+Authentication is enabled by default. Open Settings > Connections on the host and
 create a one-time pairing link for the target browser or phone. Each browser
 receives a separate revocable device credential; the daemon stores only its
 hash.

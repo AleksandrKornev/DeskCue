@@ -18,7 +18,7 @@ export function formatPairingHostSourceLabel(
   isSavedOrigin: boolean
 ) {
   if (isSavedOrigin) {
-    return "Saved Access host";
+    return "Saved connection address";
   }
 
   if (isCustomOrigin) {
@@ -46,26 +46,32 @@ export function formatPairingHostSourceDescription(
   isSavedOrigin: boolean
 ) {
   if (isSavedOrigin) {
-    return "Uses a reusable address from the Access tab. Update that list there when your LAN IP, domain, VPN name, or proxy URL changes.";
+    return "Uses a reusable address from Connections. Update Connection addresses there when " +
+      "your LAN IP, domain, VPN name, or proxy URL changes.";
   }
 
   if (isCustomOrigin) {
-    return "Uses the address entered above for this one link. It must serve the DeskCue web app and route /api requests to this machine.";
+    return "Uses the address entered above for this one link. It must serve the DeskCue web app " +
+      "and route /api requests to this machine.";
   }
 
   if (pairingLink.hostSource === "public_host") {
-    return "Uses the Public host setting from Access. This is the right mode for a domain, VPN hostname, HTTPS reverse proxy, or stable self-hosted URL.";
+    return "Uses the Public host setting from Connections. This is the right mode for a domain, " +
+      "VPN hostname, HTTPS reverse proxy, or stable self-hosted URL.";
   }
 
   if (pairingLink.hostSource === "lan_address") {
-    return "Uses a detected LAN address. It works only while the other device can reach this machine on the same network or VPN, and the IP can change.";
+    return "Uses a detected LAN address. It works only while the other device can reach this " +
+      "machine on the same network or VPN, and the IP can change.";
   }
 
   if (pairingLink.hostSource === "request_host") {
-    return "Uses the host from this browser. If another device cannot open it, add a reachable Access host or Public host.";
+    return "Uses the host from this browser. If another device cannot open it, add a reachable " +
+      "connection address or Public host.";
   }
 
-  return "If this address is not reachable from the other device, add a reachable Access host and create a new link.";
+  return "If this address is not reachable from the other device, add a reachable connection " +
+    "address and create a new link.";
 }
 
 export function isLoopbackPairingLink(value: string) {

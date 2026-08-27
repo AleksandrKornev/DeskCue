@@ -276,7 +276,7 @@ Protected LAN development with one-time pairing:
 DESKCUE_AUTH_REQUIRED=true
 ```
 
-The `/settings?tab=access` page can create a device pairing link. For device links,
+The Connections tab (`/settings?tab=access`) can create a device pairing link. For device links,
 DeskCue uses `DESKCUE_PUBLIC_HOST` when configured; otherwise it tries the first
 detected LAN IPv4 address. Source-checkout defaults already listen on LAN. If
 you changed `DESKCUE_BIND_HOST` back to `127.0.0.1`, set it to `0.0.0.0` and
