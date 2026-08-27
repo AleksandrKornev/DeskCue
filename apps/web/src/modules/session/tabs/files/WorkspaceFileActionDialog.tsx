@@ -89,7 +89,7 @@ export function WorkspaceFileActionDialog({
           >{pendingAction === "download" ? "Downloading…" : "Download"}</button>
         </div>
       ) : null}
-      description={file ? (
+      description={file && file.path !== file.name ? (
         <span className={styles.fileActionDialogPath}>{file.path}</span>
       ) : null}
       isOpen={file !== null}
