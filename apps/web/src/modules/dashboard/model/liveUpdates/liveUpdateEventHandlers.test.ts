@@ -764,6 +764,56 @@ test("reloads an existing selected detail when realtime lifecycle changes withou
   assert.deepEqual(loaded, ["managed-1"]);
 });
 
+test("reloads an active diff detail when realtime Git state advances", async () => {
+  const loaded: Array<[string, unknown]> = [];
+  const current = createManagedSourceSession("running");
+  const update = {
+    ...current,
+    git: {
+      ...current.git,
+      changedFiles: ["next.txt"],
+      isDirty: true,
+      lastUpdatedAt: "2026-07-31T10:00:06.000Z"
+    }
+  };
+
+  const store = {
+    mergeOverviewSession: () => undefined,
+    mergeSelectedSessionSummary: () => undefined
+  } as unknown as DashboardStore;
+
+  handleLiveUpdateEvent({
+    activeTabRef: { current: "diff" },
+    activeTakenOverAgentSessionIdRef: { current: "" },
+    event: {
+      type: "session.updated",
+      payload: update
+    } satisfies ServerEvent,
+    loadSessionRef: {
+      current: (sessionId, options) => {
+        loaded.push([sessionId, options]);
+        return Promise.resolve(null);
+      }
+    },
+    refreshTakenOverTranscriptNow: () => undefined,
+    scheduleSelectedAgentSessionRefresh: () => undefined,
+    scheduleTakenOverTranscriptRefresh: () => undefined,
+    selectedAgentSessionIdRef: { current: "" },
+    selectedSessionIdRef: { current: "managed-1" },
+    selectedSessionLogQueue: {
+      flush: () => undefined,
+      push: () => undefined,
+      teardown: () => undefined
+    },
+    selectedSessionRef: { current: current as never },
+    store
+  });
+
+  await Promise.resolve();
+
+  assert.deepEqual(loaded, [["managed-1", { sessionView: "diff", silent: true }]]);
+});
+
 test("does not refresh a mismatched active source after a terminal session update", () => {
   const immediateRefreshes: Array<[string | null | undefined, unknown]> = [];
   const scheduledRefreshes: Array<[string | null | undefined, unknown]> = [];

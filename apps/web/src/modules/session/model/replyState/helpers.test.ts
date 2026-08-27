@@ -406,6 +406,26 @@ describe("managed session reply state helpers", () => {
     }).canSendInput, false);
   });
 
+  it("permits an explicitly resumable failed source shell", () => {
+    const failedClaudeShell = createSessionShell({
+      adapterId: "claude-code",
+      canSendInput: true,
+      sourceSessionId: "source-claude",
+      status: "failed"
+    });
+    const failedGenericShell = createSessionShell({
+      canSendInput: false,
+      sourceSessionId: null,
+      status: "failed"
+    });
+
+    assert.equal(resolveInputAvailability(failedClaudeShell).canSendInput, true);
+    assert.equal(resolveInputAvailability(failedGenericShell).canSendInput, false);
+    assert.equal(resolveInputAvailability(failedClaudeShell, {
+      blockExternalSourceInput: true
+    }).canSendInput, false);
+  });
+
   it("keeps the transcript skeleton during reload even when a pending prompt is restored", () => {
     assert.equal(shouldShowManagedSessionChatLoading({
       hasConversationContent: false,

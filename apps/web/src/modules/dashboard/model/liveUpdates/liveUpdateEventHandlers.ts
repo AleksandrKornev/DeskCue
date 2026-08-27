@@ -20,6 +20,7 @@ import type { SessionTab } from "@models/sessionTabs";
 import type { LoadOptions } from "@modules/dashboard/model/data/dashboardLoad";
 import { buildManagedSessionLoadOptionsForTab } from "@modules/dashboard/model/selection/managedSessionLoadOptions";
 import type { DashboardStore } from "@modules/dashboard/model/store";
+import { isTimestampOlder } from "@modules/dashboard/model/store/helpers";
 
 import { usesTakenOverAgentTranscript } from "./helpers";
 import type { SelectedSessionLogQueue } from "./liveUpdateSelectedSessionLogQueue";
@@ -97,6 +98,14 @@ function hasManagedSessionLifecycleDifference(
     current.actionRequest?.command !== next.actionRequest?.command ||
     current.actionRequest?.reason !== next.actionRequest?.reason ||
     current.actionRequest?.requestedAt !== next.actionRequest?.requestedAt;
+}
+
+function hasNewerManagedSessionGit(
+  current: SessionDetail,
+  next: SessionSummary
+) {
+  return current.git.lastUpdatedAt !== next.git.lastUpdatedAt &&
+    !isTimestampOlder(next.git.lastUpdatedAt, current.git.lastUpdatedAt);
 }
 
 function isTerminalTranscriptUpdate(update: AgentSessionTranscriptUpdatedPayload) {
@@ -392,7 +401,11 @@ export function handleLiveUpdateEvent({
   if (isSelectedManagedSession) {
     const shouldReloadSelectedSession =
       !selectedSessionRef.current ||
-      hasManagedSessionLifecycleDifference(selectedSessionRef.current, event.payload);
+      hasManagedSessionLifecycleDifference(selectedSessionRef.current, event.payload) ||
+      (
+        activeTabRef.current === "diff" &&
+        hasNewerManagedSessionGit(selectedSessionRef.current, event.payload)
+      );
 
     startTransition(() => {
       store.mergeSelectedSessionSummary(event.payload, {

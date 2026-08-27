@@ -2,6 +2,7 @@ import {
   hiddenDiffPathPatterns,
   MAX_VISIBLE_DIFF_CHARS
 } from "./constants";
+import { parseGitDiffHeaderPaths } from "./gitDiffPaths";
 
 export function isHiddenDiffPath(filePath: string) {
   const normalizedPath = filePath.replace(/\\/g, "/");
@@ -21,9 +22,9 @@ export function filterUnifiedDiff(diff: string) {
   let isHiddenFileBlock = false;
 
   for (const line of lines) {
-    const headerMatch = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
+    const headerPaths = parseGitDiffHeaderPaths(line);
 
-    if (headerMatch) isHiddenFileBlock = isHiddenDiffPath(headerMatch[1]) || isHiddenDiffPath(headerMatch[2]);
+    if (headerPaths) isHiddenFileBlock = isHiddenDiffPath(headerPaths.oldPath) || isHiddenDiffPath(headerPaths.newPath);
 
     if (!isHiddenFileBlock) keptLines.push(line);
   }
@@ -31,11 +32,22 @@ export function filterUnifiedDiff(diff: string) {
   return keptLines.join("\n").trim();
 }
 
-export function trimUnifiedDiff(diff: string) {
-  if (!diff || diff.length <= MAX_VISIBLE_DIFF_CHARS) return { text: diff, wasTrimmed: false };
+export function trimUnifiedDiff(diff: string, sourceWasTruncated = false) {
+  const wasTrimmed = sourceWasTruncated || diff.length > MAX_VISIBLE_DIFF_CHARS;
+
+  if (!diff || diff.length <= MAX_VISIBLE_DIFF_CHARS) return { text: diff, wasTrimmed };
+
+  let end = MAX_VISIBLE_DIFF_CHARS;
+
+  if (
+    /[\uD800-\uDBFF]/.test(diff[end - 1] ?? "") &&
+    /[\uDC00-\uDFFF]/.test(diff[end] ?? "")
+  ) {
+    end -= 1;
+  }
 
   return {
-    text: `${diff.slice(0, MAX_VISIBLE_DIFF_CHARS)}\n\n...diff truncated...`,
+    text: `${diff.slice(0, end)}\n\n...diff truncated...`,
     wasTrimmed: true
   };
 }

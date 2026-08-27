@@ -126,7 +126,9 @@ test("does not merge a late selected source detail after selecting another sessi
   const store = createStore();
   const first = createAgentSession("codex", "source-1");
   const second = createAgentSession("claude-code", "source-2");
+
   store.setSelectedAgentSessionId(first.id);
+
   store.setSelectedAgentSession({ ...first, transcript: [] });
   store.setSelectedAgentSessionId(second.id);
   store.setSelectedAgentSession({ ...second, transcript: [] });
@@ -144,6 +146,7 @@ test("does not replace the active taken-over detail with a late response for ano
   const store = createStore();
   const first = createAgentSession("codex", "source-1");
   const second = createAgentSession("claude-code", "source-2");
+
   store.setActiveTakenOverAgentSession({ ...second, transcript: [] });
 
   store.mergeActiveTakenOverAgentSessionDetail({
@@ -155,8 +158,41 @@ test("does not replace the active taken-over detail with a late response for ano
   assert.deepEqual(store.activeTakenOverAgentSession?.transcript, []);
 });
 
+test("keeps managed adapter and source identity atomic while route selection hydrates", () => {
+  const store = createStore();
+  const codexSource = createAgentSession("codex", "codex-source");
+  const codexManaged = createManagedSession("codex-managed", "2026-08-05T10:00:00.000Z");
+  const genericManaged: SessionSummary = {
+    ...createManagedSession("generic-managed", "2026-08-05T10:01:00.000Z"),
+    adapterId: "generic-cli",
+    sourceSessionId: null
+  };
+
+  store.setAgentSessions([codexSource]);
+  store.setOverview(createOverview([
+    { ...codexManaged, sourceSessionId: codexSource.sourceSessionId },
+    genericManaged
+  ]));
+  store.setSelectedSession({ ...genericManaged, inputHistory: [], logs: [] });
+  store.setSelectedSessionId(codexManaged.id);
+
+  assert.equal(store.activeTakenOverAgentSessionSummaryId, codexSource.id);
+
+  store.setSelectedSession({
+    ...codexManaged,
+    inputHistory: [],
+    logs: [],
+    sourceSessionId: codexSource.sourceSessionId
+  });
+
+  store.setSelectedSessionId(genericManaged.id);
+
+  assert.equal(store.activeTakenOverAgentSessionSummaryId, "");
+});
+
 test("reconciles a stale terminal live event for the active turn and requests a full refresh", () => {
   const store = createStore();
+
   store.setActiveTakenOverAgentSession({
     ...createAgentSession("codex", "source-1"),
     transcript: [],
@@ -256,7 +292,9 @@ test("clears transient reconnect and offline messages after live updates resume"
 test("clears every connection-scoped projection before another daemon can hydrate", () => {
   const store = createStore();
   const session = createAgentSession("codex", "source-1");
+
   store.setAgentSessions([session]);
+
   store.setSelectedSourceId("codex");
   store.setSelectedAgentSessionId(session.id);
   store.setSelectedAgentSession({ ...session, transcript: [] });
@@ -297,6 +335,7 @@ test("preserves explicitly loaded source history across a fresh tail snapshot", 
   const summary = createAgentSession("codex", "source-1");
   const recentEntry = transcriptEntry("recent", "recent answer");
   const historyEntry = transcriptEntry("history", "older answer");
+
   store.setSelectedAgentSession({ ...summary, transcript: [recentEntry] });
 
   store.mergeFetchedAgentSessionTranscriptPage(summary.id, {
@@ -312,12 +351,14 @@ test("preserves explicitly loaded source history across a fresh tail snapshot", 
     store.selectedAgentSession?.transcript.map((entry) => entry.id),
     ["history", "recent"]
   );
+
   assert.equal(store.selectedAgentSession?.transcript[1]?.text, "refreshed answer");
 });
 
 test("preserves only overview entries changed after the request watermark", () => {
   const store = createStore();
   const baseline = createManagedSession("managed-baseline", "2026-08-06T10:00:00.000Z");
+
   store.setOverview(createOverview([baseline]));
   const requestRevision = store.captureOverviewRevision();
   const concurrent = createManagedSession("managed-concurrent", "2026-08-06T10:00:01.000Z");
@@ -330,6 +371,8 @@ test("preserves only overview entries changed after the request watermark", () =
   );
 
   const nextRequestRevision = store.captureOverviewRevision();
+
   store.setOverview(createOverview([baseline]), nextRequestRevision);
+
   assert.deepEqual(store.overview.sessions.map((session) => session.id), [baseline.id]);
 });

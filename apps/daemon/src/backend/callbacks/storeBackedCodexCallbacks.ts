@@ -20,7 +20,7 @@ export function createReadOnlyCodexSessionCallbacks(
     createWorkspace: context.createWorkspace,
     emitServerEvent: context.emitServerEvent,
     findReadOnlyAttachedSession: (sourceSessionId: string) =>
-      context.findReadOnlyAttachedSession(sourceSessionId) ?? undefined,
+      context.findReadOnlyAttachedSession(sourceSessionId, "codex") ?? undefined,
     getPublicSession: context.getSession,
     persistState: context.persistState,
     setSession: (session: SessionDetail) => {

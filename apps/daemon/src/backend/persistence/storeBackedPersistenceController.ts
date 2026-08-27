@@ -12,14 +12,17 @@ export class StoreBackedPersistenceController {
     stateStorage?: DaemonStateStorage
   ) {
     this.persistence = new DeskCuePersistence({
-      listDirtyPersistedSessions: () => this.repository.listDirtyPersistedSessions(),
-      listDirtyWorkspaces: () => this.repository.listDirtyWorkspaces(),
+      listDirtyPersistedSessions: () =>
+        this.repository.listSessionPersistenceSnapshots({ dirtyOnly: true }),
+      listDirtyWorkspaces: () =>
+        this.repository.listWorkspacePersistenceSnapshots({ dirtyOnly: true }),
       listPartialSessionIds: () => this.repository.listPartialSessionIds(),
-      listPersistedSessions: () => this.repository.listPersistedSessions(),
-      listWorkspaces: () => this.repository.listWorkspaces(),
-      markAllPersisted: () => this.repository.markAllPersisted(),
-      markPersisted: (workspaceIds, sessionIds) =>
-        this.repository.markPersisted(workspaceIds, sessionIds),
+      listPersistedSessions: () =>
+        this.repository.listSessionPersistenceSnapshots({ dirtyOnly: false }),
+      listWorkspaces: () =>
+        this.repository.listWorkspacePersistenceSnapshots({ dirtyOnly: false }),
+      markPersisted: (workspaces, sessions) =>
+        this.repository.markPersistenceSnapshotsPersisted(workspaces, sessions),
       stateStorage
     });
   }
@@ -32,11 +35,13 @@ export class StoreBackedPersistenceController {
     }
 
     const hydratedState = hydratePersistedSessions(state.sessions);
+
     for (const session of hydratedState.sessions) {
       this.repository.setSession(session, {
         partial: state.partialSessionIds?.includes(session.id) === true
       });
     }
+
     this.repository.markAllPersisted();
 
     logger.info("Daemon state restored", {

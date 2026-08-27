@@ -101,6 +101,22 @@ function validateAgentSessionSummary(payload: Record<string, unknown>) {
   }
 }
 
+function validateOptionalStringRecord(
+  value: unknown,
+  field: string,
+  allowedValues?: readonly string[]
+) {
+  if (value === undefined) return;
+
+  const record = readProtocolObject(value);
+
+  for (const [key, item] of Object.entries(record)) {
+    if (!key || typeof item !== "string" || !item || (allowedValues && !allowedValues.includes(item))) {
+      throw new ProtocolSchemaError(`Server event git ${field} must contain non-empty string entries.`);
+    }
+  }
+}
+
 function validateSessionSummary(payload: Record<string, unknown>) {
   requireStrings(
     payload,
@@ -180,16 +196,23 @@ function validateSessionSummary(payload: Record<string, unknown>) {
 
   requireBoolean(git, "isGitRepo");
   requireBoolean(git, "isDirty");
+  requireOptionalBoolean(git, "diffTruncated");
   requireNullableStrings(git, "branch");
   requireStrings(git, "lastUpdatedAt");
 
-  if (typeof git.diff !== "string") {
-    throw new ProtocolSchemaError("Server event field diff must be a string.");
-  }
+  if (typeof git.diff !== "string") throw new ProtocolSchemaError("Server event field diff must be a string.");
 
   if (!Array.isArray(git.changedFiles) || !git.changedFiles.every((item) => typeof item === "string")) {
     throw new ProtocolSchemaError("Server event git changedFiles must be an array of strings.");
   }
+
+  validateOptionalStringRecord(
+    git.changedFileStatuses,
+    "changedFileStatuses",
+    ["M", "A", "D", "R", "C", "U", "?"]
+  );
+
+  validateOptionalStringRecord(git.changedFilePreviousPaths, "changedFilePreviousPaths");
 }
 
 export function validateServerEventPayload(

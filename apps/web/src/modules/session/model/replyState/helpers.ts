@@ -267,7 +267,8 @@ export function resolveInputAvailability(
     Boolean(sessionShell?.sourceSessionId) &&
     (sessionShell?.status === "done" ||
       sessionShell?.status === "read_only" ||
-      sessionShell?.status === "stopped") &&
+      sessionShell?.status === "stopped" ||
+      sessionShell?.status === "failed") &&
     sessionShell?.canSendInput === true;
   const canSendOwnedReadOnlyInput =
     options.canSendInputWhenReadOnly === true &&
@@ -305,10 +306,7 @@ export function resolveInputUnavailableLabel({
 
   const explicitInputBlockedReason = inputBlockedReason?.trim();
 
-  if (promptRecovery?.phase === "not_sent" && explicitInputBlockedReason) {
-    return explicitInputBlockedReason;
-  }
-
+  if (promptRecovery?.phase === "not_sent" && explicitInputBlockedReason) return explicitInputBlockedReason;
   if (promptRecovery) return "DeskCue lost control of this turn";
   if (explicitInputBlockedReason) return explicitInputBlockedReason;
   if (sourceSessionId) return "This chat is view only";

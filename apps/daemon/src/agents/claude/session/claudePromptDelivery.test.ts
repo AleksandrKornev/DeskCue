@@ -51,8 +51,13 @@ test("builds a Claude one-shot resume with direct argv, preserving arbitrary pro
   assert.match(transport.command, /--print/);
 });
 
-test("restarts an attached Claude shell through a one-shot pipe transport", async () => {
-  let current = claudeSession();
+test("restarts a failed attached Claude shell through a one-shot pipe transport", async () => {
+  let current: SessionDetail = {
+    ...claudeSession(),
+    status: "failed",
+    exitCode: 1
+  };
+
   const workspace: WorkspaceSummary = {
     branch: null,
     createdAt: "2026-07-31T10:00:00.000Z",
@@ -61,6 +66,7 @@ test("restarts an attached Claude shell through a one-shot pipe transport", asyn
     name: current.workspaceName,
     path: "C:/workspace"
   };
+
   const systemLogs: string[] = [];
   const deliveryLifecycle: string[] = [];
   let spawned: Parameters<RunningChild["onData"]>[0] | null = null;
@@ -183,6 +189,7 @@ test("does not spawn Claude when durable dispatch transition fails", async () =>
     name: current.workspaceName,
     path: "C:/workspace"
   };
+
   let spawnCount = 0;
 
   await assert.rejects(

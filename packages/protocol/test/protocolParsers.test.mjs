@@ -353,8 +353,10 @@ test("realtime server parser accepts a clean managed-session git snapshot", () =
       git: {
         branch: "main",
         changedFiles: [],
+        changedFilePreviousPaths: { "new-name.txt": "old-name.txt" },
         changedFileStatuses: {},
         diff: "",
+        diffTruncated: false,
         isDirty: false,
         isGitRepo: true,
         lastUpdatedAt: "2026-08-26T08:03:52.630Z"
@@ -395,6 +397,39 @@ test("realtime server parser accepts a clean managed-session git snapshot", () =
     (error) =>
       error instanceof ProtocolSchemaError &&
       error.message === "Server event field diff must be a string."
+  );
+  for (const changedFilePreviousPaths of [null, [], { "new-name.txt": 42 }]) {
+    assert.throws(
+      () => parseServerEvent({
+        ...event,
+        payload: {
+          ...event.payload,
+          git: { ...event.payload.git, changedFilePreviousPaths }
+        }
+      }),
+      (error) => error instanceof ProtocolSchemaError
+    );
+  }
+
+  assert.throws(
+    () => parseServerEvent({
+      ...event,
+      payload: {
+        ...event.payload,
+        git: { ...event.payload.git, changedFileStatuses: { "new-name.txt": "invalid" } }
+      }
+    }),
+    (error) => error instanceof ProtocolSchemaError
+  );
+  assert.throws(
+    () => parseServerEvent({
+      ...event,
+      payload: {
+        ...event.payload,
+        git: { ...event.payload.git, diffTruncated: "yes" }
+      }
+    }),
+    (error) => error instanceof ProtocolSchemaError
   );
 });
 

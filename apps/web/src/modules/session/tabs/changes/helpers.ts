@@ -1,4 +1,8 @@
 import type { GitFileStatus } from "@deskcue/protocol";
+import {
+  decodeGitDiffPathToken,
+  parseGitDiffHeaderPaths
+} from "@modules/session/tabs/gitDiffPaths";
 
 import type {
   DiffFileReview,
@@ -8,11 +12,12 @@ import type {
 
 function parseDiffBlock(block: string): DiffFileReview | null {
   const lines = block.split("\n");
-  const header = lines[0]?.match(/^diff --git a\/(.+) b\/(.+)$/);
+  const header = parseGitDiffHeaderPaths(lines[0] ?? "");
+
   if (!header) return null;
 
-  let path = header[2];
-  let previousPath: string | null = header[1] === header[2] ? null : header[1];
+  let path = header.newPath;
+  let previousPath: string | null = header.oldPath === header.newPath ? null : header.oldPath;
   let status: DiffFileStatus = "modified";
   let oldLine = 0;
   let newLine = 0;
@@ -27,22 +32,26 @@ function parseDiffBlock(block: string): DiffFileReview | null {
     if (line.startsWith("deleted file mode ")) status = "deleted";
     if (line.startsWith("rename from ")) {
       status = "renamed";
-      previousPath = line.slice("rename from ".length);
+      previousPath = decodeGitDiffPathToken(line.slice("rename from ".length));
     }
+
     if (line.startsWith("rename to ")) {
       status = "renamed";
-      path = line.slice("rename to ".length);
+      path = decodeGitDiffPathToken(line.slice("rename to ".length));
     }
+
     if (line.startsWith("copy from ")) {
       status = "copied";
-      previousPath = line.slice("copy from ".length);
+      previousPath = decodeGitDiffPathToken(line.slice("copy from ".length));
     }
+
     if (line.startsWith("copy to ")) {
       status = "copied";
-      path = line.slice("copy to ".length);
+      path = decodeGitDiffPathToken(line.slice("copy to ".length));
     }
 
     const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+
     if (hunk) {
       hasLineStats = true;
       oldLine = Number(hunk[1]);
@@ -56,6 +65,7 @@ function parseDiffBlock(block: string): DiffFileReview | null {
       if (!line.startsWith("index ") && !line.startsWith("--- ") && !line.startsWith("+++ ")) {
         reviewLines.push({ kind: "meta", newLine: null, oldLine: null, text: line });
       }
+
       continue;
     }
 
@@ -83,6 +93,7 @@ export function parseUnifiedDiff(diff: string): DiffFileReview[] {
   if (!diff.trim()) return [];
 
   const blocks = diff.split(/(?=^diff --git )/m).filter((block) => block.startsWith("diff --git "));
+
   return blocks.map(parseDiffBlock).filter((file): file is DiffFileReview => Boolean(file));
 }
 
@@ -128,21 +139,25 @@ function mapGitFileStatus(status: GitFileStatus | undefined): DiffFileStatus | n
 export function mergeDiffReviewFiles(
   changedFiles: readonly string[],
   parsedFiles: readonly DiffFileReview[],
-  changedFileStatuses: Readonly<Record<string, GitFileStatus>> = {}
+  changedFileStatuses: Readonly<Record<string, GitFileStatus>> = {},
+  changedFilePreviousPaths: Readonly<Record<string, string>> = {}
 ) {
   const byPath = new Map(parsedFiles.map((file) => [file.path, file]));
   const paths = [...new Set([...changedFiles, ...parsedFiles.map((file) => file.path)])];
+
   return paths.map((path): DiffFileReview => {
     const parsed = byPath.get(path);
     const status = mapGitFileStatus(changedFileStatuses[path]);
+
     if (parsed) return status ? { ...parsed, status } : parsed;
+
     return {
       additions: 0,
       deletions: 0,
       hasLineStats: false,
       lines: [],
       path,
-      previousPath: null,
+      previousPath: changedFilePreviousPaths[path] ?? null,
       status: status ?? "unknown"
     };
   });
@@ -154,5 +169,6 @@ export function basename(path: string) {
 
 export function parentPath(path: string) {
   const parts = path.split("/").filter(Boolean);
+
   return parts.slice(0, -1).join("/");
 }

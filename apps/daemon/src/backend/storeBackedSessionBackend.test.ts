@@ -200,7 +200,7 @@ test("restart keeps an ambiguous source prompt recoverable across repeated resta
     assert.ok(firstRecoveryLogCount && firstRecoveryLogCount > 0);
     assert.equal(second.getSession(fixture.session.id)?.logs.filter(
       (log) => log.text.includes("prompt delivery")
-    ).length, 0);
+    ).length, firstRecoveryLogCount);
     await second.close();
   } finally {
     fixture.context.close();

@@ -77,6 +77,7 @@ test("remote control executor rejects unknown fields before a local request", as
   await assert.rejects(
     executor.execute("managed.interrupt", { sessionId: "session", path: "/api/access/reset" })
   );
+
   assert.equal(fetched, false);
 });
 
@@ -111,7 +112,13 @@ test("remote control forwards the bounded session shape without prompt history o
       actionRequest: { kind: "approval", command: "private tool command", reason: "private reason" },
       inputHistory: ["private prompt"],
       logs: ["private output"],
-      git: { diff: "private diff", changedFiles: ["private file"] }
+      git: {
+        changedFiles: ["secret/new-name.txt"],
+        changedFilePreviousPaths: { "secret/new-name.txt": "secret/old-name.txt" },
+        changedFileStatuses: { "secret/new-name.txt": "R" },
+        diff: "private diff",
+        diffTruncated: true
+      }
     }, { status: 201 })
   });
 
@@ -135,7 +142,13 @@ test("remote control forwards the bounded session shape without prompt history o
         actionRequest: { kind: "approval", command: null, reason: null },
         inputHistory: [],
         logs: [],
-        git: { diff: "", changedFiles: [] }
+        git: {
+          changedFiles: [],
+          changedFilePreviousPaths: {},
+          changedFileStatuses: {},
+          diff: "",
+          diffTruncated: false
+        }
       }
     }
   );
@@ -171,10 +184,12 @@ test("remote control executor aborts an active loopback request during shutdown"
       requestStarted = true;
       return await new Promise<Response>((_resolve, reject) => {
         const signal = init?.signal;
+
         if (signal?.aborted) {
           reject(signal.reason);
           return;
         }
+
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
       });
     }
@@ -185,6 +200,7 @@ test("remote control executor aborts an active loopback request during shutdown"
     { sessionId: "session" },
     shutdown.signal
   );
+
   assert.equal(requestStarted, true);
   shutdown.abort(new Error("connector_shutdown"));
   await assert.rejects(execution, /connector_shutdown/);

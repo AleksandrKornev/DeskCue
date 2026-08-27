@@ -414,10 +414,10 @@ export class StoreBackedSessionOperations {
       detachAttachedSession: (sessionId, options) =>
         this.detachAttachedSession(sessionId, options),
       emitServerEvent: (event) => this.emitServerEvent(event),
-      findReadOnlyAttachedSession: (sourceSessionId) =>
-        this.findReadOnlyAttachedSession(sourceSessionId),
-      findReusableAttachedSession: (sourceSessionId) =>
-        this.findReusableAttachedSession(sourceSessionId),
+      findReadOnlyAttachedSession: (sourceSessionId, adapterId) =>
+        this.findReadOnlyAttachedSession(sourceSessionId, adapterId),
+      findReusableAttachedSession: (sourceSessionId, adapterId) =>
+        this.findReusableAttachedSession(sourceSessionId, adapterId),
       finishSession: (sessionId, status, exitCode) =>
         this.finishSession(sessionId, status, exitCode),
       getSession: (sessionId) => this.getSession(sessionId),
@@ -474,12 +474,12 @@ export class StoreBackedSessionOperations {
     this.persistence.schedulePersist();
   }
 
-  private findReusableAttachedSession(sourceSessionId: string) {
-    return this.repository.findReusableAttachedSession(sourceSessionId);
+  private findReusableAttachedSession(sourceSessionId: string, adapterId?: string) {
+    return this.repository.findReusableAttachedSession(sourceSessionId, adapterId);
   }
 
-  private findReadOnlyAttachedSession(sourceSessionId: string) {
-    return this.repository.findReadOnlyAttachedSession(sourceSessionId);
+  private findReadOnlyAttachedSession(sourceSessionId: string, adapterId?: string) {
+    return this.repository.findReadOnlyAttachedSession(sourceSessionId, adapterId);
   }
 
   private async detachAttachedSession(

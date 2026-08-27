@@ -276,6 +276,55 @@ test("routes a discovered Codex session through its attach strategy", async () =
   assert.equal(readOnlySourceSessionId, "codex-source");
 });
 
+test("does not reuse a running Codex shell for a Claude source-id collision", async () => {
+  const codex = session({
+    id: "managed-codex",
+    sourceSessionId: "shared-source",
+    status: "running"
+  });
+  const claude = session({
+    adapterId: "claude-code",
+    id: "managed-claude",
+    sourceSessionId: "shared-source",
+    status: "read_only"
+  });
+  let lookupAdapterId: string | undefined;
+  let sentSessionId = "";
+
+  const result = await resumeDiscoveredAgentSession(
+    {
+      createReadOnlyClaudeSession: async () => claude,
+      createReadOnlyCodexSession: async () => session({ id: "read-only" }),
+      createWorkspace: async () => workspace(),
+      findReadOnlyAttachedSession: () => null,
+      findReusableAttachedSession: (_sourceSessionId, adapterId) => {
+        lookupAdapterId = adapterId;
+        return adapterId === "codex" ? codex : null;
+      },
+      getSession: () => codex,
+      launchSession: async () => session({ id: "launched" }),
+      restartClaudePromptTransport: async () => claude,
+      restartCodexTransport: async () => session({ id: "restarted" }),
+      sendInput: async (sessionId) => {
+        sentSessionId = sessionId;
+        return codex;
+      }
+    },
+    discoveredAgentSession({
+      agentId: "claude-code",
+      agentLabel: "Claude Code",
+      attachMode: "resume",
+      id: "claude-code:shared-source",
+      sourceSessionId: "shared-source",
+      workState: "idle"
+    })
+  );
+
+  assert.equal(lookupAdapterId, "claude-code");
+  assert.equal(sentSessionId, "");
+  assert.equal(result.id, claude.id);
+});
+
 test("opens a resumable discovered Codex session as read-only until a prompt is sent", async () => {
   let launchCalls = 0;
   let reason = "";

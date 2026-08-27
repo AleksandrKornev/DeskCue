@@ -150,12 +150,83 @@ test("marks a non-observe-only Claude source shell as resumable", () => {
   assert.equal(projected.inputBlockedReason, null);
 });
 
+test("keeps a failed Claude source shell resumable", () => {
+  const session = sessionDetail({
+    adapterId: "claude-code",
+    sourceSessionId: "source-1",
+    command: "claude --resume source-1 --print previous prompt",
+    status: "failed",
+    exitCode: 1
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, true);
+  assert.equal(projected.inputBlockedReason, null);
+});
+
+test("keeps a failed Claude shell blocked while its previous prompt outcome is unresolved", () => {
+  const session = sessionDetail({
+    adapterId: "claude-code",
+    sourceSessionId: "source-1",
+    command: "claude --resume source-1 --print previous prompt",
+    status: "failed",
+    exitCode: 1,
+    promptRecovery: {
+      phase: "outcome_unknown",
+      promptText: "Previous prompt",
+      requestedAt: "2026-08-27T10:00:00.000Z",
+      retryable: false
+    }
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, false);
+  assert.equal(projected.inputBlockedReason, "DeskCue lost control of this turn.");
+});
+
+test("keeps a failed Claude shell blocked while its reply lifecycle is still active", () => {
+  const session = sessionDetail({
+    adapterId: "claude-code",
+    sourceSessionId: "source-1",
+    command: "claude --resume source-1 --print previous prompt",
+    status: "failed",
+    exitCode: 1,
+    replyState: {
+      phase: "waiting",
+      promptText: "Previous prompt",
+      requestedAt: "2026-08-27T10:00:00.000Z"
+    }
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, false);
+  assert.equal(projected.inputBlockedReason, "Session is already handling a prompt.");
+});
+
 test("keeps an observe-only Claude source shell blocked", () => {
   const session = sessionDetail({
     adapterId: "claude-code",
     sourceSessionId: "source-1",
     command: "claude --resume source-1 (observe-only)",
     status: "read_only"
+  });
+
+  const projected = toSessionSummary(session, () => false);
+
+  assert.equal(projected.canSendInput, false);
+  assert.match(projected.inputBlockedReason ?? "", /observed or stopped/);
+});
+
+test("does not make a failed observe-only Claude shell resumable", () => {
+  const session = sessionDetail({
+    adapterId: "claude-code",
+    sourceSessionId: "source-1",
+    command: "claude --resume source-1 (observe-only)",
+    status: "failed",
+    exitCode: 1
   });
 
   const projected = toSessionSummary(session, () => false);
