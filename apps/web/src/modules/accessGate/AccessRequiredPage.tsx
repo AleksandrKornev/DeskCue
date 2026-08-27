@@ -95,7 +95,7 @@ export function AccessRequiredPage() {
           </div>
           <div>
             <span>2</span>
-            <p>Go to Access and create a device pairing link</p>
+            <p>Go to Connections and create a device pairing link</p>
           </div>
           <div>
             <span>3</span>
@@ -108,7 +108,7 @@ export function AccessRequiredPage() {
           <p>
             Open <code>{recoveryUrlExample}</code> on this address, or append{" "}
             <code>?recovery=&lt;code&gt;</code>. Recovery codes are one-time restore links
-            created from Settings &gt; Access.
+            created from Settings &gt; Connections.
           </p>
         </div>
 

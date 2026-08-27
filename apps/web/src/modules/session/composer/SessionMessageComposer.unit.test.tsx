@@ -50,7 +50,7 @@ describe("SessionMessageComposer", () => {
       expect(screen.getByRole("textbox", { name: "Review-only chat" }))
         .toBeDisabled();
       expect(screen.getByText(
-        "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+        "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
       )).toBeInTheDocument();
       expect(screen.getByPlaceholderText("Review only")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Send message" }))
@@ -70,7 +70,7 @@ describe("SessionMessageComposer", () => {
       renderComposer({ mode: "inline" });
 
       expect(screen.getAllByText(
-        "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+        "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
       )).toHaveLength(1);
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument();

@@ -159,6 +159,9 @@ describe("CloudConnectionPanel", () => {
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
 
+    expect(screen.getByText(/Settings → Connections → DeskCue Cloud/i))
+      .toBeInTheDocument();
+
     const remoteRead = screen.getByRole("checkbox", {
       name: /Enable Remote DeskCue session review/i
     });
@@ -354,7 +357,7 @@ describe("CloudConnectionPanel", () => {
     expect(remoteControl).toBeChecked();
     expect(remotePreview).toBeChecked();
     expect(screen.getByText(/cannot grant itself more access/i)).toBeInTheDocument();
-    expect(screen.getByText(/Settings → Access → Cloud/i)).toBeInTheDocument();
+    expect(screen.getByText(/Settings → Connections → DeskCue Cloud/i)).toBeInTheDocument();
 
     fireEvent.click(remotePreview);
     expect(screen.getByText("Custom permissions selected.")).toBeInTheDocument();

@@ -80,10 +80,10 @@ describe("DeskCue runtime boundary", () => {
     expect(runtime.features.preview).toBe(false);
     expect(runtime.features.previewControl).toBe(false);
     expect(runtime.sessionCommandsUnavailableReason).toBe(
-      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
     );
     expect(resolveSessionCommandsUnavailableReason(runtime)).toBe(
-      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
     );
   });
 

@@ -73,7 +73,7 @@ public host when present, otherwise DeskCue tries a detected LAN IPv4 address.
 The UI warns when the daemon is still bound to loopback because another device
 cannot reach the host's `127.0.0.1`.
 
-The Access tab separates actions for the current browser from actions for other
+The Connections tab separates actions for the current browser from actions for other
 devices:
 
 - `Forget this browser` revokes the current browser token on the daemon and

@@ -189,8 +189,8 @@ and allowed dashboard origins.
 
 Set `DESKCUE_BIND_HOST=127.0.0.1` if you want loopback-only development.
 
-Use `/settings?tab=access` to revoke the current browser token or revoke other
-paired devices. `POST /api/access/reset` remains as a compatibility alias for
+Use the Connections tab (`/settings?tab=access`) to revoke the current browser
+token or revoke other paired devices. `POST /api/access/reset` remains as a compatibility alias for
 revoking other active device tokens.
 
 ## Daemon Logs

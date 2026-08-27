@@ -63,4 +63,28 @@ describe("pairing request lifecycle", () => {
       deviceId: "device-1"
     });
   });
+
+  it("points rejected pairing and recovery links to the visible Connections tab", async () => {
+    const { PairingEndpointError } = await import("@api/connection/pairing/pairingTransport");
+    mocks.fetchPairingEndpoint.mockRejectedValue(
+      new PairingEndpointError("rejected", 401)
+    );
+    const {
+      prepareConnectionConfig,
+      readConnectionPreparationFailure
+    } = await import("@api/connection/pairing");
+
+    await expect(prepareConnectionConfig()).rejects.toThrow("rejected");
+    expect(readConnectionPreparationFailure()?.message).toBe(
+      "This pairing link is invalid, expired, or already used. " +
+      "Create a fresh device link in Settings → Connections."
+    );
+
+    window.history.replaceState({}, "", "/?recovery=temporary-code");
+    await expect(prepareConnectionConfig()).rejects.toThrow("rejected");
+    expect(readConnectionPreparationFailure()?.message).toBe(
+      "This recovery code is invalid, expired, or already used. " +
+      "Create a fresh recovery code in Settings → Connections."
+    );
+  });
 });
