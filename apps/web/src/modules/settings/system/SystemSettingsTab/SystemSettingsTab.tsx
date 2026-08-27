@@ -14,7 +14,12 @@ export const SystemSettingsTab = observer(function SystemSettingsTab() {
   const { daemonSettings, daemonSettingsDraft, daemonSettingsStatus } = systemStore;
 
   return (
-    <article className={styles.card} role="tabpanel">
+    <article
+      aria-labelledby="settings-tab-system"
+      className={styles.card}
+      id="settings-panel-system"
+      role="tabpanel"
+    >
       <div className={styles.cardHeader}>
         <div>
           <span className={styles.label}>System</span>

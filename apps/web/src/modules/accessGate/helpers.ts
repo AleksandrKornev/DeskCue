@@ -1,7 +1,7 @@
-import { DEFAULT_DAEMON_PORT } from "@deskcue/protocol";
+import { buildCurrentDaemonAccessSettingsUrl } from "@api/connection";
 
-export function buildLocalPairingUrl() {
-  return `http://127.0.0.1:${DEFAULT_DAEMON_PORT}/settings?tab=access`;
+export function buildHostAccessSettingsUrl() {
+  return buildCurrentDaemonAccessSettingsUrl();
 }
 
 export function hasSavedAccessCredential() {
@@ -22,9 +22,8 @@ export function buildRecoveryUrlExample() {
 
 export function readReturnPath(search: string) {
   const from = new URLSearchParams(search).get("from");
-  if (!from?.startsWith("/") || from.startsWith("//")) {
-    return null;
-  }
+
+  if (!from?.startsWith("/") || from.startsWith("//")) return null;
 
   return from;
 }

@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
 
+import {
+  clearConnectionPreparationFailure,
+  readConnectionPreparationFailure
+} from "@api/connection/pairing";
 import { DeskCueWordmark } from "@components/DeskCueWordmark";
 
 import {
-  buildLocalPairingUrl,
+  buildHostAccessSettingsUrl,
   buildRecoveryUrlExample,
   clearSavedAccessCredential,
   hasSavedAccessCredential
@@ -14,13 +18,23 @@ import styles from "./styles.module.scss";
 export function AccessRequiredPage() {
   const location = useLocation();
   const [hasSavedCredential, setHasSavedCredential] = useState(hasSavedAccessCredential);
-  const localPairingUrl = buildLocalPairingUrl();
+  const connectionPreparationFailure = readConnectionPreparationFailure();
+  const hostAccessSettingsUrl = buildHostAccessSettingsUrl();
   const recoveryUrlExample = buildRecoveryUrlExample();
   const from = new URLSearchParams(location.search).get("from");
+
+  // runtime-helper-placement: allow -- this click handler closes over component state
 
   function handleClearSavedCredential() {
     clearSavedAccessCredential();
     setHasSavedCredential(false);
+  }
+
+  // runtime-helper-placement: allow -- this click handler belongs to the rendered retry control
+
+  function handleRetry() {
+    clearConnectionPreparationFailure();
+    window.location.reload();
   }
 
   return (
@@ -50,10 +64,34 @@ export function AccessRequiredPage() {
           </div>
         ) : null}
 
+        {connectionPreparationFailure ? (
+          <div className={styles.error} role="alert">
+            <strong>{connectionPreparationFailure.title}</strong>
+            <span>{connectionPreparationFailure.message}</span>
+          </div>
+        ) : null}
+
+        <div className={styles.actions}>
+          {hasSavedCredential ? (
+            <button
+              className={styles.secondaryButton}
+              onClick={handleClearSavedCredential}
+              type="button"
+            >
+              Clear saved access
+            </button>
+          ) : null}
+          <button className={styles.primaryButton} onClick={handleRetry} type="button">
+            Retry
+          </button>
+        </div>
+
         <div className={styles.steps}>
           <div>
             <span>1</span>
-            <p>On the host computer, open {localPairingUrl}</p>
+            <p>
+              On the host computer, open <code>{hostAccessSettingsUrl}</code>
+            </p>
           </div>
           <div>
             <span>2</span>
@@ -75,19 +113,10 @@ export function AccessRequiredPage() {
         </div>
 
         {from ? (
-          <p className={styles.returnHint}>After pairing, DeskCue will use the original page again</p>
+          <p className={styles.returnHint}>
+            After pairing, DeskCue will use the original page again
+          </p>
         ) : null}
-
-        <div className={styles.actions}>
-          {hasSavedCredential ? (
-            <button className={styles.secondaryButton} onClick={handleClearSavedCredential} type="button">
-              Clear saved access
-            </button>
-          ) : null}
-          <button className={styles.primaryButton} onClick={() => window.location.reload()} type="button">
-            Retry
-          </button>
-        </div>
       </section>
     </main>
   );

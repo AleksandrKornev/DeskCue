@@ -107,6 +107,32 @@
   line-height: 1.4;
 }
 
+.error {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(184, 72, 72, 0.32);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(184, 72, 72, 0.14);
+}
+
+.error strong {
+  color: #ffcbc7;
+}
+
+.error span {
+  color: #e8bbb7;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.steps code {
+  overflow-wrap: anywhere;
+  color: #f4f7ff;
+  font: inherit;
+  font-weight: 700;
+}
+
 .recoveryPanel {
   display: grid;
   gap: 8px;

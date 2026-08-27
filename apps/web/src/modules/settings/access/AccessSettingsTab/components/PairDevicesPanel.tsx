@@ -1,40 +1,30 @@
 import clsx from "clsx";
 import { observer } from "mobx-react-lite";
 
-import { buildCurrentDaemonAccessSettingsUrl } from "@api/connection";
-import { PairingHostsDisclosure } from "@modules/settings/access/AccessSettingsTab/components/PairingHostsDisclosure";
 import { formatPairingActionSummary } from "@modules/settings/access/AccessSettingsTab/helpers";
 import styles from "@modules/settings/access/AccessSettingsTab/styles.module.scss";
-import { AccessDeviceList } from "@modules/settings/access/components/AccessDeviceList";
 import { formatDeviceDate } from "@modules/settings/access/components/AccessDeviceList/helpers";
 import { useSettingsPageContext } from "@modules/settings/context";
 
 export const PairDevicesPanel = observer(function PairDevicesPanel() {
   const { accessStore } = useSettingsPageContext();
-  const accessSettingsUrl = buildCurrentDaemonAccessSettingsUrl();
   const {
-    accessDevices,
     accessStatus,
     accessStatusKind,
+    accessStatusScope,
     creatingPairingLink,
     creatingRecoveryCode,
-    currentAccess,
     daemonSettings,
-    forgettingCurrentBrowser,
-    loadingAccessDevices,
-    recoveryCode,
-    renamingAccessDeviceId,
-    resettingOtherTokens,
-    revokingAccessDeviceId
+    recoveryCode
   } = accessStore;
 
   return (
-    <article className={styles.card} role="tabpanel">
+    <article className={styles.card}>
       <div className={styles.cardHeader}>
         <div>
           <span className={styles.label}>Access</span>
           <h2>Pair devices</h2>
-          <p>Create one-time pairing links or revoke old access tokens for this machine</p>
+          <p>Create one-time pairing links and recovery codes for this machine</p>
         </div>
       </div>
       <div className={styles.pairingActionPanel}>
@@ -57,7 +47,8 @@ export const PairDevicesPanel = observer(function PairDevicesPanel() {
           <span className={styles.label}>Remote recovery</span>
           <strong>Recovery code</strong>
           <small>
-            Use this if a paired browser loses access while you are away. It can pair one new browser and is shown only once.
+            Use this if a paired browser loses access while you are away. It can pair one
+            new browser and is shown only once.
           </small>
         </div>
         <button
@@ -73,7 +64,9 @@ export const PairDevicesPanel = observer(function PairDevicesPanel() {
             <span className={styles.label}>Save this code now</span>
             <code>{recoveryCode.code}</code>
             <small>
-              Expires {formatDeviceDate(recoveryCode.expiresAt)}. Open DeskCue with <strong>?recovery=&lt;code&gt;</strong> or <strong>/recover/&lt;code&gt;</strong>.
+              Expires {formatDeviceDate(recoveryCode.expiresAt)}. Open DeskCue with{" "}
+              <strong>?recovery=&lt;code&gt;</strong> or{" "}
+              <strong>/recover/&lt;code&gt;</strong>.
             </small>
             <button
               className={styles.inlineButton}
@@ -85,27 +78,7 @@ export const PairDevicesPanel = observer(function PairDevicesPanel() {
           </div>
         ) : null}
       </div>
-      <PairingHostsDisclosure />
-      <AccessDeviceList
-        currentAccess={currentAccess}
-        devices={accessDevices}
-        forgettingCurrentBrowser={forgettingCurrentBrowser}
-        loading={loadingAccessDevices}
-        renamingDeviceId={renamingAccessDeviceId}
-        resettingOtherTokens={resettingOtherTokens}
-        revokingDeviceId={revokingAccessDeviceId}
-        onForgetCurrentBrowser={accessStore.forgetCurrentBrowser}
-        onRenameDevice={accessStore.renameAccessDevice}
-        onRevokeDevice={accessStore.revokeAccessDevice}
-        onRevokeOtherDevices={accessStore.resetOtherAccessTokens}
-      />
-      <div className={styles.accessHelpPanel}>
-        <span className={styles.label}>Recovery fallback</span>
-        <strong>Device lost access?</strong>
-        <small>Create a device link from any paired browser. If every device is locked out, open the host page below</small>
-        <code>{accessSettingsUrl}</code>
-      </div>
-      {accessStatus ? (
+      {accessStatus && accessStatusScope === "pairing" ? (
         <p
           className={clsx(
             styles.accessStatus,

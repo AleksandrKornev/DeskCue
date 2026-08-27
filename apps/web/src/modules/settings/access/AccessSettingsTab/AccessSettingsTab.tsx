@@ -5,6 +5,7 @@ import { useSettingsPageContext } from "@modules/settings/context";
 
 import { AccessProtectionPanel } from "./components/AccessProtectionPanel";
 import { CloudConnectionPanel } from "./components/CloudConnectionPanel";
+import { DeviceAccessPanel } from "./components/DeviceAccessPanel";
 import { PairDevicesPanel } from "./components/PairDevicesPanel";
 
 export const AccessSettingsTab = observer(function AccessSettingsTab() {
@@ -15,10 +16,15 @@ export const AccessSettingsTab = observer(function AccessSettingsTab() {
   }, [accessStore]);
 
   return (
-    <>
+    <section
+      aria-labelledby="settings-tab-access"
+      id="settings-panel-access"
+      role="tabpanel"
+    >
       <CloudConnectionPanel />
-      <AccessProtectionPanel />
       <PairDevicesPanel />
-    </>
+      <AccessProtectionPanel />
+      <DeviceAccessPanel />
+    </section>
   );
 });

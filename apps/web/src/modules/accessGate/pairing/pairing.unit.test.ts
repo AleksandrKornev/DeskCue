@@ -15,7 +15,12 @@ vi.mock("@api/connection/pairing/pairingCandidates", () => ({
 }));
 vi.mock("@api/connection/pairing/pairingTransport", () => ({
   fetchLocalAccessLink: vi.fn(),
-  fetchPairingEndpoint: mocks.fetchPairingEndpoint
+  fetchPairingEndpoint: mocks.fetchPairingEndpoint,
+  PairingEndpointError: class PairingEndpointError extends Error {
+    constructor(message: string, readonly status: number) {
+      super(message);
+    }
+  }
 }));
 vi.mock("@api/connection/pairing/pairingUrlCodes", () => ({
   clearPairingQueryParams: vi.fn(),
@@ -37,10 +42,19 @@ describe("pairing request lifecycle", () => {
       .mockResolvedValueOnce({
         json: () => Promise.resolve({ daemonUrl: "http://deskcue.test", deviceId: "device-1" })
       });
-    const { prepareConnectionConfig } = await import("@api/connection/pairing");
+    const {
+      prepareConnectionConfig,
+      readConnectionPreparationFailure
+    } = await import("@api/connection/pairing");
 
     await expect(prepareConnectionConfig()).rejects.toThrow("temporary network failure");
+    expect(readConnectionPreparationFailure()).toEqual({
+      message: "DeskCue could not use this pairing link. Check that this address is reachable, " +
+        "then create a fresh device link.",
+      title: "Pairing link did not work"
+    });
     await expect(prepareConnectionConfig()).resolves.toBeUndefined();
+    expect(readConnectionPreparationFailure()).toBeNull();
 
     expect(mocks.fetchPairingEndpoint).toHaveBeenCalledTimes(2);
     expect(mocks.saveConnectionConfig).toHaveBeenCalledWith({

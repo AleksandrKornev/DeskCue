@@ -25,7 +25,7 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
   } = accessStore;
 
   return (
-    <article className={clsx(styles.card, styles.accessProtectionCard)} role="tabpanel">
+    <article className={clsx(styles.card, styles.accessProtectionCard)}>
       <div className={styles.cardHeader}>
         <div>
           <span className={styles.label}>Access</span>
@@ -70,7 +70,7 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
               <dd>Device tokens</dd>
             </div>
             <div>
-              <dt>Allowed origins</dt>
+              <dt>Effective allowed origins</dt>
               <dd>
                 {securityStatus.allowedOrigins.length > 0
                   ? securityStatus.allowedOrigins.join(", ")
@@ -126,7 +126,7 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
               />
 
               <label className={styles.fieldLabel}>
-                <span>Allowed origins</span>
+                <span>Configured allowed origins</span>
                 <textarea
                   className={clsx(styles.field, styles.textArea)}
                   id="daemon-allowed-origins"
@@ -138,7 +138,7 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
                   }}
                 />
                 <small>
-                  One origin per line or comma-separated
+                  Saved origins only. One origin per line or comma-separated.
                 </small>
               </label>
               <SettingSourceDetails
