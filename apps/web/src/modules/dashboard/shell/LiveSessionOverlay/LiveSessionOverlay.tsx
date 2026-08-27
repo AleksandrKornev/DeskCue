@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import CloseIcon from "@assets/images/icon-close.svg?react";
 import { useBottomSheetDrag } from "@components/BottomSheet";
+import { useModalFocusLifecycle } from "@components/Modal";
 
 import styles from "./styles.module.scss";
 
@@ -20,12 +21,16 @@ export function LiveSessionOverlay({
     sheetRef
   } = useBottomSheetDrag<HTMLDivElement>({ onDismiss: onClose });
 
+  useModalFocusLifecycle({ dialogRef: sheetRef, onClose });
+
   return (
     <div className={styles.overlay}>
       <button
+        aria-hidden="true"
         aria-label="Close overlay"
         className={styles.backdrop}
         onClick={onClose}
+        tabIndex={-1}
         type="button"
       />
       <div
@@ -34,6 +39,7 @@ export function LiveSessionOverlay({
         className={styles.panel}
         ref={sheetRef}
         role="dialog"
+        tabIndex={-1}
         {...sheetGestureProps}
       >
         <div aria-hidden="true" className={styles.dragHandle} {...dragHandleProps} />

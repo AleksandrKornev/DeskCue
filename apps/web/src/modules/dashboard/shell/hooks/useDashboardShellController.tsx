@@ -8,7 +8,6 @@ import { DashboardBootShell } from "@modules/dashboard/shell/DashboardBootShell"
 import { dashboardNavigationStore } from "@modules/dashboard/shell/store/dashboardNavigationStore";
 
 import { useDashboardShellDisplayState } from "./display/useDashboardShellDisplayState";
-import { useLiveOverlayEscape } from "./overlay/useLiveOverlayEscape";
 import { useDashboardRouteScrollReset } from "./route/useDashboardRouteScrollReset";
 import { useDashboardShellRouteOrchestration } from "./route/useDashboardShellRouteOrchestration";
 import { useDashboardShellSections } from "./sections/useDashboardShellSections";
@@ -90,11 +89,6 @@ export function useDashboardShellController({
     selectedSession: managedSession.selectedSession,
     showBootstrapShell,
     takenOverAgentSessionForPanel
-  });
-
-  useLiveOverlayEscape({
-    activeLiveOverlay,
-    onCloseLiveOverlays: closeLiveOverlays
   });
 
   useDashboardRouteScrollReset({

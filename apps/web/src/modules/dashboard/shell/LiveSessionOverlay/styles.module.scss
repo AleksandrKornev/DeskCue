@@ -149,10 +149,6 @@
     }
   }
 
-  .close {
-    display: none;
-  }
-
   .content {
     overflow: auto;
     padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
