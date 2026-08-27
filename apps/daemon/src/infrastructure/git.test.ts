@@ -1,18 +1,23 @@
 import assert from "node:assert/strict";
 import { execFile, spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { buildGitSnapshot, parseBoundedGitStatus } from "./git.ts";
+import {
+  buildGitSnapshot,
+  parseBoundedGitStatus,
+  resolveSyntheticGitFileMode
+} from "./git.ts";
 
 const execFileAsync = promisify(execFile);
 
 test("buildGitSnapshot includes synthetic diff for untracked text files", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-"));
+
   try {
     await execFileAsync("git", ["init"], { cwd });
     await writeFile(join(cwd, "new-file.txt"), "first line\nsecond line\n", "utf8");
@@ -34,6 +39,7 @@ test("buildGitSnapshot includes synthetic diff for untracked text files", async 
 
 test("buildGitSnapshot can skip diff for summary refreshes", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-summary-"));
+
   try {
     await execFileAsync("git", ["init"], { cwd });
     await writeFile(join(cwd, "new-file.txt"), "first line\nsecond line\n", "utf8");
@@ -103,6 +109,7 @@ test("buildGitSnapshot treats missing git executable as a non-git workspace", as
 
 async function updateIndexFromWorktree(cwd: string, filePath: string) {
   const { stdout } = await execFileAsync("git", ["hash-object", "-w", filePath], { cwd });
+
   await execFileAsync("git", [
     "update-index",
     "--add",
@@ -113,6 +120,7 @@ async function updateIndexFromWorktree(cwd: string, filePath: string) {
 
 test("buildGitSnapshot includes staged changes in the workspace diff", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-staged-"));
+
   try {
     await execFileAsync("git", ["init"], { cwd });
     await writeFile(join(cwd, "tracked.txt"), "before\n", "utf8");
@@ -137,6 +145,123 @@ test("buildGitSnapshot includes staged changes in the workspace diff", async () 
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
+});
+
+test("buildGitSnapshot keeps tracked Unicode paths aligned between status and diff", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-unicode-"));
+
+  try {
+    await execFileAsync("git", ["init"], { cwd });
+    await writeFile(join(cwd, "данные.txt"), "before\n", "utf8");
+    await updateIndexFromWorktree(cwd, "данные.txt");
+    await execFileAsync("git", [
+      "-c", "user.name=DeskCue Test",
+      "-c", "user.email=deskcue@example.invalid",
+      "commit", "-m", "initial"
+    ], { cwd });
+
+    await writeFile(join(cwd, "данные.txt"), "after\n", "utf8");
+    await execFileAsync("git", ["config", "diff.noprefix", "true"], { cwd });
+
+    const snapshot = await buildGitSnapshot(cwd);
+
+    assert.deepEqual(snapshot.changedFiles, ["данные.txt"]);
+    assert.deepEqual(snapshot.changedFileStatuses, { "данные.txt": "M" });
+    assert.match(snapshot.diff, /diff --git a\/данные\.txt b\/данные\.txt/);
+    assert.match(snapshot.diff, /-before/);
+    assert.match(snapshot.diff, /\+after/);
+    assert.doesNotMatch(snapshot.diff, /\\320\\264/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("buildGitSnapshot composes an unborn staged and unstaged file as one final addition", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-unborn-mixed-"));
+
+  try {
+    await execFileAsync("git", ["init"], { cwd });
+    await writeFile(join(cwd, "данные.txt"), "staged\n", "utf8");
+    await updateIndexFromWorktree(cwd, "данные.txt");
+    await execFileAsync("git", ["update-index", "--chmod=+x", "данные.txt"], { cwd });
+    await writeFile(join(cwd, "данные.txt"), "final\n", "utf8");
+
+    const snapshot = await buildGitSnapshot(cwd);
+
+    assert.deepEqual(snapshot.changedFiles, ["данные.txt"]);
+    assert.deepEqual(snapshot.changedFileStatuses, { "данные.txt": "A" });
+    assert.equal(snapshot.diff.match(/^diff --git /gm)?.length, 1);
+    assert.match(snapshot.diff, /new file mode 100755/);
+    assert.match(snapshot.diff, /\+final/);
+    assert.doesNotMatch(snapshot.diff, /staged/);
+
+    await execFileAsync("git", ["config", "core.filemode", "true"], { cwd });
+
+    const trustedWorktreeSnapshot = await buildGitSnapshot(cwd);
+
+    assert.match(trustedWorktreeSnapshot.diff, /new file mode 100644/);
+    assert.doesNotMatch(trustedWorktreeSnapshot.diff, /new file mode 100755/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("buildGitSnapshot does not retain an indexed symlink mode for a trusted regular file", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-unborn-symlink-mode-"));
+
+  try {
+    await execFileAsync("git", ["init"], { cwd });
+    await execFileAsync("git", ["config", "core.symlinks", "true"], { cwd });
+    await writeFile(join(cwd, "link.txt"), "target", "utf8");
+    const { stdout: objectId } = await execFileAsync("git", ["hash-object", "-w", "link.txt"], {
+      cwd
+    });
+
+    await execFileAsync("git", [
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      `120000,${objectId.trim()},link.txt`
+    ], { cwd });
+    await writeFile(join(cwd, "link.txt"), "regular-final", "utf8");
+
+    const snapshot = await buildGitSnapshot(cwd);
+
+    assert.match(snapshot.diff, /new file mode 100644/);
+    assert.doesNotMatch(snapshot.diff, /new file mode 120000/);
+    assert.match(snapshot.diff, /\+regular-final/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("buildGitSnapshot preserves an actual symlink when Git checkout symlinks are disabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-untracked-symlink-"));
+
+  try {
+    await execFileAsync("git", ["init"], { cwd });
+    await execFileAsync("git", ["config", "core.symlinks", "false"], { cwd });
+    await writeFile(join(cwd, "target.txt"), "target content", "utf8");
+    await symlink("target.txt", join(cwd, "link.txt"), "file");
+
+    const snapshot = await buildGitSnapshot(cwd);
+    const linkDiff = snapshot.diff.split("diff --git a/target.txt")[0];
+
+    assert.match(linkDiff, /diff --git a\/link\.txt b\/link\.txt/);
+    assert.match(linkDiff, /new file mode 120000/);
+    assert.match(linkDiff, /\+target\.txt/);
+    assert.doesNotMatch(linkDiff, /target content/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("synthetic mode preserves either indexed regular mode when filemode is untrusted", () => {
+  const modeTrust = { fileMode: false, symlinks: true };
+
+  assert.equal(resolveSyntheticGitFileMode(false, 0o755, "100644", modeTrust), "100644");
+  assert.equal(resolveSyntheticGitFileMode(false, 0o644, "100755", modeTrust), "100755");
+  assert.equal(resolveSyntheticGitFileMode(false, 0o755, undefined, modeTrust), "100755");
 });
 
 test("parseBoundedGitStatus maps index and worktree states with stable priority", () => {
@@ -183,6 +308,7 @@ test("parseBoundedGitStatus maps index and worktree states with stable priority"
 
 test("buildGitSnapshot distinguishes unstaged, mixed, staged-added and untracked files", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-statuses-"));
+
   try {
     await execFileAsync("git", ["init"], { cwd });
     await writeFile(join(cwd, "unstaged.txt"), "before\n", "utf8");

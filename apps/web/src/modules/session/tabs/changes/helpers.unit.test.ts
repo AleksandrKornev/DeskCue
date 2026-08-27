@@ -45,6 +45,80 @@ describe("parseUnifiedDiff", () => {
     expect(file).toMatchObject({ path: "new-name.ts", previousPath: "old-name.ts", status: "renamed" });
   });
 
+  it("keeps an unquoted Unicode path attached to its textual patch", () => {
+    const [file] = parseUnifiedDiff([
+      "diff --git a/данные.txt b/данные.txt",
+      "index 123..456 100644",
+      "--- a/данные.txt",
+      "+++ b/данные.txt",
+      "@@ -1 +1 @@",
+      "-before",
+      "+after"
+    ].join("\n"));
+
+    expect(file).toMatchObject({
+      additions: 1,
+      deletions: 1,
+      path: "данные.txt",
+      status: "modified"
+    });
+    expect(file?.lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "addition", newLine: 1, text: "after" })
+    ]));
+  });
+
+  it("does not split a repeated path that contains the diff-side delimiter", () => {
+    const path = "дир b/имя.txt";
+    const parsed = parseUnifiedDiff([
+      "diff --git a/дир b/имя.txt b/дир b/имя.txt",
+      "--- a/дир b/имя.txt",
+      "+++ b/дир b/имя.txt",
+      "@@ -1 +1 @@",
+      "-before",
+      "+after"
+    ].join("\n"));
+    const files = mergeDiffReviewFiles([path], parsed, { [path]: "M" });
+
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
+      additions: 1,
+      deletions: 1,
+      path
+    });
+  });
+
+  it("decodes a C-quoted Git path before attaching its patch", () => {
+    const [file] = parseUnifiedDiff([
+      String.raw`diff --git "a/\320\264\320\260\320\275\320\275\321\213\320\265.txt" "b/\320\264\320\260\320\275\320\275\321\213\320\265.txt"`,
+      String.raw`--- "a/\320\264\320\260\320\275\320\275\321\213\320\265.txt"`,
+      String.raw`+++ "b/\320\264\320\260\320\275\320\275\321\213\320\265.txt"`,
+      "@@ -1 +1 @@",
+      "-before",
+      "+after"
+    ].join("\n"));
+
+    expect(file).toMatchObject({
+      additions: 1,
+      deletions: 1,
+      path: "данные.txt"
+    });
+  });
+
+  it("accepts a rename header with only one C-quoted side", () => {
+    const [file] = parseUnifiedDiff([
+      String.raw`diff --git a/plain.txt "b/tab\tname.txt"`,
+      "similarity index 100%",
+      "rename from plain.txt",
+      String.raw`rename to "tab\tname.txt"`
+    ].join("\n"));
+
+    expect(file).toMatchObject({
+      path: "tab\tname.txt",
+      previousPath: "plain.txt",
+      status: "renamed"
+    });
+  });
+
   it("does not invent zero line statistics when a dirty path has no patch", () => {
     const [file] = mergeDiffReviewFiles(["untracked-directory/"], []);
 
@@ -55,6 +129,7 @@ describe("parseUnifiedDiff", () => {
       path: "untracked-directory/",
       status: "unknown"
     });
+
     expect(diffStatusLabel(file.status)).toBe("?");
   });
 

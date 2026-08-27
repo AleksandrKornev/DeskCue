@@ -2,6 +2,7 @@ import {
   hiddenDiffPathPatterns,
   MAX_VISIBLE_DIFF_CHARS
 } from "./constants";
+import { parseGitDiffHeaderPaths } from "./gitDiffPaths";
 
 export function isHiddenDiffPath(filePath: string) {
   const normalizedPath = filePath.replace(/\\/g, "/");
@@ -21,9 +22,9 @@ export function filterUnifiedDiff(diff: string) {
   let isHiddenFileBlock = false;
 
   for (const line of lines) {
-    const headerMatch = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
+    const headerPaths = parseGitDiffHeaderPaths(line);
 
-    if (headerMatch) isHiddenFileBlock = isHiddenDiffPath(headerMatch[1]) || isHiddenDiffPath(headerMatch[2]);
+    if (headerPaths) isHiddenFileBlock = isHiddenDiffPath(headerPaths.oldPath) || isHiddenDiffPath(headerPaths.newPath);
 
     if (!isHiddenFileBlock) keptLines.push(line);
   }

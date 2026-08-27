@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { open, stat } from "node:fs/promises";
+import { lstat, open, readlink } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -14,6 +14,18 @@ const maxSyntheticDiffFiles = 128;
 const maxSyntheticDiffTotalBytes = 2 * 1024 * 1024;
 const gitCommandTimeoutMs = 10_000;
 const syntheticDiffConcurrency = 4;
+const gitUtf8PathArguments = ["-c", "core.quotePath=false"];
+const gitStableDiffPathArguments = ["--src-prefix=a/", "--dst-prefix=b/"];
+
+type SyntheticDiffFile = {
+  file: string;
+  indexedMode?: string;
+};
+
+type GitWorktreeModeTrust = {
+  fileMode: boolean;
+  symlinks: boolean;
+};
 
 export type BuildGitSnapshotOptions = {
   includeDiff?: boolean;
@@ -36,6 +48,7 @@ async function runGit(
 export async function inspectGitRepo(cwd: string) {
   try {
     const inside = await runGit(cwd, ["rev-parse", "--is-inside-work-tree"]);
+
     if (inside.trim() !== "true") {
       return {
         isGitRepo: false,
@@ -57,28 +70,65 @@ export async function inspectGitRepo(cwd: string) {
   }
 }
 
-async function readTrackedWorkspaceDiff(cwd: string) {
-  const diffOptions = {
-    maxBuffer: maxGitDiffBytes
-  };
-
-  // Compare the whole working tree with HEAD so staged and unstaged edits are
-  // represented by one final patch per path. Plain `git diff` omits staged
-  // changes even though `git status` reports them as dirty.
-  const headExists = await runGit(cwd, ["rev-parse", "--verify", "HEAD"]).then(
+function gitHeadExists(cwd: string) {
+  return runGit(cwd, ["rev-parse", "--verify", "HEAD"]).then(
     () => true,
     () => false
   );
-  if (headExists) {
-    return runGit(cwd, ["diff", "--no-ext-diff", "--unified=3", "HEAD"], diffOptions)
-      .catch(() => "");
+}
+
+function readTrackedWorkspaceDiff(cwd: string) {
+  // Compare the whole working tree with HEAD so staged and unstaged edits are
+  // represented by one final patch per path. Plain `git diff` omits staged
+  // changes even though `git status` reports them as dirty.
+  return runGit(
+    cwd,
+    [
+      ...gitUtf8PathArguments,
+      "diff",
+      "--no-ext-diff",
+      ...gitStableDiffPathArguments,
+      "--unified=3",
+      "HEAD"
+    ],
+    { maxBuffer: maxGitDiffBytes }
+  ).catch(() => "");
+}
+
+function parseIndexedFileModes(output: string) {
+  const records = output.split("\0");
+  const modes = new Map<string, string>();
+
+  for (let index = 0; index < records.length - 1; index += 1) {
+    const match = /^:\d{6} (\d{6}) [0-9a-f]+ [0-9a-f]+ A$/.exec(records[index] ?? "");
+
+    if (!match) continue;
+
+    const file = records[index + 1];
+
+    if (file) modes.set(file, match[1]);
+    index += 1;
   }
 
-  const [indexed, workingTree] = await Promise.all([
-    runGit(cwd, ["diff", "--cached", "--no-ext-diff", "--unified=3"], diffOptions).catch(() => ""),
-    runGit(cwd, ["diff", "--no-ext-diff", "--unified=3"], diffOptions).catch(() => "")
+  return modes;
+}
+
+function readUnbornIndexedFileModes(cwd: string) {
+  return runGit(cwd, ["diff", "--cached", "--raw", "--no-abbrev", "-z"], {
+    maxBuffer: maxGitStatusBytes
+  }).then(parseIndexedFileModes, () => new Map<string, string>());
+}
+
+async function readGitWorktreeModeTrust(cwd: string): Promise<GitWorktreeModeTrust> {
+  const [fileMode, symlinks] = await Promise.all([
+    runGit(cwd, ["config", "--bool", "core.filemode"]).catch(() => "true"),
+    runGit(cwd, ["config", "--bool", "core.symlinks"]).catch(() => "true")
   ]);
-  return [indexed, workingTree].filter(Boolean).join("\n");
+
+  return {
+    fileMode: fileMode !== "false",
+    symlinks: symlinks !== "false"
+  };
 }
 
 export async function buildGitIdentitySnapshot(cwd: string): Promise<GitSnapshot> {
@@ -103,6 +153,7 @@ function mapPorcelainStatus(status: string): GitFileStatus {
   if (unmergedGitStatuses.has(status) || status.includes("U")) return "U";
 
   const candidates = new Set<GitFileStatus>();
+
   for (const value of status) {
     if (value === "M" || value === "A" || value === "D" || value === "R" || value === "C") {
       candidates.add(value);
@@ -110,6 +161,7 @@ function mapPorcelainStatus(status: string): GitFileStatus {
       candidates.add("M");
     }
   }
+
   return gitFileStatusPriority.find((candidate) => candidates.has(candidate)) ?? "?";
 }
 
@@ -119,19 +171,25 @@ export function parseBoundedGitStatus(output: string) {
   const statusEntries: Array<[string, GitFileStatus]> = [];
   const untrackedFiles: string[] = [];
   let isDirty = false;
+
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
+
     if (!record) continue;
+
     isDirty = true;
     const status = record.slice(0, 2);
     const filePath = record.slice(3);
+
     if (filePath && changedFiles.length < maxChangedFiles) {
       changedFiles.push(filePath);
       statusEntries.push([filePath, mapPorcelainStatus(status)]);
       if (status === "??") untrackedFiles.push(filePath);
     }
+
     if (status.includes("R") || status.includes("C")) index += 1;
   }
+
   return {
     changedFiles,
     changedFileStatuses: Object.fromEntries(statusEntries),
@@ -142,9 +200,13 @@ export function parseBoundedGitStatus(output: string) {
 
 function truncateUtf8(value: string, maxBytes: number) {
   const bytes = Buffer.from(value);
+
   if (bytes.length <= maxBytes) return value;
+
   let end = maxBytes;
+
   while (end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1;
+
   return bytes.subarray(0, end).toString("utf8");
 }
 
@@ -155,9 +217,11 @@ async function mapWithConcurrency<TInput, TResult>(
 ) {
   const results = new Array<TResult>(values.length);
   let nextIndex = 0;
+
   await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
     while (nextIndex < values.length) {
       const index = nextIndex++;
+
       results[index] = await read(values[index]);
     }
   }));
@@ -168,83 +232,158 @@ async function readBoundedFile(path: string, maxBytes: number) {
   const handle = await open(path, "r");
   const bytes = Buffer.allocUnsafe(maxBytes + 1);
   let offset = 0;
+
   try {
     while (offset < bytes.length) {
       const read = await handle.read(bytes, offset, bytes.length - offset, offset);
+
       if (read.bytesRead === 0) break;
+
       offset += read.bytesRead;
     }
   } finally {
     await handle.close();
   }
+
   return {
     bytes: bytes.subarray(0, Math.min(offset, maxBytes)),
     overflow: offset > maxBytes
   };
 }
 
-async function buildUntrackedFileDiff(cwd: string, file: string) {
+function quoteSyntheticGitPath(path: string) {
+  if (!/[\u0000-\u001f"\\\u007f]/.test(path)) return path;
+
+  let quoted = "\"";
+
+  for (const character of path) {
+    if (character === "\"") {
+      quoted += "\\\"";
+    } else if (character === "\\") {
+      quoted += "\\\\";
+    } else {
+      const codePoint = character.codePointAt(0) ?? 0;
+
+      if (codePoint <= 0x1f || codePoint === 0x7f) {
+        quoted += [...Buffer.from(character)]
+          .map((byte) => `\\${byte.toString(8).padStart(3, "0")}`)
+          .join("");
+      } else {
+        quoted += character;
+      }
+    }
+  }
+
+  return `${quoted}\"`;
+}
+
+export function resolveSyntheticGitFileMode(
+  isWorktreeSymlink: boolean,
+  worktreeMode: number,
+  indexedMode: string | undefined,
+  modeTrust: GitWorktreeModeTrust
+) {
+  if (isWorktreeSymlink) return "120000";
+  if (!modeTrust.symlinks && indexedMode === "120000") return "120000";
+
+  const worktreeExecutable = (worktreeMode & 0o111) !== 0;
+
+  if (modeTrust.fileMode) return worktreeExecutable ? "100755" : "100644";
+  if (indexedMode === "100644" || indexedMode === "100755") return indexedMode;
+
+  return worktreeExecutable ? "100755" : "100644";
+}
+
+async function buildSyntheticFileDiff(
+  cwd: string,
+  { file, indexedMode }: SyntheticDiffFile,
+  modeTrust: GitWorktreeModeTrust
+) {
   const absolutePath = resolve(cwd, file);
   const workspaceRoot = resolve(cwd);
-  if (absolutePath !== workspaceRoot && !absolutePath.startsWith(`${workspaceRoot}${sep}`)) {
-    return "";
-  }
+
+  if (absolutePath !== workspaceRoot && !absolutePath.startsWith(`${workspaceRoot}${sep}`)) return "";
 
   let fileStat;
   try {
-    fileStat = await stat(absolutePath);
+    fileStat = await lstat(absolutePath);
   } catch {
     return "";
   }
 
-  if (!fileStat.isFile() || fileStat.size > maxSyntheticDiffFileBytes) {
-    return "";
-  }
+  if (indexedMode === "160000") return "";
+  if (!fileStat.isFile() && !fileStat.isSymbolicLink()) return "";
+  if (fileStat.size > maxSyntheticDiffFileBytes) return "";
 
-  const read = await readBoundedFile(absolutePath, maxSyntheticDiffFileBytes);
+  const isWorktreeSymlink = fileStat.isSymbolicLink();
+  const fileMode = resolveSyntheticGitFileMode(
+    isWorktreeSymlink,
+    fileStat.mode,
+    indexedMode,
+    modeTrust
+  );
+
+  if (isWorktreeSymlink && fileMode !== "120000") return "";
+
+  const read = isWorktreeSymlink
+    ? { bytes: Buffer.from(await readlink(absolutePath)), overflow: false }
+    : await readBoundedFile(absolutePath, maxSyntheticDiffFileBytes);
+
   if (read.overflow) return "";
+
   const bytes = read.bytes;
+  const oldPath = quoteSyntheticGitPath(`a/${file}`);
+  const newPath = quoteSyntheticGitPath(`b/${file}`);
+
   if (bytes.includes(0)) {
     return [
-      `diff --git a/${file} b/${file}`,
-      "new file mode 100644",
+      `diff --git ${oldPath} ${newPath}`,
+      `new file mode ${fileMode}`,
       `--- /dev/null`,
-      `+++ b/${file}`,
-      "Binary files /dev/null and b/" + file + " differ"
+      `+++ ${newPath}`,
+      `Binary files /dev/null and ${newPath} differ`
     ].join("\n");
   }
 
   const text = bytes.toString("utf8");
   const lines = text.length ? text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n") : [];
-  if (lines.at(-1) === "") {
-    lines.pop();
-  }
+
+  if (lines.at(-1) === "") lines.pop();
 
   return [
-    `diff --git a/${file} b/${file}`,
-    "new file mode 100644",
+    `diff --git ${oldPath} ${newPath}`,
+    `new file mode ${fileMode}`,
     "--- /dev/null",
-    `+++ b/${file}`,
+    `+++ ${newPath}`,
     `@@ -0,0 +1,${lines.length} @@`,
     ...lines.map((line) => `+${line}`)
   ].join("\n");
 }
 
-async function buildUntrackedFilesDiff(cwd: string, files: string[]) {
+async function buildSyntheticFilesDiff(
+  cwd: string,
+  files: SyntheticDiffFile[],
+  modeTrust: GitWorktreeModeTrust
+) {
   const diffs = await mapWithConcurrency(
     files.slice(0, maxSyntheticDiffFiles),
     syntheticDiffConcurrency,
-    (file) => buildUntrackedFileDiff(cwd, file)
+    (file) => buildSyntheticFileDiff(cwd, file, modeTrust)
   );
   const retained: string[] = [];
   let retainedBytes = 0;
+
   for (const diff of diffs) {
     if (!diff) continue;
+
     const diffBytes = Buffer.byteLength(diff);
+
     if (retainedBytes + diffBytes > maxSyntheticDiffTotalBytes) break;
+
     retained.push(diff);
     retainedBytes += diffBytes;
   }
+
   return retained.join("\n");
 }
 
@@ -253,6 +392,7 @@ export async function buildGitSnapshot(
   options: BuildGitSnapshotOptions = {}
 ): Promise<GitSnapshot> {
   const repo = await inspectGitRepo(cwd);
+
   if (!repo.isGitRepo) {
     return {
       isGitRepo: false,
@@ -266,12 +406,11 @@ export async function buildGitSnapshot(
   }
 
   const includeDiff = options.includeDiff ?? true;
-  const [statusOutput, trackedDiffOutput] = await Promise.all([
+  const [statusOutput, headExists] = await Promise.all([
     runGit(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
-    includeDiff
-      ? readTrackedWorkspaceDiff(cwd)
-      : Promise.resolve("")
+    includeDiff ? gitHeadExists(cwd) : Promise.resolve(false)
   ]);
+  const trackedDiffRead = headExists ? readTrackedWorkspaceDiff(cwd) : Promise.resolve("");
 
   const {
     changedFiles,
@@ -279,9 +418,26 @@ export async function buildGitSnapshot(
     untrackedFiles,
     isDirty
   } = parseBoundedGitStatus(statusOutput);
-  const untrackedDiffOutput = includeDiff ? await buildUntrackedFilesDiff(cwd, untrackedFiles) : "";
+  const [indexedFileModes, modeTrust] = await Promise.all([
+    headExists || !includeDiff
+      ? Promise.resolve(new Map<string, string>())
+      : readUnbornIndexedFileModes(cwd),
+    includeDiff
+      ? readGitWorktreeModeTrust(cwd)
+      : Promise.resolve({ fileMode: true, symlinks: true })
+  ]);
+  const syntheticDiffFiles = (headExists ? untrackedFiles : changedFiles).map((file) => ({
+    file,
+    indexedMode: indexedFileModes.get(file)
+  }));
+  const [trackedDiffOutput, syntheticDiffOutput] = await Promise.all([
+    trackedDiffRead,
+    includeDiff
+      ? buildSyntheticFilesDiff(cwd, syntheticDiffFiles, modeTrust)
+      : Promise.resolve("")
+  ]);
   const diff = truncateUtf8(
-    [trackedDiffOutput, untrackedDiffOutput].filter(Boolean).join("\n"),
+    [trackedDiffOutput, syntheticDiffOutput].filter(Boolean).join("\n"),
     maxGitDiffBytes
   );
 
