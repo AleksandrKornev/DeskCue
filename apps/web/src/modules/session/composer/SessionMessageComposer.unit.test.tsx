@@ -88,7 +88,8 @@ describe("SessionMessageComposer", () => {
 
     expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-    expect(screen.getByPlaceholderText("Turn active outside DeskCue")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Input unavailable")).toBeInTheDocument();
+    expect(screen.getAllByText("Turn active outside DeskCue")).toHaveLength(1);
   });
 
   it("normalizes and does not duplicate the same unavailable-input reason", () => {
@@ -100,10 +101,10 @@ describe("SessionMessageComposer", () => {
 
     const field = screen.getByRole("textbox", { name: "Next message" });
 
-    expect(field).toHaveAttribute("placeholder", "This session is not accepting input");
-    expect(field).toHaveAttribute("title", "This session is not accepting input");
+    expect(field).toHaveAttribute("placeholder", "Input unavailable");
+    expect(field).not.toHaveAttribute("title");
     expect(screen.queryByText("This session is not accepting input.")).not.toBeInTheDocument();
-    expect(screen.queryByText("This session is not accepting input")).not.toBeInTheDocument();
+    expect(screen.getAllByText("This session is not accepting input")).toHaveLength(1);
   });
 
   it("does not repeat a disabled-input reason as a second visible hint", () => {
@@ -113,8 +114,23 @@ describe("SessionMessageComposer", () => {
       sharedSessionHint: "This turn is running outside DeskCue. Finish or stop it in the controlling client"
     });
 
-    expect(screen.getByPlaceholderText("Turn active outside DeskCue")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Input unavailable")).toBeInTheDocument();
+    expect(screen.getAllByText("Turn active outside DeskCue")).toHaveLength(1);
     expect(screen.queryByText(/This turn is running outside DeskCue/u)).not.toBeInTheDocument();
+  });
+
+  it("keeps the persistent input blocker when transport is also unavailable", () => {
+    renderComposer({
+      canSendInput: false,
+      inputUnavailableLabel: "Another Codex client still owns this chat. Close it there, then retry.",
+      liveUpdatesConnection: { lastSyncedAt: null, status: "offline" }
+    });
+
+    expect(screen.getByPlaceholderText("Input unavailable")).toBeInTheDocument();
+    expect(screen.getAllByText(
+      "Another Codex client still owns this chat. Close it there, then retry"
+    )).toHaveLength(1);
+    expect(screen.queryByText(/sending will be available after reconnecting/u)).not.toBeInTheDocument();
   });
 
   it("sends a trimmed draft", async () => {
@@ -275,6 +291,11 @@ describe("SessionMessageComposer", () => {
     expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Next message" }))
       .toHaveValue("keep this reconnect draft");
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveAttribute(
+        "placeholder",
+        "Waiting for connection"
+      );
     expect(screen.getByText(/Offline — your draft is saved/u)).toBeInTheDocument();
 
     firstView.unmount();
@@ -288,6 +309,10 @@ describe("SessionMessageComposer", () => {
 
     expect(reconnectingField).toBeDisabled();
     expect(reconnectingField).toHaveValue("keep this reconnect draft");
+    expect(reconnectingField).toHaveAttribute(
+      "placeholder",
+      "Waiting for connection"
+    );
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     expect(screen.getByText(/Reconnecting — your draft is saved/u)).toBeInTheDocument();
 
@@ -305,6 +330,41 @@ describe("SessionMessageComposer", () => {
     expect(screen.getByRole("textbox", { name: "Next message" }))
       .toHaveValue("keep this reconnect draft");
     expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+  });
+
+  it("uses one accurate transport reason when no draft is saved", () => {
+    const offlineConnection = { lastSyncedAt: null, status: "offline" } as const;
+
+    renderComposer({
+      liveUpdatesConnection: offlineConnection,
+      sharedSessionHint: "Two clients are watching this turn"
+    });
+
+    const field = screen.getByRole("textbox", { name: "Next message" });
+
+    expect(field).toBeDisabled();
+    expect(field).toHaveAttribute("placeholder", "Waiting for connection");
+    expect(field).not.toHaveAttribute("title");
+    expect(screen.getAllByText("Offline — sending will be available after reconnecting."))
+      .toHaveLength(1);
+    expect(screen.queryByText(/your draft is saved/u)).not.toBeInTheDocument();
+    expect(screen.queryByText("Two clients are watching this turn")).not.toBeInTheDocument();
+  });
+
+  it("keeps inline transport state concise without repeating the detailed reason", () => {
+    renderComposer({
+      liveUpdatesConnection: { lastSyncedAt: null, status: "connecting" },
+      mode: "inline"
+    });
+
+    const field = screen.getByRole("textbox", { name: "Next message" });
+
+    expect(field).toBeDisabled();
+    expect(field).toHaveAttribute("name", "session-message");
+    expect(field).toHaveAttribute("placeholder", "Waiting for connection");
+    expect(screen.getAllByText(
+      "Connecting to DeskCue — sending will be available when live updates start."
+    )).toHaveLength(1);
   });
 
   it("clears the cached draft only after the send is accepted", async () => {

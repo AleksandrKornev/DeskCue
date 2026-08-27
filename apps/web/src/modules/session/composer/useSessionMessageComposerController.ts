@@ -58,7 +58,7 @@ export function useSessionMessageComposerController({
   const handledTouchSendPointerRef = useRef(false);
   const draftRestorationGenerationRef = useRef(0);
   const visibleActionRequest = actionRequest;
-  const connectionNotice = getComposerConnectionNotice(liveUpdatesConnection?.status);
+  const connectionNotice = getComposerConnectionNotice(liveUpdatesConnection?.status, hasDraft);
   const canUseInput = canSendInput && isComposerTransportAvailable(liveUpdatesConnection?.status);
   const isActionDecisionPending = Boolean(actionRequest);
   const isActionDecisionDisabled = Boolean(pendingActionDecision) || !canUseInput || isInterruptingPrompt;
@@ -84,7 +84,7 @@ export function useSessionMessageComposerController({
   const interruptButtonLabel = isPromptQueued ? "Cancel queued message" : "Interrupt prompt";
   const normalizedSharedSessionHint = normalizeComposerNotice(sharedSessionHint);
   const shouldShowSharedSessionHint = shouldShowComposerHint({
-    canSendInput,
+    canSendInput: canUseInput,
     sharedSessionHint: normalizedSharedSessionHint
   });
   const sharedSessionHintText =

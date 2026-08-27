@@ -9,6 +9,7 @@ import {
   isManagedSourceSessionWorking,
   isSourceTurnOutsideDeskCue,
   resolveInputAvailability,
+  resolveInputUnavailableLabel,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
   resolveShellWaitingPrompt,
@@ -65,6 +66,39 @@ function transcriptUser(id: string, text: string) {
 }
 
 describe("managed session reply state helpers", () => {
+  it("preserves the actionable writer-conflict reason when a prompt was not sent", () => {
+    const writerConflictReason =
+      "Another Codex client still owns this chat. Close it there, then retry the prompt from DeskCue.";
+
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: writerConflictReason,
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        phase: "not_sent",
+        promptText: "Continue",
+        requestedAt,
+        retryable: true
+      },
+      sourceSessionId: "source-1"
+    }), writerConflictReason);
+  });
+
+  it("uses the bounded control-loss label for an unknown recovery outcome", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: "Provider-specific stale detail",
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        phase: "outcome_unknown",
+        promptText: "Continue",
+        requestedAt,
+        retryable: false
+      },
+      sourceSessionId: "source-1"
+    }), "DeskCue lost control of this turn");
+  });
+
   it("ignores stale active source metadata after the managed transport is done", () => {
     const activeSource = {
       turnState: { phase: "active" },

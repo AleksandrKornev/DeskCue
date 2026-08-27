@@ -22,6 +22,7 @@ import {
   isManagedSourceSessionWorking,
   isSourceTurnOutsideDeskCue,
   resolveInputAvailability,
+  resolveInputUnavailableLabel,
   resolvePendingChatPrompt,
   resolvePromptInFlight,
   resolveShellWaitingPrompt,
@@ -199,17 +200,13 @@ export function useManagedSessionReplyState({
     blockExternalSourceInput: isExternalSourceTurn || Boolean(promptRecovery),
     canSendInputWhenReadOnly
   });
-  const inputUnavailableLabel = canSendInput
-    ? null
-    : promptRecovery
-      ? "DeskCue lost control of this turn"
-      : isExternalSourceTurn
-        ? "Turn active outside DeskCue"
-        : sessionShell?.inputBlockedReason?.trim()
-          ? sessionShell.inputBlockedReason
-          : sessionShell?.sourceSessionId
-            ? "This chat is view only"
-            : "Input unavailable";
+  const inputUnavailableLabel = resolveInputUnavailableLabel({
+    canSendInput,
+    inputBlockedReason: sessionShell?.inputBlockedReason,
+    isExternalSourceTurn,
+    promptRecovery,
+    sourceSessionId: sessionShell?.sourceSessionId
+  });
 
   const sharedViewerCount = sessionShell?.viewerCount ?? 0;
   const sharedSessionHint = promptRecovery
