@@ -93,6 +93,14 @@
 }
 
 @include mobile-or-compact-height {
+  .panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .panelHeader {
     display: grid;
     justify-items: start;
@@ -111,6 +119,11 @@
     align-self: center;
     width: calc(100dvw - 22px);
     max-width: calc(100dvw - 22px);
+  }
+
+  .panel .tabPanel {
+    width: 100%;
+    max-width: 100%;
   }
 
   .reviewTabPanel {
