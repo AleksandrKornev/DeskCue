@@ -23,6 +23,7 @@ export function ConnectedCloudSettings({
   permissionsDirty,
   permissionsSubmitting,
   status,
+  statusAvailable,
   submitting
 }: {
   actionError: string | null;
@@ -36,6 +37,7 @@ export function ConnectedCloudSettings({
   permissionsDirty: boolean;
   permissionsSubmitting: boolean;
   status: CloudConnectionStatusResponse;
+  statusAvailable: boolean;
   submitting: boolean;
 }) {
   return (
@@ -52,7 +54,7 @@ export function ConnectedCloudSettings({
         />
         <p className={styles.permissionsBoundary}>
           DeskCue Cloud cannot increase these permissions. Changes are accepted only from
-          this machine in Settings → Access → Cloud.
+          this machine in Settings → Connections → DeskCue Cloud.
         </p>
         <PermissionFields
           className={styles.permissionsGrid}
@@ -103,7 +105,7 @@ export function ConnectedCloudSettings({
             <li>Outbound-only relay</li>
           </ul>
           <div className={styles.capabilitySummary}>
-            <span>Enabled capabilities</span>
+            <span>{statusAvailable && status.connected ? "Enabled capabilities" : "Saved permissions"}</span>
             <strong>{enabledCapabilityLabel(status)}</strong>
           </div>
         </div>

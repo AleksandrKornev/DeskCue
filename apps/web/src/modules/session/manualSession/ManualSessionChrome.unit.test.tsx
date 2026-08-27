@@ -65,7 +65,7 @@ describe("ManualSessionChrome", () => {
 
     expect(screen.getByText("Manual command")).toBeInTheDocument();
     expect(screen.getByText(
-      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
     )).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
     expect(onStopSession).not.toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe("ManualSessionChrome", () => {
     renderChrome("logs");
 
     expect(screen.getByText(
-      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud."
+      "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
     )).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
   });

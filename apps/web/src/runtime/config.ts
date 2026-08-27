@@ -44,7 +44,7 @@ const CLOUD_MACHINE_FEATURES: DeskCueRuntimeFeatures = {
 const CLOUD_MACHINE_PATH_PATTERN = /^\/machines\/([^/]+)\/deskcue(?:\/|$)/;
 const MACHINE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const CLOUD_SESSION_COMMANDS_UNAVAILABLE_REASON =
-  "Control is not shared by this machine. Enable it locally in DeskCue Settings → Access → Cloud.";
+  "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud.";
 const DEFAULT_SESSION_COMMANDS_UNAVAILABLE_REASON =
   "Remote control is unavailable for this connection.";
 

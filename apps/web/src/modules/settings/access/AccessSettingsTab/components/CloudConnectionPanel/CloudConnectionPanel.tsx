@@ -36,7 +36,8 @@ export function CloudConnectionPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const hasCloudProfile = status?.enabled === true;
-  const isConnected = status?.connected === true;
+  const statusAvailable = status !== null && loadError === null;
+  const isConnected = statusAvailable && status.connected;
   const permissionDraft = usePermissionDraft(
     status,
     hasCloudProfile,
@@ -84,9 +85,12 @@ export function CloudConnectionPanel() {
     <>
       <CloudConnectionSummary
         connected={isConnected}
+        hasCloudProfile={hasCloudProfile}
+        loading={loading}
         onOpen={() => setDetailsOpen(true)}
         open={detailsOpen}
         state={status?.state}
+        statusAvailable={statusAvailable}
       />
 
       <Modal
@@ -102,7 +106,10 @@ export function CloudConnectionPanel() {
           connected={isConnected}
           enrollmentAttempt={enrollmentAttempt}
           hasCloudProfile={hasCloudProfile}
+          loading={loading}
           pendingEventCount={status?.pendingEventCount ?? 0}
+          state={status?.state}
+          statusAvailable={statusAvailable}
         />
 
         {hasCloudProfile && status ? (
@@ -121,6 +128,7 @@ export function CloudConnectionPanel() {
             permissionsDirty={permissionDraft.dirty}
             permissionsSubmitting={permissionsSubmitting}
             status={status}
+            statusAvailable={statusAvailable}
             submitting={submitting}
           />
         ) : (

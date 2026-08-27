@@ -316,8 +316,13 @@
 }
 
 .fileActionDialogPath {
+  display: -webkit-box;
+  max-height: calc(1.35em * 3);
+  overflow: hidden;
   overflow-wrap: anywhere;
   color: #aeb3be;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 @include fileViewer.responsive;

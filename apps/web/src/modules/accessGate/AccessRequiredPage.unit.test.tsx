@@ -50,6 +50,11 @@ describe("AccessRequiredPage", () => {
     expect(screen.getByText("http://deskcue.test:4310/settings?tab=access"))
       .toBeInTheDocument();
     expect(screen.queryByText(/127\.0\.0\.1:4100/)).not.toBeInTheDocument();
+    expect(screen.getByText("Go to Connections and create a device pairing link"))
+      .toBeInTheDocument();
+    expect(screen.getByText(/created from Settings > Connections\./))
+      .toBeInTheDocument();
+    expect(screen.queryByText(/Go to Access/)).not.toBeInTheDocument();
 
     const retryButton = screen.getByRole("button", { name: "Retry" });
     const firstStep = screen.getByText(/On the host computer, open/i);

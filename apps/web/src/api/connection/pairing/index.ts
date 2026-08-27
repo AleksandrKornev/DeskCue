@@ -45,13 +45,13 @@ function buildConnectionPreparationFailure(
     return operation === "pair"
       ? {
         message: "This pairing link is invalid, expired, or already used. " +
-          "Create a fresh device link in Settings → Access.",
+          "Create a fresh device link in Settings → Connections.",
         title: "Pairing link did not work"
       }
 
       : {
         message: "This recovery code is invalid, expired, or already used. " +
-          "Create a fresh recovery code in Settings → Access.",
+          "Create a fresh recovery code in Settings → Connections.",
         title: "Recovery code did not work"
       };
   }

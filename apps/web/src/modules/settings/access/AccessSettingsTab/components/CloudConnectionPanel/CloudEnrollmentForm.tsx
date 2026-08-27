@@ -91,7 +91,7 @@ export function CloudEnrollmentForm({
         />
         <p className={styles.permissionsBoundary}>
           DeskCue Cloud cannot grant itself more access. You can change these permissions
-          later only on this machine in Settings → Access → Cloud.
+          later only on this machine in Settings → Connections → DeskCue Cloud.
         </p>
       </div>
 

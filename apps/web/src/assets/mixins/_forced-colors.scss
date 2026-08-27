@@ -1,0 +1,13 @@
+@mixin selected-state {
+  @media (forced-colors: active) {
+    border-color: Highlight;
+    outline: 2px solid Highlight;
+    outline-offset: -3px;
+    background: Canvas;
+    color: CanvasText;
+    font-weight: 800;
+    text-decoration: underline;
+    text-decoration-color: Highlight;
+    text-underline-offset: 0.22em;
+  }
+}
