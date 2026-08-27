@@ -9,6 +9,7 @@ import type {
   WorkspaceSummary
 } from "@deskcue/protocol";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
+import { SessionRepository } from "#sessions/state/sessionRepository";
 
 import { createReadOnlyClaudeSession } from "./claudeReadOnlySessionService.ts";
 
@@ -91,6 +92,16 @@ function fixture(
         if (options.concurrentSession) current = options.concurrentSession;
         if (options.persistError) throw options.persistError;
       },
+      replaceSessionIfCurrent: (
+        _sessionId: string,
+        expected: SessionDetail,
+        replacement: SessionDetail
+      ) => {
+        if (current !== expected) return false;
+
+        current = replacement;
+        return true;
+      },
       restoreSessionIfCurrent: (
         _sessionId: string,
         expected: SessionDetail,
@@ -106,9 +117,6 @@ function fixture(
         _sourceSessionId: string,
         operation: () => Promise<SessionDetail>
       ) => operation(),
-      setSession: (session: SessionDetail) => {
-        current = session;
-      },
       syncWorkspaceFromGit: () => {},
       toSummary: (session: SessionDetail) => session as SessionSummary
     },
@@ -119,6 +127,53 @@ function fixture(
     get persistCount() {
       return persistCount;
     }
+  };
+}
+
+function partialRepositoryFixture(initial: SessionDetail, persistError?: Error) {
+  const repository = new SessionRepository();
+  const events: ServerEvent[] = [];
+
+  repository.setSession(initial, { partial: true });
+
+  return {
+    callbacks: {
+      appendLog: () => {},
+      claimAttachedSession: (session: SessionDetail) =>
+        repository.claimAttachedSession(session),
+      createWorkspace: async () => {
+        throw new Error("must reuse existing session");
+      },
+      emitServerEvent: (event: ServerEvent) => events.push(event),
+      findAttachedSession: (sourceSessionId: string) =>
+        repository.findAttachedSession(sourceSessionId, "claude-code") ?? undefined,
+      getPublicSession: (sessionId: string) => repository.getSession(sessionId),
+      isSessionCurrent: (sessionId: string, expected: SessionDetail) =>
+        repository.isSessionCurrent(sessionId, expected),
+      persistState: async () => {
+        if (persistError) throw persistError;
+      },
+      replaceSessionIfCurrent: (
+        sessionId: string,
+        expected: SessionDetail,
+        replacement: SessionDetail
+      ) => repository.replaceSessionIfCurrent(sessionId, expected, replacement),
+      restoreSessionIfCurrent: (
+        sessionId: string,
+        expected: SessionDetail,
+        replacement: SessionDetail
+      ) => repository.replaceSessionIfCurrent(sessionId, expected, replacement),
+      removeSessionIfCurrent: (sessionId: string, expected: SessionDetail) =>
+        repository.removeSessionIfCurrent(sessionId, expected),
+      runAttachedSessionCreation: (
+        sourceSessionId: string,
+        operation: () => Promise<SessionDetail>
+      ) => repository.runAttachedSessionCreation("claude-code", sourceSessionId, operation),
+      syncWorkspaceFromGit: () => {},
+      toSummary: (session: SessionDetail) => session as SessionSummary
+    },
+    events,
+    repository
   };
 }
 
@@ -221,6 +276,50 @@ test("rolls back writable ownership when persistence fails", async () => {
 
   assert.equal(harness.current, initial);
   assert.equal(harness.events.length, 0);
+});
+
+test("does not promote a lightweight Claude shell into a durable truncated row", async () => {
+  const initial = failedClaudeSession(
+    "claude --resume source-claude --print previous prompt"
+  );
+  const harness = partialRepositoryFixture(initial);
+
+  const session = await createReadOnlyClaudeSession(
+    harness.callbacks,
+    claudeSourceSession(),
+    {
+      observeOnly: true,
+      reason: "Claude Code reports this chat as active outside DeskCue."
+    }
+  );
+
+  assert.match(session.command, /\(observe-only\)$/);
+  assert.deepEqual(harness.repository.listPartialSessionIds(), [initial.id]);
+  assert.deepEqual(harness.repository.listDirtyPersistedSessions(), []);
+});
+
+test("restores lightweight Claude metadata when ownership persistence fails", async () => {
+  const initial = failedClaudeSession(
+    "claude --resume source-claude --print previous prompt"
+  );
+  const harness = partialRepositoryFixture(initial, new Error("disk unavailable"));
+
+  await assert.rejects(
+    createReadOnlyClaudeSession(
+      harness.callbacks,
+      claudeSourceSession(),
+      {
+        observeOnly: true,
+        reason: "Claude Code reports this chat as active outside DeskCue."
+      }
+    ),
+    /disk unavailable/
+  );
+
+  assert.equal(harness.repository.getSession(initial.id), initial);
+  assert.deepEqual(harness.repository.listPartialSessionIds(), [initial.id]);
+  assert.deepEqual(harness.repository.listDirtyPersistedSessions(), []);
+  assert.deepEqual(harness.events, []);
 });
 
 test("does not roll back a concurrent session transition after persistence fails", async () => {
@@ -330,6 +429,16 @@ test("coalesces a delayed first open after the winner starts running", async () 
     isSessionCurrent: (_sessionId: string, expected: SessionDetail) =>
       current === expected,
     persistState: async () => {},
+    replaceSessionIfCurrent: (
+      _sessionId: string,
+      expected: SessionDetail,
+      replacement: SessionDetail
+    ) => {
+      if (current !== expected) return false;
+
+      current = replacement;
+      return true;
+    },
     restoreSessionIfCurrent: (
       _sessionId: string,
       expected: SessionDetail,
@@ -357,9 +466,6 @@ test("coalesces a delayed first open after the winner starts running", async () 
 
       pendingCreation = operation();
       return pendingCreation;
-    },
-    setSession: (session: SessionDetail) => {
-      current = session;
     },
     syncWorkspaceFromGit: () => {},
     toSummary: (session: SessionDetail) => session as SessionSummary
@@ -426,6 +532,16 @@ test("rejects concurrent followers when first-open persistence fails", async () 
       reportPersistenceStarted();
       await persistenceGate;
     },
+    replaceSessionIfCurrent: (
+      _sessionId: string,
+      expected: SessionDetail,
+      replacement: SessionDetail
+    ) => {
+      if (current !== expected) return false;
+
+      current = replacement;
+      return true;
+    },
     restoreSessionIfCurrent: () => false,
     removeSessionIfCurrent: (
       _sessionId: string,
@@ -444,9 +560,6 @@ test("rejects concurrent followers when first-open persistence fails", async () 
 
       pendingCreation = operation();
       return pendingCreation;
-    },
-    setSession: (session: SessionDetail) => {
-      current = session;
     },
     syncWorkspaceFromGit: () => {},
     toSummary: (session: SessionDetail) => session as SessionSummary
@@ -509,6 +622,16 @@ test("allows a clean retry after a failed first-open single flight", async () =>
       persistCalls += 1;
       if (persistCalls === 1) throw new Error("disk unavailable");
     },
+    replaceSessionIfCurrent: (
+      _sessionId: string,
+      expected: SessionDetail,
+      replacement: SessionDetail
+    ) => {
+      if (current !== expected) return false;
+
+      current = replacement;
+      return true;
+    },
     restoreSessionIfCurrent: () => false,
     removeSessionIfCurrent: (
       _sessionId: string,
@@ -532,9 +655,6 @@ test("allows a clean retry after a failed first-open single flight", async () =>
       );
 
       return pendingCreation;
-    },
-    setSession: (session: SessionDetail) => {
-      current = session;
     },
     syncWorkspaceFromGit: () => {},
     toSummary: (session: SessionDetail) => session as SessionSummary

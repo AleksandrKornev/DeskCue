@@ -16,6 +16,10 @@ export class SqliteSessionRepository {
       WHERE
         status = 'running'
         OR (
+          adapter_id = 'claude-code'
+          AND source_session_id IS NOT NULL
+        )
+        OR (
           adapter_id = 'codex'
           AND source_session_id IS NOT NULL
           AND (

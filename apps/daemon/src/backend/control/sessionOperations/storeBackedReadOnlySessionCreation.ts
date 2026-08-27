@@ -40,6 +40,12 @@ export function createStoreBackedReadOnlyClaudeSession(
       isSessionCurrent: (sessionId, expected) =>
         callbackContext.repository.isSessionCurrent(sessionId, expected),
       persistState: callbackContext.persistState,
+      replaceSessionIfCurrent: (sessionId, expected, replacement) =>
+        callbackContext.repository.replaceSessionIfCurrent(
+          sessionId,
+          expected,
+          replacement
+        ),
       restoreSessionIfCurrent: (sessionId, expected, replacement) =>
         callbackContext.repository.replaceSessionIfCurrent(
           sessionId,
@@ -54,7 +60,6 @@ export function createStoreBackedReadOnlyClaudeSession(
           sourceSessionId,
           operation
         ),
-      setSession: (session) => callbackContext.repository.setSession(session),
       syncWorkspaceFromGit: callbackContext.syncWorkspaceFromGit,
       toSummary: callbackContext.toSummary
     },

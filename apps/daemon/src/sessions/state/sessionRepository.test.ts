@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { SessionDetail } from "@deskcue/protocol";
+import type { SessionDetail, WorkspaceSummary } from "@deskcue/protocol";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
 
 import { SessionRepository } from "./sessionRepository.ts";
@@ -135,6 +135,66 @@ test("removes only the exact unpersisted session revision", () => {
   assert.equal(repository.getSession(initial.id), newer);
   assert.equal(repository.removeSessionIfCurrent(newer.id, newer), true);
   assert.equal(repository.getSession(newer.id), null);
+});
+
+test("keeps a newer session revision dirty after an older snapshot is persisted", () => {
+  const repository = new SessionRepository();
+  const initial = claudeSession();
+  const newer = { ...initial, status: "running" as const };
+
+  repository.setSession(initial);
+  const snapshots = repository.listSessionPersistenceSnapshots({ dirtyOnly: true });
+
+  repository.setSession(newer);
+
+  repository.markPersistenceSnapshotsPersisted([], snapshots);
+
+  assert.deepEqual(
+    repository.listDirtyPersistedSessions().map((session) => session.status),
+    ["running"]
+  );
+});
+
+test("keeps a newer workspace revision dirty after an older snapshot is persisted", () => {
+  const repository = new SessionRepository();
+  const initial: WorkspaceSummary = {
+    branch: "main",
+    createdAt: "2026-08-27T10:00:00.000Z",
+    id: "workspace-1",
+    isGitRepo: true,
+    name: "Workspace",
+    path: "D:/workspace"
+  };
+
+  const newer = { ...initial, branch: "feature/newer" };
+
+  repository.setWorkspace(initial);
+  const snapshots = repository.listWorkspacePersistenceSnapshots({ dirtyOnly: true });
+
+  repository.setWorkspace(newer);
+
+  repository.markPersistenceSnapshotsPersisted(snapshots, []);
+
+  assert.deepEqual(repository.listDirtyWorkspaces(), [newer]);
+});
+
+test("preserves lightweight session metadata during an exact revision replacement", () => {
+  const repository = new SessionRepository();
+  const initial = claudeSession();
+  const replacement = {
+    ...initial,
+    command: `${initial.command} (observe-only)`
+  };
+
+  repository.setSession(initial, { partial: true });
+
+  assert.equal(
+    repository.replaceSessionIfCurrent(initial.id, initial, replacement),
+    true
+  );
+
+  assert.deepEqual(repository.listPartialSessionIds(), [initial.id]);
+  assert.deepEqual(repository.listDirtyPersistedSessions(), []);
 });
 
 test("shares one durable attached-session creation with concurrent followers", async () => {

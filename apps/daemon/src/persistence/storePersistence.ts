@@ -11,13 +11,15 @@ import type { DaemonStateStorage, PersistedDeskCueStatePatch } from "./state/typ
 
 type DeskCuePersistenceOptions = {
   legacyJsonStorage?: DaemonStateStorage;
-  listDirtyPersistedSessions: () => SessionDetail[];
-  listDirtyWorkspaces: () => WorkspaceSummary[];
+  listDirtyPersistedSessions: () => Array<{ revision: number; state: SessionDetail }>;
+  listDirtyWorkspaces: () => Array<{ revision: number; state: WorkspaceSummary }>;
   listPartialSessionIds: () => string[];
-  listPersistedSessions: () => SessionDetail[];
-  listWorkspaces: () => WorkspaceSummary[];
-  markAllPersisted: () => void;
-  markPersisted: (workspaceIds: string[], sessionIds: string[]) => void;
+  listPersistedSessions: () => Array<{ revision: number; state: SessionDetail }>;
+  listWorkspaces: () => Array<{ revision: number; state: WorkspaceSummary }>;
+  markPersisted: (
+    workspaces: Array<{ revision: number; state: WorkspaceSummary }>,
+    sessions: Array<{ revision: number; state: SessionDetail }>
+  ) => void;
   stateStorage?: DaemonStateStorage;
 };
 
@@ -42,14 +44,12 @@ export class DeskCuePersistence {
 
   async load() {
     const state = await this.stateStorage.load();
-    if (hasPersistedState(state)) {
-      return state;
-    }
+
+    if (hasPersistedState(state)) return state;
 
     const legacyState = await this.legacyJsonStorage.load();
-    if (!hasPersistedState(legacyState)) {
-      return state;
-    }
+
+    if (!hasPersistedState(legacyState)) return state;
 
     await this.stateStorage.save(legacyState);
     return legacyState;
@@ -64,32 +64,34 @@ export class DeskCuePersistence {
       .catch(() => undefined)
       .then(() => this.performPersistNow(options));
     this.persistChain = persist;
+
     return persist;
   }
 
   private async performPersistNow(options: { full?: boolean } = {}) {
     const startedAt = performance.now();
+
     if (this.persistTimer) {
       clearTimeout(this.persistTimer);
       this.persistTimer = null;
     }
 
     const workspacesStartedAt = performance.now();
-    const workspaces = options.full
+    const workspaceSnapshots = options.full
       ? this.options.listWorkspaces()
       : this.options.listDirtyWorkspaces();
     const listWorkspacesDurationMs = elapsedMs(workspacesStartedAt);
     const sessionsStartedAt = performance.now();
-    const sessions = options.full
+    const sessionSnapshots = options.full
       ? this.options.listPersistedSessions()
       : this.options.listDirtyPersistedSessions();
     const listSessionsDurationMs = elapsedMs(sessionsStartedAt);
 
-    if (!options.full && workspaces.length === 0 && sessions.length === 0) {
-      return;
-    }
+    if (!options.full && workspaceSnapshots.length === 0 && sessionSnapshots.length === 0) return;
 
     const saveStartedAt = performance.now();
+    const workspaces = workspaceSnapshots.map((snapshot) => snapshot.state);
+    const sessions = sessionSnapshots.map((snapshot) => snapshot.state);
 
     const state = {
       version: 1,
@@ -100,13 +102,10 @@ export class DeskCuePersistence {
 
     if (!options.full && this.stateStorage instanceof DeskCueSqliteStateStorage) {
       await this.stateStorage.savePatch(state);
-      this.options.markPersisted(
-        workspaces.map((workspace) => workspace.id),
-        sessions.map((session) => session.id)
-      );
+      this.options.markPersisted(workspaceSnapshots, sessionSnapshots);
     } else {
       await this.stateStorage.save(state);
-      this.options.markAllPersisted();
+      this.options.markPersisted(workspaceSnapshots, sessionSnapshots);
       if (this.stateStorage instanceof DeskCueSqliteStateStorage) {
         this.stateStorage.checkpointWalIfLarge("full-persist");
       }
@@ -130,9 +129,7 @@ export class DeskCuePersistence {
   }
 
   schedulePersist() {
-    if (this.closing || this.persistTimer) {
-      return;
-    }
+    if (this.closing || this.persistTimer) return;
 
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
@@ -145,9 +142,7 @@ export class DeskCuePersistence {
   }
 
   close() {
-    if (this.closePromise) {
-      return this.closePromise;
-    }
+    if (this.closePromise) return this.closePromise;
 
     this.closing = true;
 
@@ -157,11 +152,10 @@ export class DeskCuePersistence {
     }
 
     const flush = this.queuePersist();
+
     this.closePromise = (async () => {
       await flush;
-      if (this.stateStorage instanceof DeskCueSqliteStateStorage) {
-        this.stateStorage.close();
-      }
+      if (this.stateStorage instanceof DeskCueSqliteStateStorage) this.stateStorage.close();
     })();
     return this.closePromise;
   }

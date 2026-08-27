@@ -25,7 +25,9 @@ test("throws on SQLite load failure instead of returning empty state", async () 
   try {
     storage = new DeskCueSqliteStateStorage(databasePath);
     const database = new Database(databasePath);
+
     database.exec("DROP TABLE workspaces");
+
     database.close();
 
     await assert.rejects(
@@ -107,6 +109,7 @@ test("rejects SQLite databases from newer schema versions", async () => {
 
   try {
     const database = new Database(databasePath);
+
     database.exec(`
       CREATE TABLE metadata (
         key TEXT PRIMARY KEY,
@@ -341,6 +344,7 @@ test("loads stopped history sessions as lightweight rows without overwriting sto
     const row = database.prepare("SELECT json FROM sessions WHERE id = ?").get(heavySession.id) as {
       json: string;
     };
+
     database.close();
 
     assert.deepEqual(JSON.parse(row.json), heavySession);
@@ -446,6 +450,53 @@ test("loads read-only history sessions as lightweight rows", async () => {
   }
 });
 
+test("loads attached Claude shells with full durable details", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-sqlite-"));
+  const databasePath = join(tempDir, "state.sqlite");
+  let storage: DeskCueSqliteStateStorage | null = null;
+  let reloadedStorage: DeskCueSqliteStateStorage | null = null;
+
+  try {
+    storage = new DeskCueSqliteStateStorage(databasePath);
+    const workspace = workspaceSummary();
+    const claudeSession = {
+      ...sessionDetail(workspace.id),
+      adapterId: "claude-code",
+      sourceSessionId: "source-claude",
+      status: "failed" as const,
+      exitCode: 1,
+      logs: [
+        {
+          id: "log-claude",
+          timestamp: "2026-06-22T10:01:00.000Z",
+          stream: "stdout" as const,
+          text: "durable Claude output\n"
+        }
+      ],
+      inputHistory: ["previous Claude prompt"]
+    };
+
+    await storage.save({
+      version: 1,
+      workspaces: [workspace],
+      sessions: [claudeSession]
+    });
+
+    reloadedStorage = new DeskCueSqliteStateStorage(databasePath);
+    const reloaded = await reloadedStorage.load();
+
+    assert.deepEqual(reloaded.partialSessionIds, []);
+    assert.deepEqual(reloaded.sessions, [claudeSession]);
+  } finally {
+    storage?.close();
+    reloadedStorage?.close();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
 test("quarantines schema-invalid persisted entities during startup hydration", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-sqlite-invalid-row-"));
   const databasePath = join(tempDir, "state.sqlite");
@@ -457,10 +508,12 @@ test("quarantines schema-invalid persisted entities during startup hydration", a
       workspaces: [workspaceSummary()],
       sessions: [sessionDetail("workspace-1"), sessionDetail("workspace-1", "session-2")]
     });
+
     storage.close();
     storage = null;
 
     const database = new Database(databasePath);
+
     database.prepare("UPDATE workspaces SET json = ? WHERE id = ?")
       .run(JSON.stringify({ id: "workspace-1" }), "workspace-1");
     database.prepare("UPDATE sessions SET status = 'running', json = ? WHERE id = ?")
@@ -469,7 +522,9 @@ test("quarantines schema-invalid persisted entities during startup hydration", a
 
     storage = new DeskCueSqliteStateStorage(databasePath);
     const state = await storage.load();
+
     assert.deepEqual(state.workspaces, []);
+
     assert.deepEqual(state.sessions, []);
     assert.deepEqual(state.partialSessionIds, []);
   } finally {

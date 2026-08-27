@@ -24,6 +24,11 @@ type ReadOnlyClaudeSessionCallbacks = {
   getPublicSession: (sessionId: string) => SessionDetail | null;
   isSessionCurrent: (sessionId: string, expected: SessionDetail) => boolean;
   persistState: () => Promise<void>;
+  replaceSessionIfCurrent: (
+    sessionId: string,
+    expected: SessionDetail,
+    replacement: SessionDetail
+  ) => boolean;
   restoreSessionIfCurrent: (
     sessionId: string,
     expected: SessionDetail,
@@ -34,7 +39,6 @@ type ReadOnlyClaudeSessionCallbacks = {
     sourceSessionId: string,
     operation: () => Promise<SessionDetail>
   ) => Promise<SessionDetail>;
-  setSession: (session: SessionDetail) => void;
   syncWorkspaceFromGit: (workspaceId: string, git: GitSnapshot) => void;
   toSummary: (session: SessionDetail) => SessionSummary;
 };
@@ -73,7 +77,9 @@ async function reconcileExistingClaudeSessionOwnership(
     inputBlockedReason
   };
 
-  callbacks.setSession(updatedSession);
+  if (!callbacks.replaceSessionIfCurrent(session.id, session, updatedSession)) {
+    return callbacks.getPublicSession(session.id)!;
+  }
 
   try {
     await callbacks.persistState();

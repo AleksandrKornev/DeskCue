@@ -12,10 +12,13 @@ function toPersistedSession(session: SessionDetail) {
 export class SessionRepository {
   private readonly workspaces = new Map<string, WorkspaceSummary>();
   private readonly sessions = new Map<string, SessionDetail>();
+  private readonly workspacePersistenceRevisions = new Map<string, number>();
+  private readonly sessionPersistenceRevisions = new Map<string, number>();
   private readonly dirtyWorkspaceIds = new Set<string>();
   private readonly dirtySessionIds = new Set<string>();
   private readonly partialSessionIds = new Set<string>();
   private readonly attachedSessionCreations = new Map<string, Promise<SessionDetail>>();
+  private nextPersistenceRevision = 0;
 
   get workspaceCount() {
     return this.workspaces.size;
@@ -41,6 +44,40 @@ export class SessionRepository {
     return this.listSessionDetails().map((session) => {
       return toPersistedSession(session);
     });
+  }
+
+  listWorkspacePersistenceSnapshots(options: { dirtyOnly: boolean }) {
+    const workspaceIds = options.dirtyOnly
+      ? Array.from(this.dirtyWorkspaceIds)
+      : Array.from(this.workspaces.keys());
+
+    return workspaceIds
+      .flatMap((workspaceId) => {
+        const state = this.workspaces.get(workspaceId);
+        const revision = this.workspacePersistenceRevisions.get(workspaceId);
+
+        return state && revision !== undefined ? [{ revision, state }] : [];
+      })
+      .sort((a, b) => b.state.createdAt.localeCompare(a.state.createdAt));
+  }
+
+  listSessionPersistenceSnapshots(options: { dirtyOnly: boolean }) {
+    const sessionIds = options.dirtyOnly
+      ? Array.from(this.dirtySessionIds)
+      : Array.from(this.sessions.keys());
+
+    return sessionIds
+      .flatMap((sessionId) => {
+        if (options.dirtyOnly && this.partialSessionIds.has(sessionId)) return [];
+
+        const session = this.sessions.get(sessionId);
+        const revision = this.sessionPersistenceRevisions.get(sessionId);
+
+        return session && revision !== undefined
+          ? [{ revision, state: toPersistedSession(session) }]
+          : [];
+      })
+      .sort((a, b) => b.state.startedAt.localeCompare(a.state.startedAt));
   }
 
   listPartialSessionIds() {
@@ -69,13 +106,16 @@ export class SessionRepository {
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   }
 
-  markPersisted(workspaceIds: string[], sessionIds: string[]) {
-    for (const workspaceId of workspaceIds) {
-      this.dirtyWorkspaceIds.delete(workspaceId);
+  markPersistenceSnapshotsPersisted(
+    workspaces: Array<{ revision: number; state: WorkspaceSummary }>,
+    sessions: Array<{ revision: number; state: SessionDetail }>
+  ) {
+    for (const { revision, state } of workspaces) {
+      if (this.workspacePersistenceRevisions.get(state.id) === revision) this.dirtyWorkspaceIds.delete(state.id);
     }
 
-    for (const sessionId of sessionIds) {
-      this.dirtySessionIds.delete(sessionId);
+    for (const { revision, state } of sessions) {
+      if (this.sessionPersistenceRevisions.get(state.id) === revision) this.dirtySessionIds.delete(state.id);
     }
   }
 
@@ -90,11 +130,13 @@ export class SessionRepository {
 
   setWorkspace(workspace: WorkspaceSummary) {
     this.workspaces.set(workspace.id, workspace);
+    this.workspacePersistenceRevisions.set(workspace.id, this.allocatePersistenceRevision());
     this.dirtyWorkspaceIds.add(workspace.id);
   }
 
   rollbackWorkspace(workspaceId: string) {
     this.workspaces.delete(workspaceId);
+    this.workspacePersistenceRevisions.delete(workspaceId);
     this.dirtyWorkspaceIds.delete(workspaceId);
   }
 
@@ -112,6 +154,7 @@ export class SessionRepository {
 
   setSession(session: SessionDetail, options: { partial?: boolean } = {}) {
     this.sessions.set(session.id, session);
+    this.sessionPersistenceRevisions.set(session.id, this.allocatePersistenceRevision());
     if (options.partial) {
       this.partialSessionIds.add(session.id);
     } else {
@@ -127,7 +170,9 @@ export class SessionRepository {
   ) {
     if (this.sessions.get(sessionId) !== expected) return false;
 
-    this.setSession(replacement);
+    this.setSession(replacement, {
+      partial: this.partialSessionIds.has(sessionId)
+    });
     return true;
   }
 
@@ -139,6 +184,7 @@ export class SessionRepository {
     if (this.sessions.get(sessionId) !== expected) return false;
 
     this.sessions.delete(sessionId);
+    this.sessionPersistenceRevisions.delete(sessionId);
     this.dirtySessionIds.delete(sessionId);
     this.partialSessionIds.delete(sessionId);
     return true;
@@ -156,6 +202,7 @@ export class SessionRepository {
     };
 
     this.sessions.set(sessionId, next);
+    this.sessionPersistenceRevisions.set(sessionId, this.allocatePersistenceRevision());
     if (!this.partialSessionIds.has(sessionId)) this.dirtySessionIds.add(sessionId);
 
     return next;
@@ -172,7 +219,14 @@ export class SessionRepository {
       branch: git.branch
     });
 
+    this.workspacePersistenceRevisions.set(workspaceId, this.allocatePersistenceRevision());
     this.dirtyWorkspaceIds.add(workspaceId);
+  }
+
+  private allocatePersistenceRevision() {
+    this.nextPersistenceRevision += 1;
+
+    return this.nextPersistenceRevision;
   }
 
   findReusableAttachedSession(sourceSessionId: string, adapterId?: string) {
