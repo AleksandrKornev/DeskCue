@@ -86,22 +86,34 @@
   line-height: 1.25;
 }
 
-.statusDot {
+.statusDot,
+.statusDotConnected,
+.statusDotReconnecting,
+.statusDotRevoked {
   width: 7px;
   height: 7px;
   flex: 0 0 auto;
-  border: 2px solid rgba(216, 225, 244, 0.42);
   border-radius: 999px;
+}
+
+.statusDot {
+  border: 2px solid rgba(216, 225, 244, 0.42);
   background: #596275;
 }
 
 .statusDotConnected {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 auto;
-  border-radius: 999px;
   background: #55d886;
   box-shadow: 0 0 0 3px rgba(85, 216, 134, 0.12);
+}
+
+.statusDotReconnecting {
+  background: #e2b25f;
+  box-shadow: 0 0 0 3px rgba(226, 178, 95, 0.12);
+}
+
+.statusDotRevoked {
+  background: #ef7d88;
+  box-shadow: 0 0 0 3px rgba(239, 125, 136, 0.12);
 }
 
 .metaSeparator {
@@ -190,28 +202,40 @@
   font-size: 0.92rem;
 }
 
-.buildNotice span:not(.buildDot) {
+.buildNotice span:not(.buildDot, .buildDotConnected, .buildDotReconnecting, .buildDotRevoked) {
   color: #aebad2;
   font-size: 0.84rem;
   line-height: 1.35;
 }
 
-.buildDot {
+.buildDot,
+.buildDotConnected,
+.buildDotReconnecting,
+.buildDotRevoked {
   width: 10px;
   height: 10px;
   flex: 0 0 auto;
-  border: 2px solid rgba(216, 225, 244, 0.42);
   border-radius: 999px;
+}
+
+.buildDot {
+  border: 2px solid rgba(216, 225, 244, 0.42);
   background: #596275;
 }
 
 .buildDotConnected {
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  border-radius: 999px;
   background: #55d886;
   box-shadow: 0 0 0 4px rgba(85, 216, 134, 0.1);
+}
+
+.buildDotReconnecting {
+  background: #e2b25f;
+  box-shadow: 0 0 0 4px rgba(226, 178, 95, 0.1);
+}
+
+.buildDotRevoked {
+  background: #ef7d88;
+  box-shadow: 0 0 0 4px rgba(239, 125, 136, 0.1);
 }
 
 .flow {

@@ -6,7 +6,9 @@ const cloudMocks = vi.hoisted(() => ({
   cancelEnrollmentAttempt: vi.fn(),
   connected: false,
   disconnect: vi.fn(),
+  error: null as string | null,
   getEnrollmentAttempt: vi.fn(),
+  loading: false,
   profileEnabled: false,
   refresh: vi.fn(),
   remoteControlEnabled: false,
@@ -14,6 +16,10 @@ const cloudMocks = vi.hoisted(() => ({
   remotePreviewEnabled: false,
   remoteReadEnabled: false,
   setStatus: vi.fn(),
+  state: "connecting",
+  statusEnabledOverride: null as boolean | null,
+  statusStateOverride: null as string | null,
+  statusAvailable: true,
   startEnrollmentAttempt: vi.fn(),
   updatePermissions: vi.fn(),
   updateSessionDisclosure: vi.fn()
@@ -41,17 +47,19 @@ vi.mock("@api/endpoint/cloud/endpoints", () => ({
 
 vi.mock("@modules/cloudConnection/model/useCloudConnectionStatus", () => ({
   useCloudConnectionStatus: () => ({
-    error: null,
-    loading: false,
+    error: cloudMocks.error,
+    loading: cloudMocks.loading,
     refresh: cloudMocks.refresh,
     setStatus: cloudMocks.setStatus,
-    status: {
+    status: cloudMocks.statusAvailable ? {
       connectorIncluded: true,
       connected: cloudMocks.connected,
-      enabled: cloudMocks.profileEnabled || cloudMocks.connected,
+      enabled: cloudMocks.statusEnabledOverride
+        ?? (cloudMocks.profileEnabled || cloudMocks.connected),
       state: cloudMocks.connected
         ? "connected"
-        : cloudMocks.profileEnabled ? "connecting" : "disconnected",
+        : cloudMocks.statusStateOverride
+          ?? (cloudMocks.profileEnabled ? cloudMocks.state : "disconnected"),
       cloudOrigin: cloudMocks.profileEnabled || cloudMocks.connected
         ? "https://cloud.example.test"
         : null,
@@ -65,7 +73,7 @@ vi.mock("@modules/cloudConnection/model/useCloudConnectionStatus", () => ({
       remotePreviewEnabled: cloudMocks.remotePreviewEnabled,
       sessionLabelDisclosureEnabled: false,
       pendingEventCount: 0
-    }
+    } : null
   })
 }));
 
@@ -96,11 +104,17 @@ describe("CloudConnectionPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cloudMocks.connected = false;
+    cloudMocks.error = null;
+    cloudMocks.loading = false;
     cloudMocks.profileEnabled = false;
     cloudMocks.remoteControlEnabled = false;
     cloudMocks.remoteFilesEnabled = false;
     cloudMocks.remotePreviewEnabled = false;
     cloudMocks.remoteReadEnabled = false;
+    cloudMocks.state = "connecting";
+    cloudMocks.statusEnabledOverride = null;
+    cloudMocks.statusStateOverride = null;
+    cloudMocks.statusAvailable = true;
     cloudMocks.refresh.mockResolvedValue(undefined);
     cloudMocks.getEnrollmentAttempt.mockResolvedValue({ attempt: null });
   });
@@ -127,12 +141,14 @@ describe("CloudConnectionPanel", () => {
         sessionLabelDisclosureEnabled: true
       }
     });
+
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
 
     const disclosure = screen.getByRole("checkbox", {
       name: /Share session and workspace names/i
     });
+
     expect(disclosure).not.toBeChecked();
     expect(screen.getByText(/Cloud saves only short session and workspace labels/i))
       .toBeInTheDocument();
@@ -156,6 +172,7 @@ describe("CloudConnectionPanel", () => {
         remotePreviewEnabled: true
       })
     });
+
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
 
@@ -213,6 +230,7 @@ describe("CloudConnectionPanel", () => {
         remotePreviewEnabled: true
       })
     });
+
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
 
@@ -220,7 +238,9 @@ describe("CloudConnectionPanel", () => {
       name: /Enable Remote DeskCue session review/i
     });
     const save = screen.getByRole("button", { name: "Save permissions" });
+
     await waitFor(() => expect(remoteRead).toBeChecked());
+
     fireEvent.click(remoteRead);
     expect(save).toBeEnabled();
     expect(screen.getByRole("checkbox", { name: /Allow remote app Preview/i })).toBeChecked();
@@ -248,13 +268,98 @@ describe("CloudConnectionPanel", () => {
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
 
-    expect(screen.getByText("Reconnecting to DeskCue Cloud")).toBeInTheDocument();
-    expect(screen.getByText(/saved permissions remain active/i)).toBeInTheDocument();
+    expect(screen.getByText("Connecting to DeskCue Cloud")).toBeInTheDocument();
+    expect(screen.getByText(/saved remote permissions resume only after/i)).toBeInTheDocument();
     expect(await screen.findByRole("checkbox", { name: /Allow remote app Preview/i }))
       .toBeChecked();
     expect(screen.getByRole("button", { name: "Save permissions" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Connect to DeskCue Cloud" }))
       .not.toBeInTheDocument();
+  });
+
+  it("keeps revoked Cloud access distinct from a temporary reconnect", async () => {
+    cloudMocks.profileEnabled = true;
+    cloudMocks.remoteControlEnabled = true;
+    cloudMocks.state = "revoked";
+    render(<CloudConnectionPanel />);
+
+    expect(screen.getByText("Cloud access revoked")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+
+    expect(screen.getByText("DeskCue Cloud access revoked")).toBeInTheDocument();
+    expect(screen.getByText(/Cloud remote access is disabled/i)).toBeInTheDocument();
+    expect(screen.getByText(/Local DeskCue remains available/i)).toBeInTheDocument();
+    expect(screen.queryByText(/saved permissions remain active/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Saved permissions")).toBeInTheDocument();
+    expect(screen.queryByText("Enabled capabilities")).not.toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", {
+      name: /Allow remote prompts and stop requests/i
+    })).toBeChecked();
+  });
+
+  it("does not present a saved disconnected profile as local-only", () => {
+    cloudMocks.profileEnabled = true;
+    cloudMocks.state = "disconnected";
+    render(<CloudConnectionPanel />);
+
+    expect(screen.getByText("Cloud reconnecting")).toBeInTheDocument();
+    expect(screen.queryByText("Local only")).not.toBeInTheDocument();
+  });
+
+  it("keeps authoritative disabled state local-only despite stale connector state", () => {
+    cloudMocks.statusEnabledOverride = false;
+    cloudMocks.statusStateOverride = "revoked";
+    render(<CloudConnectionPanel />);
+
+    expect(screen.getByText("Local only")).toBeInTheDocument();
+    expect(screen.queryByText("Cloud access revoked")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+    expect(screen.getByText("Cloud connector available")).toBeInTheDocument();
+    expect(screen.queryByText("DeskCue Cloud access revoked")).not.toBeInTheDocument();
+  });
+
+  it("keeps initial Cloud status loading distinct from local-only", () => {
+    cloudMocks.loading = true;
+    cloudMocks.statusAvailable = false;
+    render(<CloudConnectionPanel />);
+
+    const summary = screen.getByRole("button", { name: "Open DeskCue Cloud details" });
+
+    expect(summary).toHaveAccessibleDescription("Checking Cloud");
+
+    expect(screen.queryByText("Local only")).not.toBeInTheDocument();
+  });
+
+  it("keeps an unavailable Cloud status distinct from local-only", () => {
+    cloudMocks.error = "Fixture Cloud status failure";
+    cloudMocks.statusAvailable = false;
+    render(<CloudConnectionPanel />);
+
+    const summary = screen.getByRole("button", { name: "Open DeskCue Cloud details" });
+
+    expect(summary).toHaveAccessibleDescription("Cloud status unavailable");
+
+    fireEvent.click(summary);
+
+    expect(screen.getByText("DeskCue Cloud status unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/Local DeskCue remains available/i)).toBeInTheDocument();
+    expect(screen.queryByText("Local only")).not.toBeInTheDocument();
+  });
+
+  it("does not present stale connected truth after a later status refresh fails", () => {
+    cloudMocks.connected = true;
+    cloudMocks.error = "Fixture refresh failure";
+    render(<CloudConnectionPanel />);
+
+    const summary = screen.getByRole("button", { name: "Open DeskCue Cloud details" });
+
+    expect(summary).toHaveAccessibleDescription("Cloud status unavailable");
+
+    fireEvent.click(summary);
+
+    expect(screen.getByText("DeskCue Cloud status unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Saved permissions")).toBeInTheDocument();
+    expect(screen.queryByText("Enabled capabilities")).not.toBeInTheDocument();
   });
 
   it("does not expand a restricted existing profile when its settings open", async () => {
@@ -263,7 +368,9 @@ describe("CloudConnectionPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
 
     const metadataOnly = await screen.findByRole("button", { name: /Metadata only/i });
+
     expect(metadataOnly).toHaveAttribute("aria-pressed", "true");
+
     expect(screen.getByRole("checkbox", {
       name: /Enable Remote DeskCue session review/i
     })).not.toBeChecked();
@@ -299,6 +406,7 @@ describe("CloudConnectionPanel", () => {
   it("keeps the permissions draft retryable after a failed save", async () => {
     cloudMocks.connected = true;
     let resolveRequest: ((value: unknown) => void) | undefined;
+
     cloudMocks.updatePermissions.mockReturnValue(new Promise((resolve) => {
       resolveRequest = resolve;
     }));
@@ -348,7 +456,9 @@ describe("CloudConnectionPanel", () => {
       name: /Allow remote prompts and stop requests/i
     });
     const remotePreview = screen.getByRole("checkbox", { name: /Allow remote app Preview/i });
+
     expect(fullAccess).toHaveAttribute("aria-pressed", "true");
+
     expect(remoteRead).toBeChecked();
     expect(remoteFiles).toBeChecked();
     expect(remoteControl).toBeChecked();
@@ -399,6 +509,7 @@ describe("CloudConnectionPanel", () => {
         remoteControlEnabled: true
       }
     });
+
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
     fireEvent.click(screen.getByRole("button", { name: /Review only/i }));
@@ -412,6 +523,7 @@ describe("CloudConnectionPanel", () => {
     fireEvent.change(screen.getByLabelText("Enrollment ticket"), {
       target: { value: "ticket-placeholder" }
     });
+
     fireEvent.click(screen.getByRole("button", { name: "Connect custom Cloud" }));
 
     await waitFor(() => expect(cloudMocks.connect).toHaveBeenCalledWith({
@@ -431,6 +543,7 @@ describe("CloudConnectionPanel", () => {
       location: { href: "about:blank" },
       opener: window
     };
+
     vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
     cloudMocks.startEnrollmentAttempt.mockResolvedValue({
       ok: true,
@@ -447,6 +560,7 @@ describe("CloudConnectionPanel", () => {
         }
       }
     });
+
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
     fireEvent.click(screen.getByRole("button", { name: "Connect to DeskCue Cloud" }));
@@ -479,6 +593,7 @@ describe("CloudConnectionPanel", () => {
         lastErrorCode: null
       }
     });
+
     cloudMocks.cancelEnrollmentAttempt.mockResolvedValue({ ok: true, data: { attempt: null } });
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
@@ -499,6 +614,7 @@ describe("CloudConnectionPanel", () => {
       ok: false,
       data: { error: "fixture" }
     });
+
     render(<CloudConnectionPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
     fireEvent.click(screen.getByRole("button", { name: /Metadata only/i }));
@@ -509,6 +625,7 @@ describe("CloudConnectionPanel", () => {
     fireEvent.change(screen.getByLabelText("Enrollment ticket"), {
       target: { value: "ticket-placeholder" }
     });
+
     fireEvent.click(screen.getByRole("checkbox", { name: /Enable Remote DeskCue session review/i }));
     fireEvent.click(screen.getByRole("button", { name: "Connect custom Cloud" }));
 
@@ -531,6 +648,7 @@ describe("CloudConnectionPanel", () => {
     fireEvent.change(screen.getByLabelText("Enrollment ticket"), {
       target: { value: "ticket-placeholder" }
     });
+
     fireEvent.click(screen.getByRole("checkbox", { name: /Enable Remote DeskCue session review/i }));
     fireEvent.click(screen.getByRole("button", { name: "Connect custom Cloud" }));
 
