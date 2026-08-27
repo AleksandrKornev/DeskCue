@@ -78,9 +78,7 @@ export function getActiveTakenOverAgentSessionSummaryId(
     selectedSession
   );
 
-  if (activeSummary) {
-    return activeSummary.id;
-  }
+  if (activeSummary) return activeSummary.id;
 
   const selectedManagedSession = findSelectedManagedSessionIdentity(
     sessions,
@@ -94,9 +92,7 @@ export function getActiveTakenOverAgentSessionSummaryId(
 }
 
 export function isStructurallyEqual(left: unknown, right: unknown) {
-  if (left === right) {
-    return true;
-  }
+  if (left === right) return true;
 
   try {
     return JSON.stringify(left) === JSON.stringify(right);

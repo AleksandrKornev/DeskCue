@@ -46,13 +46,8 @@ function readFilesystemErrorCode(error: unknown) {
 function throwWorkspaceDirectoryError(error: unknown): never {
   const code = readFilesystemErrorCode(error);
 
-  if (code === "ENOENT") {
-    throw new AppError("invalid_input", "Workspace folder was not found.");
-  }
-
-  if (code === "EACCES" || code === "EPERM") {
-    throw new AppError("forbidden", "Workspace folder cannot be read.");
-  }
+  if (code === "ENOENT") throw new AppError("invalid_input", "Workspace folder was not found.");
+  if (code === "EACCES" || code === "EPERM") throw new AppError("forbidden", "Workspace folder cannot be read.");
 
   throw new AppError("invalid_input", "Workspace folder could not be validated.");
 }
@@ -61,9 +56,7 @@ async function validateWorkspaceDirectory(workspacePath: string) {
   try {
     const workspaceStats = await stat(workspacePath);
 
-    if (!workspaceStats.isDirectory()) {
-      throw new AppError("invalid_input", "Workspace path must be a directory.");
-    }
+    if (!workspaceStats.isDirectory()) throw new AppError("invalid_input", "Workspace path must be a directory.");
 
     const directory = await opendir(workspacePath);
 
