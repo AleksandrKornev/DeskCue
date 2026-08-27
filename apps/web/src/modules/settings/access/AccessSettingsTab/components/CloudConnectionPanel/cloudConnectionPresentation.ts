@@ -42,39 +42,73 @@ export const PERMISSION_OPTIONS: readonly PermissionOption[] = [
   }
 ];
 
-export function connectionHeading(connected: boolean, hasCloudProfile: boolean) {
+export function connectionHeading(
+  connected: boolean,
+  hasCloudProfile: boolean,
+  loading: boolean,
+  statusAvailable: boolean,
+  state: CloudConnectorState | undefined
+) {
+  if (!statusAvailable && loading) return "Checking DeskCue Cloud status";
+  if (!statusAvailable) return "DeskCue Cloud status unavailable";
+  if (!hasCloudProfile) return "Cloud connector available";
   if (connected) return "Connected to DeskCue Cloud";
-  if (hasCloudProfile) return "Reconnecting to DeskCue Cloud";
+  if (state === "revoked") return "DeskCue Cloud access revoked";
+  if (state === "degraded") return "DeskCue Cloud connection degraded";
+  if (state === "connecting") return "Connecting to DeskCue Cloud";
 
-  return "Cloud connector available";
+  return "Reconnecting to DeskCue Cloud";
 }
 
 export function connectionDescription({
   connected,
   enrollmentAttempt,
   hasCloudProfile,
-  pendingEventCount
+  loading,
+  pendingEventCount,
+  statusAvailable,
+  state
 }: {
   connected: boolean;
   enrollmentAttempt: CloudEnrollmentAttempt | null;
   hasCloudProfile: boolean;
+  loading: boolean;
   pendingEventCount: number;
+  statusAvailable: boolean;
+  state: CloudConnectorState | undefined;
 }) {
-  if (connected) return `Outbound relay active${pendingEventCount ? ` · ${pendingEventCount} pending` : ""}.`;
-  if (hasCloudProfile) return "Your saved permissions remain active while the outbound relay reconnects.";
-  if (enrollmentAttempt) return "Finish signing in and approve this machine in DeskCue Cloud.";
+  if (!statusAvailable && loading) return "Reading the local Cloud connector state.";
+  if (!statusAvailable) return "Local DeskCue remains available, but the Cloud connector state could not be loaded.";
 
-  return "Open DeskCue Cloud, sign in, and approve this machine.";
+  if (!hasCloudProfile) {
+    if (enrollmentAttempt) return "Finish signing in and approve this machine in DeskCue Cloud.";
+
+    return "Open DeskCue Cloud, sign in, and approve this machine.";
+  }
+
+  if (connected) return `Outbound relay active${pendingEventCount ? ` · ${pendingEventCount} pending` : ""}.`;
+
+  if (state === "revoked") {
+    return "Cloud remote access is disabled. Local DeskCue remains available; reconnect this machine to restore optional remote access.";
+  }
+
+  return "Local DeskCue remains available while the outbound relay reconnects. Saved remote permissions resume only after the connection returns.";
 }
 
 export function cloudStatusLabel(
   connected: boolean,
+  hasCloudProfile: boolean,
+  loading: boolean,
+  statusAvailable: boolean,
   state: CloudConnectorState | undefined
 ) {
+  if (!statusAvailable && loading) return "Checking Cloud";
+  if (!statusAvailable) return "Cloud status unavailable";
+  if (!hasCloudProfile) return "Local only";
   if (connected) return "Cloud connected";
   if (state === "connecting") return "Connecting";
   if (state === "degraded") return "Cloud degraded";
   if (state === "revoked") return "Cloud access revoked";
 
-  return "Local only";
+  return "Cloud reconnecting";
 }

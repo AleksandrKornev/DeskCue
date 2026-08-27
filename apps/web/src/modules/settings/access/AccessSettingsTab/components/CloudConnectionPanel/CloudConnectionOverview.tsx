@@ -1,4 +1,7 @@
-import type { CloudEnrollmentAttempt } from "@deskcue/protocol";
+import type {
+  CloudConnectorState,
+  CloudEnrollmentAttempt
+} from "@deskcue/protocol";
 
 import {
   connectionDescription,
@@ -10,14 +13,31 @@ export function CloudConnectionOverview(props: {
   connected: boolean;
   enrollmentAttempt: CloudEnrollmentAttempt | null;
   hasCloudProfile: boolean;
+  loading: boolean;
   pendingEventCount: number;
+  statusAvailable: boolean;
+  state: CloudConnectorState | undefined;
 }) {
+  const dotClass = !props.statusAvailable || !props.hasCloudProfile
+    ? styles.buildDot
+    : props.connected
+      ? styles.buildDotConnected
+      : props.state === "revoked"
+        ? styles.buildDotRevoked
+        : styles.buildDotReconnecting;
+
   return (
     <>
       <div className={styles.buildNotice}>
-        <span className={props.connected ? styles.buildDotConnected : styles.buildDot} aria-hidden="true" />
+        <span className={dotClass} aria-hidden="true" />
         <div>
-          <strong>{connectionHeading(props.connected, props.hasCloudProfile)}</strong>
+          <strong>{connectionHeading(
+            props.connected,
+            props.hasCloudProfile,
+            props.loading,
+            props.statusAvailable,
+            props.state
+          )}</strong>
           <span>{connectionDescription(props)}</span>
         </div>
       </div>

@@ -27,7 +27,9 @@
 }
 
 .statusDot,
-.statusDotConnected {
+.statusDotConnected,
+.statusDotReconnecting,
+.statusDotRevoked {
   width: 8px;
   height: 8px;
   flex: 0 0 auto;
@@ -44,14 +46,32 @@
   box-shadow: 0 0 0 3px rgba(85, 216, 134, 0.12);
 }
 
+.statusDotReconnecting {
+  background: #e2b25f;
+  box-shadow: 0 0 0 3px rgba(226, 178, 95, 0.12);
+}
+
+.statusDotRevoked {
+  background: #ef7d88;
+  box-shadow: 0 0 0 3px rgba(239, 125, 136, 0.12);
+}
+
+.compactStatusLabel {
+  display: none;
+}
+
 @media (max-width: 420px) {
   .statusLink {
-    width: vars.$control-height-touch;
-    padding: 0;
-    justify-content: center;
+    gap: 6px;
+    padding-inline: 8px;
+    font-size: 0.7rem;
   }
 
-  .statusLink > span:last-child {
+  .statusLabel {
     display: none;
+  }
+
+  .compactStatusLabel {
+    display: inline;
   }
 }
