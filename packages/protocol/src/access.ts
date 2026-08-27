@@ -61,12 +61,16 @@ export interface UpdateAccessDeviceResponse {
   device: AccessDeviceSummary;
 }
 
+export const MAX_ASSET_TICKET_BYTES = 100 * 1024 * 1024;
+
 export interface CreateAssetTicketInput {
   agentSessionId?: string;
   download?: boolean;
   kind: "file" | "local_image";
   managedSessionId?: string;
+  maxBytes?: number;
   path: string;
+  workspaceId?: string;
 }
 
 export interface CreateAssetTicketResponse {
@@ -98,6 +102,7 @@ export interface SecurityStatusResponse {
 
 export function parsePairAccessInput(value: unknown): PairAccessInput {
   const body = readProtocolObject(value);
+
   return { code: readRequiredProtocolString(body, "code") };
 }
 
@@ -105,15 +110,16 @@ export function parseRedeemAccessRecoveryCodeInput(
   value: unknown
 ): RedeemAccessRecoveryCodeInput {
   const body = readProtocolObject(value);
+
   return { code: readRequiredProtocolString(body, "code") };
 }
 
 export function parseUpdateAccessDeviceInput(value: unknown): UpdateAccessDeviceInput {
   const body = readProtocolObject(value);
   const label = readRequiredProtocolString(body, "label").trim();
-  if (label.length > 80) {
-    throw new ProtocolSchemaError("Field label must be 80 characters or fewer.");
-  }
+
+  if (label.length > 80) throw new ProtocolSchemaError("Field label must be 80 characters or fewer.");
+
   return { label };
 }
 
@@ -124,8 +130,21 @@ export function parseCreateAssetTicketInput(value: unknown): CreateAssetTicketIn
   if (kind !== "file" && kind !== "local_image") {
     throw new ProtocolSchemaError("Field kind must be file or local_image.");
   }
+
   if (body.download !== undefined && typeof body.download !== "boolean") {
     throw new ProtocolSchemaError("Field download must be a boolean when provided.");
+  }
+
+  if (
+    body.maxBytes !== undefined &&
+    (typeof body.maxBytes !== "number" ||
+      !Number.isSafeInteger(body.maxBytes) ||
+      body.maxBytes < 1 ||
+      body.maxBytes > MAX_ASSET_TICKET_BYTES)
+  ) {
+    throw new ProtocolSchemaError(
+      `Field maxBytes must be a positive safe integer no greater than ${MAX_ASSET_TICKET_BYTES}.`
+    );
   }
 
   return {
@@ -133,9 +152,12 @@ export function parseCreateAssetTicketInput(value: unknown): CreateAssetTicketIn
     download: body.download === true,
     kind,
     managedSessionId: readOptionalProtocolString(body, "managedSessionId"),
-    path: readRequiredProtocolString(body, "path")
+    maxBytes: body.maxBytes as number | undefined,
+    path: readRequiredProtocolString(body, "path"),
+    workspaceId: readOptionalProtocolString(body, "workspaceId")
   };
 }
+
 import {
   ProtocolSchemaError,
   readOptionalProtocolString,

@@ -10,12 +10,19 @@ import CloseIcon from "@assets/images/icon-close.svg?react";
 import { useBottomSheetDrag } from "@components/BottomSheet";
 
 import {
-  createModalKeyDownHandler,
+  createModalHistoryMarker,
   createModalPopStateHandler,
-  readHistoryState
+  readHistoryState,
+  registerModalHistoryMarker,
+  requestInactiveModalHistoryCleanup,
+  unregisterModalHistoryMarker
 } from "./helpers";
 import styles from "./styles.module.scss";
 import type { ModalProps } from "./types";
+import {
+  isModalEntryTop,
+  useModalFocusLifecycle
+} from "./useModalFocusLifecycle";
 
 export function Modal({
   bodyClassName,
@@ -34,7 +41,6 @@ export function Modal({
 }: ModalProps) {
   const generatedTitleId = useId();
   const generatedDescriptionId = useId();
-  const onCloseRef = useRef(onClose);
   const historyEntryActiveRef = useRef(false);
   const resolvedTitleId = titleId ?? generatedTitleId;
   const {
@@ -42,52 +48,32 @@ export function Modal({
     sheetGestureProps,
     sheetRef: dialogRef
   } = useBottomSheetDrag<HTMLDivElement>({ onDismiss: onClose });
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    const previouslyFocusedElement = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    document.body.style.overflow = "hidden";
-
-    window.requestAnimationFrame(() => {
-      dialogRef.current?.focus({ preventScroll: true });
-    });
-
-    const handleKeyDown = createModalKeyDownHandler(dialogRef, onCloseRef);
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-      previouslyFocusedElement?.focus({ preventScroll: true });
-    };
-  }, [dialogRef, isOpen]);
+  const { modalEntryId, onCloseRef } = useModalFocusLifecycle({ dialogRef, isOpen, onClose });
 
   useEffect(() => {
     if (!isOpen || !closeOnHistoryBack) return;
 
-    const marker = `${generatedTitleId}-history`;
+    const marker = createModalHistoryMarker(generatedTitleId);
 
     if (readHistoryState().deskCueModal !== marker) {
       window.history.pushState({ ...readHistoryState(), deskCueModal: marker }, "");
     }
 
+    registerModalHistoryMarker(marker);
     historyEntryActiveRef.current = true;
 
-    const handlePopState = createModalPopStateHandler(historyEntryActiveRef, onCloseRef);
+    const handlePopState = createModalPopStateHandler(
+      historyEntryActiveRef,
+      onCloseRef,
+      marker,
+      () => isModalEntryTop(modalEntryId)
+    );
 
     window.addEventListener("popstate", handlePopState);
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
+      unregisterModalHistoryMarker(marker);
       if (
         historyEntryActiveRef.current &&
         readHistoryState().deskCueModal === marker
@@ -98,12 +84,12 @@ export function Modal({
             !historyEntryActiveRef.current &&
             readHistoryState().deskCueModal === marker
           ) {
-            window.history.back();
+            requestInactiveModalHistoryCleanup();
           }
         });
       }
     };
-  }, [closeOnHistoryBack, generatedTitleId, isOpen]);
+  }, [closeOnHistoryBack, generatedTitleId, isOpen, modalEntryId, onCloseRef]);
 
   if (!isOpen) return null;
 

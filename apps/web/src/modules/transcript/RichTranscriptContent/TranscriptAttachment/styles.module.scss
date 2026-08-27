@@ -196,7 +196,8 @@
 }
 
 .attachmentPreviewPlaceholder,
-.attachmentPreviewLoading {
+.attachmentPreviewLoading,
+.attachmentPreviewError {
   display: grid;
   place-items: center;
   width: 100%;
@@ -205,6 +206,22 @@
   color: #c9d6ff;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.attachmentPreviewError {
+  align-content: center;
+  gap: 4px;
+  background: rgba(155, 65, 58, 0.18);
+  color: #ffd6d1;
+}
+
+.attachmentPreviewError strong {
+  font-size: 0.76rem;
+}
+
+.attachmentPreviewError span {
+  color: #f0b8b1;
+  font-size: 0.72rem;
 }
 
 .attachmentPreviewSpinner {

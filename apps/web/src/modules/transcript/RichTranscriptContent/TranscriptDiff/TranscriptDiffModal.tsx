@@ -1,9 +1,9 @@
 import clsx from "clsx";
-import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
 import CloseIcon from "@assets/images/icon-close.svg?react";
 import { useBottomSheetDrag } from "@components/BottomSheet";
+import { useModalFocusLifecycle } from "@components/Modal";
 import {
   getDiffLineMarker,
   getDiffLineTone,
@@ -37,23 +37,16 @@ export function TranscriptDiffModal({
   const statusLabel = getDiffStatusLabel(group.changeType);
   const changeLabel = getDiffChangeLabel(primaryPart.title, statusLabel);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  useModalFocusLifecycle({ dialogRef: sheetRef, onClose });
 
   const modal = (
     <div className={styles.diffModal}>
       <button
+        aria-hidden="true"
         aria-label="Close diff"
         className={styles.diffModalBackdrop}
         onClick={onClose}
+        tabIndex={-1}
         type="button"
       />
       <div
@@ -63,6 +56,7 @@ export function TranscriptDiffModal({
         aria-modal="true"
         aria-label={displayPath}
         {...sheetGestureProps}
+        tabIndex={-1}
       >
         <div aria-hidden="true" className={styles.dragHandle} {...dragHandleProps} />
         <div
@@ -91,7 +85,12 @@ export function TranscriptDiffModal({
           </div>
         </div>
 
-        <div className={clsx(styles.diffModalBody, styles.diff)} role="region" aria-label={displayPath}>
+        <div
+          aria-label={displayPath}
+          className={clsx(styles.diffModalBody, styles.diff)}
+          role="region"
+          tabIndex={0}
+        >
           {lines.map((line, index) => {
             const tone = getDiffLineTone(line);
             const displayLine = line === "" ? " " : line;

@@ -1,3 +1,5 @@
+@use "@assets/mixins" as *;
+
 .fileViewer {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -39,6 +41,7 @@
   justify-content: flex-end;
 }
 
+.fileWrapButton,
 .fileViewerExpandButton {
   display: inline-flex;
   align-items: center;
@@ -46,6 +49,7 @@
   gap: 6px;
 }
 
+.fileWrapButton svg,
 .fileViewerExpandButton svg {
   width: 16px;
   height: 16px;
@@ -71,6 +75,8 @@
 }
 
 .fileContent {
+  --file-content-padding: 16px;
+
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -86,22 +92,54 @@
   white-space: pre;
 }
 
+.fileContent:focus-visible {
+  outline: 2px solid rgba(214, 164, 103, 0.72);
+  outline-offset: -2px;
+}
+
 .fileLine {
   display: grid;
-  grid-template-columns: 3.5ch minmax(0, 1fr);
+  grid-template-columns: var(--file-line-number-width, 3.5ch) minmax(0, 1fr);
   min-width: max-content;
 }
 
 .fileLineNumber {
+  position: sticky;
+  left: 0;
+  z-index: 1;
   padding-right: 1ch;
-  color: #666c77;
+  background: #090b0f;
+  box-shadow: 8px 0 8px -8px rgba(0, 0, 0, 0.8);
+  color: #858b96;
   text-align: right;
   user-select: none;
+}
+
+.fileLineNumber::before {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 0;
+  width: var(--file-content-padding);
+  background: #090b0f;
+  content: "";
 }
 
 .fileLineText {
   min-width: 0;
   white-space: pre;
+}
+
+.fileContentWrapped {
+  overflow-x: hidden;
+  white-space: normal;
+}
+
+.fileContentWrapped .fileLine { min-width: 0; }
+
+.fileContentWrapped .fileLineText {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .fileViewerEmpty,
@@ -127,6 +165,69 @@
   color: #969ba6;
   font-size: 0.84rem;
   line-height: 1.45;
+}
+
+.workspaceImagePreview {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 16px;
+  background-color: #101318;
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.025) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.025) 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+.workspaceImagePreview img {
+  grid-area: 1 / 1;
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.32);
+  object-fit: contain;
+}
+
+.workspaceImagePreviewLoading { visibility: hidden; }
+
+.workspaceImagePreview .filesLoadingState { grid-area: 1 / 1; }
+
+.workspaceImagePreviewMessage {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  min-height: 260px;
+  padding: 24px;
+  color: #969ba6;
+  text-align: center;
+}
+
+.workspaceImagePreviewMessage strong { color: #f0f1f4; }
+
+.workspaceImagePreviewMessage p {
+  max-width: 460px;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.workspaceImagePreviewMessage button {
+  min-width: 96px;
+  min-height: 44px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(214, 164, 103, 0.18);
+  color: #f3d2a7;
+  font: inherit;
+  font-weight: 700;
 }
 
 .filesMuted {
@@ -175,6 +276,21 @@
 }
 
 @mixin responsive {
+@include mobile-or-compact-height {
+  .changedFilter,
+  .viewChangeButton,
+  .filesBackButton,
+  .fileWrapButton,
+  .fileViewerExpandButton {
+    min-height: 44px;
+  }
+
+  .fileWrapButton,
+  .fileViewerExpandButton { width: 44px; padding: 0; }
+  .fileWrapButton span,
+  .fileViewerExpandButton span { display: none; }
+}
+
 @media (min-width: 1100px) {
   .filesToolbar {
     grid-template-columns: minmax(0, 1fr) minmax(390px, 520px);
@@ -202,6 +318,8 @@
   }
 
   .fileContent {
+    --file-content-padding: 20px;
+
     padding: 20px;
     font-size: 0.85rem;
   }
@@ -221,6 +339,8 @@
   }
 
   .fileContent {
+    --file-content-padding: 24px;
+
     padding: 24px;
     font-size: 0.9rem;
     line-height: 1.6;
@@ -253,32 +373,9 @@
     min-height: 44px;
   }
 
-  .changedFilter,
-  .viewChangeButton,
-  .filesBackButton,
-  .fileViewerExpandButton {
-    min-height: 44px;
-  }
-
   .filesBackButton { display: inline-flex; align-items: center; }
   .fileViewerHeader { flex-wrap: wrap; }
   .fileViewerHeader > div:nth-of-type(1) { order: 3; flex-basis: 100%; }
-  .fileViewerExpandButton { width: 44px; padding: 0; }
-  .fileViewerExpandButton span { display: none; }
-
-  .fileContent {
-    overflow-x: hidden;
-    white-space: normal;
-  }
-
-  .fileLine {
-    min-width: 0;
-  }
-
-  .fileLineText {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
 }
 
 @media (max-width: 380px) {

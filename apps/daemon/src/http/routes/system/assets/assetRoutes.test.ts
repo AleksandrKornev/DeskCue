@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   mkdir,
   mkdtemp,
+  rename,
   rm,
   symlink,
   writeFile
@@ -35,7 +36,9 @@ function withServer(app: express.Express, callback: (baseUrl: string) => Promise
     server.listen(0, "127.0.0.1", async () => {
       try {
         const address = server.address();
+
         assert(address && typeof address === "object");
+
         await callback(`http://127.0.0.1:${address.port}`);
         closeServer(server).then(resolve, reject);
       } catch (error) {
@@ -55,10 +58,12 @@ test("local asset routes only serve files inside registered workspaces", async (
     await mkdir(workspacePath, {
       recursive: true
     });
+
     await writeFile(allowedFile, "inside", "utf8");
     await writeFile(deniedFile, "outside", "utf8");
 
     const app = express();
+
     installAssetRoutes(app, {
       workspaces: {
         listWorkspaces: () => [
@@ -92,6 +97,259 @@ test("local asset routes only serve files inside registered workspaces", async (
   }
 });
 
+test("asset tickets resolve relative paths inside their registered workspace", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-workspace-assets-"));
+  const workspacePath = join(tempDir, "workspace");
+  const allowedFile = join(workspacePath, "artifact.txt");
+
+  try {
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(allowedFile, "workspace artifact", "utf8");
+    const app = express();
+
+    app.use(express.json());
+
+    installAssetRoutes(app, {
+      workspaces: {
+        listWorkspaces: () => [{ id: "workspace-1", path: workspacePath }]
+      }
+    });
+
+    await withServer(app, async (baseUrl) => {
+      const ticketResponse = await fetch(`${baseUrl}/api/assets/ticket`, {
+        body: JSON.stringify({
+          download: true,
+          kind: "file",
+          maxBytes: 64,
+          path: "artifact.txt",
+          workspaceId: "workspace-1"
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      const ticketPayload = await ticketResponse.json() as { url: string };
+      const assetResponse = await fetch(`${baseUrl}${ticketPayload.url}`);
+      const escapedResponse = await fetch(`${baseUrl}/api/assets/ticket`, {
+        body: JSON.stringify({
+          kind: "file",
+          path: "../outside.txt",
+          workspaceId: "workspace-1"
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+
+      assert.equal(ticketResponse.status, 201);
+      assert.equal(assetResponse.status, 200);
+      assert.equal(await assetResponse.text(), "workspace artifact");
+      assert.match(assetResponse.headers.get("content-disposition") ?? "", /^attachment;/i);
+      assert.equal(escapedResponse.status, 403);
+      assert.deepEqual(await escapedResponse.json(), {
+        error: "Workspace asset path escapes its registered workspace."
+      });
+    });
+  } finally {
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("bounded asset tickets reject a file that grows after ticket creation", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-bounded-assets-"));
+  const workspacePath = join(tempDir, "workspace");
+  const imagePath = join(workspacePath, "image.png");
+
+  try {
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(imagePath, "small", "utf8");
+    const app = express();
+
+    app.use(express.json());
+
+    installAssetRoutes(app, {
+      workspaces: {
+        listWorkspaces: () => [{ id: "workspace-1", path: workspacePath }]
+      }
+    });
+
+    await withServer(app, async (baseUrl) => {
+      const ticketResponse = await fetch(`${baseUrl}/api/assets/ticket`, {
+        body: JSON.stringify({
+          kind: "local_image",
+          maxBytes: 8,
+          path: "image.png",
+          workspaceId: "workspace-1"
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      const ticket = await ticketResponse.json() as { url: string };
+
+      await writeFile(imagePath, "now too large", "utf8");
+
+      const assetResponse = await fetch(`${baseUrl}${ticket.url}`);
+
+      assert.equal(ticketResponse.status, 201);
+      assert.equal(assetResponse.status, 413);
+      assert.deepEqual(await assetResponse.json(), {
+        error: "Local asset exceeds this preview ticket's byte limit."
+      });
+    });
+  } finally {
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("asset tickets reject same-path file replacement after authorization", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-replaced-assets-"));
+  const workspacePath = join(tempDir, "workspace");
+  const imagePath = join(workspacePath, "image.png");
+
+  try {
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(imagePath, "original", "utf8");
+    const app = express();
+
+    app.use(express.json());
+
+    installAssetRoutes(app, {
+      workspaces: {
+        listWorkspaces: () => [{ id: "workspace-1", path: workspacePath }]
+      }
+    });
+
+    await withServer(app, async (baseUrl) => {
+      const ticketResponse = await fetch(`${baseUrl}/api/assets/ticket`, {
+        body: JSON.stringify({
+          kind: "local_image",
+          maxBytes: 64,
+          path: "image.png",
+          workspaceId: "workspace-1"
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      const ticket = await ticketResponse.json() as { url: string };
+
+      await rename(imagePath, join(workspacePath, "original.png"));
+      await writeFile(imagePath, "replacement", "utf8");
+
+      const assetResponse = await fetch(`${baseUrl}${ticket.url}`);
+
+      assert.equal(ticketResponse.status, 201);
+      assert.equal(assetResponse.status, 403);
+      assert.deepEqual(await assetResponse.json(), {
+        error: "The local asset changed after this link was created. Open it again from DeskCue."
+      });
+    });
+  } finally {
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("workspace asset tickets reject symlinks into another registered workspace", async (context) => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-workspace-asset-scope-"));
+
+  context.after(() => rm(tempDir, { force: true, recursive: true }));
+  const workspaceAPath = join(tempDir, "workspace-a");
+  const workspaceBPath = join(tempDir, "workspace-b");
+  const workspaceBLink = join(workspaceAPath, "workspace-b-link");
+
+  await mkdir(workspaceAPath);
+  await mkdir(workspaceBPath);
+  await writeFile(join(workspaceBPath, "secret.txt"), "workspace b secret", "utf8");
+
+  try {
+    await symlink(workspaceBPath, workspaceBLink, process.platform === "win32" ? "junction" : "dir");
+  } catch (error) {
+    if (process.platform === "win32") {
+      context.skip("This Windows account cannot create a junction/symlink.");
+      return;
+    }
+
+    throw error;
+  }
+
+  const app = express();
+
+  app.use(express.json());
+
+  installAssetRoutes(app, {
+    workspaces: {
+      listWorkspaces: () => [
+        { id: "workspace-a", path: workspaceAPath },
+        { id: "workspace-b", path: workspaceBPath }
+      ]
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/assets/ticket`, {
+      body: JSON.stringify({
+        kind: "file",
+        path: "workspace-b-link/secret.txt",
+        workspaceId: "workspace-a"
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), {
+      error: "Workspace asset path escapes its registered workspace."
+    });
+  });
+});
+
+test("workspace asset tickets support a registered workspace junction", async (context) => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-workspace-asset-junction-"));
+
+  context.after(() => rm(tempDir, { force: true, recursive: true }));
+  const workspacePath = join(tempDir, "workspace");
+  const workspaceAlias = join(tempDir, "workspace-alias");
+
+  await mkdir(workspacePath);
+  await writeFile(join(workspacePath, "artifact.txt"), "junction artifact", "utf8");
+
+  try {
+    await symlink(workspacePath, workspaceAlias, process.platform === "win32" ? "junction" : "dir");
+  } catch (error) {
+    if (process.platform === "win32") {
+      context.skip("This Windows account cannot create a junction/symlink.");
+      return;
+    }
+
+    throw error;
+  }
+
+  const app = express();
+
+  app.use(express.json());
+
+  installAssetRoutes(app, {
+    workspaces: {
+      listWorkspaces: () => [{ id: "workspace-1", path: workspaceAlias }]
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const ticketResponse = await fetch(`${baseUrl}/api/assets/ticket`, {
+      body: JSON.stringify({
+        kind: "file",
+        path: "artifact.txt",
+        workspaceId: "workspace-1"
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const ticket = await ticketResponse.json() as { url: string };
+    const assetResponse = await fetch(`${baseUrl}${ticket.url}`);
+
+    assert.equal(ticketResponse.status, 201);
+    assert.equal(assetResponse.status, 200);
+    assert.equal(await assetResponse.text(), "junction artifact");
+  });
+});
+
 test("local asset routes serve authorized files below hidden directories", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-assets-hidden-"));
   const workspacePath = join(tempDir, "workspace");
@@ -103,7 +361,9 @@ test("local asset routes serve authorized files below hidden directories", async
     await writeFile(imagePath, "image", "utf8");
 
     const app = express();
+
     app.use(express.json());
+
     installAssetRoutes(app, {
       workspaces: {
         listWorkspaces: () => [{ path: workspacePath }]
@@ -149,15 +409,19 @@ test("local asset routes serve authorized files below hidden directories", async
 
 test("local asset routes reject symlink escapes and force SVG downloads", async (context) => {
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-assets-security-"));
+
   context.after(() => rm(tempDir, { force: true, recursive: true }));
   const workspacePath = join(tempDir, "workspace");
   const outsidePath = join(tempDir, "outside");
   const svgPath = join(workspacePath, "generated.svg");
+
   await mkdir(workspacePath);
+
   await mkdir(outsidePath);
   await writeFile(join(outsidePath, "secret.txt"), "secret");
   await writeFile(svgPath, `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`);
   const linkPath = join(workspacePath, "escape");
+
   try {
     await symlink(outsidePath, linkPath, process.platform === "win32" ? "junction" : "dir");
   } catch (error) {
@@ -165,10 +429,12 @@ test("local asset routes reject symlink escapes and force SVG downloads", async 
       context.skip("This Windows account cannot create a junction/symlink.");
       return;
     }
+
     throw error;
   }
 
   const app = express();
+
   installAssetRoutes(app, {
     workspaces: { listWorkspaces: () => [{ path: workspacePath }] }
   });
@@ -202,10 +468,12 @@ test("local asset routes serve files from trusted generated artifact roots", asy
     await mkdir(trustedDownloads, {
       recursive: true
     });
+
     await writeFile(trustedFile, "pdf", "utf8");
     await writeFile(deniedFile, "outside", "utf8");
 
     const app = express();
+
     installAssetRoutes(app, {
       trustedFileRoots: [trustedDownloads],
       workspaces: {
@@ -249,10 +517,13 @@ test("asset ticket serves files from scoped transcript attachments", async () =>
     await mkdir(join(tempDir, "uploads"), {
       recursive: true
     });
+
     await writeFile(attachmentPath, "pdf", "utf8");
 
     const app = express();
+
     app.use(express.json());
+
     installAssetRoutes(app, {
       sourceAgentSessions: {
         getSessionDetail: async (agentSessionId: string) =>
@@ -324,12 +595,14 @@ test("asset ticket serves files from scoped transcript attachments", async () =>
       const ticketPayload = await allowedTicket.json() as {
         url: string;
       };
+
       const assetResponse = await fetch(`${baseUrl}${ticketPayload.url}`);
 
       assert.equal(deniedTicket.status, 403);
       assert.deepEqual(await deniedTicket.json(), {
         error: "Local assets are only available from registered workspaces, trusted generated artifact roots, or transcript attachments."
       });
+
       assert.equal(allowedTicket.status, 201);
       assert.equal(assetResponse.status, 200);
       assert.equal(await assetResponse.text(), "pdf");
@@ -348,11 +621,15 @@ test("asset ticket serves files from scoped transcript attachments", async () =>
 
 test("transcript attachment ticket survives canonical reauthorization through a symlink", async (context) => {
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-assets-ticket-symlink-"));
+
   context.after(() => rm(tempDir, { force: true, recursive: true }));
   const attachmentDirectory = join(tempDir, "attachments");
   const attachmentAlias = join(tempDir, "attachment-alias");
+
   await mkdir(attachmentDirectory);
+
   await writeFile(join(attachmentDirectory, "report.pdf"), "symlink report", "utf8");
+
   try {
     await symlink(
       attachmentDirectory,
@@ -364,12 +641,16 @@ test("transcript attachment ticket survives canonical reauthorization through a 
       context.skip("This Windows account cannot create a junction/symlink.");
       return;
     }
+
     throw error;
   }
+
   const requestedPath = join(attachmentAlias, "report.pdf");
 
   const app = express();
+
   app.use(express.json());
+
   installAssetRoutes(app, {
     sourceAgentSessions: {
       getSessionDetail: async () => ({
@@ -393,11 +674,14 @@ test("transcript attachment ticket survives canonical reauthorization through a 
       headers: { "content-type": "application/json" },
       method: "POST"
     });
+
     assert.equal(ticketResponse.status, 201);
     const ticket = await ticketResponse.json() as { url: string };
 
     const assetResponse = await fetch(`${baseUrl}${ticket.url}`);
+
     assert.equal(assetResponse.status, 200);
+
     assert.equal(await assetResponse.text(), "symlink report");
   });
 });
@@ -412,10 +696,12 @@ test("local image route serves images from the system temp directory", async () 
     await mkdir(workspacePath, {
       recursive: true
     });
+
     await writeFile(tempImage, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     await writeFile(tempText, "not an image", "utf8");
 
     const app = express();
+
     installAssetRoutes(app, {
       workspaces: {
         listWorkspaces: () => [
@@ -442,6 +728,7 @@ test("local image route serves images from the system temp directory", async () 
       assert.deepEqual(await deniedText.json(), {
         error: "Unsupported local image type."
       });
+
       assert.equal(deniedFileRoute.status, 403);
     });
   } finally {
@@ -470,10 +757,12 @@ test("local image route serves images from trusted agent asset roots", async () 
     await mkdir(untrustedRoot, {
       recursive: true
     });
+
     await writeFile(trustedImage, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     await writeFile(untrustedImage, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 
     const app = express();
+
     installAssetRoutes(app, {
       trustedImageRoots: [trustedAgentRoot],
       workspaces: {
@@ -516,10 +805,13 @@ test("asset ticket opens a scoped asset URL and preserves download filename", as
     await mkdir(workspacePath, {
       recursive: true
     });
+
     await writeFile(allowedFile, "report", "utf8");
 
     const app = express();
+
     app.use(express.json());
+
     installAssetRoutes(app, {
       workspaces: {
         listWorkspaces: () => [
@@ -546,6 +838,7 @@ test("asset ticket opens a scoped asset URL and preserves download filename", as
         expiresAt: string;
         url: string;
       };
+
       const assetResponse = await fetch(`${baseUrl}${ticketPayload.url}`);
       const expiredResponse = await fetch(`${baseUrl}/api/assets/ticket/missing-ticket`, {
         headers: {
@@ -560,6 +853,7 @@ test("asset ticket opens a scoped asset URL and preserves download filename", as
         assetResponse.headers.get("content-disposition") ?? "",
         /filename="report\.txt"/
       );
+
       assert.ok(new Date(ticketPayload.expiresAt).getTime() > Date.now());
       assert.equal(expiredResponse.status, 404);
       assert.match(await expiredResponse.text(), /File link expired/);

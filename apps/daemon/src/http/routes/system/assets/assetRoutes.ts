@@ -6,7 +6,11 @@ import type { ManagedSessionService } from "#application/managedSessionService";
 import type { SourceAgentSessionService } from "#application/sourceAgentSessionService";
 
 import { AssetAccessPolicy } from "./assetAccessPolicy.ts";
-import { sendExpiredAssetTicketResponse, sendLocalAssetFile } from "./assetFileResponse.ts";
+import {
+  readLocalAssetFileIdentity,
+  sendExpiredAssetTicketResponse,
+  sendLocalAssetFile
+} from "./assetFileResponse.ts";
 import { AssetTicketStore } from "./assetTicketStore.ts";
 
 const ASSET_TICKET_TTL_MS = 15 * 60_000;
@@ -18,7 +22,7 @@ type InstallAssetRoutesOptions = {
   trustedFileRoots?: string[];
   trustedImageRoots?: string[];
   workspaces: {
-    listWorkspaces: () => Array<{ path: string }>;
+    listWorkspaces: () => Array<{ id?: string; path: string }>;
   };
 };
 
@@ -44,7 +48,18 @@ export function installAssetRoutes(
   app.post("/api/assets/ticket", async (request, response, next) => {
     try {
       const input = parseCreateAssetTicketInput(request.body);
-      const normalizedPath = accessPolicy.normalizePath(input.path);
+      const workspaceResolution = input.workspaceId
+        ? await accessPolicy.resolveWorkspacePath(input.workspaceId, input.path)
+        : null;
+      if (workspaceResolution?.error) {
+        response.status(workspaceResolution.error.statusCode).json({
+          error: workspaceResolution.error.message
+        });
+        return;
+      }
+
+      const normalizedPath = workspaceResolution?.path ?? accessPolicy.normalizePath(input.path);
+
       if (!normalizedPath) {
         response.status(400).json({
           error: input.kind === "local_image"
@@ -59,9 +74,11 @@ export function installAssetRoutes(
         normalizedPath,
         {
           agentSessionId: input.agentSessionId,
-          managedSessionId: input.managedSessionId
+          managedSessionId: input.managedSessionId,
+          workspaceId: input.workspaceId
         }
       );
+
       if (authorization.error) {
         response.status(authorization.error.statusCode).json({
           error: authorization.error.message
@@ -69,13 +86,25 @@ export function installAssetRoutes(
         return;
       }
 
+      const fileIdentity = await readLocalAssetFileIdentity(authorization.path);
+
+      if (!fileIdentity) {
+        response.status(403).json({
+          error: "The local asset changed while this link was being created. Open it again from DeskCue."
+        });
+        return;
+      }
+
       const { id: ticket, ticket: storedTicket } = assetTickets.create({
         agentSessionId: input.agentSessionId,
         download: input.download === true,
+        fileIdentity,
         kind: input.kind,
         managedSessionId: input.managedSessionId,
+        maxBytes: input.maxBytes,
         path: authorization.path,
-        requestedPath: normalizedPath
+        requestedPath: normalizedPath,
+        workspaceId: input.workspaceId
       });
       const payload: CreateAssetTicketResponse = {
         expiresAt: new Date(storedTicket.expiresAt).toISOString(),
@@ -90,6 +119,7 @@ export function installAssetRoutes(
 
   app.get("/api/assets/ticket/:ticket", async (request, response, next) => {
     const ticket = assetTickets.read(request.params.ticket);
+
     if (!ticket) {
       sendExpiredAssetTicketResponse(request, response);
       return;
@@ -101,15 +131,18 @@ export function installAssetRoutes(
         ticket.requestedPath,
         {
           agentSessionId: ticket.agentSessionId,
-          managedSessionId: ticket.managedSessionId
+          managedSessionId: ticket.managedSessionId,
+          workspaceId: ticket.workspaceId
         }
       );
+
       if (authorization.error) {
         response.status(authorization.error.statusCode).json({
           error: authorization.error.message
         });
         return;
       }
+
       if (authorization.path !== ticket.path) {
         response.status(403).json({
           error: "The local asset no longer resolves to the file authorized by this ticket."
@@ -117,7 +150,13 @@ export function installAssetRoutes(
         return;
       }
 
-      sendLocalAssetFile(response, authorization.path, ticket.download);
+      await sendLocalAssetFile(
+        response,
+        authorization.path,
+        ticket.download,
+        ticket.maxBytes,
+        ticket.fileIdentity
+      );
     } catch (error) {
       next(error);
     }
@@ -127,6 +166,7 @@ export function installAssetRoutes(
     const normalizedPath = accessPolicy.normalizePath(
       typeof request.query.path === "string" ? request.query.path.trim() : ""
     );
+
     if (!normalizedPath) {
       response.status(400).json({
         error: "Only absolute asset paths are supported."
@@ -136,11 +176,13 @@ export function installAssetRoutes(
 
     try {
       const authorization = await accessPolicy.authorizeFile(normalizedPath);
+
       if (authorization.error) {
         response.status(authorization.error.statusCode).json({ error: authorization.error.message });
         return;
       }
-      sendLocalAssetFile(response, authorization.path, request.query.download === "1");
+
+      await sendLocalAssetFile(response, authorization.path, request.query.download === "1");
     } catch (error) {
       next(error);
     }
@@ -150,6 +192,7 @@ export function installAssetRoutes(
     const normalizedPath = accessPolicy.normalizePath(
       typeof request.query.path === "string" ? request.query.path.trim() : ""
     );
+
     if (!normalizedPath) {
       response.status(400).json({
         error: "Only absolute image paths are supported."
@@ -159,11 +202,13 @@ export function installAssetRoutes(
 
     try {
       const authorization = await accessPolicy.authorizeImage(normalizedPath);
+
       if (authorization.error) {
         response.status(authorization.error.statusCode).json({ error: authorization.error.message });
         return;
       }
-      sendLocalAssetFile(response, authorization.path, false);
+
+      await sendLocalAssetFile(response, authorization.path, false);
     } catch (error) {
       next(error);
     }

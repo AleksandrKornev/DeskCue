@@ -1,7 +1,6 @@
-import { useEffect } from "react";
-
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
 import { useBottomSheetDrag } from "@components/BottomSheet";
+import { useModalFocusLifecycle } from "@components/Modal";
 
 import {
   buildModelRuntimeDetailItems,
@@ -32,34 +31,16 @@ export function ModelRuntimePanel({ agentSession, onClose, session }: ModelRunti
     session
   });
 
-  useEffect(() => {
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
+  useModalFocusLifecycle({ dialogRef: sheetRef, onClose });
 
   return (
     <div className={styles.backdrop}>
       <button
+        aria-hidden="true"
         aria-label="Close model and runtime context"
         className={styles.backdropDismiss}
         onClick={onClose}
+        tabIndex={-1}
         type="button"
       />
       <section
@@ -69,6 +50,7 @@ export function ModelRuntimePanel({ agentSession, onClose, session }: ModelRunti
         ref={sheetRef}
         role="dialog"
         {...sheetGestureProps}
+        tabIndex={-1}
       >
         <div aria-hidden="true" className={styles.dragHandle} {...dragHandleProps} />
         <div className={styles.header} {...dragHandleProps}>
@@ -93,7 +75,7 @@ export function ModelRuntimePanel({ agentSession, onClose, session }: ModelRunti
           </div>
         </div>
 
-        <dl className={styles.grid}>
+        <dl aria-label="Model and runtime details" className={styles.grid} tabIndex={0}>
           {detailItems.map((item) => (
             <div className={styles.item} key={item.label}>
               <dt>{item.label}</dt>

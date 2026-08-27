@@ -43,6 +43,7 @@ export function useTranscriptAttachmentPreview({
   const [textPreviewState, setTextPreviewState] = useState<TextPreviewState>("idle");
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [imagePreviewState, setImagePreviewState] = useState<ImagePreviewState>("idle");
+  const [imagePreviewRetryNonce, setImagePreviewRetryNonce] = useState(0);
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
   const [isPreviewNearViewport, setIsPreviewNearViewport] = useState(false);
   const [copyLinkState, setCopyLinkState] = useState<"idle" | "copying">("idle");
@@ -66,17 +67,19 @@ export function useTranscriptAttachmentPreview({
   const isLocalAsset = Boolean(part.path);
 
   const openPreview = useCallback(() => {
-    if (!previewUrl || previewKind === "none") {
-      return;
-    }
+    if (!previewUrl || previewKind === "none") return;
 
     setPreviewOpen(true);
   }, [previewKind, previewUrl]);
 
+  const retryImagePreview = useCallback(() => {
+    if (imagePreviewState !== "error") return;
+
+    setImagePreviewRetryNonce((current) => current + 1);
+  }, [imagePreviewState]);
+
   const handleOpenLocalAsset = useCallback(() => {
-    if (!part.path) {
-      return;
-    }
+    if (!part.path) return;
 
     void openLocalAssetInNewTab(part.path, displayName, assetContext);
   }, [assetContext, displayName, part.path]);
@@ -86,9 +89,7 @@ export function useTranscriptAttachmentPreview({
   }, [displayName]);
 
   const handleDownloadLocalAsset = useCallback(() => {
-    if (!part.path) {
-      return;
-    }
+    if (!part.path) return;
 
     notifyDownloadStarting();
     void downloadLocalAsset(part.path, displayName, assetContext).catch((error) => {
@@ -97,16 +98,16 @@ export function useTranscriptAttachmentPreview({
   }, [assetContext, displayName, notifyDownloadStarting, part.path]);
 
   const handleCopyLocalAssetLink = useCallback(async () => {
-    if (!part.path || copyLinkState === "copying") {
-      return;
-    }
+    if (!part.path || copyLinkState === "copying") return;
 
     setCopyLinkState("copying");
+
     try {
       const assetLink = await assetsApi.createLocalAssetLink(part.path, {
         context: assetContext
       });
       const copied = await copyText(assetLink.url);
+
       if (!copied) {
         toast.error("Copy failed");
         return;
@@ -184,6 +185,7 @@ export function useTranscriptAttachmentPreview({
     assetContextManagedSessionId,
     displayName,
     imagePreviewCacheKey,
+    imagePreviewRetryNonce,
     isPreviewNearViewport,
     part.kind,
     part.path,
@@ -199,6 +201,7 @@ export function useTranscriptAttachmentPreview({
     }
 
     const element = cardRef.current;
+
     if (!element || typeof IntersectionObserver === "undefined") {
       setIsPreviewNearViewport(true);
       return;
@@ -222,11 +225,10 @@ export function useTranscriptAttachmentPreview({
   }, [part.kind, previewKind]);
 
   useEffect(() => {
-    if (!previewOpen || previewKind !== "text" || !previewUrl) {
-      return;
-    }
+    if (!previewOpen || previewKind !== "text" || !previewUrl) return;
 
     let cancelled = false;
+
     setTextPreviewState("loading");
 
     const fetchPreviewText =
@@ -238,17 +240,13 @@ export function useTranscriptAttachmentPreview({
 
     fetchPreviewText
       .then((value) => {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         setTextPreview(value);
         setTextPreviewState("loaded");
       })
       .catch(() => {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         setTextPreview("");
         setTextPreviewState("error");
@@ -272,24 +270,18 @@ export function useTranscriptAttachmentPreview({
       context: assetContext
     })
       .then((blob) => {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         objectUrl = URL.createObjectURL(blob);
         setDocumentPreviewUrl(objectUrl);
       })
       .catch(() => {
-        if (!cancelled) {
-          setDocumentPreviewUrl(null);
-        }
+        if (!cancelled) setDocumentPreviewUrl(null);
       });
 
     return () => {
       cancelled = true;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [assetContext, displayName, part.path, previewKind, previewOpen, previewUrl]);
 
@@ -307,6 +299,7 @@ export function useTranscriptAttachmentPreview({
     handleOpenLocalAsset,
     notifyDownloadStarting,
     openPreview,
+    retryImagePreview,
     setPreviewOpen
   };
 }

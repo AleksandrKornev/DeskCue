@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { KeyValue, StatusBadge } from "@components/Panel";
 import { SegmentedTabs } from "@components/SegmentedTabs";
@@ -19,6 +20,24 @@ import {
 import styles from "./styles.module.scss";
 import type { ManualSessionChromeProps } from "./types";
 
+const MANUAL_COMMAND_ACCESSIBLE_PREVIEW_LENGTH = 160;
+
+type ManualCommandOverflow = {
+  command: string;
+  sessionId: string;
+  value: boolean;
+};
+
+type ManualCommandDisclosureState = {
+  command: string;
+  isExpanded: boolean;
+  sessionId: string;
+};
+
+function isManualCommandOverflowing(element: HTMLElement) {
+  return element.scrollHeight > element.clientHeight;
+}
+
 export function ManualSessionChrome({
   activeSelectedSession,
   activeTab,
@@ -34,6 +53,58 @@ export function ManualSessionChrome({
   const runtime = getDeskCueRuntime();
   const sessionCommandsEnabled = runtime.features.sessionCommands;
   const sessionCommandsUnavailableReason = resolveSessionCommandsUnavailableReason(runtime);
+  const command = formatManagedSessionTitle(sessionShell, takenOverAgentSession);
+  const commandContentId = `${navigationIdPrefix}-command`;
+  const commandRef = useRef<HTMLParagraphElement>(null);
+  const [commandDisclosure, setCommandDisclosure] = useState<ManualCommandDisclosureState>(() => ({
+    command,
+    isExpanded: false,
+    sessionId: sessionShell.id
+  }));
+  const [commandOverflow, setCommandOverflow] = useState<ManualCommandOverflow | null>(null);
+  const ownsCommandDisclosure = commandDisclosure.command === command &&
+    commandDisclosure.sessionId === sessionShell.id;
+  const isCommandExpanded = ownsCommandDisclosure && commandDisclosure.isExpanded;
+  const hasCommandDisclosure = commandOverflow?.command === command &&
+    commandOverflow.sessionId === sessionShell.id &&
+    commandOverflow.value;
+  const accessibleCommandPreview = command.length > MANUAL_COMMAND_ACCESSIBLE_PREVIEW_LENGTH
+    ? `${command.slice(0, MANUAL_COMMAND_ACCESSIBLE_PREVIEW_LENGTH).trimEnd()}…`
+    : command;
+
+  // React retries this render before commit, so another command cannot inherit expanded state.
+  if (!ownsCommandDisclosure) setCommandDisclosure({ command, isExpanded: false, sessionId: sessionShell.id });
+
+  useLayoutEffect(() => {
+    const commandElement = commandRef.current;
+
+    if (!commandElement || isCommandExpanded) return;
+
+    /* runtime-helper-placement: allow -- captures the current element and session. */ const measureCommandOverflow = () => {
+      const value = isManualCommandOverflowing(commandElement);
+
+      setCommandOverflow((current) => {
+        if (
+          current?.command === command &&
+          current.sessionId === sessionShell.id &&
+          current.value === value
+        ) {
+          return current;
+        }
+
+        return { command, sessionId: sessionShell.id, value };
+      });
+    };
+
+    measureCommandOverflow();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(measureCommandOverflow);
+
+    resizeObserver.observe(commandElement);
+
+    return () => resizeObserver.disconnect();
+  }, [command, isCommandExpanded, sessionShell.id]);
 
   return (
     <>
@@ -43,9 +114,38 @@ export function ManualSessionChrome({
             <h2>Manual command</h2>
             <StatusBadge status={sessionShell.status} />
           </div>
-          <p className={styles.sessionHeaderCommand}>
-            {formatManagedSessionTitle(sessionShell, takenOverAgentSession)}
+          <p
+            className={clsx(
+              styles.sessionHeaderCommand,
+              hasCommandDisclosure && styles.sessionHeaderCommandCollapsible,
+              isCommandExpanded && styles.sessionHeaderCommandExpanded
+            )}
+            id={commandContentId}
+            ref={commandRef}
+            aria-hidden={hasCommandDisclosure && !isCommandExpanded ? true : undefined}
+          >
+            {command}
           </p>
+          {hasCommandDisclosure && !isCommandExpanded ? (
+            <span className={styles.srOnly}>Command preview: {accessibleCommandPreview}</span>
+          ) : null}
+          {hasCommandDisclosure ? (
+            <button
+              aria-controls={commandContentId}
+              aria-expanded={isCommandExpanded}
+              className={styles.commandDisclosure}
+              onClick={() => setCommandDisclosure((current) => ({
+                command,
+                isExpanded: current.command === command && current.sessionId === sessionShell.id
+                  ? !current.isExpanded
+                  : true,
+                sessionId: sessionShell.id
+              }))}
+              type="button"
+            >
+              {isCommandExpanded ? "Collapse command" : "Show full command"}
+            </button>
+          ) : null}
           <p className={styles.muted}>
             {formatManagedSessionSubtitle(sessionShell, takenOverAgentSession)}
           </p>

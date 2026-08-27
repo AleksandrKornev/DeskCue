@@ -257,12 +257,16 @@ test("cloud file, git and preview operations remain exact and bounded", () => {
     agentSessionId: "codex:one",
     download: false,
     kind: "local_image",
-    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png"
+    maxBytes: 25 * 1024 * 1024,
+    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png",
+    workspaceId: "workspace-1"
   }), {
     agentSessionId: "codex:one",
     download: false,
     kind: "local_image",
-    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png"
+    maxBytes: 25 * 1024 * 1024,
+    path: "C:\\Users\\person\\AppData\\Local\\Temp\\screenshot.png",
+    workspaceId: "workspace-1"
   });
   assert.deepEqual(parseCloudRemoteReadOperationInput("assets.ticket.read", {
     ticket: "12345678-1234-1234-1234-123456789abc"
@@ -270,6 +274,11 @@ test("cloud file, git and preview operations remain exact and bounded", () => {
   assert.throws(() => parseCloudRemoteReadOperationInput("assets.ticket.create", {
     kind: "local_image",
     path: "bad\0path.png"
+  }));
+  assert.throws(() => parseCloudRemoteReadOperationInput("assets.ticket.create", {
+    kind: "local_image",
+    maxBytes: 0,
+    path: "image.png"
   }));
   assert.deepEqual(parseCloudRemoteReadOperationInput("workspace.files.list", {
     workspaceId: "workspace-1",

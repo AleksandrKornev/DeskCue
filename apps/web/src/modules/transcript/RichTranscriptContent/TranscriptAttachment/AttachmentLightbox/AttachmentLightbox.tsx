@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 import CloseIcon from "@assets/images/icon-close.svg?react";
 import { useBottomSheetDrag } from "@components/BottomSheet";
+import { useModalFocusLifecycle } from "@components/Modal";
 import type { AttachmentPreviewKind } from "@modules/transcript/RichTranscriptContent/types";
 
 import { lightboxBodyClassByKind } from "./constants";
@@ -38,12 +39,16 @@ export function AttachmentLightbox({
     sheetGestureProps,
     sheetRef
   } = useBottomSheetDrag<HTMLDivElement>({ onDismiss: onClose });
+
+  useModalFocusLifecycle({ dialogRef: sheetRef, onClose });
   const lightbox = (
     <div className={styles.lightbox}>
       <button
+        aria-hidden="true"
         aria-label="Close preview"
         className={styles.lightboxBackdrop}
         onClick={onClose}
+        tabIndex={-1}
         type="button"
       />
       <div
@@ -53,6 +58,7 @@ export function AttachmentLightbox({
         aria-modal="true"
         aria-label={displayName}
         {...sheetGestureProps}
+        tabIndex={-1}
       >
         <div aria-hidden="true" className={styles.dragHandle} {...dragHandleProps} />
         <div
@@ -97,7 +103,12 @@ export function AttachmentLightbox({
           </div>
         </div>
 
-        <div className={clsx(styles.lightboxBody, lightboxBodyClassByKind[previewKind])}>
+        <div
+          aria-label={`${displayName} preview`}
+          className={clsx(styles.lightboxBody, lightboxBodyClassByKind[previewKind])}
+          role="region"
+          tabIndex={0}
+        >
           {previewKind === "image" ? <img alt={displayName} src={previewUrl} /> : null}
           {previewKind === "pdf" ? (
             <iframe className={styles.lightboxFrame} src={previewUrl} title={displayName} />

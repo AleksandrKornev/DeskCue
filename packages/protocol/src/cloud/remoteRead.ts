@@ -1,4 +1,5 @@
 import { ProtocolSchemaError, readProtocolObject } from "../schema.ts";
+import { MAX_ASSET_TICKET_BYTES } from "../access.ts";
 
 import {
   CLOUD_REMOTE_READ_CHUNK_BYTES,
@@ -33,13 +34,17 @@ export function parseCloudRemoteReadRequestFrame(
   value: unknown
 ): CloudRemoteReadRequestFrame {
   const frame = readProtocolObject(value);
+
   requireExactVersion(frame);
+
   if (typeof frame.type !== "string" || !frame.type.startsWith("remote.read.request.")) {
     throw new ProtocolSchemaError("Expected a Cloud remote read request frame.");
   }
+
   if (!isIdentifier(frame.requestId, 8, 128)) {
     throw new ProtocolSchemaError("Cloud remote read request identifier is invalid.");
   }
+
   if (frame.type === "remote.read.request.start") {
     requireOnlyKeys(frame, [
       "type", "protocolVersion", "requestId", "operation", "bodyBytes", "chunkCount",
@@ -56,22 +61,28 @@ export function parseCloudRemoteReadRequestFrame(
         !isSha256(frame.bodySha256) || !isIsoTimestamp(frame.deadlineAt) || !isIsoTimestamp(frame.sentAt)) {
       throw new ProtocolSchemaError("Cloud remote read request metadata is invalid.");
     }
+
     return frame as CloudRemoteReadRequestFrame;
   }
+
   if (frame.type === "remote.read.request.chunk") {
     requireOnlyKeys(frame, ["type", "protocolVersion", "requestId", "index", "data"]);
     if (!isSafeInteger(frame.index, 0) || !isBase64Chunk(frame.data)) {
       throw new ProtocolSchemaError("Cloud remote read request chunk is invalid.");
     }
+
     return frame as CloudRemoteReadRequestFrame;
   }
+
   if (frame.type === "remote.read.request.end") {
     requireOnlyKeys(frame, ["type", "protocolVersion", "requestId", "bodySha256", "sentAt"]);
     if (!isSha256(frame.bodySha256) || !isIsoTimestamp(frame.sentAt)) {
       throw new ProtocolSchemaError("Cloud remote read request end is invalid.");
     }
+
     return frame as CloudRemoteReadRequestFrame;
   }
+
   throw new ProtocolSchemaError("Unknown Cloud remote read request frame.");
 }
 
@@ -92,6 +103,7 @@ export function parseCloudRemoteReadOperationInput(
     if (input.sessionLimit !== undefined && !isSafeIntegerBetween(input.sessionLimit, 1, 200)) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["overview.get"];
   }
+
   if (operation === "managedSessions.get") {
     requireOnlyKeys(input, ["sessionId", "view", "debugLogTail"]);
     if (!isStringBetween(input.sessionId, 1, 512) ||
@@ -99,6 +111,7 @@ export function parseCloudRemoteReadOperationInput(
         (input.debugLogTail !== undefined && !isSafeIntegerBetween(input.debugLogTail, 0, 10_000))) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["managedSessions.get"];
   }
+
   if (operation === "sessions.list") {
     requireOnlyKeys(input, ["includeLiveMetadata", "limit", "offset", "query", "sourceId"]);
     if (input.includeLiveMetadata !== undefined && typeof input.includeLiveMetadata !== "boolean") invalidReadInput();
@@ -108,12 +121,14 @@ export function parseCloudRemoteReadOperationInput(
     if (input.sourceId !== undefined && !isStringBetween(input.sourceId, 1, 64)) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["sessions.list"];
   }
+
   if (operation === "sessions.resolveRoute") {
     requireOnlyKeys(input, ["cloudSessionId"]);
     if (typeof input.cloudSessionId !== "string" ||
         !/^sess_[a-f0-9]{64}$/u.test(input.cloudSessionId)) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["sessions.resolveRoute"];
   }
+
   if (operation === "sessions.reviewed.post") {
     requireOnlyKeys(input, ["agentSessionId"]);
     if (!isStringBetween(input.agentSessionId, 1, 512)) invalidReadInput();
@@ -128,6 +143,7 @@ export function parseCloudRemoteReadOperationInput(
         (input.limit !== undefined && !isSafeIntegerBetween(input.limit, 1, 50))) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["transcript.page"];
   }
+
   if (operation === "transcript.entries.get" || operation === "transcript.entries.post") {
     requireOnlyKeys(input, ["agentSessionId", "entryIds"]);
     if (!isStringBetween(input.agentSessionId, 1, 512) ||
@@ -136,6 +152,7 @@ export function parseCloudRemoteReadOperationInput(
       "transcript.entries.get" | "transcript.entries.post"
     ];
   }
+
   if (operation === "changes.get" || operation === "changes.post") {
     requireOnlyKeys(input, ["agentSessionId", "groupId", "sourceEntryIds", "sourceEntryRanges", "sourceEntrySpans"]);
     if (!isStringBetween(input.agentSessionId, 1, 512) || !isStringBetween(input.groupId, 1, 512) ||
@@ -146,20 +163,27 @@ export function parseCloudRemoteReadOperationInput(
 
   // Workspace and Preview resources.
   if (operation === "assets.ticket.create") {
-    requireOnlyKeys(input, ["agentSessionId", "download", "kind", "managedSessionId", "path"]);
+    requireOnlyKeys(input, [
+      "agentSessionId", "download", "kind", "managedSessionId", "maxBytes", "path", "workspaceId"
+    ]);
     if ((input.agentSessionId !== undefined && !isStringBetween(input.agentSessionId, 1, 512)) ||
         (input.managedSessionId !== undefined && !isStringBetween(input.managedSessionId, 1, 512)) ||
+        (input.workspaceId !== undefined && !isStringBetween(input.workspaceId, 1, 512)) ||
+        (input.maxBytes !== undefined &&
+          !isSafeIntegerBetween(input.maxBytes, 1, MAX_ASSET_TICKET_BYTES)) ||
         (input.download !== undefined && typeof input.download !== "boolean") ||
         (input.kind !== "file" && input.kind !== "local_image") ||
         !isStringBetween(input.path, 1, 4096) || input.path.includes("\0")) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["assets.ticket.create"];
   }
+
   if (operation === "assets.ticket.read") {
     requireOnlyKeys(input, ["ticket"]);
     if (!isStringBetween(input.ticket, 8, 128) ||
         !/^[A-Za-z0-9_-]+$/u.test(input.ticket)) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["assets.ticket.read"];
   }
+
   if (operation === "workspace.files.list") {
     requireOnlyKeys(input, ["workspaceId", "path", "cursor", "limit"]);
     if (!isStringBetween(input.workspaceId, 1, 512) ||
@@ -169,17 +193,20 @@ export function parseCloudRemoteReadOperationInput(
         (input.limit !== undefined && !isSafeIntegerBetween(input.limit, 1, 100))) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["workspace.files.list"];
   }
+
   if (operation === "workspace.files.read") {
     requireOnlyKeys(input, ["workspaceId", "path"]);
     if (!isStringBetween(input.workspaceId, 1, 512) || !isCloudRelativePath(input.path, false)) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["workspace.files.read"];
   }
+
   if (operation === "managed.git.refresh") {
     requireOnlyKeys(input, ["sessionId", "view"]);
     if (!isStringBetween(input.sessionId, 1, 512) ||
         (input.view !== undefined && input.view !== "diff")) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["managed.git.refresh"];
   }
+
   if (operation === "preview.candidates") {
     requireOnlyKeys(input, ["kind", "ownerId"]);
     if (input.kind !== "session" || !isStringBetween(input.ownerId, 1, 200)) invalidReadInput();
@@ -196,12 +223,15 @@ export function parseCloudRemoteReadOperationInput(
   for (const key of ["baseItemKey", "baseSourceEntryId"] as const) {
     if (input[key] !== undefined && input[key] !== null && !isStringBetween(input[key], 1, 512)) invalidReadInput();
   }
+
   for (const key of ["chatMessageTail", "overlapItemCount", "transcriptTail"] as const) {
     if (input[key] !== undefined && !isSafeIntegerBetween(input[key], 0, 10_000)) invalidReadInput();
   }
+
   for (const key of ["fullTranscript", "includeSessionSummary", "omitTranscript"] as const) {
     if (input[key] !== undefined && typeof input[key] !== "boolean") invalidReadInput();
   }
+
   if (
     input.transcriptDetail !== undefined &&
     input.transcriptDetail !== "full" &&
