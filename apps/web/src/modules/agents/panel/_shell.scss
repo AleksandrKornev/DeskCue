@@ -1,3 +1,4 @@
+@use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
 .panel {
@@ -98,11 +99,20 @@
   border-color: rgba(214, 164, 103, 0.52);
   background: rgba(214, 164, 103, 0.11);
   color: #f2e0c2;
+
+  @include selected-state;
 }
 
 .sourceTabActive span {
   background: rgba(214, 164, 103, 0.18);
   color: #f2e0c2;
+}
+
+@media (forced-colors: active) {
+  .sourceTabActive span {
+    background: transparent;
+    color: inherit;
+  }
 }
 
 .sourceTabIcon {
