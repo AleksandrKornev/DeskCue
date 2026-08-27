@@ -55,8 +55,14 @@ type SessionAttachOrchestrationCallbacks = {
     reason: string
   ) => Promise<SessionDetail>;
   createWorkspace: (workspacePath: string) => Promise<WorkspaceSummary>;
-  findReadOnlyAttachedSession: (sourceSessionId: string) => SessionDetail | null;
-  findReusableAttachedSession: (sourceSessionId: string) => SessionDetail | null;
+  findReadOnlyAttachedSession: (
+    sourceSessionId: string,
+    adapterId?: string
+  ) => SessionDetail | null;
+  findReusableAttachedSession: (
+    sourceSessionId: string,
+    adapterId?: string
+  ) => SessionDetail | null;
   getSession: (sessionId: string) => SessionDetail | null;
   launchSession: (input: LaunchSessionInput) => Promise<SessionDetail>;
   restartClaudePromptTransport?: (session: SessionDetail, input: string) => Promise<SessionDetail>;
@@ -96,10 +102,10 @@ export async function resumeCodexAgentSession(
   prompt?: string
 ) {
   const startedAt = performance.now();
-  const runningExisting = callbacks.findReusableAttachedSession(codexSession.id);
+  const runningExisting = callbacks.findReusableAttachedSession(codexSession.id, "codex");
   const readOnlyExisting = runningExisting
     ? null
-    : callbacks.findReadOnlyAttachedSession(codexSession.id);
+    : callbacks.findReadOnlyAttachedSession(codexSession.id, "codex");
   const codexSessionDetail = "transcript" in codexSession ? codexSession : null;
   const attachState = codexSessionDetail
     ? getCodexAttachState(codexSessionDetail.transcript)
@@ -268,7 +274,8 @@ async function resumeDiscoveredCodexSession(
 
   if (!normalizedPrompt) {
     const existingReadOnly = callbacks.findReadOnlyAttachedSession(
-      agentSession.sourceSessionId
+      agentSession.sourceSessionId,
+      "codex"
     );
 
     if (existingReadOnly) return existingReadOnly;
@@ -351,7 +358,10 @@ export async function resumeDiscoveredAgentSession(
   agentSession: AgentSessionSummary | AgentSessionDetail,
   prompt?: string
 ) {
-  const existing = callbacks.findReusableAttachedSession(agentSession.sourceSessionId);
+  const existing = callbacks.findReusableAttachedSession(
+    agentSession.sourceSessionId,
+    agentSession.agentId
+  );
 
   if (existing && agentSession.agentId !== codexAdapter.id) {
     logger.info("Reusing existing attached agent session", {

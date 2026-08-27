@@ -15,6 +15,7 @@ export class SessionRepository {
   private readonly dirtyWorkspaceIds = new Set<string>();
   private readonly dirtySessionIds = new Set<string>();
   private readonly partialSessionIds = new Set<string>();
+  private readonly attachedSessionCreations = new Map<string, Promise<SessionDetail>>();
 
   get workspaceCount() {
     return this.workspaces.size;
@@ -59,9 +60,7 @@ export class SessionRepository {
   listDirtyPersistedSessions() {
     return Array.from(this.dirtySessionIds)
       .flatMap((sessionId) => {
-        if (this.partialSessionIds.has(sessionId)) {
-          return [];
-        }
+        if (this.partialSessionIds.has(sessionId)) return [];
 
         const session = this.sessions.get(sessionId);
 
@@ -121,12 +120,34 @@ export class SessionRepository {
     }
   }
 
+  replaceSessionIfCurrent(
+    sessionId: string,
+    expected: SessionDetail,
+    replacement: SessionDetail
+  ) {
+    if (this.sessions.get(sessionId) !== expected) return false;
+
+    this.setSession(replacement);
+    return true;
+  }
+
+  isSessionCurrent(sessionId: string, expected: SessionDetail) {
+    return this.sessions.get(sessionId) === expected;
+  }
+
+  removeSessionIfCurrent(sessionId: string, expected: SessionDetail) {
+    if (this.sessions.get(sessionId) !== expected) return false;
+
+    this.sessions.delete(sessionId);
+    this.dirtySessionIds.delete(sessionId);
+    this.partialSessionIds.delete(sessionId);
+    return true;
+  }
+
   updateSession(sessionId: string, patch: Partial<SessionDetail>) {
     const current = this.sessions.get(sessionId);
 
-    if (!current) {
-      return null;
-    }
+    if (!current) return null;
 
     const next: SessionDetail = {
       ...current,
@@ -135,9 +156,7 @@ export class SessionRepository {
     };
 
     this.sessions.set(sessionId, next);
-    if (!this.partialSessionIds.has(sessionId)) {
-      this.dirtySessionIds.add(sessionId);
-    }
+    if (!this.partialSessionIds.has(sessionId)) this.dirtySessionIds.add(sessionId);
 
     return next;
   }
@@ -145,9 +164,7 @@ export class SessionRepository {
   syncWorkspaceFromGit(workspaceId: string, git: GitSnapshot) {
     const workspace = this.workspaces.get(workspaceId);
 
-    if (!workspace) {
-      return;
-    }
+    if (!workspace) return;
 
     this.workspaces.set(workspaceId, {
       ...workspace,
@@ -158,18 +175,68 @@ export class SessionRepository {
     this.dirtyWorkspaceIds.add(workspaceId);
   }
 
-  findReusableAttachedSession(sourceSessionId: string) {
+  findReusableAttachedSession(sourceSessionId: string, adapterId?: string) {
     return this.listSessionDetails().find(
-      (session) => session.sourceSessionId === sourceSessionId && session.status === "running"
+      (session) =>
+        session.sourceSessionId === sourceSessionId &&
+        (!adapterId || session.adapterId === adapterId) &&
+        session.status === "running"
     ) ?? null;
   }
 
-  findReadOnlyAttachedSession(sourceSessionId: string) {
+  findAttachedSession(sourceSessionId: string, adapterId: string) {
+    return this.listSessionDetails().find(
+      (session) =>
+        session.sourceSessionId === sourceSessionId &&
+        session.adapterId === adapterId
+    ) ?? null;
+  }
+
+  claimAttachedSession(session: SessionDetail) {
+    if (!session.sourceSessionId) return null;
+
+    const existing = this.findAttachedSession(session.sourceSessionId, session.adapterId);
+
+    if (existing) return existing;
+
+    this.setSession(session);
+    return null;
+  }
+
+  runAttachedSessionCreation(
+    adapterId: string,
+    sourceSessionId: string,
+    operation: () => Promise<SessionDetail>
+  ) {
+    const key = `${adapterId}\0${sourceSessionId}`;
+    const pending = this.attachedSessionCreations.get(key);
+
+    if (pending) return pending;
+
+    const created = Promise.resolve().then(operation);
+
+    // runtime-helper-placement: allow -- cleanup must close over this exact keyed promise.
+
+    const clearPending = () => {
+      if (this.attachedSessionCreations.get(key) === created) this.attachedSessionCreations.delete(key);
+    };
+
+    this.attachedSessionCreations.set(key, created);
+    created.then(clearPending, clearPending);
+    return created;
+  }
+
+  findReadOnlyAttachedSession(sourceSessionId: string, adapterId?: string) {
     return this.listSessionDetails()
       .filter(
         (session) =>
           session.sourceSessionId === sourceSessionId &&
-          (session.status === "read_only" || session.command.endsWith(" (read-only)"))
+          (!adapterId || session.adapterId === adapterId) &&
+          (
+            session.status === "read_only" ||
+            session.command.endsWith(" (read-only)") ||
+            (session.adapterId === "claude-code" && session.status === "failed")
+          )
       )[0] ?? null;
   }
 }

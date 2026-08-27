@@ -42,8 +42,14 @@ type StoreBackedSessionCallbackContextDelegate = {
     options: { reason: string }
   ) => Promise<void>;
   emitServerEvent: (event: ServerEvent) => void;
-  findReadOnlyAttachedSession: (sourceSessionId: string) => SessionDetail | null;
-  findReusableAttachedSession: (sourceSessionId: string) => SessionDetail | null;
+  findReadOnlyAttachedSession: (
+    sourceSessionId: string,
+    adapterId?: string
+  ) => SessionDetail | null;
+  findReusableAttachedSession: (
+    sourceSessionId: string,
+    adapterId?: string
+  ) => SessionDetail | null;
   finishSession: (sessionId: string, status: SessionStatus, exitCode: number | null) => void;
   getSession: (sessionId: string) => SessionDetail | null;
   gitPolling: SessionGitPolling;

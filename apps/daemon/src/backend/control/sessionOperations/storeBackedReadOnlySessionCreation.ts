@@ -30,12 +30,30 @@ export function createStoreBackedReadOnlyClaudeSession(
   return createReadOnlyClaudeSessionShell(
     {
       appendLog: callbackContext.appendLog,
+      claimAttachedSession: (session) =>
+        callbackContext.repository.claimAttachedSession(session),
       createWorkspace: callbackContext.createWorkspace,
       emitServerEvent: callbackContext.emitServerEvent,
-      findReadOnlyAttachedSession: (sourceSessionId) =>
-        callbackContext.findReadOnlyAttachedSession(sourceSessionId) ?? undefined,
+      findAttachedSession: (sourceSessionId) =>
+        callbackContext.repository.findAttachedSession(sourceSessionId, "claude-code") ?? undefined,
       getPublicSession: callbackContext.getSession,
+      isSessionCurrent: (sessionId, expected) =>
+        callbackContext.repository.isSessionCurrent(sessionId, expected),
       persistState: callbackContext.persistState,
+      restoreSessionIfCurrent: (sessionId, expected, replacement) =>
+        callbackContext.repository.replaceSessionIfCurrent(
+          sessionId,
+          expected,
+          replacement
+        ),
+      removeSessionIfCurrent: (sessionId, expected) =>
+        callbackContext.repository.removeSessionIfCurrent(sessionId, expected),
+      runAttachedSessionCreation: (sourceSessionId, operation) =>
+        callbackContext.repository.runAttachedSessionCreation(
+          "claude-code",
+          sourceSessionId,
+          operation
+        ),
       setSession: (session) => callbackContext.repository.setSession(session),
       syncWorkspaceFromGit: callbackContext.syncWorkspaceFromGit,
       toSummary: callbackContext.toSummary

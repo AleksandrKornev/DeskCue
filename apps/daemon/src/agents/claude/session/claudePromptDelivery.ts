@@ -23,7 +23,8 @@ type RestartClaudePromptTransportCallbacks = SourcePromptProcessCallbacks & {
 };
 
 function canRestartClaudePrompt(session: SessionDetail) {
-  return session.status === "read_only" || session.status === "stopped" || session.status === "done";
+  return session.status === "read_only" || session.status === "stopped" ||
+    session.status === "done" || session.status === "failed";
 }
 
 function resolveClaudePrintExecutable() {
@@ -40,6 +41,7 @@ function resolveClaudePrintExecutable() {
       "bin",
       "claude.exe"
     );
+
     if (existsSync(executable)) return executable;
   }
 
@@ -51,6 +53,7 @@ export function buildClaudeResumePrintTransport(
   prompt: string
 ): { command: string; spawnSpec: SessionSpawnSpec } {
   const normalizedPrompt = prompt.trim();
+
   return {
     command: claudeCodeAdapter.buildResumePrintCommand(sourceSessionId, normalizedPrompt),
     spawnSpec: {
@@ -66,6 +69,7 @@ export function buildClaudeResumePrintTransport(
 function resolveClaudeHomeDirectory(sourceSessionFilePath?: string | null) {
   if (sourceSessionFilePath) {
     const claudeConfigDirectory = dirname(dirname(dirname(sourceSessionFilePath)));
+
     if (existsSync(claudeConfigDirectory)) return dirname(claudeConfigDirectory);
   }
 
@@ -78,6 +82,7 @@ export async function restartClaudePromptTransport(
   input: string
 ) {
   const prompt = input.trim();
+
   if (!prompt) throw new AppError("invalid_input", "Prompt is empty.");
 
   if (!session.sourceSessionId || session.adapterId !== claudeCodeAdapter.id) {
@@ -98,6 +103,7 @@ export async function restartClaudePromptTransport(
   const backgroundAgent = await (callbacks.findBackgroundAgent ?? findClaudeBackgroundAgent)(
     session.sourceSessionId
   );
+
   if (backgroundAgent) {
     throw new AppError(
       "not_accepting_input",
@@ -108,6 +114,7 @@ export async function restartClaudePromptTransport(
   const backgroundControlCapability = await (
     callbacks.resolveBackgroundControlCapability ?? resolveClaudeBackgroundControlCapability
   )(session.sourceSessionId);
+
   if (
     backgroundControlCapability.kind !== "observe_only" ||
     backgroundControlCapability.reason !== "session_not_listed"
@@ -121,6 +128,7 @@ export async function restartClaudePromptTransport(
   }
 
   const workspace = callbacks.getWorkspace(session.workspaceId);
+
   if (!workspace) throw new AppError("not_found", "Workspace not found.");
 
   const requestedAt = new Date().toISOString();
@@ -149,5 +157,6 @@ export async function restartClaudePromptTransport(
     startedMessage: "DeskCue started a one-shot Claude Code resume for this prompt.\n",
     workspace
   });
+
   return updatedSession ?? session;
 }
