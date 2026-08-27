@@ -12,6 +12,10 @@ export function createWorkspaceRegistrationCallbacks(
         (workspace) => workspace.path.toLowerCase() === workspacePath.toLowerCase()
       ),
     persistState: context.persistState,
+    registrationScope: context.repository,
+    rollbackWorkspace: (workspaceId: string) => {
+      context.repository.rollbackWorkspace(workspaceId);
+    },
     setWorkspace: (workspace: WorkspaceSummary) => {
       context.repository.setWorkspace(workspace);
     }

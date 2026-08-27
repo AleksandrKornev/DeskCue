@@ -3,7 +3,9 @@ import { normalizeSessionLogs } from "#sessions/logs/sessionLogs";
 
 function toPersistedSession(session: SessionDetail) {
   const persistedSession = structuredClone(session);
+
   persistedSession.logs = normalizeSessionLogs(persistedSession.logs).logs;
+
   return persistedSession;
 }
 
@@ -48,6 +50,7 @@ export class SessionRepository {
     return Array.from(this.dirtyWorkspaceIds)
       .flatMap((workspaceId) => {
         const workspace = this.workspaces.get(workspaceId);
+
         return workspace ? [workspace] : [];
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -61,6 +64,7 @@ export class SessionRepository {
         }
 
         const session = this.sessions.get(sessionId);
+
         return session ? [toPersistedSession(session)] : [];
       })
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -90,8 +94,14 @@ export class SessionRepository {
     this.dirtyWorkspaceIds.add(workspace.id);
   }
 
+  rollbackWorkspace(workspaceId: string) {
+    this.workspaces.delete(workspaceId);
+    this.dirtyWorkspaceIds.delete(workspaceId);
+  }
+
   findWorkspaceByPath(workspacePath: string) {
     const normalizedPath = workspacePath.toLowerCase();
+
     return this.listWorkspaces().find(
       (workspace) => workspace.path.toLowerCase() === normalizedPath
     ) ?? null;
@@ -113,6 +123,7 @@ export class SessionRepository {
 
   updateSession(sessionId: string, patch: Partial<SessionDetail>) {
     const current = this.sessions.get(sessionId);
+
     if (!current) {
       return null;
     }
@@ -127,11 +138,13 @@ export class SessionRepository {
     if (!this.partialSessionIds.has(sessionId)) {
       this.dirtySessionIds.add(sessionId);
     }
+
     return next;
   }
 
   syncWorkspaceFromGit(workspaceId: string, git: GitSnapshot) {
     const workspace = this.workspaces.get(workspaceId);
+
     if (!workspace) {
       return;
     }
@@ -141,6 +154,7 @@ export class SessionRepository {
       isGitRepo: git.isGitRepo,
       branch: git.branch
     });
+
     this.dirtyWorkspaceIds.add(workspaceId);
   }
 
