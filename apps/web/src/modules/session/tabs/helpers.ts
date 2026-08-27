@@ -32,11 +32,22 @@ export function filterUnifiedDiff(diff: string) {
   return keptLines.join("\n").trim();
 }
 
-export function trimUnifiedDiff(diff: string) {
-  if (!diff || diff.length <= MAX_VISIBLE_DIFF_CHARS) return { text: diff, wasTrimmed: false };
+export function trimUnifiedDiff(diff: string, sourceWasTruncated = false) {
+  const wasTrimmed = sourceWasTruncated || diff.length > MAX_VISIBLE_DIFF_CHARS;
+
+  if (!diff || diff.length <= MAX_VISIBLE_DIFF_CHARS) return { text: diff, wasTrimmed };
+
+  let end = MAX_VISIBLE_DIFF_CHARS;
+
+  if (
+    /[\uD800-\uDBFF]/.test(diff[end - 1] ?? "") &&
+    /[\uDC00-\uDFFF]/.test(diff[end] ?? "")
+  ) {
+    end -= 1;
+  }
 
   return {
-    text: `${diff.slice(0, MAX_VISIBLE_DIFF_CHARS)}\n\n...diff truncated...`,
+    text: `${diff.slice(0, end)}\n\n...diff truncated...`,
     wasTrimmed: true
   };
 }

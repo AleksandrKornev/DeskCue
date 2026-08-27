@@ -339,6 +339,16 @@
   .mobileBackButton {
     min-height: 44px;
   }
+  .diffViewerHeader { align-items: flex-start; }
+  .diffFileTitle strong {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .openFileButton,
+  .mobileBackButton {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
   .changedFileRow {
     min-height: 44px;
   }

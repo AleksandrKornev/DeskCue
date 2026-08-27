@@ -14,6 +14,7 @@ import {
 } from "./git.ts";
 
 const execFileAsync = promisify(execFile);
+const oversizedTrackedDiffText = "x".repeat(4 * 1024 * 1024 + 1_024);
 
 test("buildGitSnapshot includes synthetic diff for untracked text files", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-"));
@@ -32,6 +33,27 @@ test("buildGitSnapshot includes synthetic diff for untracked text files", async 
     assert.match(snapshot.diff, /\+\+\+ b\/new-file\.txt/);
     assert.match(snapshot.diff, /\+first line/);
     assert.match(snapshot.diff, /\+second line/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("buildGitSnapshot marks an untracked-file diff bounded by the synthetic file limit", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-many-untracked-"));
+
+  try {
+    await execFileAsync("git", ["init"], { cwd });
+    await Promise.all(Array.from({ length: 129 }, (_, index) => {
+      const file = `${String(index).padStart(3, "0")}.txt`;
+
+      return writeFile(join(cwd, file), `${index}\n`, "utf8");
+    }));
+
+    const snapshot = await buildGitSnapshot(cwd);
+
+    assert.equal(snapshot.changedFiles.length, 129);
+    assert.equal(snapshot.diff.match(/^diff --git /gm)?.length, 128);
+    assert.equal(snapshot.diffTruncated, true);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
@@ -142,6 +164,80 @@ test("buildGitSnapshot includes staged changes in the workspace diff", async () 
     assert.match(snapshot.diff, /-before/);
     assert.match(snapshot.diff, /\+after/);
     assert.match(snapshot.diff, /\+second line/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("buildGitSnapshot retains a bounded prefix when a tracked diff exceeds the command buffer", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-large-tracked-"));
+
+  try {
+    await execFileAsync("git", ["init"], { cwd });
+    await writeFile(join(cwd, "large.txt"), "before\n", "utf8");
+    await execFileAsync("git", ["add", "large.txt"], { cwd });
+    await execFileAsync("git", [
+      "-c",
+      "user.name=DeskCue Test",
+      "-c",
+      "user.email=deskcue@example.invalid",
+      "commit",
+      "-m",
+      "initial"
+    ], { cwd });
+    await writeFile(join(cwd, "large.txt"), `${oversizedTrackedDiffText}\n`, "utf8");
+
+    const snapshot = await buildGitSnapshot(cwd);
+
+    assert.deepEqual(snapshot.changedFiles, ["large.txt"]);
+    assert.deepEqual(snapshot.changedFileStatuses, { "large.txt": "M" });
+    assert.match(snapshot.diff, /^diff --git a\/large\.txt b\/large\.txt/);
+    assert.match(snapshot.diff, /@@ -1 \+1 @@/);
+    assert.ok(snapshot.diff.length > 20_000);
+    assert.ok(Buffer.byteLength(snapshot.diff) <= 4 * 1024 * 1024);
+    assert.equal(snapshot.diffTruncated, true);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("buildGitSnapshot preserves rename, deletion, and binary change truth", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "deskcue-git-change-kinds-"));
+
+  try {
+    await execFileAsync("git", ["init"], { cwd });
+    await writeFile(join(cwd, "old-name.txt"), "renamed\n", "utf8");
+    await writeFile(join(cwd, "removed.txt"), "removed\n", "utf8");
+    await writeFile(join(cwd, "asset.bin"), Buffer.from([0, 1, 2, 3]));
+    await execFileAsync("git", ["add", "."], { cwd });
+    await execFileAsync("git", [
+      "-c",
+      "user.name=DeskCue Test",
+      "-c",
+      "user.email=deskcue@example.invalid",
+      "commit",
+      "-m",
+      "initial"
+    ], { cwd });
+    await execFileAsync("git", ["mv", "old-name.txt", "new-name.txt"], { cwd });
+    await rm(join(cwd, "removed.txt"));
+    await writeFile(join(cwd, "asset.bin"), Buffer.from([0, 4, 5, 6]));
+
+    const snapshot = await buildGitSnapshot(cwd);
+
+    assert.deepEqual(snapshot.changedFileStatuses, {
+      "asset.bin": "M",
+      "new-name.txt": "R",
+      "removed.txt": "D"
+    });
+    assert.deepEqual(snapshot.changedFilePreviousPaths, {
+      "new-name.txt": "old-name.txt"
+    });
+
+    assert.match(snapshot.diff, /Binary files a\/asset\.bin and b\/asset\.bin differ/);
+    assert.match(snapshot.diff, /deleted file mode 100644/);
+    assert.match(snapshot.diff, /rename from old-name\.txt/);
+    assert.match(snapshot.diff, /rename to new-name\.txt/);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
@@ -303,6 +399,10 @@ test("parseBoundedGitStatus maps index and worktree states with stable priority"
     "conflicted.txt": "U",
     "untracked.txt": "?",
     "type-changed.txt": "M"
+  });
+  assert.deepEqual(result.changedFilePreviousPaths, {
+    "copied.txt": "source.txt",
+    "renamed.txt": "old-name.txt"
   });
 });
 

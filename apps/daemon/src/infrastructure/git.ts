@@ -17,6 +17,18 @@ const syntheticDiffConcurrency = 4;
 const gitUtf8PathArguments = ["-c", "core.quotePath=false"];
 const gitStableDiffPathArguments = ["--src-prefix=a/", "--dst-prefix=b/"];
 
+type GitCommandError = Error & {
+  code?: unknown;
+  stdout?: unknown;
+};
+
+type TrackedGitDiff = {
+  text: string;
+  wasTruncated: boolean;
+};
+
+type SyntheticGitDiff = TrackedGitDiff;
+
 type SyntheticDiffFile = {
   file: string;
   indexedMode?: string;
@@ -77,6 +89,17 @@ function gitHeadExists(cwd: string) {
   );
 }
 
+function recoverBufferedGitDiff(error: unknown): TrackedGitDiff {
+  const commandError = error as GitCommandError;
+
+  if (commandError?.code !== "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") return { text: "", wasTruncated: false };
+
+  return {
+    text: typeof commandError.stdout === "string" ? commandError.stdout : "",
+    wasTruncated: true
+  };
+}
+
 function readTrackedWorkspaceDiff(cwd: string) {
   // Compare the whole working tree with HEAD so staged and unstaged edits are
   // represented by one final patch per path. Plain `git diff` omits staged
@@ -92,7 +115,10 @@ function readTrackedWorkspaceDiff(cwd: string) {
       "HEAD"
     ],
     { maxBuffer: maxGitDiffBytes }
-  ).catch(() => "");
+  ).then(
+    (text): TrackedGitDiff => ({ text, wasTruncated: false }),
+    recoverBufferedGitDiff
+  );
 }
 
 function parseIndexedFileModes(output: string) {
@@ -169,6 +195,7 @@ export function parseBoundedGitStatus(output: string) {
   const records = output.split("\0");
   const changedFiles: string[] = [];
   const statusEntries: Array<[string, GitFileStatus]> = [];
+  const previousPathEntries: Array<[string, string]> = [];
   const untrackedFiles: string[] = [];
   let isDirty = false;
 
@@ -180,10 +207,14 @@ export function parseBoundedGitStatus(output: string) {
     isDirty = true;
     const status = record.slice(0, 2);
     const filePath = record.slice(3);
+    const previousPath = status.includes("R") || status.includes("C")
+      ? records[index + 1]
+      : undefined;
 
     if (filePath && changedFiles.length < maxChangedFiles) {
       changedFiles.push(filePath);
       statusEntries.push([filePath, mapPorcelainStatus(status)]);
+      if (previousPath) previousPathEntries.push([filePath, previousPath]);
       if (status === "??") untrackedFiles.push(filePath);
     }
 
@@ -192,6 +223,7 @@ export function parseBoundedGitStatus(output: string) {
 
   return {
     changedFiles,
+    changedFilePreviousPaths: Object.fromEntries(previousPathEntries),
     changedFileStatuses: Object.fromEntries(statusEntries),
     isDirty,
     untrackedFiles
@@ -364,7 +396,7 @@ async function buildSyntheticFilesDiff(
   cwd: string,
   files: SyntheticDiffFile[],
   modeTrust: GitWorktreeModeTrust
-) {
+): Promise<SyntheticGitDiff> {
   const diffs = await mapWithConcurrency(
     files.slice(0, maxSyntheticDiffFiles),
     syntheticDiffConcurrency,
@@ -372,19 +404,23 @@ async function buildSyntheticFilesDiff(
   );
   const retained: string[] = [];
   let retainedBytes = 0;
+  let wasTruncated = files.length > maxSyntheticDiffFiles;
 
   for (const diff of diffs) {
     if (!diff) continue;
 
     const diffBytes = Buffer.byteLength(diff);
 
-    if (retainedBytes + diffBytes > maxSyntheticDiffTotalBytes) break;
+    if (retainedBytes + diffBytes > maxSyntheticDiffTotalBytes) {
+      wasTruncated = true;
+      break;
+    }
 
     retained.push(diff);
     retainedBytes += diffBytes;
   }
 
-  return retained.join("\n");
+  return { text: retained.join("\n"), wasTruncated };
 }
 
 export async function buildGitSnapshot(
@@ -410,10 +446,13 @@ export async function buildGitSnapshot(
     runGit(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
     includeDiff ? gitHeadExists(cwd) : Promise.resolve(false)
   ]);
-  const trackedDiffRead = headExists ? readTrackedWorkspaceDiff(cwd) : Promise.resolve("");
+  const trackedDiffRead = headExists
+    ? readTrackedWorkspaceDiff(cwd)
+    : Promise.resolve<TrackedGitDiff>({ text: "", wasTruncated: false });
 
   const {
     changedFiles,
+    changedFilePreviousPaths,
     changedFileStatuses,
     untrackedFiles,
     isDirty
@@ -430,24 +469,27 @@ export async function buildGitSnapshot(
     file,
     indexedMode: indexedFileModes.get(file)
   }));
-  const [trackedDiffOutput, syntheticDiffOutput] = await Promise.all([
+  const [trackedDiff, syntheticDiff] = await Promise.all([
     trackedDiffRead,
     includeDiff
       ? buildSyntheticFilesDiff(cwd, syntheticDiffFiles, modeTrust)
-      : Promise.resolve("")
+      : Promise.resolve<SyntheticGitDiff>({ text: "", wasTruncated: false })
   ]);
-  const diff = truncateUtf8(
-    [trackedDiffOutput, syntheticDiffOutput].filter(Boolean).join("\n"),
-    maxGitDiffBytes
-  );
+  const combinedDiff = [trackedDiff.text, syntheticDiff.text].filter(Boolean).join("\n");
+  const diff = truncateUtf8(combinedDiff, maxGitDiffBytes);
+  const diffTruncated = trackedDiff.wasTruncated ||
+    syntheticDiff.wasTruncated ||
+    Buffer.byteLength(combinedDiff) > maxGitDiffBytes;
 
   return {
     isGitRepo: true,
     branch: repo.branch,
     isDirty,
     changedFiles,
+    ...(Object.keys(changedFilePreviousPaths).length > 0 ? { changedFilePreviousPaths } : {}),
     changedFileStatuses,
     diff,
+    ...(diffTruncated ? { diffTruncated } : {}),
     lastUpdatedAt: new Date().toISOString()
   };
 }

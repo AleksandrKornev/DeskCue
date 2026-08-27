@@ -123,10 +123,12 @@ test("treats absent sessions and workspaces as removed without a concurrent live
     sessionSummary({ id: "managed-current" }),
     sessionSummary({ id: "managed-removed" })
   ]);
+
   current.workspaces = [workspace("workspace-current"), workspace("workspace-removed")];
   const incoming = createOverviewWithSessions([
     sessionSummary({ id: "managed-current" })
   ]);
+
   incoming.workspaces = [workspace("workspace-current")];
 
   const merged = mergeOverviewSnapshot(current, incoming);
@@ -180,7 +182,45 @@ test("does not let a lifecycle summary overwrite authoritative preview config", 
     port: null,
     targetUrl: null
   });
+
   assert.equal(state.selectedSession.lastActivityAt, "2026-08-06T10:00:10.000Z");
+});
+
+test("keeps an independently loaded Git projection atomic while merging a summary", () => {
+  const selectedSession = sessionDetail({
+    git: {
+      branch: "main",
+      changedFiles: ["large.txt"],
+      diff: "+loaded diff",
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-06T10:00:05.000Z"
+    },
+    lastActivityAt: "2026-08-06T10:00:05.000Z"
+  });
+  const state = {
+    previewPort: "",
+    selectedSession,
+    selectedSessionId: selectedSession.id,
+    selectedWorkspaceId: selectedSession.workspaceId
+  };
+
+  mergeSelectedSessionSummary(state, sessionSummary({
+    git: {
+      branch: "main",
+      changedFiles: ["large.txt", "next.txt"],
+      diff: "",
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-06T10:00:10.000Z"
+    },
+    lastActivityAt: "2026-08-06T10:00:10.000Z"
+  }));
+
+  assert.deepEqual(state.selectedSession.git, selectedSession.git);
+  assert.deepEqual(state.selectedSession.git.changedFiles, ["large.txt"]);
+  assert.equal(state.selectedSession.git.diff, "+loaded diff");
+  assert.equal(state.selectedSession.git.lastUpdatedAt, "2026-08-06T10:00:05.000Z");
 });
 
 test("applies preview config from its dedicated live event", () => {
@@ -244,7 +284,94 @@ test("accepts authoritative preview config without regressing newer live activit
     port: null,
     targetUrl: null
   });
+
   assert.equal(state.previewPort, "");
+});
+
+test("accepts a newer atomic Git projection without regressing newer live activity", () => {
+  const selectedSession = sessionDetail({
+    lastActivityAt: "2026-08-06T10:00:10.000Z",
+    git: {
+      branch: "main",
+      changedFiles: ["large.txt"],
+      diff: "+bounded large diff",
+      diffTruncated: true,
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-06T10:00:05.000Z"
+    }
+  });
+  const state = {
+    previewPort: "",
+    selectedSession,
+    selectedSessionId: selectedSession.id,
+    selectedWorkspaceId: selectedSession.workspaceId
+  };
+
+  setSelectedSession(state, sessionDetail({
+    lastActivityAt: "2026-08-06T10:00:07.000Z",
+    git: {
+      branch: "main",
+      changedFiles: ["renamed.txt"],
+      changedFilePreviousPaths: { "renamed.txt": "old-name.txt" },
+      changedFileStatuses: { "renamed.txt": "R" },
+      diff: "diff --git a/old-name.txt b/renamed.txt",
+      diffTruncated: false,
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-06T10:00:08.000Z"
+    }
+  }));
+
+  assert.equal(state.selectedSession?.lastActivityAt, "2026-08-06T10:00:10.000Z");
+  assert.deepEqual(state.selectedSession?.git, {
+    branch: "main",
+    changedFiles: ["renamed.txt"],
+    changedFilePreviousPaths: { "renamed.txt": "old-name.txt" },
+    changedFileStatuses: { "renamed.txt": "R" },
+    diff: "diff --git a/old-name.txt b/renamed.txt",
+    diffTruncated: false,
+    isDirty: true,
+    isGitRepo: true,
+    lastUpdatedAt: "2026-08-06T10:00:08.000Z"
+  });
+});
+
+test("keeps a newer Git projection when another same-session detail has equal activity", () => {
+  const selectedSession = sessionDetail({
+    lastActivityAt: "2026-08-06T10:00:10.000Z",
+    git: {
+      branch: "main",
+      changedFiles: ["new.txt"],
+      diff: "+new diff",
+      diffTruncated: false,
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-06T10:00:10.000Z"
+    }
+  });
+  const state = {
+    previewPort: "",
+    selectedSession,
+    selectedSessionId: selectedSession.id,
+    selectedWorkspaceId: selectedSession.workspaceId
+  };
+
+  setSelectedSession(state, sessionDetail({
+    lastActivityAt: "2026-08-06T10:00:10.000Z",
+    git: {
+      branch: "main",
+      changedFiles: ["old.txt"],
+      diff: "+old diff",
+      diffTruncated: true,
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-06T10:00:09.000Z"
+    }
+  }));
+
+  assert.equal(state.selectedSession?.lastActivityAt, "2026-08-06T10:00:10.000Z");
+  assert.deepEqual(state.selectedSession?.git, selectedSession.git);
 });
 
 test("does not overwrite an unsaved preview port draft during authoritative hydration", () => {
@@ -293,6 +420,7 @@ test("deduplicates replayed logs and keeps managed activity monotonic", () => {
   const selectedSession = sessionDetail({
     lastActivityAt: "2026-08-06T10:00:10.000Z"
   });
+
   selectedSession.logs = [{
     id: "log-1",
     stream: "stdout",
@@ -330,6 +458,7 @@ test("keeps Debug data isolated from later Chat and Diff projections", () => {
     selectedSessionId: selectedSession.id,
     selectedWorkspaceId: selectedSession.workspaceId
   };
+
   const debugSession = sessionDetail({
     inputHistory: ["first prompt"],
     lastActivityAt: "2026-08-06T10:00:01.000Z",

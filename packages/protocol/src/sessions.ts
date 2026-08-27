@@ -75,7 +75,11 @@ export interface GitSnapshot {
   changedFiles: string[];
   /** Porcelain-v1 status keyed by the current workspace-relative path. */
   changedFileStatuses?: Record<string, GitFileStatus>;
+  /** Previous workspace-relative path for native Git renames and copies. */
+  changedFilePreviousPaths?: Record<string, string>;
   diff: string;
+  /** True when the daemon retained only a bounded prefix of the workspace diff. */
+  diffTruncated?: boolean;
   lastUpdatedAt: string;
 }
 
@@ -212,6 +216,7 @@ export interface OverviewResponse {
   clientContext: {
     canOpenNativeDialogs: boolean;
   };
+
   workspaces: WorkspaceSummary[];
   sessions: SessionSummary[];
 }
@@ -312,6 +317,7 @@ export function parseExternalForceStopPayload(value: unknown): ExternalForceStop
   if (typeof processId !== "number" || !Number.isSafeInteger(processId) || processId <= 0) {
     throw new ProtocolSchemaError("Field processId must be a positive safe integer.");
   }
+
   if (typeof processCreatedAt !== "string" || !processCreatedAt.trim()) {
     throw new ProtocolSchemaError("Field processCreatedAt must be a non-empty string.");
   }
@@ -347,14 +353,14 @@ export function parseSetPreviewPortPayload(value: unknown): SetPreviewPortPayloa
 }
 
 function readOptionalPreviewNetworkMode(value: unknown): PreviewNetworkMode | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
+  if (value === undefined) return undefined;
+
   if (!isPreviewNetworkMode(value)) {
     throw new ProtocolSchemaError(
       "Field networkMode must be device-direct or deskcue-host."
     );
   }
+
   return value;
 }
 

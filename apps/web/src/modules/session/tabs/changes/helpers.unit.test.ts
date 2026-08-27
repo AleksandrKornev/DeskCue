@@ -45,6 +45,45 @@ describe("parseUnifiedDiff", () => {
     expect(file).toMatchObject({ path: "new-name.ts", previousPath: "old-name.ts", status: "renamed" });
   });
 
+  it("keeps a binary marker reviewable without inventing line counts", () => {
+    const [file] = parseUnifiedDiff([
+      "diff --git a/asset.bin b/asset.bin",
+      "index 123..456 100644",
+      "Binary files a/asset.bin and b/asset.bin differ"
+    ].join("\n"));
+
+    expect(file).toMatchObject({
+      additions: 0,
+      deletions: 0,
+      hasLineStats: false,
+      path: "asset.bin",
+      status: "modified"
+    });
+    expect(file?.lines).toContainEqual(expect.objectContaining({
+      kind: "meta",
+      text: "Binary files a/asset.bin and b/asset.bin differ"
+    }));
+  });
+
+  it("keeps a tracked deletion attached to its previous content", () => {
+    const [file] = parseUnifiedDiff([
+      "diff --git a/removed.txt b/removed.txt",
+      "deleted file mode 100644",
+      "--- a/removed.txt",
+      "+++ /dev/null",
+      "@@ -1 +0,0 @@",
+      "-removed"
+    ].join("\n"));
+
+    expect(file).toMatchObject({
+      additions: 0,
+      deletions: 1,
+      hasLineStats: true,
+      path: "removed.txt",
+      status: "deleted"
+    });
+  });
+
   it("keeps an unquoted Unicode path attached to its textual patch", () => {
     const [file] = parseUnifiedDiff([
       "diff --git a/данные.txt b/данные.txt",
@@ -151,6 +190,21 @@ describe("parseUnifiedDiff", () => {
     expect(files.map((file) => diffStatusLabel(file.status))).toEqual([
       "M", "A", "D", "R", "C", "U", "?"
     ]);
+  });
+
+  it("keeps rename provenance when the bounded diff omits its patch", () => {
+    const [file] = mergeDiffReviewFiles(
+      ["new-name.ts"],
+      [],
+      { "new-name.ts": "R" },
+      { "new-name.ts": "old-name.ts" }
+    );
+
+    expect(file).toMatchObject({
+      path: "new-name.ts",
+      previousPath: "old-name.ts",
+      status: "renamed"
+    });
   });
 
   it("keeps copy metadata from a native diff", () => {

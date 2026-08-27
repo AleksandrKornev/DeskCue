@@ -139,7 +139,8 @@ function mapGitFileStatus(status: GitFileStatus | undefined): DiffFileStatus | n
 export function mergeDiffReviewFiles(
   changedFiles: readonly string[],
   parsedFiles: readonly DiffFileReview[],
-  changedFileStatuses: Readonly<Record<string, GitFileStatus>> = {}
+  changedFileStatuses: Readonly<Record<string, GitFileStatus>> = {},
+  changedFilePreviousPaths: Readonly<Record<string, string>> = {}
 ) {
   const byPath = new Map(parsedFiles.map((file) => [file.path, file]));
   const paths = [...new Set([...changedFiles, ...parsedFiles.map((file) => file.path)])];
@@ -156,7 +157,7 @@ export function mergeDiffReviewFiles(
       hasLineStats: false,
       lines: [],
       path,
-      previousPath: null,
+      previousPath: changedFilePreviousPaths[path] ?? null,
       status: status ?? "unknown"
     };
   });
