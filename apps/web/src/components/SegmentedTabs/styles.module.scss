@@ -32,6 +32,8 @@
   border-color: rgba(214, 164, 103, 0.34);
   background: rgba(214, 164, 103, 0.14);
   color: #f5e6cf;
+
+  @include selected-state;
 }
 
 .navNeutral .row {
@@ -43,6 +45,8 @@
   border-color: rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.12);
   color: #f4f0e8;
+
+  @include selected-state;
 }
 
 @include mobile-or-compact-height {
