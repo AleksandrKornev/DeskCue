@@ -39,6 +39,10 @@ export function LiveSessionHeader({
   onSelectTab,
 }: LiveSessionHeaderProps) {
   const isMobileCollapsed = useMobileSessionHeaderCollapse({ activeTab, toolbarRef });
+  const contextCompactionLabel =
+    contextCompactionCount > 0
+      ? `Earlier context was compacted ${contextCompactionCount} time${contextCompactionCount === 1 ? "" : "s"} in this native session.`
+      : null;
 
   return (
     <div
@@ -96,21 +100,20 @@ export function LiveSessionHeader({
             {metaItem ? (
               <span className={styles.desktopMetaItem}>{metaItem}</span>
             ) : null}
-            {contextCompactionCount > 0 ? (
+            {contextCompactionLabel ? (
               <span
-                aria-label={`Earlier context was compacted ${contextCompactionCount} time${contextCompactionCount === 1 ? "" : "s"} in this native session.`}
                 className={clsx(
                   styles.sourcePill,
                   styles.sourcePillMuted,
                   styles.contextCompactionPill
                 )}
-                title={`Earlier context was compacted ${contextCompactionCount} time${contextCompactionCount === 1 ? "" : "s"} in this native session.`}
               >
-                <span aria-hidden="true" className={styles.desktopCompactionLabel}>
+                <span className={styles.srOnly}>{contextCompactionLabel}</span>
+                <span aria-hidden="true" className={styles.desktopCompactionLabel} title={contextCompactionLabel}>
                   Compacted <span className={styles.sourcePillMultiplier}>x</span>
                   {contextCompactionCount}
                 </span>
-                <span aria-hidden="true" className={styles.mobileCompactionLabel}>
+                <span aria-hidden="true" className={styles.mobileCompactionLabel} title={contextCompactionLabel}>
                   <CompactionIcon className={styles.mobileCompactionIcon} focusable="false" />
                   {contextCompactionCount}
                 </span>

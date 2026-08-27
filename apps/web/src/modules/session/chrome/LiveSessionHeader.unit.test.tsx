@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import axe from "axe-core";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -58,10 +59,10 @@ afterEach(() => {
 });
 
 describe("LiveSessionHeader", () => {
-  it("keeps the agent, compaction count, and live state in the session metadata", () => {
+  it("keeps the agent, accessible compaction count, and live state in the session metadata", async () => {
     const onExitSession = vi.fn();
 
-    render(
+    const { container } = render(
       <LiveSessionHeader
         activeTab="preview"
         actions={<button type="button">More actions</button>}
@@ -91,11 +92,19 @@ describe("LiveSessionHeader", () => {
     );
 
     expect(screen.getByText("CODEX")).toBeInTheDocument();
-    expect(
-      screen.getByLabelText(
-        "Earlier context was compacted 92 times in this native session."
-      )
-    ).toBeInTheDocument();
+    const compactionDescription = screen.getByText(
+      "Earlier context was compacted 92 times in this native session."
+    );
+    const compactionPill = compactionDescription.parentElement;
+
+    expect(compactionDescription).toHaveClass(styles.srOnly);
+    expect(compactionPill).toHaveClass(styles.contextCompactionPill);
+    expect(compactionPill).not.toHaveAttribute("aria-label");
+    const axeResults = await axe.run(compactionPill ?? container, {
+      runOnly: { type: "rule", values: ["aria-prohibited-attr"] }
+    });
+
+    expect(axeResults.violations).toEqual([]);
     expect(screen.getByText("Connecting")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Continue HTTPS Preview DeskCue" })
@@ -412,6 +421,7 @@ describe("LiveSessionHeader", () => {
     );
 
     const scrollTarget = screen.getByTestId("session-scroll-target");
+
     const collapseHeader = () => {
       setScrollMetrics(scrollTarget, { scrollTop: 48 });
       fireEvent.wheel(scrollTarget, { deltaY: 24 });
