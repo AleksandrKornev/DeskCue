@@ -202,6 +202,14 @@ export function createSessionPipe(
     windowsHide: true
   });
   const events = new SessionProcessEventRelay();
+  const startupReady = new Promise<void>((resolve, reject) => {
+    child.once("spawn", resolve);
+    child.once("error", reject);
+  });
+
+  // The lifecycle owner awaits this promise, but keep an immediate rejection
+  // handler attached so a very early spawn error never becomes unhandled.
+  void startupReady.catch(() => undefined);
 
   child.stdout?.on("data", (value: Buffer) => events.publishData(value, "stdout"));
   child.stderr?.on("data", (value: Buffer) => events.publishData(value, "stderr"));
@@ -230,6 +238,7 @@ export function createSessionPipe(
       unrefChildStream(child.stderr);
     },
     pid: child.pid ?? -1,
+    startupReady,
     surviveParentExit: spawnSpec.surviveParentExit === true,
     transport: "pipe",
     write(value: string) {

@@ -7,6 +7,7 @@ import type {
   SessionDetail,
   SessionSummary
 } from "@deskcue/protocol";
+import { deriveReplyStateFromAgentSession } from "#agents/codex/session/codexReplyState";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
 import { toSessionSummary } from "#sessions/projection/sessionProjection";
 
@@ -90,6 +91,7 @@ test("detaches a running attached session when the source session is no longer r
         events.push(event);
       },
       getPublicSession: () => session,
+      hasPromptTransport: () => true,
       listSessions: () => [session],
       persistState: async () => {},
       startQueuedPrompt: async () => session,
@@ -168,6 +170,7 @@ function syncCallbacks(session: SessionDetail, events: ServerEvent[] = []) {
       events.push(event);
     },
     getPublicSession: () => session,
+    hasPromptTransport: () => true,
     listSessions: () => [session],
     persistState: async () => {},
     startQueuedPrompt: async () => session,
@@ -178,12 +181,79 @@ function syncCallbacks(session: SessionDetail, events: ServerEvent[] = []) {
   };
 }
 
+test("does not replace an owned prompt with a later identical turn", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    replyState: {
+      deliveryRequestedAt: "2026-06-22T10:00:00.000Z",
+      phase: "sending",
+      promptText: "Repeat",
+      requestedAt: "2026-06-22T10:00:00.000Z"
+    }
+  });
+  const sourceSession = agentSessionDetail({
+    workState: "running",
+    transcript: [
+      {
+        id: "owned-user",
+        timestamp: "2026-06-22T10:00:01.000Z",
+        role: "user",
+        text: "Repeat",
+        phase: null
+      },
+      {
+        id: "owned-terminal",
+        timestamp: "2026-06-22T10:00:02.000Z",
+        role: "system",
+        text: "Turn completed",
+        phase: null
+      },
+      {
+        id: "later-user",
+        timestamp: "2026-06-22T10:00:03.000Z",
+        role: "user",
+        text: "Repeat",
+        phase: null
+      }
+    ]
+  });
+
+  assert.deepEqual(deriveReplyStateFromAgentSession(session, sourceSession, true), emptyReplyState());
+});
+
+test("does not observe an identical prompt outside the delivery observation window", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    replyState: {
+      deliveryRequestedAt: "2026-06-22T10:00:00.000Z",
+      phase: "waiting",
+      promptText: "Repeat",
+      requestedAt: "2026-06-22T10:00:00.000Z"
+    }
+  });
+  const sourceSession = agentSessionDetail({
+    workState: "running",
+    transcript: [{
+      id: "later-user",
+      timestamp: "2026-06-22T10:05:00.000Z",
+      role: "user",
+      text: "Repeat",
+      phase: null
+    }]
+  });
+
+  assert.deepEqual(deriveReplyStateFromAgentSession(session, sourceSession, true), session.replyState);
+});
+
 test("keeps a stopped Claude recovery unresolved without a terminal outcome", () => {
   const session = sessionDetail({
     adapterId: "claude-code",
     sourceSessionId: "source-1",
     status: "stopped",
     promptRecovery: {
+      observedPromptAt: "2026-06-22T10:00:01.000Z",
       phase: "checking",
       promptText: "recover Claude",
       requestedAt: "2026-06-22T10:00:00.000Z",
@@ -225,6 +295,7 @@ test("finishes a bounded source check as outcome unknown without inventing agent
     sourceSessionId: "source-1",
     status: "read_only",
     promptRecovery: {
+      observedPromptAt: "2026-06-22T10:00:01.000Z",
       phase: "checking",
       promptText: "missing prompt",
       requestedAt: "2026-06-22T10:00:00.000Z",
@@ -253,7 +324,8 @@ test("publishes a fresh managed-session summary when a late terminal clears reco
     sourceSessionId: "source-1",
     status: "read_only",
     promptRecovery: {
-      phase: "outcome_unknown",
+      observedPromptAt: "2026-06-22T10:00:01.000Z",
+      phase: "checking",
       promptText: "recover this turn",
       requestedAt: "2026-06-22T10:00:00.000Z",
       retryable: false
@@ -302,6 +374,71 @@ test("publishes a fresh managed-session summary when a late terminal clears reco
   }
 });
 
+for (const adapterId of ["codex", "claude-code"] as const) {
+test(`restores a failed ${adapterId} shell after source-confirmed prompt completion`, () => {
+  const observedPromptAt = "2026-06-22T10:00:01.000Z";
+  const session = sessionDetail({
+    adapterId,
+    sourceSessionId: "source-1",
+    status: "failed",
+    exitCode: 1,
+    inputHistory: ["recover this turn"],
+    logs: [{
+      id: "input-sent",
+      timestamp: "2026-06-22T10:00:00.000Z",
+      stream: "system",
+      text: "Input sent.\n"
+    }],
+    promptRecovery: {
+      observedPromptAt,
+      phase: "checking",
+      promptText: "recover this turn",
+      requestedAt: "2026-06-22T10:00:00.000Z",
+      retryable: false
+    }
+  });
+  const sourceSession = agentSessionDetail({
+    agentId: adapterId,
+    agentLabel: adapterId === "codex" ? "Codex" : "Claude Code",
+    updatedAt: "2026-06-22T10:02:00.000Z",
+    transcript: [
+      {
+        id: "recovered-user",
+        timestamp: observedPromptAt,
+        role: "user",
+        text: "recover this turn",
+        phase: null
+      },
+      {
+        id: "recovered-final",
+        timestamp: "2026-06-22T10:02:00.000Z",
+        role: "assistant",
+        text: "Recovered",
+        phase: "final"
+      },
+      {
+        id: "recovered-turn-completed",
+        timestamp: "2026-06-22T10:02:00.000Z",
+        role: "system",
+        text: "Turn completed",
+        phase: null
+      }
+    ]
+  });
+
+  const recovered = syncManagedSessionReplyState(syncCallbacks(session), sourceSession);
+
+  assert.equal(recovered?.promptRecovery, null);
+  assert.equal(recovered?.status, "read_only");
+  assert.equal(recovered?.exitCode, 0);
+
+  const normalized = syncManagedSessionReplyState(syncCallbacks(session), sourceSession);
+
+  assert.equal(normalized?.status, "read_only");
+  assert.equal(normalized?.exitCode, 0);
+});
+}
+
 test("keeps a running takeover session after its prompt returns to idle", () => {
   const session = sessionDetail({
     adapterId: "codex",
@@ -321,6 +458,7 @@ test("keeps a running takeover session after its prompt returns to idle", () => 
       detachPromptTransport: () => {},
       emitServerEvent: () => {},
       getPublicSession: () => session,
+      hasPromptTransport: () => true,
       listSessions: () => [session],
       persistState: async () => {},
       startQueuedPrompt: async () => session,
@@ -415,6 +553,7 @@ test("detaches the prompt transport when a takeover prompt completes", () => {
         events.push(event);
       },
       getPublicSession: () => session,
+      hasPromptTransport: () => true,
       listSessions: () => [session],
       persistState: async () => {},
       startQueuedPrompt: async () => session,
@@ -455,7 +594,138 @@ test("detaches the prompt transport when a takeover prompt completes", () => {
   assert.equal(events.length, 0);
 });
 
-test("normalizes an initial nonzero transport exit after the native Codex turn completes", async () => {
+test("does not complete an owned transport from an unrelated terminal entry", () => {
+  const requestedAt = new Date().toISOString();
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    replyState: {
+      deliveryRequestedAt: requestedAt,
+      phase: "sending",
+      promptText: "DeskCue prompt",
+      requestedAt
+    }
+  });
+  const detachedTransports: string[] = [];
+
+  const result = syncManagedSessionReplyState(
+    {
+      ...syncCallbacks(session),
+      detachPromptTransport: (_sessionId, reason) => {
+        detachedTransports.push(reason);
+      }
+    },
+    agentSessionDetail({
+      transcript: [{
+        id: "unrelated-terminal",
+        timestamp: new Date(Date.parse(requestedAt) + 1).toISOString(),
+        role: "system",
+        text: "Turn completed",
+        phase: null
+      }]
+    })
+  );
+
+  assert.equal(result?.replyState.phase, "sending");
+  assert.deepEqual(detachedTransports, []);
+});
+
+for (const terminalLabel of ["Turn failed", "Turn interrupted"] as const) {
+  test(`does not complete an owned transport when the source reports ${terminalLabel}`, () => {
+    const session = sessionDetail({
+      adapterId: "codex",
+      sourceSessionId: "source-1",
+      replyState: {
+        deliveryRequestedAt: "2026-06-22T10:00:00.000Z",
+        phase: "sending",
+        promptText: "DeskCue prompt",
+        requestedAt: "2026-06-22T10:00:00.000Z"
+      }
+    });
+    const detachedTransports: string[] = [];
+
+    const result = syncManagedSessionReplyState(
+      {
+        ...syncCallbacks(session),
+        detachPromptTransport: (_sessionId, reason) => {
+          detachedTransports.push(reason);
+        }
+      },
+      agentSessionDetail({
+        transcript: [
+          {
+            id: "owned-user",
+            timestamp: "2026-06-22T10:00:01.000Z",
+            role: "user",
+            text: "DeskCue prompt",
+            phase: null
+          },
+          {
+            id: "owned-terminal",
+            timestamp: "2026-06-22T10:00:02.000Z",
+            role: "system",
+            text: terminalLabel,
+            phase: null
+          }
+        ]
+      })
+    );
+
+    assert.equal(result?.replyState.phase, "waiting");
+    assert.equal(result?.replyState.sourcePromptObserved, true);
+    assert.deepEqual(detachedTransports, []);
+  });
+}
+
+test("does not complete an owned transport from a non-final assistant update", () => {
+  const session = sessionDetail({
+    adapterId: "claude-code",
+    sourceSessionId: "source-1",
+    replyState: {
+      deliveryRequestedAt: "2026-06-22T10:00:00.000Z",
+      phase: "sending",
+      promptText: "DeskCue prompt",
+      requestedAt: "2026-06-22T10:00:00.000Z"
+    }
+  });
+  const detachedTransports: string[] = [];
+
+  const result = syncManagedSessionReplyState(
+    {
+      ...syncCallbacks(session),
+      detachPromptTransport: (_sessionId, reason) => {
+        detachedTransports.push(reason);
+      }
+    },
+    agentSessionDetail({
+      agentId: "claude-code",
+      agentLabel: "Claude Code",
+      workState: "running",
+      transcript: [
+        {
+          id: "owned-user",
+          timestamp: "2026-06-22T10:00:01.000Z",
+          role: "user",
+          text: "DeskCue prompt",
+          phase: null
+        },
+        {
+          id: "tool-preamble",
+          timestamp: "2026-06-22T10:00:02.000Z",
+          role: "assistant",
+          text: "I will inspect that.",
+          phase: "non_final"
+        }
+      ]
+    })
+  );
+
+  assert.equal(result?.replyState.phase, "waiting");
+  assert.equal(result?.replyState.sourcePromptObserved, true);
+  assert.deepEqual(detachedTransports, []);
+});
+
+test("preserves an unassociated nonzero transport exit after a native Codex completion", async () => {
   const session = sessionDetail({
     adapterId: "codex",
     sourceSessionId: "source-1",
@@ -513,9 +783,9 @@ test("normalizes an initial nonzero transport exit after the native Codex turn c
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.equal(result?.status, "read_only");
-  assert.equal(result?.exitCode, 0);
-  assert.equal(persisted, true);
-  assert.equal(events.at(-1)?.type, "session.updated");
+  assert.equal(result?.exitCode, 1);
+  assert.equal(persisted, false);
+  assert.equal(events.length, 0);
 });
 
 test("keeps a nonzero transport exit when the native Codex turn fails", () => {
@@ -553,6 +823,62 @@ test("keeps a nonzero transport exit when the native Codex turn fails", () => {
           timestamp: "2026-06-22T10:00:05.000Z",
           role: "system",
           text: "Turn failed",
+          phase: null
+        }
+      ]
+    })
+  );
+
+  assert.equal(result?.exitCode, 1);
+});
+
+test("does not normalize a failed owned turn from a later identical completion", () => {
+  const session = sessionDetail({
+    adapterId: "codex",
+    sourceSessionId: "source-1",
+    status: "read_only",
+    exitCode: 1,
+    inputHistory: ["take over"],
+    logs: [{
+      id: "input-sent",
+      timestamp: "2026-06-22T10:00:00.000Z",
+      stream: "system",
+      text: "Input sent.\n"
+    }],
+    replyState: emptyReplyState()
+  });
+
+  const result = syncManagedSessionReplyState(
+    syncCallbacks(session),
+    agentSessionDetail({
+      workState: "idle",
+      transcript: [
+        {
+          id: "owned-user",
+          timestamp: "2026-06-22T10:00:01.000Z",
+          role: "user",
+          text: "take over",
+          phase: null
+        },
+        {
+          id: "owned-failed",
+          timestamp: "2026-06-22T10:00:02.000Z",
+          role: "system",
+          text: "Turn failed",
+          phase: null
+        },
+        {
+          id: "later-user",
+          timestamp: "2026-06-22T10:00:03.000Z",
+          role: "user",
+          text: "take over",
+          phase: null
+        },
+        {
+          id: "later-completed",
+          timestamp: "2026-06-22T10:00:04.000Z",
+          role: "system",
+          text: "Turn completed",
           phase: null
         }
       ]

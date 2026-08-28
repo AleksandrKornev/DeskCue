@@ -24,6 +24,7 @@ export function buildTranscriptViewEtag(
   options: TranscriptViewEtagOptions
 ) {
   const latestEntry = session.transcript.at(-1);
+
   return weakEtag({
     agentSessionId: session.id,
     chatMessageTail: options.chatMessageTail,
@@ -65,7 +66,10 @@ export function buildTranscriptViewSourceVersionEtag(
     chatMessageTail: options.chatMessageTail,
     fullTranscript: options.fullTranscript,
     includeSessionSummary: options.includeSessionSummary,
-    localStateVersion: options.includeSessionSummary ? version.localStateVersion ?? null : null,
+    // Transcript items can change when attached local state changes even if the
+    // source file does not. Source-turn interruption, for example, adds a
+    // terminal marker to the owned user entry without appending native JSONL.
+    localStateVersion: version.localStateVersion ?? null,
     sessionSummary: options.includeSessionSummary ? version.summary : null,
     sourceVersion: version.sourceVersion,
     transcriptDetail: options.transcriptDetail,

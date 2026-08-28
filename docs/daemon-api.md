@@ -352,11 +352,12 @@ For attached Codex sessions, the daemon chooses the safest delivery path:
 - if the same Codex thread is active in another client, DeskCue keeps it observation-only and rejects prompts while the other writer remains active;
 - once that source thread becomes resumable, DeskCue continues it with a one-shot `codex exec resume <sessionId> "<prompt>"`
 
-Managed session summaries may include a `promptRecovery` object after a daemon
-restart:
+Managed session summaries may include a `promptRecovery` object after source
+prompt transport loss:
 
 ```json
 {
+  "observedPromptAt": "2026-08-11T09:00:01.000Z",
   "phase": "checking",
   "promptText": "Continue with the refactor.",
   "requestedAt": "2026-08-11T09:00:00.000Z",
@@ -364,15 +365,14 @@ restart:
 }
 ```
 
-`phase` is `checking` until the next bounded Codex or Claude Code source-detail
-read performs transcript reconciliation, `outcome_unknown` when the source did
-not confirm delivery, or `not_sent` when dispatch definitely never began. An
-observed source prompt clears `promptRecovery` and restores the actual reply
-state and transcript view. DeskCue never automatically resends a recovered
+`phase` is `checking` while a bounded Codex or Claude Code source-detail read
+reconciles an exactly observed prompt, `outcome_unknown` when delivery or its
+terminal outcome cannot be confirmed, or `not_sent` when dispatch definitely
+never began. Observation alone does not clear recovery; the same source turn
+must have a terminal entry. DeskCue never automatically resends a recovered
 prompt. `promptText` is nullable, and Remote DeskCue command responses redact
-it. `retryable` is true only for the safe `not_sent` case; repeating an
-`outcome_unknown` prompt requires an explicit force action and may duplicate
-work.
+it. `retryable` is true only for the safe `not_sent` case. DeskCue does not
+offer a resend action for `outcome_unknown`, because it may duplicate work.
 
 The source-backed Codex and Claude Code prompt subprocess is designed to keep
 running through a graceful daemon restart. This continuation guarantee does not

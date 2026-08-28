@@ -30,8 +30,20 @@ export function isInterruptLifecycleUnconfirmed(
 }
 
 export function isInterruptLifecycleWaitingSuppressed(
-  lifecycle: SessionInterruptLifecycle
+  lifecycle: SessionInterruptLifecycle,
+  currentPromptRequestedAt?: string | null
 ) {
+  const lifecycleRequestedAt = Date.parse(lifecycle.requestedAt ?? "");
+  const promptRequestedAt = Date.parse(currentPromptRequestedAt ?? "");
+
+  if (
+    Number.isFinite(lifecycleRequestedAt) &&
+    Number.isFinite(promptRequestedAt) &&
+    promptRequestedAt > lifecycleRequestedAt
+  ) {
+    return false;
+  }
+
   return lifecycle.phase === "requested" || lifecycle.phase === "confirmed" ||
     lifecycle.confirmation === "verified_process" ||
     isInterruptLifecycleUnconfirmed(lifecycle);

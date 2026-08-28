@@ -149,6 +149,7 @@ export function useManagedSessionPanelViewModel({
     displayedPendingChatPrompt,
     effectiveIsWaitingForChatReply,
     effectiveShellWaitingPrompt,
+    hasCompletedManagedPrompt,
     inputUnavailableLabel,
     interruptLifecycle,
     isExternalSourceTurn,
@@ -192,6 +193,7 @@ export function useManagedSessionPanelViewModel({
   } = useManagedSessionLiveChatModel({
     agentSessions,
     agentTranscriptHasMoreById,
+    hasCompletedManagedPrompt,
     isPromptInFlight:
       Boolean(displayedPendingChatPrompt) ||
       effectiveIsWaitingForChatReply ||

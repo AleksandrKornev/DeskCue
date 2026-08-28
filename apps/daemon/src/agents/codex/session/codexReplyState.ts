@@ -8,12 +8,16 @@ import type {
 import { deriveSourceAgentTurnState } from "#agents/sourceAgentTurnState";
 import { emptyReplyState } from "#sessions/model/sessionDefaults";
 
-const CODEX_INPUT_CONFIRMATION_TIMEOUT_MS = 2 * 60 * 1000;
 const CODEX_ACTIVE_TURN_STALE_MS = 2 * 60 * 1000;
-const MANAGED_CODEX_INPUT_SENT_LOGS = new Set([
-  "Input sent.\n",
-  "Initial input sent.\n"
-]);
+const SOURCE_PROMPT_OBSERVATION_WINDOW_MS = 30_000;
+
+function isWithinSourcePromptObservationWindow(entryTimestamp: string, requestedAt: string) {
+  const entryTime = Date.parse(entryTimestamp);
+  const requestedTime = Date.parse(requestedAt);
+
+  return Number.isFinite(entryTime) && Number.isFinite(requestedTime) &&
+    entryTime >= requestedTime && entryTime <= requestedTime + SOURCE_PROMPT_OBSERVATION_WINDOW_MS;
+}
 
 export function isManagedSessionOwnActiveTurn(
   session: Pick<SessionDetail, "replyState">,
@@ -23,12 +27,10 @@ export function isManagedSessionOwnActiveTurn(
 
   if (!promptText || !requestedAt) return false;
 
-  const requestedAtTime = new Date(requestedAt).getTime();
-
   return sourceSession.transcript.some((entry) => {
     if (entry.role !== "user" || entry.text.trim() !== promptText.trim()) return false;
 
-    return new Date(entry.timestamp).getTime() >= requestedAtTime - 15_000;
+    return isWithinSourcePromptObservationWindow(entry.timestamp, requestedAt);
   });
 }
 
@@ -53,8 +55,10 @@ export function getCodexAttachState(transcript: CodexTranscriptEntry[]) {
 export function isReplyStateEqual(left: ReplyState, right: ReplyState) {
   return (
     left.phase === right.phase &&
+    left.deliveryRequestedAt === right.deliveryRequestedAt &&
     left.promptText === right.promptText &&
-    left.requestedAt === right.requestedAt
+    left.requestedAt === right.requestedAt &&
+    left.sourcePromptObserved === right.sourcePromptObserved
   );
 }
 
@@ -66,63 +70,67 @@ function readCodexTurnTerminalLabel(entry: CodexTranscriptEntry) {
   return statusPart?.type === "status" ? statusPart.label : entry.text;
 }
 
-function isTerminalCodexTurnEntry(entry: CodexTranscriptEntry) {
-  const label = readCodexTurnTerminalLabel(entry);
+function findOwnedPromptTurn(
+  transcript: CodexTranscriptEntry[],
+  promptText: string,
+  requestedAt: string
+) {
+  const userEntryIndex = transcript.findIndex(
+    (entry) =>
+      entry.role === "user" &&
+      entry.text.trim() === promptText.trim() &&
+      isWithinSourcePromptObservationWindow(entry.timestamp, requestedAt)
+  );
 
-  return label === "Turn completed" || label === "Turn interrupted" || label === "Turn failed";
+  if (userEntryIndex < 0) return null;
+
+  const userEntry = transcript[userEntryIndex];
+  const followingEntries = transcript.slice(userEntryIndex + 1);
+  const nextUserIndex = followingEntries.findIndex((entry) => entry.role === "user");
+  const turnEntries = nextUserIndex < 0
+    ? followingEntries
+    : followingEntries.slice(0, nextUserIndex);
+
+  return { turnEntries, userEntry };
 }
 
-export function isLatestManagedCodexPromptConfirmedComplete(
-  session: Pick<SessionDetail, "inputHistory" | "logs">,
+function readOwnedPromptTerminalOutcome(turnEntries: CodexTranscriptEntry[]) {
+  for (const entry of turnEntries) {
+    const label = readCodexTurnTerminalLabel(entry);
+
+    if (label === "Turn completed") return "completed" as const;
+    if (label === "Turn failed") return "failed" as const;
+    if (label === "Turn interrupted") return "interrupted" as const;
+  }
+
+  return null;
+}
+
+function hasFinalAssistantReply(turnEntries: CodexTranscriptEntry[]) {
+  return turnEntries.some(
+    (entry) =>
+      entry.role === "assistant" &&
+      (entry.phase === "final" || entry.phase === "final_answer")
+  );
+}
+
+export function isManagedSessionOwnCompletedTurn(
+  session: Pick<SessionDetail, "replyState">,
   sourceSession: Pick<AgentSessionDetail | CodexSessionDetail, "transcript">
 ) {
-  const prompt = session.inputHistory.at(-1)?.trim();
-  let inputLog: SessionDetail["logs"][number] | undefined;
+  const { promptText, requestedAt } = session.replyState;
 
-  for (let index = session.logs.length - 1; index >= 0; index -= 1) {
-    const log = session.logs[index];
+  if (!promptText || !requestedAt) return false;
 
-    if (!MANAGED_CODEX_INPUT_SENT_LOGS.has(log.text)) continue;
+  const ownedTurn = findOwnedPromptTurn(sourceSession.transcript, promptText, requestedAt);
 
-    inputLog = log;
-    break;
-  }
+  if (!ownedTurn) return false;
 
-  if (!prompt || !inputLog) return false;
+  const terminalOutcome = readOwnedPromptTerminalOutcome(ownedTurn.turnEntries);
 
-  const requestedAt = Date.parse(inputLog.timestamp);
+  if (terminalOutcome) return terminalOutcome === "completed";
 
-  if (!Number.isFinite(requestedAt)) return false;
-
-  let matchingPromptIndex = -1;
-
-  for (let index = sourceSession.transcript.length - 1; index >= 0; index -= 1) {
-    const entry = sourceSession.transcript[index];
-
-    if (
-      entry.role === "user" &&
-      entry.text.trim() === prompt &&
-      Date.parse(entry.timestamp) >= requestedAt - 15_000
-    ) {
-      matchingPromptIndex = index;
-      break;
-    }
-  }
-
-  if (matchingPromptIndex < 0) return false;
-
-  for (let index = matchingPromptIndex + 1; index < sourceSession.transcript.length; index += 1) {
-    const entry = sourceSession.transcript[index];
-
-    if (entry.role === "user") return false;
-
-    const terminalLabel = readCodexTurnTerminalLabel(entry);
-
-    if (terminalLabel === "Turn completed") return true;
-    if (terminalLabel === "Turn interrupted" || terminalLabel === "Turn failed") return false;
-  }
-
-  return false;
+  return hasFinalAssistantReply(ownedTurn.turnEntries);
 }
 
 function isActiveSourceTurn(session: Pick<AgentSessionDetail, "turnState" | "workState">) {
@@ -219,7 +227,8 @@ function hasActiveCodexTurnAfter(transcript: CodexTranscriptEntry[], timestamp: 
 
 export function deriveReplyStateFromAgentSession(
   session: Pick<SessionDetail, "inputHistory" | "replyState">,
-  agentSession: AgentSessionDetail
+  agentSession: AgentSessionDetail,
+  canObserveOwnedPrompt = false
 ): ReplyState {
   const currentState = session.replyState;
 
@@ -231,55 +240,28 @@ export function deriveReplyStateFromAgentSession(
 
   const requestedAt = currentState.requestedAt;
 
-  const conversation = agentSession.transcript.filter(
-    (entry) => entry.role === "user" || entry.role === "assistant"
-  );
+  const ownedTurn = canObserveOwnedPrompt
+    ? findOwnedPromptTurn(agentSession.transcript, currentState.promptText, requestedAt)
+    : null;
 
-  const matchingUserEntry = [...conversation]
-    .reverse()
-    .find(
-      (entry) =>
-        entry.role === "user" &&
-        entry.text.trim() === currentState.promptText &&
-        new Date(entry.timestamp).getTime() >= new Date(requestedAt).getTime() - 15_000
-    );
-
-  const latestAssistantAfterPrompt = [...conversation]
-    .reverse()
-    .find(
-      (entry) =>
-        entry.role === "assistant" &&
-        new Date(entry.timestamp).getTime() >=
-          new Date(matchingUserEntry?.timestamp ?? requestedAt).getTime()
-    );
-
-  const latestTurnFinishedAfterPrompt = [...agentSession.transcript]
-    .reverse()
-    .find((entry) => {
-      const entryTime = new Date(entry.timestamp).getTime();
-      const promptTime = new Date(matchingUserEntry?.timestamp ?? requestedAt).getTime();
-
-      return entryTime >= promptTime && isTerminalCodexTurnEntry(entry);
-    });
-
-  if (latestAssistantAfterPrompt || latestTurnFinishedAfterPrompt) return emptyReplyState();
-
-  if (!matchingUserEntry) {
+  if (!ownedTurn) {
     if (hasActiveCodexTurnAfter(agentSession.transcript, requestedAt)) return currentState;
-
-    if (
-      currentState.phase === "sending" &&
-      Date.now() - new Date(requestedAt).getTime() > CODEX_INPUT_CONFIRMATION_TIMEOUT_MS
-    ) {
-      return emptyReplyState();
-    }
 
     return currentState;
   }
 
+  const terminalOutcome = readOwnedPromptTerminalOutcome(ownedTurn.turnEntries);
+
+  if (terminalOutcome === "completed") return emptyReplyState();
+  if (!terminalOutcome && hasFinalAssistantReply(ownedTurn.turnEntries)) return emptyReplyState();
+
   return {
+    ...(currentState.deliveryRequestedAt
+      ? { deliveryRequestedAt: currentState.deliveryRequestedAt }
+      : {}),
     phase: "waiting",
     promptText: currentState.promptText,
-    requestedAt: matchingUserEntry.timestamp
+    requestedAt: ownedTurn.userEntry.timestamp,
+    sourcePromptObserved: true
   };
 }

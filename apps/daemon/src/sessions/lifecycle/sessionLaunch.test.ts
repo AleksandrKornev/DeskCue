@@ -25,6 +25,7 @@ function createLaunchFixture(cwd: string, child?: RunningChild) {
       logStreams.push(stream);
       logs.push(text);
     },
+    deleteChild: () => {},
     emitServerEvent(event: ServerEvent) {
       events.push(event);
     },

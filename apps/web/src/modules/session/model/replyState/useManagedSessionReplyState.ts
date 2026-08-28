@@ -75,8 +75,6 @@ export function useManagedSessionReplyState({
   const interruptLifecycle = getSessionInterruptLifecycle(liveSourceState);
   const isServerInterruptRequested = interruptLifecycle.phase === "requested";
   const isEffectiveInterruptingPrompt = isInterruptingPrompt || isServerInterruptRequested;
-  const suppressWaitingForInterruptLifecycle =
-    isInterruptLifecycleWaitingSuppressed(interruptLifecycle);
   const isPromptInterruptibleSessionShell =
     sessionShell?.status === "running" ||
     sessionShell?.status === "read_only" ||
@@ -97,6 +95,15 @@ export function useManagedSessionReplyState({
     isPromptTrackableSessionShell,
     sessionShell
   });
+  const currentManagedPromptRequestedAt =
+    effectiveShellWaitingPrompt?.requestedAt ??
+    rawPendingChatPrompt?.requestedAt ??
+    displayedPendingChatPrompt?.requestedAt ??
+    null;
+  const suppressWaitingForInterruptLifecycle = isInterruptLifecycleWaitingSuppressed(
+    interruptLifecycle,
+    currentManagedPromptRequestedAt
+  );
   const hasConfirmedRawPendingPrompt = isConfirmedDeskCuePendingPrompt(rawPendingChatPrompt);
   const promptRecovery = sessionShell?.promptRecovery ?? null;
   const isExternalSourceTurn = isSourceTurnOutsideDeskCue(
@@ -109,33 +116,35 @@ export function useManagedSessionReplyState({
       isSourceSessionWorking
     }
   );
+
   const isShellWaitingPromptCompleted = hasShellWaitingPromptCompleted(
     takenOverAgentSession,
     effectiveShellWaitingPrompt
   );
-  const activeActionRequest = sessionShell?.actionRequest ?? null;
-  const isManagedSourceWaiting = isManagedSourceReplyWaiting(sessionShell);
+  const hasCompletedManagedPrompt =
+    isRawPendingPromptCompleted || isShellWaitingPromptCompleted;
 
-  const baseEffectiveIsWaitingForChatReply =
-    (isPromptInterruptibleSessionShell &&
-      isWaitingForChatReply &&
-      Boolean(rawPendingChatPrompt) &&
-      !isRawPendingPromptCompleted) ||
-    Boolean(effectiveShellWaitingPrompt && !isShellWaitingPromptCompleted) ||
-    // The source turn may be observed before the refreshed shell reply state
-    // reaches the browser. A pending prompt scoped to this DeskCue session is
-    // still owned by DeskCue, never an external turn.
-    Boolean(
-      rawPendingChatPrompt &&
-      rawPendingChatPrompt.status !== "not_confirmed" &&
-      !isRawPendingPromptCompleted
-    ) ||
-    // Other DeskCue clients do not share this browser's optimistic prompt
-    // state. The managed running shell plus an active source turn is the
-    // authoritative cross-client waiting signal.
-    isManagedSourceWaiting;
+  const isManagedSourceWaiting = isManagedSourceReplyWaiting(sessionShell);
+  const hasUnfinishedRawPendingPrompt =
+    rawPendingChatPrompt !== null && !isRawPendingPromptCompleted;
+  const isLocalPendingPromptWaiting =
+    isPromptInterruptibleSessionShell &&
+    isWaitingForChatReply &&
+    hasUnfinishedRawPendingPrompt;
+  const isShellPromptWaiting =
+    effectiveShellWaitingPrompt !== null && !isShellWaitingPromptCompleted;
+  const isConfirmedPendingPromptWaiting =
+    hasUnfinishedRawPendingPrompt && rawPendingChatPrompt?.status !== "not_confirmed";
+  const isCrossClientPromptWaiting =
+    isManagedSourceWaiting && !hasCompletedManagedPrompt;
+  const shouldShowManagedPromptWaiting =
+    isLocalPendingPromptWaiting ||
+    isShellPromptWaiting ||
+    isConfirmedPendingPromptWaiting ||
+    isCrossClientPromptWaiting;
   const currentWaitingPrompt =
     effectiveShellWaitingPrompt ?? rawPendingChatPrompt ?? displayedPendingChatPrompt;
+
   const hasCurrentWaitingPromptAssistantReply = useMemo(
     () =>
       currentWaitingPrompt
@@ -143,11 +152,12 @@ export function useManagedSessionReplyState({
         : false,
     [chatTranscriptEntries, currentWaitingPrompt]
   );
+
   const {
     isReplyCompletionBridgeActive,
     replyCompletionBridgePrompt
   } = useReplyCompletionBridge({
-    baseIsWaitingForChatReply: baseEffectiveIsWaitingForChatReply,
+    baseIsWaitingForChatReply: shouldShowManagedPromptWaiting,
     chatTranscriptEntries,
     currentWaitingPrompt,
     hasCurrentWaitingPromptAssistantReply,
@@ -156,7 +166,7 @@ export function useManagedSessionReplyState({
 
   const effectiveIsWaitingForChatReply =
     !suppressWaitingForInterruptLifecycle &&
-    (baseEffectiveIsWaitingForChatReply || isReplyCompletionBridgeActive);
+    (shouldShowManagedPromptWaiting || isReplyCompletionBridgeActive);
   const waitingReplyPrompt =
     displayedPendingChatPrompt ?? effectiveShellWaitingPrompt ?? replyCompletionBridgePrompt;
 
@@ -172,11 +182,12 @@ export function useManagedSessionReplyState({
   const hasActivePendingPrompt =
     displayedPendingChatPrompt?.status !== "not_confirmed" && Boolean(displayedPendingChatPrompt);
 
+  const activeActionRequest = sessionShell?.actionRequest ?? null;
   const activePromptText = sessionShell?.replyState.promptText ?? null;
   const isPromptInFlight = resolvePromptInFlight({
     hasActivePendingPrompt,
     isInterruptingPrompt: isEffectiveInterruptingPrompt,
-    isSourceSessionWorking,
+    isSourceSessionWorking: isSourceSessionWorking && !hasCompletedManagedPrompt,
     isWaitingForChatReply: effectiveIsWaitingForChatReply,
     suppressWaitingForInterruptLifecycle
   });
@@ -185,6 +196,7 @@ export function useManagedSessionReplyState({
     activeActionRequest || isExternalSourceTurn || promptRecovery
       ? false
       : isPromptInFlight;
+
   const shouldShowChatLoading = shouldShowManagedSessionChatLoading({
     hasConversationContent,
     hasPendingPrompt: Boolean(displayedPendingChatPrompt),
@@ -227,6 +239,7 @@ export function useManagedSessionReplyState({
     displayedPendingChatPrompt: suppressWaitingForInterruptLifecycle ? null : displayedPendingChatPrompt,
     effectiveIsWaitingForChatReply,
     effectiveShellWaitingPrompt,
+    hasCompletedManagedPrompt,
     inputUnavailableLabel,
     isExternalSourceTurn,
     isPromptQueued,

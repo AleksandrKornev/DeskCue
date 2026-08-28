@@ -55,43 +55,49 @@ export async function closeDaemonApplicationResources({
   store: DeskCueStore | null;
 }) {
   const failures: unknown[] = [];
+
   try {
     await cloud?.close();
   } catch (error) {
     failures.push(error);
   }
+
   try {
     await storageMaintenance?.close();
   } catch (error) {
     failures.push(error);
   }
+
   try {
     await sourceAgentSessions?.close();
   } catch (error) {
     failures.push(error);
   }
+
   const results = await Promise.allSettled([
     discovery.close(),
     localLlmChats?.close(),
     manualCommands?.close(),
     store?.close()
   ]);
+
   failures.push(...results
     .filter((result): result is PromiseRejectedResult => result.status === "rejected")
     .map((failure) => (failure as { reason: unknown }).reason));
+
   try {
     await lmStudioRuntime?.close();
   } catch (error) {
     failures.push(error);
   }
+
   try {
     agentSessionReviews?.close();
   } catch (error) {
     failures.push(error);
   }
-  if (failures.length > 0) {
-    throw new AggregateError(failures, "One or more daemon services failed to drain.");
-  }
+
+  if (failures.length > 0) throw new AggregateError(failures, "One or more daemon services failed to drain.");
 }
 
 export async function createDaemonApplication(
@@ -115,7 +121,9 @@ export async function createDaemonApplication(
     agentSessionReviews = new SqliteAgentSessionReviewStore(sqliteContext);
     const workspaces = new WorkspaceService(store);
     const workspaceFiles = new WorkspaceFileService(workspaces);
+
     manualCommands = new ManualCommandService(workspaces, new ManualCommandRunner());
+
     lmStudioRuntime = new LmStudioRuntimeCoordinator();
     localLlmChats = new LocalLlmChatService(
       new LocalLlmChatLibrary(daemonConfig.localChatLibraryPath, {
@@ -133,7 +141,6 @@ export async function createDaemonApplication(
         queueCapacity: daemonConfig.localLlmGenerationQueueCapacity
       }
     );
-    const managedSessions = new ManagedSessionService(store, discovery);
     sourceAgentSessions = new SourceAgentSessionService(
       store,
       discovery,
@@ -141,6 +148,8 @@ export async function createDaemonApplication(
       agentSessionReviews,
       events
     );
+    const managedSessions = new ManagedSessionService(store, sourceAgentSessions);
+
     cloud = new CloudConnectorService(sqliteContext, events, {
       listLocalLlmChats: () => localLlmChats!.listChats(),
       listManagedSessions: () => managedSessions.listSessions(),
@@ -193,6 +202,7 @@ export async function createDaemonApplication(
         "Daemon application startup failed and its rollback was incomplete."
       );
     }
+
     throw startupError;
   }
 }

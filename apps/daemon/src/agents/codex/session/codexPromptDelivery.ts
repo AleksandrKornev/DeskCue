@@ -99,12 +99,13 @@ export async function restartCodexTransport(
   options: {
     prompt?: string;
     reason: CodexRestartReason;
+    requestedAt?: string;
   }
 ) {
   const workspace = callbacks.getWorkspace(session.workspaceId);
   const currentChild = callbacks.getChild(session.id);
   const prompt = options.prompt?.trim();
-  const requestedAt = new Date().toISOString();
+  const requestedAt = options.requestedAt ?? new Date().toISOString();
 
   if (!workspace || !session.sourceSessionId) {
     throw new AppError("not_accepting_input", "Codex session is not accepting input.");
@@ -208,6 +209,7 @@ export async function restartCodexTransport(
 
   attachSessionExitHandler({
     child: nextChild,
+    deleteChild: callbacks.deleteChild,
     getSession: callbacks.getSession,
     isCurrentChild: callbacks.isCurrentChild,
     onAppendSystemLog: callbacks.appendSystemLog,

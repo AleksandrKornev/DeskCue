@@ -21,7 +21,15 @@ function isTerminalTurnEntry(entry: AgentSessionDetail["transcript"][number]) {
   const statusPart = entry.parts?.find((part) => part.type === "status");
   const label = statusPart?.type === "status" ? statusPart.label : entry.text;
 
-  return label === "Turn completed" || label === "Turn interrupted";
+  return label === "Turn completed" || label === "Turn failed" || label === "Turn interrupted";
+}
+
+function isFinalAssistantEntry(entry: AgentSessionDetail["transcript"][number]) {
+  return entry.role === "assistant" &&
+    (entry.phase === null ||
+      entry.phase === "complete" ||
+      entry.phase === "final" ||
+      entry.phase === "final_answer");
 }
 
 function findPromptUserTimestamp(
@@ -42,6 +50,7 @@ function findPromptUserTimestamp(
     }
 
     const entryTime = new Date(entry.timestamp).getTime();
+
     if (entryTime >= requestedAt - 15_000) {
       matchingUserTime = entryTime;
     }
@@ -55,6 +64,7 @@ function hasTerminalTurnStateAfterPrompt(
   prompt: PendingChatPrompt
 ) {
   const turnState = agentSession.turnState;
+
   if (
     !turnState?.completedAt ||
     (turnState.phase !== "completed" &&
@@ -66,6 +76,7 @@ function hasTerminalTurnStateAfterPrompt(
 
   const requestedAt = Date.parse(prompt.requestedAt);
   const completedAt = Date.parse(turnState.completedAt);
+
   return Number.isFinite(requestedAt) &&
     Number.isFinite(completedAt) &&
     completedAt >= requestedAt - 15_000;
@@ -80,13 +91,16 @@ export function hasPromptCompletionInTranscript(
   }
 
   const matchingUserTime = findPromptUserTimestamp(agentSession, prompt);
+
   if (matchingUserTime === null) {
     return hasTerminalTurnStateAfterPrompt(agentSession, prompt);
   }
 
   return agentSession.transcript.some((entry) => {
     const entryTime = new Date(entry.timestamp).getTime();
-    return entryTime >= matchingUserTime && (entry.role === "assistant" || isTerminalTurnEntry(entry));
+
+    return entryTime >= matchingUserTime &&
+      (isFinalAssistantEntry(entry) || isTerminalTurnEntry(entry));
   });
 }
 

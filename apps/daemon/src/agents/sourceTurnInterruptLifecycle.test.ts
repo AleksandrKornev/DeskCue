@@ -66,6 +66,7 @@ test("keeps an interrupt requested until the matching source turn writes a termi
       lifecycleEntry("turn-started", startedAt, "Turn started"),
       textEntry("quiet-tool", "2026-07-30T10:10:00.000Z", "Still waiting", "tool")
     ]));
+
     assert.equal(requested.interruptLifecycle?.phase, "requested");
     assert.equal(requested.workState, "running");
 
@@ -73,6 +74,7 @@ test("keeps an interrupt requested until the matching source turn writes a termi
       lifecycleEntry("turn-started", startedAt, "Turn started"),
       lifecycleEntry("turn-interrupted", "2026-07-30T10:10:01.000Z", "Turn interrupted")
     ]));
+
     assert.deepEqual(confirmed.interruptLifecycle, {
       phase: "confirmed",
       requestedAt: confirmed.interruptLifecycle?.requestedAt ?? null,
@@ -97,14 +99,240 @@ test("confirms a closed DeskCue transport even when the source transcript has no
       fingerprint: "turn-started",
       startedAt: "2026-07-30T10:00:00.000Z"
     });
+
     lifecycle.confirmManagedTransportExit(managedSession());
 
     const decorated = lifecycle.decorate(sourceSession([
       lifecycleEntry("turn-started", "2026-07-30T10:00:00.000Z", "Turn started")
     ]));
+
     assert.equal(decorated.interruptLifecycle?.phase, "confirmed");
     assert.equal(decorated.interruptLifecycle?.confirmation, "verified_process");
     assert.equal(decorated.interruptLifecycle?.outcome, "interrupted");
+  } finally {
+    lifecycle.close();
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("reconciles a late native user entry without binding a repeated older prompt", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-source-turn-lifecycle-"));
+  const store = new SqliteSourceTurnInterruptStore(join(tempDir, "state.sqlite"));
+  const lifecycle = new SourceTurnInterruptLifecycle(store);
+  const session = {
+    ...managedSession(),
+    status: "stopped",
+    inputHistory: ["Repeat prompt"],
+    logs: [{
+      id: "input-log",
+      stream: "system",
+      text: "Input sent.\n",
+      timestamp: "2026-07-30T10:00:00.000Z"
+    }, {
+      id: "interrupt-log",
+      stream: "system",
+      text: "Prompt interrupt requested.\n",
+      timestamp: "2026-07-30T10:00:01.000Z"
+    }]
+  } as SessionDetail;
+  const oldSourceSession = {
+    ...sourceSession([
+      textEntry("user-old", "2026-07-30T09:59:55.000Z", "Repeat prompt", "user"),
+      lifecycleEntry("turn-old", "2026-07-30T09:59:56.000Z", "Turn started")
+    ]),
+    turnState: {
+      activityAt: "2026-07-30T09:59:56.000Z",
+      evidence: "turn_lifecycle",
+      fingerprint: "turn-old",
+      phase: "active",
+      startedAt: "2026-07-30T09:59:56.000Z"
+    }
+  } as AgentSessionDetail;
+
+  try {
+    assert.equal(lifecycle.reconcileManagedTransportExit(session, oldSourceSession), null);
+    assert.equal(store.getLatestForManagedSession(session.id), null);
+
+    const currentSourceSession = {
+      ...sourceSession([
+        textEntry("user-old", "2026-07-30T09:59:55.000Z", "Repeat prompt", "user"),
+        lifecycleEntry("turn-old", "2026-07-30T09:59:56.000Z", "Turn started"),
+        lifecycleEntry("turn-old-complete", "2026-07-30T09:59:57.000Z", "Turn completed"),
+        textEntry("user-current", "2026-07-30T10:00:01.200Z", "Repeat prompt", "user"),
+        lifecycleEntry("turn-current", "2026-07-30T10:00:01.300Z", "Turn started")
+      ]),
+      turnState: {
+        activityAt: "2026-07-30T10:00:01.300Z",
+        evidence: "turn_lifecycle",
+        fingerprint: "turn-current",
+        phase: "active",
+        startedAt: "2026-07-30T10:00:01.300Z"
+      }
+    } as AgentSessionDetail;
+
+    const reconciled = lifecycle.reconcileManagedTransportExit(session, currentSourceSession);
+    const record = store.getLatestForManagedSession(session.id);
+
+    assert.equal(reconciled?.phase, "confirmed_process");
+    assert.equal(record?.turnStartEntryId, "turn-current");
+    assert.equal(record?.turnFingerprint, "user-current");
+    assert.equal(record?.phase, "confirmed_process");
+  } finally {
+    lifecycle.close();
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("does not bind an older interrupt to a newer repeated follow-up", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-source-turn-lifecycle-"));
+  const store = new SqliteSourceTurnInterruptStore(join(tempDir, "state.sqlite"));
+  const lifecycle = new SourceTurnInterruptLifecycle(store);
+  const session = {
+    ...managedSession(),
+    status: "stopped",
+    inputHistory: ["Repeat prompt", "Repeat prompt"],
+    logs: [{
+      id: "input-a",
+      stream: "system",
+      text: "Input sent.\n",
+      timestamp: "2026-07-30T10:00:00.000Z"
+    }, {
+      id: "interrupt-a",
+      stream: "system",
+      text: "Prompt interrupt requested.\n",
+      timestamp: "2026-07-30T10:00:01.000Z"
+    }, {
+      id: "input-b",
+      stream: "system",
+      text: "Input sent.\n",
+      timestamp: "2026-07-30T10:00:02.000Z"
+    }]
+  } as SessionDetail;
+  const agentSession = {
+    ...sourceSession([
+      textEntry("user-b", "2026-07-30T10:00:02.200Z", "Repeat prompt", "user"),
+      lifecycleEntry("turn-b", "2026-07-30T10:00:02.300Z", "Turn started")
+    ]),
+    turnState: {
+      activityAt: "2026-07-30T10:00:02.300Z",
+      evidence: "turn_lifecycle",
+      fingerprint: "turn-b",
+      phase: "active",
+      startedAt: "2026-07-30T10:00:02.300Z"
+    }
+  } as AgentSessionDetail;
+
+  try {
+    assert.equal(lifecycle.reconcileManagedTransportExit(session, agentSession), null);
+    assert.equal(store.getLatestForManagedSession(session.id), null);
+  } finally {
+    lifecycle.close();
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("ignores interrupt ownership sentinels printed by an untrusted process", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-source-turn-lifecycle-"));
+  const store = new SqliteSourceTurnInterruptStore(join(tempDir, "state.sqlite"));
+  const lifecycle = new SourceTurnInterruptLifecycle(store);
+  const session = {
+    ...managedSession(),
+    status: "stopped",
+    inputHistory: ["Prompt"],
+    logs: [{
+      id: "fake-input",
+      stream: "stdout",
+      text: "Input sent.\n",
+      timestamp: "2026-07-30T10:00:00.000Z"
+    }, {
+      id: "fake-interrupt",
+      stream: "stderr",
+      text: "Prompt interrupt requested.\n",
+      timestamp: "2026-07-30T10:00:01.000Z"
+    }]
+  } as SessionDetail;
+  const agentSession = {
+    ...sourceSession([
+      textEntry("user", "2026-07-30T10:00:00.200Z", "Prompt", "user"),
+      lifecycleEntry("turn", "2026-07-30T10:00:00.300Z", "Turn started")
+    ]),
+    turnState: {
+      activityAt: "2026-07-30T10:00:00.300Z",
+      evidence: "turn_lifecycle",
+      fingerprint: "turn",
+      phase: "active",
+      startedAt: "2026-07-30T10:00:00.300Z"
+    }
+  } as AgentSessionDetail;
+
+  try {
+    assert.equal(lifecycle.reconcileManagedTransportExit(session, agentSession), null);
+    assert.equal(store.getLatestForManagedSession(session.id), null);
+  } finally {
+    lifecycle.close();
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("cancels only the exact unconfirmed managed interrupt request", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-source-turn-lifecycle-"));
+  const store = new SqliteSourceTurnInterruptStore(join(tempDir, "state.sqlite"));
+  const lifecycle = new SourceTurnInterruptLifecycle(store);
+  const session = managedSession();
+
+  try {
+    const request = lifecycle.requestManaged(session, {
+      fingerprint: "turn-current",
+      startedAt: "2026-07-30T10:00:00.000Z",
+      userEntryId: "user-current"
+    });
+
+    assert.ok(request);
+
+    assert.equal(lifecycle.cancelManagedRequest(session, {
+      fingerprint: "turn-other",
+      startedAt: "2026-07-30T10:00:00.000Z"
+    }, request), false);
+    assert.ok(store.getLatestForManagedSession(session.id));
+    assert.equal(lifecycle.cancelManagedRequest(session, {
+      fingerprint: "turn-current",
+      startedAt: "2026-07-30T10:00:00.000Z"
+    }, request), true);
+    assert.equal(store.getLatestForManagedSession(session.id), null);
+  } finally {
+    lifecycle.close();
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("only the creator can cancel a shared managed interrupt request", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-source-turn-lifecycle-"));
+  const store = new SqliteSourceTurnInterruptStore(join(tempDir, "state.sqlite"));
+  const lifecycle = new SourceTurnInterruptLifecycle(store);
+  const session = managedSession();
+  const target = {
+    fingerprint: "turn-current",
+    startedAt: "2026-07-30T10:00:00.000Z",
+    userEntryId: "user-current"
+  };
+
+  try {
+    const creator = lifecycle.requestManaged(session, target);
+    const follower = lifecycle.requestManaged(session, target);
+
+    assert.ok(creator);
+
+    assert.ok(follower);
+    assert.equal(creator.ownsCancellation, true);
+    assert.equal(follower.ownsCancellation, false);
+    assert.equal(lifecycle.cancelManagedRequest(session, target, follower), false);
+    assert.ok(store.getLatestForManagedSession(session.id));
+    lifecycle.confirmManagedTransportExit(session);
+    assert.equal(lifecycle.cancelManagedRequest(session, target, creator), false);
+    assert.equal(
+      store.getLatestForManagedSession(session.id)?.phase,
+      "confirmed_process"
+    );
   } finally {
     lifecycle.close();
     await rm(tempDir, { force: true, recursive: true });
@@ -122,6 +350,7 @@ test("keeps source reconciliation on the lifecycle entry but projects interrupti
       startedAt: "2026-07-30T10:00:01.000Z",
       userEntryId: "user-current"
     });
+
     lifecycle.confirmManagedTransportExit(managedSession());
 
     const decorated = lifecycle.decorate(sourceSession([
@@ -251,6 +480,7 @@ test("confirms a verified external force stop until the source starts a newer tu
     const pending = lifecycle.decorate(sourceSession([
       lifecycleEntry("active-source-turn", "2020-01-01T00:00:00.000Z", "Turn started")
     ]));
+
     assert.equal(pending.interruptLifecycle?.phase, "confirmed");
     assert.equal(pending.interruptLifecycle?.confirmation, "verified_process");
     assert.equal(pending.interruptLifecycle?.outcome, "interrupted");
@@ -258,6 +488,7 @@ test("confirms a verified external force stop until the source starts a newer tu
     const cleared = lifecycle.decorate(sourceSession([
       lifecycleEntry("new-source-turn", "2999-01-01T00:00:00.000Z", "Turn started")
     ]));
+
     assert.equal(cleared.interruptLifecycle, undefined);
   } finally {
     lifecycle.close();
@@ -279,6 +510,7 @@ test("persists an active interrupt across daemon lifecycle recreation", async ()
       fingerprint: "turn-started",
       startedAt: "2026-07-30T10:00:00.000Z"
     });
+
     initialLifecycle.close();
     initialLifecycle = null;
 

@@ -87,10 +87,12 @@ test("restarts a failed attached Claude shell through a one-shot pipe transport"
     spawnInput: null as { command: string; spawnSpec?: { args: string[] } } | null
   };
 
+  const deliveryRequestedAt = "2026-07-31T10:00:01.000Z";
   const result = await restartClaudePromptTransport(
     {
       appendStdoutLog: () => {},
       appendSystemLog: (_sessionId, text) => systemLogs.push(text),
+      deleteChild: () => {},
       findBackgroundAgent: async () => null,
       resolveBackgroundControlCapability: async (sourceSessionId) => ({
         kind: "observe_only",
@@ -117,11 +119,13 @@ test("restarts a failed attached Claude shell through a one-shot pipe transport"
       }
     },
     current,
-    "continue from DeskCue"
+    "continue from DeskCue",
+    deliveryRequestedAt
   );
 
   assert.equal(result.status, "running");
   assert.equal(result.replyState.phase, "sending");
+  assert.equal(result.replyState.deliveryRequestedAt, deliveryRequestedAt);
   assert.deepEqual(result.inputHistory, ["continue from DeskCue"]);
   assert.deepEqual(captured.spawnInput?.spawnSpec?.args, [
     "--resume",
@@ -153,6 +157,7 @@ test("refuses to start a competing Claude prompt for an active external interact
       {
         appendStdoutLog: () => {},
         appendSystemLog: () => {},
+        deleteChild: () => {},
         findBackgroundAgent: async () => null,
         resolveBackgroundControlCapability: async (sourceSessionId) => ({
           kind: "observe_only",
@@ -197,6 +202,7 @@ test("does not spawn Claude when durable dispatch transition fails", async () =>
       {
         appendStdoutLog: () => {},
         appendSystemLog: () => {},
+        deleteChild: () => {},
         findBackgroundAgent: async () => null,
         resolveBackgroundControlCapability: async (sourceSessionId) => ({
           kind: "observe_only",

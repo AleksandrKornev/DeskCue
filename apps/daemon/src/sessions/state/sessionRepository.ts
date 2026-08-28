@@ -152,6 +152,10 @@ export class SessionRepository {
     return this.sessions.get(id) ?? null;
   }
 
+  isPartialSession(sessionId: string) {
+    return this.partialSessionIds.has(sessionId);
+  }
+
   setSession(session: SessionDetail, options: { partial?: boolean } = {}) {
     this.sessions.set(session.id, session);
     this.sessionPersistenceRevisions.set(session.id, this.allocatePersistenceRevision());
@@ -173,6 +177,26 @@ export class SessionRepository {
     this.setSession(replacement, {
       partial: this.partialSessionIds.has(sessionId)
     });
+    return true;
+  }
+
+  materializePartialSessionIfCurrent(
+    sessionId: string,
+    expected: SessionDetail,
+    materialized: SessionDetail
+  ) {
+    if (
+      materialized.id !== sessionId ||
+      this.sessions.get(sessionId) !== expected ||
+      !this.partialSessionIds.has(sessionId)
+    ) {
+      return false;
+    }
+
+    this.sessions.set(sessionId, materialized);
+    this.sessionPersistenceRevisions.set(sessionId, this.allocatePersistenceRevision());
+    this.partialSessionIds.delete(sessionId);
+    this.dirtySessionIds.delete(sessionId);
     return true;
   }
 

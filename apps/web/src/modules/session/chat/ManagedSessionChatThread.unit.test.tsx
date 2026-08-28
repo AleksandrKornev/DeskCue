@@ -167,13 +167,13 @@ describe("ManagedSessionChatThread", () => {
       }
     });
 
-    expect(screen.getByText("Recovering turn state")).toBeInTheDocument();
+    expect(screen.getByText("Reconciling turn outcome")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "DeskCue restarted during this turn. It is checking the source agent's history and will not resend the prompt."
+        "DeskCue lost the prompt transport during this turn. It is checking the source agent's history and will not resend the prompt."
       )
     ).toBeInTheDocument();
-    expect(screen.getByText("Checking delivery")).toBeInTheDocument();
+    expect(screen.getByText("Checking outcome")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry prompt" })).not.toBeInTheDocument();
   });
 
@@ -187,14 +187,34 @@ describe("ManagedSessionChatThread", () => {
       }
     });
 
-    expect(screen.getByText("Turn outcome unknown")).toBeInTheDocument();
+    expect(screen.getByText("Prompt delivery unknown")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "DeskCue did not find a final reply after restarting. Check the source agent before continuing; DeskCue will not resend the prompt."
+        "DeskCue could not confirm whether the source agent received this prompt or how the turn ended. It will not resend the prompt automatically."
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry prompt" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send again anyway" })).not.toBeInTheDocument();
+  });
+
+  it("distinguishes an observed prompt with an unknown terminal outcome", () => {
+    renderChatThread({
+      promptRecovery: {
+        observedPromptAt: "2026-08-11T12:00:01.000Z",
+        phase: "outcome_unknown",
+        promptText: "Prompt recorded by the source agent",
+        requestedAt: "2026-08-11T12:00:00.000Z",
+        retryable: false
+      }
+    });
+
+    expect(screen.getByText("Turn outcome unknown")).toBeInTheDocument();
+    expect(screen.getByText("Outcome unknown")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The source agent recorded this prompt, but DeskCue could not confirm how the turn ended. DeskCue will not resend it automatically."
+      )
+    ).toBeInTheDocument();
   });
 
   it("offers an explicit retry only when the daemon confirms the prompt was not sent", async () => {

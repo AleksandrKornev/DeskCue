@@ -4,9 +4,11 @@ import path from "node:path";
 import { claudeCodeAdapter } from "@deskcue/adapters";
 import type {
   AgentSessionDetail,
+  AgentSessionObservedTurnState,
   AgentSessionSourceVersion,
   AgentSessionSummary
 } from "@deskcue/protocol";
+import { deriveSourceAgentTurnState } from "#agents/sourceAgentTurnState";
 import { daemonConfig } from "#config/daemonConfig";
 
 import { readClaudeSummaryFile } from "./claudeSummaryFileReader.ts";
@@ -27,12 +29,49 @@ interface DiscoveryCache {
 
 let discoveryCache: DiscoveryCache | null = null;
 
+function toObservedTurnState(
+  turnState: ReturnType<typeof deriveSourceAgentTurnState>
+): AgentSessionObservedTurnState {
+  if (turnState.phase === "active") {
+    return {
+      activityAt: turnState.activityAt,
+      completedAt: null,
+      evidence: turnState.evidence,
+      fingerprint: turnState.fingerprint,
+      phase: turnState.phase,
+      startedAt: turnState.startedAt
+    };
+  }
+
+  if (turnState.phase === "idle") {
+    return {
+      activityAt: null,
+      completedAt: null,
+      evidence: turnState.evidence,
+      fingerprint: turnState.fingerprint,
+      phase: turnState.phase,
+      startedAt: null
+    };
+  }
+
+  return {
+    activityAt: null,
+    completedAt: turnState.completedAt,
+    evidence: turnState.evidence,
+    fingerprint: turnState.fingerprint,
+    phase: turnState.phase,
+    startedAt: null,
+    turnStartFingerprint: turnState.turnStartFingerprint
+  };
+}
+
 function findLatestDirectStringField(
   items: Record<string, unknown>[],
   fieldName: string
 ) {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const value = items[index]?.[fieldName];
+
     if (typeof value === "string" && value.trim()) return value.trim();
   }
 
@@ -42,16 +81,21 @@ function findLatestDirectStringField(
 function findLatestTimestamp(items: Record<string, unknown>[]) {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const value = findStringField([items[index]], ["timestamp", "updated_at", "created_at"]);
+
     if (!value) continue;
+
     const timestamp = Date.parse(value);
+
     if (Number.isFinite(timestamp)) return new Date(timestamp).toISOString();
   }
+
   return null;
 }
 
 async function readClaudeSummary(filePath: string): Promise<AgentSessionSummary | null> {
   const summaryFile = await readClaudeSummaryFile(filePath);
   const lines = summaryFile.lines;
+
   if (lines.length === 0) return null;
 
   const sessionId = path.basename(filePath, ".jsonl");
@@ -121,9 +165,35 @@ async function getClaudeSessionVersionFromDiscovery(
 ) {
   const summary = discovery.summaries.find((item) => item.sourceSessionId === sessionId);
   const filePath = discovery.filesById.get(sessionId);
+
   if (!summary || !filePath) return null;
 
   return buildFileSourceVersion(summary, filePath);
+}
+
+async function getClaudeSessionDetailFromDiscovery(
+  discovery: DiscoveryCache,
+  sessionId: string,
+  transcriptTail?: number,
+  chatMessageTail?: number
+): Promise<AgentSessionDetail | null> {
+  const summary = discovery.summaries.find((item) => item.sourceSessionId === sessionId);
+  const filePath = discovery.filesById.get(sessionId);
+
+  if (!summary || !filePath) return null;
+
+  const transcript = await parseClaudeTranscript(filePath, sessionId, {
+    chatMessageTail,
+    transcriptTail
+  });
+  const turnState = deriveSourceAgentTurnState({ transcript });
+
+  return {
+    ...summary,
+    transcript,
+    turnState: toObservedTurnState(turnState),
+    workState: turnState.phase === "active" ? "running" : "idle"
+  };
 }
 
 async function walkJsonlFiles(rootPath: string): Promise<string[]> {
@@ -135,6 +205,7 @@ async function walkJsonlFiles(rootPath: string): Promise<string[]> {
 
     for (const entry of entries) {
       const entryPath = path.join(rootPath, entry.name);
+
       if (entry.isDirectory()) {
         files.push(...(await walkJsonlFiles(entryPath)));
         continue;
@@ -156,6 +227,7 @@ async function loadDiscoveryFromProjectsRoot(projectsRoot: string): Promise<Disc
 
   for (const filePath of files) {
     const summary = await readClaudeSummary(filePath);
+
     if (!summary) continue;
 
     summaries.push(summary);
@@ -176,6 +248,7 @@ export async function listClaudeSessionsFromProjectsRoot(
   limit = 50
 ): Promise<AgentSessionSummary[]> {
   const discovery = await loadDiscoveryFromProjectsRoot(projectsRoot);
+
   return discovery.summaries.slice(0, limit);
 }
 
@@ -184,11 +257,29 @@ export async function getClaudeSessionVersionFromProjectsRoot(
   sessionId: string
 ): Promise<AgentSessionSourceVersion | null> {
   const discovery = await loadDiscoveryFromProjectsRoot(projectsRoot);
+
   return getClaudeSessionVersionFromDiscovery(discovery, sessionId);
+}
+
+export async function getClaudeSessionDetailFromProjectsRoot(
+  projectsRoot: string,
+  sessionId: string,
+  transcriptTail?: number,
+  chatMessageTail?: number
+): Promise<AgentSessionDetail | null> {
+  const discovery = await loadDiscoveryFromProjectsRoot(projectsRoot);
+
+  return getClaudeSessionDetailFromDiscovery(
+    discovery,
+    sessionId,
+    transcriptTail,
+    chatMessageTail
+  );
 }
 
 async function loadDiscovery(force = false) {
   const projectsRoot = path.join(daemonConfig.agentDataRoots.claudeHome, "projects");
+
   if (
     !force &&
     discoveryCache &&
@@ -199,6 +290,7 @@ async function loadDiscovery(force = false) {
   }
 
   const discovery = await loadDiscoveryFromProjectsRoot(projectsRoot);
+
   discoveryCache = {
     ...discovery,
     projectsRoot
@@ -212,6 +304,7 @@ export async function listClaudeSessions(
   force = false
 ): Promise<AgentSessionSummary[]> {
   const discovery = await loadDiscovery(force);
+
   return discovery.summaries.slice(0, limit);
 }
 
@@ -222,17 +315,13 @@ export async function getClaudeSessionDetail(
   chatMessageTail?: number
 ): Promise<AgentSessionDetail | null> {
   const discovery = await loadDiscovery(force);
-  const summary = discovery.summaries.find((item) => item.sourceSessionId === sessionId);
-  const filePath = discovery.filesById.get(sessionId);
-  if (!summary || !filePath) return null;
 
-  return {
-    ...summary,
-    transcript: await parseClaudeTranscript(filePath, sessionId, {
-      chatMessageTail,
-      transcriptTail
-    })
-  };
+  return getClaudeSessionDetailFromDiscovery(
+    discovery,
+    sessionId,
+    transcriptTail,
+    chatMessageTail
+  );
 }
 
 export async function getClaudeSessionVersion(
@@ -240,10 +329,12 @@ export async function getClaudeSessionVersion(
   force = false
 ): Promise<AgentSessionSourceVersion | null> {
   const discovery = await loadDiscovery(force);
+
   return getClaudeSessionVersionFromDiscovery(discovery, sessionId);
 }
 
 export async function getClaudeTranscriptFilePath(sessionId: string, force = false) {
   const discovery = await loadDiscovery(force);
+
   return discovery.filesById.get(sessionId) ?? null;
 }

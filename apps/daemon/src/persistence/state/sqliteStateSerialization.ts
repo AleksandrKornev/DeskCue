@@ -86,7 +86,9 @@ export function deserializeWorkspaces(rows: WorkspaceRow[]) {
 function isReplyState(value: unknown): value is SessionDetail["replyState"] {
   return isRecord(value) &&
     (value.phase === "idle" || value.phase === "queued" || value.phase === "sending" || value.phase === "waiting") &&
-    isNullableString(value.promptText) && isNullableString(value.requestedAt);
+    isNullableString(value.promptText) && isNullableString(value.requestedAt) &&
+    (value.deliveryRequestedAt === undefined || isNullableString(value.deliveryRequestedAt)) &&
+    (value.sourcePromptObserved === undefined || typeof value.sourcePromptObserved === "boolean");
 }
 
 function isPromptRecoveryState(value: unknown): value is SessionDetail["promptRecovery"] {
@@ -95,6 +97,7 @@ function isPromptRecoveryState(value: unknown): value is SessionDetail["promptRe
   return isRecord(value) &&
     (value.phase === "checking" || value.phase === "outcome_unknown" || value.phase === "not_sent") &&
     isNullableString(value.promptText) && typeof value.requestedAt === "string" &&
+    (value.observedPromptAt === undefined || isNullableString(value.observedPromptAt)) &&
     typeof value.retryable === "boolean";
 }
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ServerEvent, SessionDetail } from "@deskcue/protocol";
+import type { AgentSessionDetail, ServerEvent, SessionDetail } from "@deskcue/protocol";
 import type { SourceTurnInterruptTarget } from "#agents/sourceTurnInterruptLifecycle";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
 import { SessionRepository } from "#sessions/state/sessionRepository";
@@ -37,7 +37,7 @@ function sessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetail {
   };
 }
 
-test("rejects an active external Codex turn without a verified control channel", async () => {
+test("rejects an active external agent turn without a verified control channel", async () => {
   const repository = new SessionRepository();
 
   repository.setSession(sessionDetail());
@@ -45,7 +45,9 @@ test("rejects an active external Codex turn without a verified control channel",
   const operations = new StoreBackedSessionOperations({
     eventBus: {} as never,
     gitPolling: {} as never,
-    persistence: {} as never,
+    persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId)
+    } as never,
     repository,
     sessionRunner: {
       hasChild: () => false
@@ -70,7 +72,9 @@ test("does not advertise interrupt for an external Codex Desktop chat", async ()
   const operations = new StoreBackedSessionOperations({
     eventBus: {} as never,
     gitPolling: {} as never,
-    persistence: {} as never,
+    persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId)
+    } as never,
     repository,
     sessionRunner: {
       hasChild: () => false
@@ -117,6 +121,7 @@ test("journals and serializes prompt writes for a daemon-owned Generic PTY", asy
     eventBus: { publishServerEvent: () => {} } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: () => persistGate,
       schedulePersist: () => {}
     } as never,
@@ -198,7 +203,9 @@ test("opens only an external Codex Desktop session on the host", async () => {
   const operations = new StoreBackedSessionOperations({
     eventBus: {} as never,
     gitPolling: {} as never,
-    persistence: {} as never,
+    persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId)
+    } as never,
     repository,
     sessionRunner: {
       hasChild: () => false
@@ -219,6 +226,8 @@ test("records and confirms an owned interrupt after a synchronous managed transp
 
   repository.setSession(sessionDetail({ status: "running", finishedAt: null }));
   const lifecycle: string[] = [];
+  const sourceEvents: ServerEvent[] = [];
+  let interruptPhase: "confirmed" | "idle" | "requested" = "idle";
   let hasChild = true;
   const child = {
     pid: 42,
@@ -231,10 +240,11 @@ test("records and confirms an owned interrupt after a synchronous managed transp
 
   const operations = new StoreBackedSessionOperations({
     eventBus: {
-      publishServerEvent: () => {}
+      publishServerEvent: (event: ServerEvent) => sourceEvents.push(event)
     } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {},
       schedulePersist: () => {}
     } as never,
@@ -253,10 +263,30 @@ test("records and confirms an owned interrupt after a synchronous managed transp
       spawnProcess: () => child
     } as never,
     sourceTurnInterrupts: {
-      request: (_session: SessionDetail, target: SourceTurnInterruptTarget) => {
+      decorate: <T extends AgentSessionDetail>(sourceSession: T) => ({
+        ...sourceSession,
+        ...(interruptPhase === "idle"
+          ? {}
+          : {
+              interruptLifecycle: {
+                phase: interruptPhase,
+                requestedAt: "2026-08-05T08:00:01.000Z",
+                confirmedAt: interruptPhase === "confirmed"
+                  ? "2026-08-05T08:00:02.000Z"
+                  : null,
+                turnFingerprint: "turn-1",
+                confirmation: interruptPhase === "confirmed" ? "verified_process" : null,
+                outcome: interruptPhase === "confirmed" ? "interrupted" : null
+              }
+            })
+      }),
+      requestManaged: (_session: SessionDetail, target: SourceTurnInterruptTarget) => {
+        interruptPhase = "requested";
         lifecycle.push(`request:${target.fingerprint}`);
+        return { ownsCancellation: true, record: {} };
       },
       confirmManagedTransportExit: () => {
+        interruptPhase = "confirmed";
         lifecycle.push("confirm");
       }
     } as never
@@ -265,10 +295,131 @@ test("records and confirms an owned interrupt after a synchronous managed transp
   const result = await operations.interruptSession("session-1", {
     fingerprint: "turn-1",
     startedAt: "2026-08-05T08:00:00.000Z"
+  }, {
+    agentId: "codex",
+    agentLabel: "Codex",
+    attachMode: "resume",
+    cliVersion: null,
+    filePath: "source.jsonl",
+    id: "codex:source-1",
+    model: null,
+    originator: null,
+    source: "codex",
+    sourceSessionId: "source-1",
+    title: "Source chat",
+    transcript: [],
+    updatedAt: "2026-08-05T08:00:00.000Z",
+    workspaceName: "Workspace",
+    workspacePath: "D:\\work\\repo",
+    workState: "running"
   });
 
   assert.equal(result.status, "stopped");
-  assert.deepEqual(lifecycle, ["transport-exit", "request:turn-1", "confirm"]);
+  assert.deepEqual(lifecycle, ["request:turn-1", "transport-exit", "confirm"]);
+  assert.deepEqual(sourceEvents.filter((event) => event.type === "agent.session.updated").map((event) => ({
+    phase: event.type === "agent.session.updated"
+      ? event.payload.interruptLifecycle?.phase
+      : null,
+    type: event.type
+  })), [
+    { phase: "requested", type: "agent.session.updated" },
+    { phase: "confirmed", type: "agent.session.updated" }
+  ]);
+});
+
+test("publishes a rollback when an owned source interrupt cannot stop its transport", async () => {
+  const repository = new SessionRepository();
+
+  repository.setSession(sessionDetail({ status: "running", finishedAt: null }));
+  const publishedPhases: Array<string | undefined> = [];
+  let interruptPhase: "idle" | "requested" = "idle";
+  const child = {
+    pid: 42,
+    transport: "pipe",
+    kill: () => {},
+    onData: () => ({ dispose: () => {} }),
+    onExit: () => ({ dispose: () => {} }),
+    write: () => {}
+  };
+
+  const sourceAgentSession = {
+    agentId: "claude-code",
+    agentLabel: "Claude Code",
+    attachMode: "resume",
+    cliVersion: null,
+    filePath: "source.jsonl",
+    id: "claude-code:source-1",
+    model: null,
+    originator: null,
+    source: "claude.projects",
+    sourceSessionId: "source-1",
+    title: "Source chat",
+    transcript: [],
+    updatedAt: "2026-08-05T08:00:00.000Z",
+    workspaceName: "Workspace",
+    workspacePath: "D:\\work\\repo",
+    workState: "running"
+  } satisfies AgentSessionDetail;
+  const operations = new StoreBackedSessionOperations({
+    eventBus: {
+      publishServerEvent: (event: ServerEvent) => {
+        if (event.type === "agent.session.updated") publishedPhases.push(event.payload.interruptLifecycle?.phase);
+      }
+    } as never,
+    gitPolling: {} as never,
+    persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
+      persistNow: async () => {},
+      schedulePersist: () => {}
+    } as never,
+    repository,
+    sessionRunner: {
+      deleteChild: () => false,
+      getChild: () => child,
+      hasChild: () => true,
+      isCurrentChild: () => true,
+      killChild: () => {
+        throw new Error("process tree did not exit");
+      },
+      spawnProcess: () => child
+    } as never,
+    sourceTurnInterrupts: {
+      cancelManagedRequest: () => {
+        interruptPhase = "idle";
+        return true;
+      },
+      decorate: <T extends AgentSessionDetail>(sourceSession: T) => ({
+        ...sourceSession,
+        ...(interruptPhase === "requested"
+          ? {
+              interruptLifecycle: {
+                phase: "requested" as const,
+                requestedAt: "2026-08-05T08:00:01.000Z",
+                confirmedAt: null,
+                turnFingerprint: "turn-1",
+                confirmation: null,
+                outcome: null
+              }
+            }
+          : {})
+      }),
+      requestManaged: () => {
+        interruptPhase = "requested";
+        return { ownsCancellation: true, record: {} };
+      }
+    } as never
+  });
+
+  await assert.rejects(
+    operations.interruptSession("session-1", {
+      fingerprint: "turn-1",
+      startedAt: "2026-08-05T08:00:00.000Z"
+    }, sourceAgentSession),
+    /process tree did not exit/
+  );
+
+  assert.equal(repository.getSession("session-1")?.status, "running");
+  assert.deepEqual(publishedPhases, ["requested", undefined]);
 });
 
 test("does not leave a detached Codex prompt queued when transport cannot start", async () => {
@@ -283,6 +434,7 @@ test("does not leave a detached Codex prompt queued when transport cannot start"
     } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {
         lifecycle.push("persist");
       },
@@ -348,6 +500,7 @@ test("marks an unconfirmed shutdown survivor as recovery-required instead of sto
       stop: (sessionId: string) => events.push(`git-stop:${sessionId}`)
     } as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {},
       schedulePersist: () => {}
     } as never,

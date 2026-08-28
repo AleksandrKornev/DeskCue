@@ -65,6 +65,16 @@ function transcriptUser(id: string, text: string) {
   };
 }
 
+function transcriptAssistant(id: string, text: string, phase: string | null) {
+  return {
+    id,
+    phase,
+    role: "assistant" as const,
+    text,
+    timestamp: "2026-07-29T18:00:01.000Z"
+  };
+}
+
 describe("managed session reply state helpers", () => {
   it("preserves the actionable writer-conflict reason when a prompt was not sent", () => {
     const writerConflictReason =
@@ -84,7 +94,7 @@ describe("managed session reply state helpers", () => {
     }), writerConflictReason);
   });
 
-  it("uses the bounded control-loss label for an unknown recovery outcome", () => {
+  it("describes an unobserved prompt without claiming a terminal outcome", () => {
     assert.equal(resolveInputUnavailableLabel({
       canSendInput: false,
       inputBlockedReason: "Provider-specific stale detail",
@@ -96,7 +106,53 @@ describe("managed session reply state helpers", () => {
         retryable: false
       },
       sourceSessionId: "source-1"
-    }), "DeskCue lost control of this turn");
+    }), "DeskCue could not confirm whether the agent received this prompt");
+  });
+
+  it("describes an observed prompt as an unknown terminal outcome", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: null,
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        observedPromptAt: "2026-08-11T12:00:01.000Z",
+        phase: "outcome_unknown",
+        promptText: "Continue",
+        requestedAt,
+        retryable: false
+      },
+      sourceSessionId: "source-1"
+    }), "DeskCue could not confirm this turn's final outcome");
+  });
+
+  it("describes an active delivery check without claiming control is already lost", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: null,
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        phase: "checking",
+        promptText: "Continue",
+        requestedAt,
+        retryable: false
+      },
+      sourceSessionId: "source-1"
+    }), "DeskCue is checking the source agent for this turn's outcome");
+  });
+
+  it("describes a retryable prompt as not received without claiming control loss", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: null,
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        phase: "not_sent",
+        promptText: "Continue",
+        requestedAt,
+        retryable: true
+      },
+      sourceSessionId: "source-1"
+    }), "DeskCue confirmed that the agent did not receive this prompt");
   });
 
   it("ignores stale active source metadata after the managed transport is done", () => {
@@ -308,6 +364,112 @@ describe("managed session reply state helpers", () => {
       requestedAt,
       status: "waiting"
     });
+  });
+
+  it("keeps an owned prompt pending while Claude has only emitted a non-final preamble", () => {
+    const sessionShell = createSessionShell({
+      replyState: {
+        phase: "waiting",
+        promptText: "Continue work",
+        requestedAt
+      },
+      status: "running"
+    });
+    const result = resolvePendingChatPrompt({
+      chatTranscriptEntries: [
+        transcriptUser("user-1", "Continue work"),
+        transcriptAssistant("assistant-1", "I will inspect the file", "non_final")
+      ],
+      isPromptTrackableSessionShell: true,
+      pendingChatPrompt: null,
+      selectedSessionDetail: null,
+      selectedSessionId: "session-1",
+      sessionShell
+    });
+
+    assert.equal(result.isRawPendingPromptCompleted, false);
+    assert.equal(result.displayedPendingChatPrompt?.text, "Continue work");
+  });
+
+  it("completes an owned prompt when its final assistant reply is visible", () => {
+    const sessionShell = createSessionShell({
+      replyState: {
+        phase: "waiting",
+        promptText: "Continue work",
+        requestedAt
+      },
+      status: "running"
+    });
+    const result = resolvePendingChatPrompt({
+      chatTranscriptEntries: [
+        transcriptUser("user-1", "Continue work"),
+        transcriptAssistant("assistant-1", "Done", null)
+      ],
+      isPromptTrackableSessionShell: true,
+      pendingChatPrompt: null,
+      selectedSessionDetail: null,
+      selectedSessionId: "session-1",
+      sessionShell
+    });
+
+    assert.equal(result.isRawPendingPromptCompleted, true);
+    assert.equal(result.displayedPendingChatPrompt, null);
+  });
+
+  it("completes an owned prompt for the explicit Codex final phase", () => {
+    const sessionShell = createSessionShell({
+      replyState: {
+        phase: "waiting",
+        promptText: "Continue work",
+        requestedAt
+      },
+      status: "running"
+    });
+    const result = resolvePendingChatPrompt({
+      chatTranscriptEntries: [
+        transcriptUser("user-1", "Continue work"),
+        transcriptAssistant("assistant-1", "Done", "final")
+      ],
+      isPromptTrackableSessionShell: true,
+      pendingChatPrompt: null,
+      selectedSessionDetail: null,
+      selectedSessionId: "session-1",
+      sessionShell
+    });
+
+    assert.equal(result.isRawPendingPromptCompleted, true);
+    assert.equal(result.displayedPendingChatPrompt, null);
+  });
+
+  it("completes an owned prompt when the source turn fails", () => {
+    const sessionShell = createSessionShell({
+      replyState: {
+        phase: "waiting",
+        promptText: "Continue work",
+        requestedAt
+      },
+      status: "running"
+    });
+    const result = resolvePendingChatPrompt({
+      chatTranscriptEntries: [
+        transcriptUser("user-1", "Continue work"),
+        {
+          id: "terminal-1",
+          phase: "failed",
+          role: "system",
+          text: "Turn failed",
+          timestamp: "2026-07-29T18:00:01.000Z"
+        }
+      ],
+      isPromptTrackableSessionShell: true,
+      pendingChatPrompt: null,
+      selectedSessionDetail: null,
+      selectedSessionId: "session-1",
+      sessionShell
+    });
+
+    assert.equal(result.isRawPendingPromptCompleted, true);
+    assert.equal(result.displayedPendingChatPrompt, null);
   });
 
   it("marks an externally started source turn as interruptible without inventing a waiting prompt", () => {

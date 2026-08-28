@@ -197,6 +197,38 @@ test("preserves lightweight session metadata during an exact revision replacemen
   assert.deepEqual(repository.listDirtyPersistedSessions(), []);
 });
 
+test("materializes a lightweight session without marking its durable snapshot dirty", () => {
+  const repository = new SessionRepository();
+  const lightweight = claudeSession({
+    inputHistory: [],
+    logs: []
+  });
+  const materialized = claudeSession({
+    inputHistory: ["Previous prompt"],
+    logs: [{
+      id: "log-1",
+      stream: "stdout",
+      text: "Previous output\n",
+      timestamp: "2026-08-27T10:01:00.000Z"
+    }]
+  });
+
+  repository.setSession(lightweight, { partial: true });
+  repository.markAllPersisted();
+
+  assert.equal(
+    repository.materializePartialSessionIfCurrent(lightweight.id, lightweight, materialized),
+    true
+  );
+  assert.equal(repository.isPartialSession(lightweight.id), false);
+  assert.equal(repository.getSession(lightweight.id), materialized);
+  assert.deepEqual(repository.listDirtyPersistedSessions(), []);
+
+  repository.updateSession(lightweight.id, { status: "running" });
+
+  assert.equal(repository.listDirtyPersistedSessions()[0]?.status, "running");
+});
+
 test("shares one durable attached-session creation with concurrent followers", async () => {
   const repository = new SessionRepository();
   const session = claudeSession();

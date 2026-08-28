@@ -119,6 +119,12 @@ export class DeskCueSqliteStateStorage implements DaemonStateStorage {
     }
   }
 
+  loadSession(sessionId: string) {
+    const row = this.sessionRepository.loadRow(sessionId);
+
+    return row ? deserializeFullSessions([row])[0] ?? null : null;
+  }
+
   async save(state: PersistedDeskCueState) {
     this.saveRows(state, true);
   }

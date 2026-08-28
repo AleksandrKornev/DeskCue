@@ -7,7 +7,8 @@ import type {
   AgentTranscriptEntry,
   CodexSessionDetail,
   CodexSessionSummary,
-  SessionDetail
+  SessionDetail,
+  SessionSummary
 } from "@deskcue/protocol";
 import { copySourceAgentDetailMetadata } from "#agents/sourceAgentDetailMetadata";
 
@@ -50,9 +51,9 @@ type SourceAgentSessionServiceOptions = {
 
 function readPositiveInteger(value: number | undefined, fallback: number, label: string) {
   const resolved = value ?? fallback;
-  if (!Number.isSafeInteger(resolved) || resolved < 1) {
-    throw new TypeError(`${label} must be a positive integer.`);
-  }
+
+  if (!Number.isSafeInteger(resolved) || resolved < 1) throw new TypeError(`${label} must be a positive integer.`);
+
   return resolved;
 }
 
@@ -67,9 +68,7 @@ function decorateSessionPreservingMetadata<T extends AgentSessionSummary | Agent
   source: T,
   decorated: T
 ): T {
-  if (source === decorated) {
-    return decorated;
-  }
+  if (source === decorated) return decorated;
 
   return copySourceAgentDetailMetadata(source, decorated);
 }
@@ -79,6 +78,7 @@ function toAgentSessionSummary(session: AgentSessionDetail): AgentSessionSummary
     transcript: _transcript,
     ...summary
   } = session;
+
   return summary;
 }
 
@@ -113,16 +113,13 @@ export class SourceAgentSessionService {
   }
 
   close(): Promise<void> {
-    if (this.closePromise) {
-      return this.closePromise;
-    }
+    if (this.closePromise) return this.closePromise;
 
     this.closed = true;
     const shutdownError = new AppError("conflict", "Source-agent session service is shutting down.");
+
     for (const queued of this.queuedReads.splice(0)) {
-      if (this.inFlightReads.get(queued.key)) {
-        this.inFlightReads.delete(queued.key);
-      }
+      if (this.inFlightReads.get(queued.key)) this.inFlightReads.delete(queued.key);
       queued.reject(shutdownError);
     }
 
@@ -153,6 +150,7 @@ export class SourceAgentSessionService {
         includeLiveMetadata
       }
     );
+
     return this.reviews.decorateSessions(sessions);
   }
 
@@ -177,6 +175,7 @@ export class SourceAgentSessionService {
         sourceId: options.sourceId
       }
     );
+
     return {
       ...page,
       sessions: this.reviews.decorateSessions(page.sessions)
@@ -211,6 +210,7 @@ export class SourceAgentSessionService {
           options
         )
     );
+
     return session
       ? decorateSessionPreservingMetadata(session, this.reviews.decorateSession(session))
       : null;
@@ -224,13 +224,13 @@ export class SourceAgentSessionService {
       buildSourceAgentInFlightKey("version", [agentSessionId, includeLiveMetadata]),
       () => this.discovery.getSessionVersion(agentSessionId, includeLiveMetadata)
     );
-    if (!version) {
-      return null;
-    }
+
+    if (!version) return null;
 
     const summary = this.backend.reconcileAttachedAgentSession(
       this.reviews.decorateSession(version.summary)
     );
+
     return {
       ...version,
       localStateVersion: this.backend.getAttachedAgentSessionStateVersion(summary),
@@ -244,6 +244,7 @@ export class SourceAgentSessionService {
   ): Promise<AgentTranscriptEntry[]> {
     const normalizedEntryIds = [...new Set(entryIds)];
     const cacheEntryIds = [...normalizedEntryIds].sort();
+
     return this.dedupeRead(
       buildSourceAgentInFlightKey("entries", [agentSessionId, cacheEntryIds.join("\u0001")]),
       () => this.discovery.getTranscriptEntries(agentSessionId, normalizedEntryIds)
@@ -259,9 +260,8 @@ export class SourceAgentSessionService {
     }
   ): Promise<AgentTranscriptEntry[] | null> {
     const readTranscriptWindow = this.discovery.getTranscriptWindow;
-    if (!readTranscriptWindow) {
-      return Promise.resolve(null);
-    }
+
+    if (!readTranscriptWindow) return Promise.resolve(null);
 
     return this.dedupeRead(
       buildSourceAgentInFlightKey("entries", [
@@ -282,9 +282,8 @@ export class SourceAgentSessionService {
     } = {}
   ): Promise<AgentTranscriptEntry[] | null> {
     const readTranscriptTailWindow = this.discovery.getTranscriptTailWindow;
-    if (!readTranscriptTailWindow) {
-      return Promise.resolve(null);
-    }
+
+    if (!readTranscriptTailWindow) return Promise.resolve(null);
 
     return this.dedupeRead(
       buildSourceAgentInFlightKey("entries", [
@@ -303,9 +302,8 @@ export class SourceAgentSessionService {
     }
   ): Promise<{ entries: AgentTranscriptEntry[]; hasMore: boolean } | null> {
     const readTranscriptPreviousWindow = this.discovery.getTranscriptPreviousWindow;
-    if (!readTranscriptPreviousWindow) {
-      return Promise.resolve(null);
-    }
+
+    if (!readTranscriptPreviousWindow) return Promise.resolve(null);
 
     return this.dedupeRead(
       buildSourceAgentInFlightKey("entries", [
@@ -319,6 +317,7 @@ export class SourceAgentSessionService {
 
   async markSessionReviewed(agentSessionId: string) {
     const reviewedAt = this.reviews.markReviewed(agentSessionId);
+
     this.events.publishServerEvent({
       type: "agent.session.reviewed",
       payload: {
@@ -328,6 +327,7 @@ export class SourceAgentSessionService {
     });
 
     const session = await this.getSessionDetail(agentSessionId);
+
     if (session) {
       this.events.publishServerEvent({
         type: "agent.session.updated",
@@ -347,6 +347,27 @@ export class SourceAgentSessionService {
 
   getCodexSessionDetail(sessionId: string): Promise<CodexSessionDetail | null> {
     return this.discovery.getCodexSessionDetail(sessionId);
+  }
+
+  async getSessionDetailForManagedSession(
+    session: SessionSummary,
+    transcriptTail?: number,
+    chatMessageTail?: number
+  ): Promise<AgentSessionDetail | null> {
+    const detail = await this.discovery.getSessionDetailForManagedSession(
+      session,
+      transcriptTail,
+      chatMessageTail
+    );
+
+    if (!detail) return null;
+
+    const reviewedDetail = decorateSessionPreservingMetadata(
+      detail,
+      this.reviews.decorateSession(detail)
+    );
+
+    return this.backend.reconcileAttachedAgentSession(reviewedDetail);
   }
 
   reconcileAttachedSession<T extends AgentSessionSummary | AgentSessionDetail>(session: T): T {
@@ -370,14 +391,15 @@ export class SourceAgentSessionService {
 
   private dedupeRead<T>(key: string, read: () => Promise<T>): Promise<T> {
     const existing = this.inFlightReads.get(key) as Promise<T> | undefined;
-    if (existing) {
-      return existing;
-    }
+
+    if (existing) return existing;
+
     if (this.closed) {
       return Promise.reject(
         new AppError("conflict", "Source-agent session service is shutting down.")
       );
     }
+
     if (this.queuedReads.length >= this.queueCapacity) {
       return Promise.reject(
         new AppError(
@@ -394,14 +416,14 @@ export class SourceAgentSessionService {
       start = () => {
         this.activeReadCount += 1;
         this.activeReads.add(promise);
-        const complete = () => {
+
+        /* runtime-helper-placement: allow -- per-read closure */ const complete = () => {
           this.activeReadCount -= 1;
           this.activeReads.delete(promise);
-          if (this.inFlightReads.get(key) === promise) {
-            this.inFlightReads.delete(key);
-          }
+          if (this.inFlightReads.get(key) === promise) this.inFlightReads.delete(key);
           this.startQueuedReads();
         };
+
         try {
           read().then(resolve, reject).then(complete, complete);
         } catch (error) {
@@ -410,17 +432,17 @@ export class SourceAgentSessionService {
         }
       };
     });
+
     this.inFlightReads.set(key, promise);
     this.queuedReads.push({
       key,
       reject: (reason) => {
-        if (this.inFlightReads.get(key) === promise) {
-          this.inFlightReads.delete(key);
-        }
+        if (this.inFlightReads.get(key) === promise) this.inFlightReads.delete(key);
         rejectQueued(reason);
       },
       start
     });
+
     this.startQueuedReads();
 
     return promise;

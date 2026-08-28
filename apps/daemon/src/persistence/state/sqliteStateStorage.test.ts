@@ -450,6 +450,100 @@ test("loads read-only history sessions as lightweight rows", async () => {
   }
 });
 
+test("materializes a lightweight Codex session before persisting a retried turn", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-sqlite-"));
+  const databasePath = join(tempDir, "state.sqlite");
+  let storage: DeskCueSqliteStateStorage | null = null;
+  let recoveryStorage: DeskCueSqliteStateStorage | null = null;
+  let reloadedStorage: DeskCueSqliteStateStorage | null = null;
+
+  try {
+    storage = new DeskCueSqliteStateStorage(databasePath);
+    const workspace = workspaceSummary();
+    const recoverySession: SessionDetail = {
+      ...sessionDetail(workspace.id),
+      adapterId: "codex",
+      sourceSessionId: "source-codex",
+      status: "read_only",
+      exitCode: null,
+      logs: [{
+        id: "log-before-retry",
+        timestamp: "2026-06-22T10:01:00.000Z",
+        stream: "stderr",
+        text: "Source prompt process failed to start.\n"
+      }],
+      inputHistory: ["Previous successful prompt"]
+    };
+
+    await storage.save({
+      version: 1,
+      workspaces: [workspace],
+      sessions: [recoverySession]
+    });
+    storage.close();
+    storage = null;
+
+    recoveryStorage = new DeskCueSqliteStateStorage(databasePath);
+    const recovered = await recoveryStorage.load();
+    const materialized = recoveryStorage.loadSession(recoverySession.id);
+
+    assert.deepEqual(recovered.partialSessionIds, [recoverySession.id]);
+    assert.deepEqual(recovered.sessions[0]?.inputHistory, []);
+    assert.deepEqual(materialized, recoverySession);
+
+    const retriedSession: SessionDetail = {
+      ...materialized!,
+      status: "done",
+      finishedAt: "2026-06-22T10:02:00.000Z",
+      lastActivityAt: "2026-06-22T10:02:00.000Z",
+      exitCode: 0,
+      logs: [
+        ...recoverySession.logs,
+        {
+          id: "log-after-retry",
+          timestamp: "2026-06-22T10:02:00.000Z",
+          stream: "stdout",
+          text: "Retry completed.\n"
+        }
+      ],
+      inputHistory: [
+        ...recoverySession.inputHistory,
+        "Prompt that was not sent"
+      ],
+      promptRecovery: null
+    };
+
+    await recoveryStorage.savePatch({
+      version: 1,
+      workspaces: [],
+      sessions: [retriedSession]
+    });
+    recoveryStorage.close();
+    recoveryStorage = null;
+
+    reloadedStorage = new DeskCueSqliteStateStorage(databasePath);
+    const reloaded = await reloadedStorage.load();
+    const database = new Database(databasePath, { readonly: true });
+    const row = database.prepare("SELECT json FROM sessions WHERE id = ?").get(retriedSession.id) as {
+      json: string;
+    };
+
+    database.close();
+
+    assert.deepEqual(reloaded.partialSessionIds, [retriedSession.id]);
+    assert.equal(reloaded.sessions[0]?.finishedAt, retriedSession.finishedAt);
+    assert.deepEqual(JSON.parse(row.json), retriedSession);
+  } finally {
+    storage?.close();
+    recoveryStorage?.close();
+    reloadedStorage?.close();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
 test("loads attached Claude shells with full durable details", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-sqlite-"));
   const databasePath = join(tempDir, "state.sqlite");

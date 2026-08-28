@@ -80,6 +80,31 @@ describe("managed session live chat model", () => {
     );
   });
 
+  it("shows ready when the owned prompt has a final reply before source state settles", () => {
+    const sessionShell = {
+      sourceSessionId: "source-1",
+      status: "running" as const
+    };
+
+    const sourceSession = {
+      attachMode: "resume" as const,
+      workState: "running" as const
+    };
+
+    assert.equal(resolveLiveHeaderStatus({
+      hasCompletedManagedPrompt: true,
+      isPromptInFlight: false,
+      sessionShell,
+      takenOverAgentSession: sourceSession
+    }), "read_only");
+    assert.equal(resolveLiveHeaderStatusLabel({
+      hasCompletedManagedPrompt: true,
+      isPromptInFlight: false,
+      sessionShell,
+      takenOverAgentSession: sourceSession
+    }), "ready");
+  });
+
   it("falls back to the shell status for a manual session", () => {
     assert.equal(
       resolveLiveHeaderStatus({
@@ -205,6 +230,29 @@ describe("managed session live chat model", () => {
       sessionShell,
       takenOverAgentSession: sourceSession
     }), "failed");
+  });
+
+  it("shows unresolved recovery instead of a failed transport status", () => {
+    assert.equal(
+      resolveLiveHeaderStatusLabel({
+        isPromptInFlight: false,
+        sessionShell: {
+          promptRecovery: {
+            phase: "outcome_unknown",
+            promptText: "Continue",
+            requestedAt: "2026-08-25T10:00:00.000Z",
+            retryable: false
+          },
+          sourceSessionId: "source-1",
+          status: "failed"
+        },
+        takenOverAgentSession: {
+          attachMode: "resume",
+          workState: "idle"
+        }
+      }),
+      "control lost"
+    );
   });
 
   it("keeps a completed resumable shell ready despite stale active source detail", () => {

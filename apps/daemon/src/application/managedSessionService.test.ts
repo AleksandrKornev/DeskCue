@@ -5,7 +5,11 @@ import type { AgentSessionDetail, SessionDetail, SessionSummary } from "@deskcue
 
 import { AppError } from "./errors.ts";
 import { ManagedSessionService } from "./managedSessionService.ts";
-import type { ManagedSessionBackend, SourceAgentSessionDiscovery } from "./ports.ts";
+import type {
+  ManagedSessionBackend,
+  SourceAgentSessionDiscovery,
+  SourceTurnInterruptTarget
+} from "./ports.ts";
 
 function createManagedSession(patch: Partial<SessionDetail> = {}): SessionDetail {
   return {
@@ -29,6 +33,7 @@ function createAgentSession(patch: Partial<AgentSessionDetail> = {}): AgentSessi
 
 test("opens only a source chat confirmed as Codex Desktop", async () => {
   const openedSessionIds: string[] = [];
+
   function createService(agentSession: AgentSessionDetail) {
     return new ManagedSessionService(
       {
@@ -42,6 +47,7 @@ test("opens only a source chat confirmed as Codex Desktop", async () => {
       } as unknown as SourceAgentSessionDiscovery
     );
   }
+
   const service = createService(createAgentSession());
 
   await service.openExternalCodexDesktopChat("session-1");
@@ -161,6 +167,7 @@ test("binds a managed Claude interrupt to its exact current source user entry", 
     startedAt: string;
     userEntryId?: string;
   } | null = null;
+  const receivedAgentSessions: AgentSessionDetail[] = [];
   const managedSession = createManagedSession({
     adapterId: "claude-code",
     replyState: {
@@ -174,9 +181,11 @@ test("binds a managed Claude interrupt to its exact current source user entry", 
       getSession: () => managedSession,
       interruptSession: async (
         _sessionId: string,
-        sourceTurn?: { fingerprint: string; startedAt: string; userEntryId?: string } | null
+        sourceTurn?: { fingerprint: string; startedAt: string; userEntryId?: string } | null,
+        sourceAgentSession?: AgentSessionDetail | null
       ) => {
         receivedSourceTurn = sourceTurn ?? null;
+        if (sourceAgentSession) receivedAgentSessions.push(sourceAgentSession);
         return managedSession;
       }
     } as unknown as ManagedSessionBackend,
@@ -209,6 +218,122 @@ test("binds a managed Claude interrupt to its exact current source user entry", 
     startedAt: "2026-07-31T10:00:01.000Z",
     userEntryId: "user-current"
   });
+
+  assert.equal(receivedAgentSessions[0]?.id, "codex:source-1");
+  assert.equal(receivedAgentSessions[0]?.agentId, "claude-code");
+});
+
+test("treats a repeated Stop for the same confirmed raw-active turn as idempotent", async () => {
+  let receivedSourceTurn: { fingerprint: string } | null | undefined;
+  const discoveryCalls: Array<{ chatMessageTail?: number; transcriptTail?: number }> = [];
+  const managedSession = createManagedSession({
+    adapterId: "claude-code",
+    status: "stopped",
+    replyState: { phase: "idle", promptText: null, requestedAt: null }
+  });
+  const service = new ManagedSessionService(
+    {
+      getSession: () => managedSession,
+      interruptSession: async (
+        _sessionId: string,
+        sourceTurn?: SourceTurnInterruptTarget | null
+      ) => {
+        receivedSourceTurn = sourceTurn;
+        return managedSession;
+      }
+    } as unknown as ManagedSessionBackend,
+    {
+      getSessionDetailForManagedSession: async (
+        _session: SessionSummary,
+        transcriptTail?: number,
+        chatMessageTail?: number
+      ) => {
+        discoveryCalls.push({ chatMessageTail, transcriptTail });
+
+        return createAgentSession({
+          agentId: "claude-code",
+          interruptLifecycle: {
+            phase: "confirmed",
+            requestedAt: "2026-07-31T10:00:02.000Z",
+            confirmedAt: "2026-07-31T10:00:03.000Z",
+            turnFingerprint: "user-current",
+            confirmation: "verified_process",
+            outcome: "interrupted"
+          },
+          transcript: [
+            transcriptEntry("user-current", "user", "Prompt", "2026-07-31T10:00:00.000Z"),
+            transcriptEntry("turn-current", "system", "Turn started", "2026-07-31T10:00:01.000Z")
+          ],
+          turnState: {
+            activityAt: "2026-07-31T10:00:01.000Z",
+            completedAt: null,
+            evidence: "turn_lifecycle",
+            fingerprint: "turn-current",
+            phase: "active",
+            startedAt: "2026-07-31T10:00:01.000Z"
+          }
+        });
+      }
+    } as unknown as SourceAgentSessionDiscovery
+  );
+
+  await service.interruptSession("session-1");
+
+  assert.deepEqual(discoveryCalls, [{ chatMessageTail: 8, transcriptTail: 160 }]);
+  assert.equal(receivedSourceTurn, null);
+});
+
+test("does not hide a newer active turn behind an older confirmed interruption", async () => {
+  let receivedSourceTurn: { fingerprint: string } | null | undefined;
+  const managedSession = createManagedSession({
+    adapterId: "claude-code",
+    status: "stopped",
+    replyState: { phase: "idle", promptText: null, requestedAt: null }
+  });
+  const service = new ManagedSessionService(
+    {
+      getSession: () => managedSession,
+      interruptSession: async (
+        _sessionId: string,
+        sourceTurn?: SourceTurnInterruptTarget | null
+      ) => {
+        receivedSourceTurn = sourceTurn;
+        return managedSession;
+      }
+    } as unknown as ManagedSessionBackend,
+    {
+      getSessionDetailForManagedSession: async () => createAgentSession({
+        agentId: "claude-code",
+        interruptLifecycle: {
+          phase: "confirmed",
+          requestedAt: "2026-07-31T10:00:02.000Z",
+          confirmedAt: "2026-07-31T10:00:03.000Z",
+          turnFingerprint: "user-previous",
+          confirmation: "verified_process",
+          outcome: "interrupted"
+        },
+        transcript: [
+          transcriptEntry("user-previous", "user", "Previous", "2026-07-31T10:00:00.000Z"),
+          transcriptEntry("turn-previous", "system", "Turn started", "2026-07-31T10:00:01.000Z"),
+          transcriptEntry("turn-complete", "system", "Turn completed", "2026-07-31T10:00:02.000Z"),
+          transcriptEntry("user-current", "user", "Current", "2026-07-31T10:01:00.000Z"),
+          transcriptEntry("turn-current", "system", "Turn started", "2026-07-31T10:01:01.000Z")
+        ],
+        turnState: {
+          activityAt: "2026-07-31T10:01:01.000Z",
+          completedAt: null,
+          evidence: "turn_lifecycle",
+          fingerprint: "turn-current",
+          phase: "active",
+          startedAt: "2026-07-31T10:01:01.000Z"
+        }
+      })
+    } as unknown as SourceAgentSessionDiscovery
+  );
+
+  await service.interruptSession("session-1");
+
+  assert.equal(receivedSourceTurn?.fingerprint, "turn-current");
 });
 
 test("starts a queued Codex prompt immediately when its source chat is already idle", async () => {
@@ -229,6 +354,7 @@ test("starts a queued Codex prompt immediately when its source chat is already i
     },
     status: "running" as const
   };
+
   const service = new ManagedSessionService(
     {
       getSession: () => queued,
@@ -333,6 +459,7 @@ test("deduplicates direct and overview reply-state sync for the same session", a
   );
 
   const directSync = service.syncReplyStateForSession("session-1");
+
   await discoveryStarted;
   const overviewSync = service.syncReplyStatesForRunningAttachedSessions();
 

@@ -133,6 +133,7 @@ export class StoreBackedPromptTransportCoordinator {
       ) {
         this.options.updateSession(session.id, {
           replyState: {
+            deliveryRequestedAt: requestedAt,
             phase: "queued",
             promptText: prompt,
             requestedAt
@@ -197,7 +198,7 @@ export class StoreBackedPromptTransportCoordinator {
     strategy: SourcePromptTransportStrategy
   ): Promise<SessionDetail> {
     try {
-      const updatedSession = await strategy.start(session, prompt, {
+      const updatedSession = await strategy.start(session, prompt, preparedDelivery.requestedAt, {
         markPromptAccepted: (sessionId) =>
           this.markDeliveryAccepted(sessionId, preparedDelivery),
         markPromptDispatching: (sessionId) =>
@@ -402,6 +403,28 @@ export class StoreBackedPromptTransportCoordinator {
     this.options.promptDeliveries.markObservedBySession(sessionId);
   }
 
+  private markUncertainPromptOutcome(sessionId: string, session: SessionDetail | null) {
+    const outcomeUnknown = this.options.promptDeliveries.markOutcomeUnknownBySession(sessionId);
+    const promptText = session?.replyState.promptText?.trim() ?? "";
+    const requestedAt = session?.replyState.deliveryRequestedAt ?? session?.replyState.requestedAt;
+    const observedPromptAt = session?.replyState.phase === "waiting" &&
+      session.replyState.sourcePromptObserved === true
+      ? session.replyState.requestedAt
+      : null;
+
+    if (!outcomeUnknown || !promptText || !requestedAt) return;
+
+    this.options.updateSession(sessionId, {
+      promptRecovery: {
+        ...(observedPromptAt ? { observedPromptAt } : {}),
+        phase: observedPromptAt ? "checking" : "outcome_unknown",
+        promptText,
+        requestedAt,
+        retryable: false
+      }
+    });
+  }
+
   private markDeliveryAccepted(
     sessionId: string,
     preparedDelivery: PreparedPromptDelivery
@@ -462,15 +485,18 @@ export class StoreBackedPromptTransportCoordinator {
     }
 
     if (status === "failed" || (exitCode !== null && exitCode !== 0)) {
-      this.options.promptDeliveries.markInterrupted(sessionId);
+      this.markUncertainPromptOutcome(sessionId, session);
+
       return;
     }
 
-    if (
-      status === "read_only" &&
-      session?.adapterId === "claude-code" &&
-      session.replyState.phase === "sending"
-    ) {
+    if (session?.sourceSessionId && session.replyState.phase !== "idle") {
+      this.markUncertainPromptOutcome(sessionId, session);
+      return;
+    }
+
+    if (session?.promptRecovery) {
+      this.markUncertainPromptOutcome(sessionId, session);
       return;
     }
 

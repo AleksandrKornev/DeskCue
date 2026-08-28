@@ -254,7 +254,11 @@ export class StoreBackedSessionOperations {
     }, sessionId);
   }
 
-  interruptSession(sessionId: string, sourceTurn?: SourceTurnInterruptTarget | null) {
+  interruptSession(
+    sessionId: string,
+    sourceTurn?: SourceTurnInterruptTarget | null,
+    sourceAgentSession?: AgentSessionDetail | null
+  ) {
     return interruptStoreBackedSession({
       cancelQueuedPrompt: (session) =>
         this.promptTransport.cancelQueuedCodexPrompt(session),
@@ -262,8 +266,10 @@ export class StoreBackedSessionOperations {
       getCommandCallbacks: () => createSessionCommandCallbacks(this.callbackContext()),
       getSession: (id) => this.getSession(id),
       hasManagedChild: (id) => this.sessionRunner.hasChild(id),
+      publishSourceSessionUpdate: (session) =>
+        this.emitServerEvent({ type: "agent.session.updated", payload: session }),
       sourceTurnInterrupts: this.sourceTurnInterrupts
-    }, sessionId, sourceTurn);
+    }, sessionId, sourceTurn, sourceAgentSession);
   }
 
   async getExternalForceStopCapability(sessionId: string): Promise<ExternalForceStopCapability> {
@@ -449,7 +455,7 @@ export class StoreBackedSessionOperations {
   }
 
   private getSession(sessionId: string): SessionDetail | null {
-    const session = this.repository.getSession(sessionId);
+    const session = this.persistence.materializeSession(sessionId);
 
     return session ? structuredClone(this.withInputCapability(session)) : null;
   }

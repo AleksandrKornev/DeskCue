@@ -35,6 +35,7 @@ type LaunchSessionCallbacks = {
     text: string,
     timestamp?: string
   ) => void;
+  deleteChild: (sessionId: string) => void;
   emitServerEvent: (event: ServerEvent) => void;
   finishSession: (sessionId: string, status: SessionDetail["status"], exitCode: number | null) => void;
   getChild: (sessionId: string) => RunningChild | undefined;
@@ -174,6 +175,7 @@ export async function launchManagedSession(
     preview: emptyPreview(),
     replyState: argvPrompt
       ? {
+          deliveryRequestedAt: requestedAt,
           phase: "sending",
           promptText: argvPrompt,
           requestedAt
@@ -308,6 +310,7 @@ export async function launchManagedSession(
 
   attachSessionExitHandler({
     child,
+    deleteChild: callbacks.deleteChild,
     getSession: callbacks.getSession,
     isCurrentChild: callbacks.isCurrentChild,
     onAppendSystemLog: (sessionId, text) => callbacks.appendLog(sessionId, "system", text),

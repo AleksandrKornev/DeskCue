@@ -38,7 +38,8 @@ export async function retryRecoveredPrompt(
 }
 
 function getPendingPromptStatusLabel(
-  status: PendingChatPrompt["status"] | PromptRecoveryState["phase"] | null | undefined
+  status: PendingChatPrompt["status"] | PromptRecoveryState["phase"] | null | undefined,
+  recovery: PromptRecoveryState | null
 ) {
   switch (status) {
     case "not_confirmed":
@@ -46,9 +47,9 @@ function getPendingPromptStatusLabel(
     case "cancelled":
       return "Cancelled";
     case "checking":
-      return "Checking delivery";
+      return "Checking outcome";
     case "outcome_unknown":
-      return "Delivery unknown";
+      return recovery?.observedPromptAt ? "Outcome unknown" : "Delivery unknown";
     case "not_sent":
       return "Not sent";
     case "queued":
@@ -73,19 +74,23 @@ function buildRecoveryOperation(
     return {
       kind: "recovery",
       actionLabel,
-      detail: "DeskCue restarted during this turn. It is checking the source agent's history and will not resend the prompt.",
+      detail: "DeskCue lost the prompt transport during this turn. It is checking the source agent's history and will not resend the prompt.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
-      title: "Recovering turn state"
+      title: "Reconciling turn outcome"
     };
   }
 
   if (recovery.phase === "outcome_unknown") {
+    const promptWasObserved = Boolean(recovery.observedPromptAt);
+
     return {
       kind: "recovery",
       actionLabel,
-      detail: "DeskCue did not find a final reply after restarting. Check the source agent before continuing; DeskCue will not resend the prompt.",
+      detail: promptWasObserved
+        ? "The source agent recorded this prompt, but DeskCue could not confirm how the turn ended. DeskCue will not resend it automatically."
+        : "DeskCue could not confirm whether the source agent received this prompt or how the turn ended. It will not resend the prompt automatically.",
       identity: `${recovery.requestedAt}:${recovery.promptText ?? ""}`,
-      title: "Turn outcome unknown"
+      title: promptWasObserved ? "Turn outcome unknown" : "Prompt delivery unknown"
     };
   }
 
@@ -111,7 +116,10 @@ function buildChatThreadOperation(
   if (
     input.waiting.kind === "idle" ||
     isPromptQueued ||
-    isInterruptLifecycleWaitingSuppressed(input.interruptLifecycle)
+    isInterruptLifecycleWaitingSuppressed(
+      input.interruptLifecycle,
+      input.pendingChatPrompt?.requestedAt
+    )
   ) return { kind: "idle" };
 
   return {
@@ -215,7 +223,7 @@ export function buildManagedSessionChatThreadState(
         requestedAt: renderedPendingPrompt.requestedAt,
         statusLabel: shouldRenderImmediateInterruptPrompt
           ? formatChatTime(renderedPendingPrompt.requestedAt)
-          : getPendingPromptStatusLabel(renderedPendingPromptStatus),
+          : getPendingPromptStatusLabel(renderedPendingPromptStatus, input.promptRecovery),
         text: renderedPendingPrompt.text,
         turnStatus:
           shouldRenderImmediateInterruptPrompt && input.immediateInterruptPrompt

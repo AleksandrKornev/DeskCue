@@ -6,11 +6,13 @@ import type { AgentSessionDetail, SessionDetail } from "@deskcue/protocol";
 import { reconcileSessionPromptRecovery } from "./sessionPromptRecovery.ts";
 
 function recoverySession(
-  phase: NonNullable<SessionDetail["promptRecovery"]>["phase"]
+  phase: NonNullable<SessionDetail["promptRecovery"]>["phase"],
+  observedPromptAt?: string
 ): Pick<SessionDetail, "inputHistory" | "promptRecovery"> {
   return {
     inputHistory: ["Recover me"],
     promptRecovery: {
+      ...(observedPromptAt ? { observedPromptAt } : {}),
       phase,
       promptText: "Recover me",
       requestedAt: "2026-08-11T10:00:00.000Z",
@@ -86,7 +88,8 @@ test("moves a bounded source check without matching prompt to outcome unknown", 
       phase: "idle",
       promptText: null,
       requestedAt: null
-    }
+    },
+    terminalOutcome: null
   });
 });
 
@@ -103,9 +106,9 @@ test("does not confuse an identical earlier prompt with the recovered delivery",
   assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
 });
 
-test("keeps recovery unresolved when the prompt is visible without a terminal outcome", () => {
+test("keeps checking a prompt that was observed without a terminal outcome", () => {
   const result = reconcileSessionPromptRecovery(
-    recoverySession("checking"),
+    recoverySession("checking", "2026-08-11T10:00:02.000Z"),
     sourceSession([
       transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z")
     ])
@@ -114,6 +117,7 @@ test("keeps recovery unresolved when the prompt is visible without a terminal ou
   assert.deepEqual(result, {
     confirmed: true,
     promptRecovery: {
+      observedPromptAt: "2026-08-11T10:00:02.000Z",
       phase: "outcome_unknown",
       promptText: "Recover me",
       requestedAt: "2026-08-11T10:00:00.000Z",
@@ -123,13 +127,14 @@ test("keeps recovery unresolved when the prompt is visible without a terminal ou
       phase: "idle",
       promptText: null,
       requestedAt: null
-    }
+    },
+    terminalOutcome: null
   });
 });
 
 test("does not treat non-final assistant activity as a terminal outcome", () => {
   const result = reconcileSessionPromptRecovery(
-    recoverySession("checking"),
+    recoverySession("checking", "2026-08-11T10:00:02.000Z"),
     sourceSession([
       transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
       transcriptEntry(
@@ -151,7 +156,7 @@ test("does not treat non-final assistant activity as a terminal outcome", () => 
   });
 });
 
-test("does not treat an assistant entry without terminal lifecycle evidence as completed", () => {
+test("does not reinterpret new transcript evidence after recovery became outcome unknown", () => {
   const result = reconcileSessionPromptRecovery(
     recoverySession("outcome_unknown"),
     sourceSession([
@@ -160,7 +165,7 @@ test("does not treat an assistant entry without terminal lifecycle evidence as c
     ])
   );
 
-  assert.equal(result?.confirmed, true);
+  assert.equal(result?.confirmed, false);
   assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
 });
 
@@ -180,7 +185,7 @@ test("does not use a later turn's terminal result to resolve recovery", () => {
     ])
   );
 
-  assert.equal(result?.confirmed, true);
+  assert.equal(result?.confirmed, false);
   assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
 });
 
@@ -200,13 +205,13 @@ test("does not let a later identical prompt steal recovery association", () => {
     ])
   );
 
-  assert.equal(result?.confirmed, true);
+  assert.equal(result?.confirmed, false);
   assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
 });
 
-test("clears an existing unknown outcome after a late terminal lifecycle entry", () => {
+test("clears an observed recovery after a late terminal lifecycle entry", () => {
   const result = reconcileSessionPromptRecovery(
-    recoverySession("outcome_unknown"),
+    recoverySession("checking", "2026-08-11T10:00:02.000Z"),
     sourceSession([
       transcriptEntry("recovered-user", "user", "Recover me", "2026-08-11T10:00:02.000Z"),
       {
@@ -226,6 +231,26 @@ test("clears an existing unknown outcome after a late terminal lifecycle entry",
       phase: "idle",
       promptText: null,
       requestedAt: null
-    }
+    },
+    terminalOutcome: "completed"
   });
+});
+
+test("does not let a later identical prompt resolve an unobserved recovery", () => {
+  const result = reconcileSessionPromptRecovery(
+    recoverySession("outcome_unknown"),
+    sourceSession([
+      transcriptEntry("external-repeat", "user", "Recover me", "2026-08-11T10:05:00.000Z"),
+      {
+        id: "external-turn-completed",
+        phase: null,
+        role: "system",
+        text: "Turn completed",
+        timestamp: "2026-08-11T10:05:01.000Z"
+      }
+    ])
+  );
+
+  assert.equal(result?.confirmed, false);
+  assert.equal(result?.promptRecovery?.phase, "outcome_unknown");
 });

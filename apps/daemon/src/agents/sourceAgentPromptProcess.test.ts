@@ -131,3 +131,55 @@ test("reports a rejected readiness handshake as a confirmed startup failure", as
     }
   );
 });
+
+test("keeps the accepted child exit observable when initial persistence fails", async () => {
+  const persistError = new Error("state save failed");
+  const exitHandlers: Array<(event: { exitCode: number | null }) => void> = [];
+  const finished: Array<{ exitCode: number | null; status: string }> = [];
+  let pendingExitCode: number | null | undefined;
+  const session = {
+    adapterId: "codex",
+    id: "session-1",
+    inputHistory: [],
+    replyState: { phase: "idle" }
+  };
+
+  const child = {
+    onData: () => ({ dispose: () => {} }),
+    onExit: (handler: (event: { exitCode: number | null }) => void) => {
+      exitHandlers.push(handler);
+      if (pendingExitCode !== undefined) handler({ exitCode: pendingExitCode });
+      return { dispose: () => {} };
+    },
+    startupReady: Promise.resolve()
+  };
+
+  const callbacks = {
+    appendStdoutLog: () => {},
+    appendSystemLog: () => {},
+    deleteChild: () => {},
+    finishSession: (_sessionId: string, status: string, exitCode: number | null) => {
+      finished.push({ exitCode, status });
+    },
+    getSession: () => ({ ...session, status: "running" }),
+    isCurrentChild: () => true,
+    markPromptAccepted: () => {},
+    markPromptDispatching: () => {},
+    persistState: async () => {
+      pendingExitCode = 1;
+      throw persistError;
+    },
+    spawnProcess: () => child,
+    startGitPolling: () => {},
+    stopGitPolling: () => {},
+    updateSession: () => {}
+  };
+
+  await assert.rejects(
+    runSourcePromptProcessLifecycle(callbacks as never, lifecycle({ session })),
+    persistError
+  );
+
+  assert.equal(exitHandlers.length, 1);
+  assert.deepEqual(finished, [{ exitCode: 1, status: "failed" }]);
+});
