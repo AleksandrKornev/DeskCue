@@ -6,7 +6,10 @@ import {
 } from "react";
 
 import { filterHumanVisibleTranscriptEntries } from "@models/transcriptEntries";
-import { getUnavailableChatPresentation } from "@modules/agents/agentSessionAccessPresentation";
+import {
+  canContinueAgentSession,
+  getUnavailableChatPresentation
+} from "@modules/agents/agentSessionAccessPresentation";
 
 import { buildTranscriptTimeline } from "./AgentTranscriptPanel.timeline";
 import {
@@ -48,26 +51,27 @@ export function useAgentTranscriptPanelState({
   const isHydratingSelection = Boolean(displaySession) && (isLoading || isWaitingForSessionDetail);
   const isReviewOnlyRuntime =
     displaySession?.agentId === "other" && displaySession.agentLabel === "LM Studio";
-  const isSharedLiveThread = displaySession?.attachMode !== "resume";
+  const canContinueSourceChat = displaySession ? canContinueAgentSession(displaySession) : false;
+  const isSharedLiveThread = Boolean(displaySession) && !canContinueSourceChat;
   const isOpeningSharedLiveThread = attaching && isSharedLiveThread && !attachedManagedSessionId;
   const unavailableChatPresentation = displaySession
     ? getUnavailableChatPresentation(displaySession)
     : null;
   const sourceCapabilityLabel = isHydratingSelection
     ? "Loading chat"
-    : displaySession?.attachMode === "resume"
+    : canContinueSourceChat
       ? "Ready to continue"
       : unavailableChatPresentation?.capabilityLabel ?? "View only";
   const actionButtonLabel = buildAttachActionButtonLabel({
     attachWaitStage,
     attaching,
-    canResume: displaySession?.attachMode === "resume",
+    canResume: canContinueSourceChat,
     hasAttachedManagedSession: Boolean(attachedManagedSessionId),
     isOpeningSharedLiveThread,
     unavailableActionLabel: unavailableChatPresentation?.actionLabel ?? "Open view-only chat"
   });
   const hiddenPreviewText =
-    displaySession?.attachMode === "resume"
+    canContinueSourceChat
       ? "Open this local thread in DeskCue and send a prompt when you are ready"
       : unavailableChatPresentation?.hint ?? "Open this local thread in DeskCue for review";
   const attachedViewerCount = attachedManagedSessionInfo?.viewerCount ?? 0;
@@ -89,10 +93,12 @@ export function useAgentTranscriptPanelState({
     () => buildTranscriptTimeline(filterHumanVisibleTranscriptEntries(session?.transcript ?? [])),
     [session?.transcript]
   );
+
   const textOnlyTranscriptEntries = useMemo(
     () => buildTextOnlyTranscriptEntries(transcriptTimeline),
     [transcriptTimeline]
   );
+
   const isTranscriptPreviewLoading =
     Boolean(displaySession) && isHydratingSelection && textOnlyTranscriptEntries.length === 0;
   const visibleTextOnlyTranscriptEntries = useMemo<TextOnlyTranscriptEntry[]>(

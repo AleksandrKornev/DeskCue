@@ -75,11 +75,13 @@ export function resolveLiveSourceState(
 
 export function resolveLiveHeaderStatus({
   hasCompletedManagedPrompt = false,
+  isManagedPromptWaiting = false,
   isPromptInFlight,
   takenOverAgentSession,
   sessionShell
 }: {
   hasCompletedManagedPrompt?: boolean;
+  isManagedPromptWaiting?: boolean;
   isPromptInFlight: boolean;
   sessionShell: Pick<
     SessionDetail | SessionSummary,
@@ -88,10 +90,11 @@ export function resolveLiveHeaderStatus({
   takenOverAgentSession: SourceLiveState | null;
 }): SessionStatus {
   if (sessionShell?.status === "failed") return "failed";
+  if (sessionShell?.promptRecovery) return "read_only";
+  if (sessionShell?.sourceSessionId && isManagedPromptWaiting) return "running";
   if (sessionShell?.status === "done") return "done";
   if (sessionShell?.status === "stopped") return "stopped";
-  if (sessionShell?.promptRecovery) return "read_only";
-  if (sessionShell?.sourceSessionId && hasCompletedManagedPrompt) return "read_only";
+  if (sessionShell?.sourceSessionId && hasCompletedManagedPrompt && !isPromptInFlight) return "read_only";
 
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
 
@@ -125,11 +128,13 @@ export function resolveLiveHeaderStatus({
 
 export function resolveLiveHeaderStatusLabel({
   hasCompletedManagedPrompt = false,
+  isManagedPromptWaiting = false,
   isPromptInFlight,
   sessionShell,
   takenOverAgentSession
 }: {
   hasCompletedManagedPrompt?: boolean;
+  isManagedPromptWaiting?: boolean;
   isPromptInFlight: boolean;
   sessionShell: Pick<
     SessionDetail | SessionSummary,
@@ -142,10 +147,11 @@ export function resolveLiveHeaderStatusLabel({
   if (sessionShell.promptRecovery?.phase === "checking") return "recovering";
   if (sessionShell.promptRecovery?.phase === "outcome_unknown") return "control lost";
   if (sessionShell.status === "failed") return "failed";
+  if (isManagedPromptWaiting) return undefined;
   if (sessionShell.status === "done") return "ready";
   if (sessionShell.status === "stopped") return "ready";
 
-  if (hasCompletedManagedPrompt) {
+  if (hasCompletedManagedPrompt && !isPromptInFlight) {
     return takenOverAgentSession?.attachMode === "resume" ? "ready" : "view only";
   }
 

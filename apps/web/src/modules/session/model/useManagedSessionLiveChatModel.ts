@@ -16,6 +16,7 @@ export function useManagedSessionLiveChatModel({
   agentSessions,
   agentTranscriptHasMoreById,
   hasCompletedManagedPrompt,
+  isManagedPromptWaiting,
   isPromptInFlight,
   loadingMoreAgentTranscriptId,
   managedSessions,
@@ -25,6 +26,7 @@ export function useManagedSessionLiveChatModel({
   agentSessions: AgentSessionSummary[];
   agentTranscriptHasMoreById: Map<string, boolean>;
   hasCompletedManagedPrompt: boolean;
+  isManagedPromptWaiting: boolean;
   isPromptInFlight: boolean;
   loadingMoreAgentTranscriptId: string;
   managedSessions: SessionSummary[];
@@ -35,6 +37,7 @@ export function useManagedSessionLiveChatModel({
   const isTakenOverChat = Boolean(sessionShell?.sourceSessionId);
   const liveSessionTitle = formatManagedSessionTitle(sessionShell, takenOverAgentSession);
   const liveSessionSubtitle = formatManagedSessionSubtitle(sessionShell, takenOverAgentSession);
+
   const activeTakenOverAgentSessionSummary = useMemo(
     () =>
       findManagedSourceSessionSummary(
@@ -44,6 +47,7 @@ export function useManagedSessionLiveChatModel({
       ),
     [agentSessions, sessionShell, takenOverAgentSession]
   );
+
   const contextCompactionCount = resolveContextCompactionCount(
     takenOverAgentSession?.contextCompactionCount,
     activeTakenOverAgentSessionSummary?.contextCompactionCount
@@ -52,6 +56,7 @@ export function useManagedSessionLiveChatModel({
     takenOverAgentSession,
     activeTakenOverAgentSessionSummary
   );
+
   const switchableManagedSessions = useMemo(
     () =>
       managedSessions
@@ -59,6 +64,7 @@ export function useManagedSessionLiveChatModel({
         .sort(compareSwitchableManagedSessions),
     [managedSessions]
   );
+
   const liveChatSessionId = sessionShell?.id ?? "";
   const liveChatSourceSessionId = sessionShell?.sourceSessionId ?? "";
   const liveChatAgentSessionId =
@@ -78,6 +84,7 @@ export function useManagedSessionLiveChatModel({
         : undefined,
     [liveChatAgentSessionId, sessionShell?.id]
   );
+
   const canLoadMoreAgentTranscript = liveChatAgentSessionId
     ? agentTranscriptHasMoreById.get(liveChatAgentSessionId) !== false
     : false;
@@ -85,12 +92,14 @@ export function useManagedSessionLiveChatModel({
     Boolean(liveChatAgentSessionId) && loadingMoreAgentTranscriptId === liveChatAgentSessionId;
   const liveHeaderStatusLabel = resolveLiveHeaderStatusLabel({
     hasCompletedManagedPrompt,
+    isManagedPromptWaiting,
     isPromptInFlight,
     sessionShell,
     takenOverAgentSession: liveSourceState
   });
   const liveHeaderStatus = resolveLiveHeaderStatus({
     hasCompletedManagedPrompt,
+    isManagedPromptWaiting,
     isPromptInFlight,
     sessionShell,
     takenOverAgentSession: liveSourceState

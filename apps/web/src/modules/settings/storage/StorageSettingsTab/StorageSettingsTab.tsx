@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { observer } from "mobx-react-lite";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { ConfirmDialog } from "@components/ModalDialog";
@@ -54,9 +54,7 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
     ? "This permanently removes all non-running session cards and DeskCue logs. Running sessions, pairing and access, workspaces, settings, recovery copies, and Ollama or LM Studio chats stay unchanged."
     : `This permanently removes ${storageStats?.migrationBackups.count ?? 0} migration recovery copies (${formatBytes(storageStats?.migrationBackups.bytes ?? 0)}). Service data and all chats stay unchanged.`;
 
-  // runtime-helper-placement: allow -- confirmation depends on current component state and store
-
-  const handleConfirm = async () => {
+  const handleConfirm = useCallback(async () => {
     if (confirmationTarget === "service") {
       await storageStore.compactStorage();
     } else if (confirmationTarget === "backups") {
@@ -64,7 +62,7 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
     }
 
     setConfirmationTarget(null);
-  };
+  }, [confirmationTarget, storageStore]);
 
   return (
     <>

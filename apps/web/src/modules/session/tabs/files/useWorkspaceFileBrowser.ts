@@ -223,27 +223,27 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     };
   }, [restoreTarget, workspaceId]);
 
+  const handlePopState = useCallback((event: PopStateEvent) => {
+    if (!workspaceId) return;
+
+    const stateTarget = readWorkspaceFileHistoryTarget(event.state);
+
+    if (stateTarget?.workspaceId === workspaceId) {
+      void restoreTarget(stateTarget);
+      return;
+    }
+
+    if (historyTargetRef.current?.path || historyTargetRef.current?.kind === "file") {
+      void restoreTarget({ kind: "directory", path: "", workspaceId });
+    }
+  }, [restoreTarget, workspaceId]);
+
   useEffect(() => {
     if (!workspaceId) return;
 
-    // runtime-helper-placement: allow -- closes over the active workspace and restore callback.
-
-    const handlePopState = (event: PopStateEvent) => {
-      const stateTarget = readWorkspaceFileHistoryTarget(event.state);
-
-      if (stateTarget?.workspaceId === workspaceId) {
-        void restoreTarget(stateTarget);
-        return;
-      }
-
-      if (historyTargetRef.current?.path || historyTargetRef.current?.kind === "file") {
-        void restoreTarget({ kind: "directory", path: "", workspaceId });
-      }
-    };
-
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [restoreTarget, workspaceId]);
+  }, [handlePopState, workspaceId]);
 
   const openDirectory = useCallback((path: string) => {
     targetOperationRef.current += 1;

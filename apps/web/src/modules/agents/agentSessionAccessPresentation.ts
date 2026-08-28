@@ -6,6 +6,10 @@ function getSourceOwnerLabel(session: AgentSessionSummary) {
   return null;
 }
 
+export function canContinueAgentSession(session: AgentSessionSummary) {
+  return session.attachMode === "resume" && session.workState !== "running";
+}
+
 export function getUnavailableChatPresentation(session: AgentSessionSummary) {
   const sourceOwnerLabel = getSourceOwnerLabel(session);
   const sourceLocationLabel = sourceOwnerLabel ? `in ${sourceOwnerLabel}` : "outside DeskCue";

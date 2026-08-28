@@ -1,10 +1,13 @@
 import clsx from "clsx";
 
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
-import { requestConfirmation } from "@components/ModalDialog";
 import { formatDate } from "@lib/format";
-import { getUnavailableChatPresentation } from "@modules/agents/agentSessionAccessPresentation";
+import {
+  canContinueAgentSession,
+  getUnavailableChatPresentation
+} from "@modules/agents/agentSessionAccessPresentation";
 import type { AgentSessionsPanelProps } from "@modules/agents/types";
+import { useAgentSessionConfirmationGuard } from "@modules/agents/useAgentSessionConfirmationGuard";
 import { useCurrentAgentSessionActionGuard } from "@modules/agents/useCurrentAgentSessionActionGuard";
 
 import styles from "./styles.module.scss";
@@ -29,6 +32,12 @@ export function AgentTranscriptPanelFallback({
   onOpenManagedSession
 }: AgentTranscriptPanelFallbackProps) {
   const currentSessionIdRef = useCurrentAgentSessionActionGuard(session?.id ?? null);
+  const requestCurrentSessionConfirmation = useAgentSessionConfirmationGuard({
+    accessKey: session
+      ? [session.attachMode, session.workState, session.agentId, session.originator ?? ""].join(":")
+      : "",
+    sessionId: session?.id ?? null
+  });
 
   if (!session) {
     return (
@@ -45,10 +54,11 @@ export function AgentTranscriptPanelFallback({
   }
 
   const attachedViewerCount = attachedManagedSessionInfo?.viewerCount ?? 0;
+  const canContinueSourceChat = canContinueAgentSession(session);
   const unavailableChatPresentation = getUnavailableChatPresentation(session);
   const capabilityLabel = isLoading
     ? "Loading chat"
-    : session.attachMode === "resume"
+    : canContinueSourceChat
       ? "Ready to continue"
       : unavailableChatPresentation.capabilityLabel;
   const attachedSessionHint = attachedManagedSessionInfo
@@ -60,7 +70,7 @@ export function AgentTranscriptPanelFallback({
     : null;
   const actionLabel = attachedManagedSessionId
     ? "Open live chat"
-    : session.attachMode === "resume"
+    : canContinueSourceChat
       ? "Continue chat"
       : unavailableChatPresentation.actionLabel;
 
@@ -93,8 +103,8 @@ export function AgentTranscriptPanelFallback({
               return;
             }
 
-            if (session.attachMode !== "resume") {
-              const confirmed = await requestConfirmation({
+            if (!canContinueSourceChat) {
+              const confirmed = await requestCurrentSessionConfirmation({
                 confirmLabel: unavailableChatPresentation.confirmLabel,
                 description: unavailableChatPresentation.description,
                 title: unavailableChatPresentation.title
@@ -115,7 +125,7 @@ export function AgentTranscriptPanelFallback({
           {attaching
             ? "DeskCue is preparing the local thread"
             : attachedSessionHint ??
-              (session.attachMode === "resume"
+              (canContinueSourceChat
                 ? "Open the completed chat; sending a follow-up continues it"
                 : unavailableChatPresentation.hint)}
         </p>

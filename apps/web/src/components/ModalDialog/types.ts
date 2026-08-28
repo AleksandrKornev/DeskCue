@@ -28,8 +28,16 @@ export type ConfirmationOptions = {
   tone?: "danger" | "default";
 };
 
+export type ConfirmationRequestLifecycle = {
+  signal?: AbortSignal;
+};
+
 export type ConfirmationDialogRequest = {
   id: number;
   options: ConfirmationOptions;
   resolve: (confirmed: boolean) => void;
+};
+
+export type ConfirmationDialogCancellation = {
+  id: number;
 };

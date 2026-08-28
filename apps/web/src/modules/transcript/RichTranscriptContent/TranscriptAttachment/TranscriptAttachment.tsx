@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useCallback } from "react";
 
 import { LOCAL_ASSET_LINK_EXPIRY_LABEL } from "@api/endpoint/assets/endpoints";
 import type { LocalAssetLinkContext } from "@api/endpoint/assets/types";
@@ -70,9 +71,7 @@ export function TranscriptAttachmentCard(props: {
     imagePreviewState !== "error";
   const isImagePreviewError = hasImagePreview && imagePreviewState === "error";
 
-  // runtime-helper-placement: allow -- card action dispatch depends on this render's preview and asset state.
-
-  function handlePrimaryCardAction() {
+  const handlePrimaryCardAction = useCallback(() => {
     if (previewKind !== "none" && previewUrl) {
       setPreviewOpen(true);
       return;
@@ -84,7 +83,7 @@ export function TranscriptAttachmentCard(props: {
     }
 
     if (openHref) window.open(openHref, "_blank", "noopener,noreferrer");
-  }
+  }, [handleOpenLocalAsset, isLocalAsset, openHref, previewKind, previewUrl, setPreviewOpen]);
 
   return (
     <>

@@ -389,6 +389,15 @@ export class SourceAgentSessionService {
     return this.backend.resumeCodexSession(codexSession, prompt);
   }
 
+  private createReadCompletion<T>(key: string, promise: Promise<T>) {
+    return () => {
+      this.activeReadCount -= 1;
+      this.activeReads.delete(promise);
+      if (this.inFlightReads.get(key) === promise) this.inFlightReads.delete(key);
+      this.startQueuedReads();
+    };
+  }
+
   private dedupeRead<T>(key: string, read: () => Promise<T>): Promise<T> {
     const existing = this.inFlightReads.get(key) as Promise<T> | undefined;
 
@@ -416,13 +425,7 @@ export class SourceAgentSessionService {
       start = () => {
         this.activeReadCount += 1;
         this.activeReads.add(promise);
-
-        /* runtime-helper-placement: allow -- per-read closure */ const complete = () => {
-          this.activeReadCount -= 1;
-          this.activeReads.delete(promise);
-          if (this.inFlightReads.get(key) === promise) this.inFlightReads.delete(key);
-          this.startQueuedReads();
-        };
+        const complete = this.createReadCompletion(key, promise);
 
         try {
           read().then(resolve, reject).then(complete, complete);

@@ -105,6 +105,57 @@ describe("managed session live chat model", () => {
     }), "ready");
   });
 
+  it("keeps a repeated prompt running while an older identical prompt looks completed", () => {
+    const sessionShell = {
+      sourceSessionId: "source-1",
+      status: "running" as const
+    };
+
+    const sourceSession = {
+      attachMode: "resume" as const,
+      workState: "running" as const
+    };
+
+    assert.equal(resolveLiveHeaderStatus({
+      hasCompletedManagedPrompt: true,
+      isManagedPromptWaiting: true,
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: sourceSession
+    }), "running");
+    assert.equal(resolveLiveHeaderStatusLabel({
+      hasCompletedManagedPrompt: true,
+      isManagedPromptWaiting: true,
+      isPromptInFlight: true,
+      sessionShell,
+      takenOverAgentSession: sourceSession
+    }), undefined);
+  });
+
+  it("lets a fresh managed prompt supersede the previous terminal shell", () => {
+    for (const status of ["done", "stopped"] as const) {
+      const sessionShell = { sourceSessionId: "source-1", status };
+
+      assert.equal(resolveLiveHeaderStatus({
+        isManagedPromptWaiting: true,
+        isPromptInFlight: true,
+        sessionShell,
+        takenOverAgentSession: {
+          workState: "idle"
+        }
+      }), "running");
+      assert.equal(resolveLiveHeaderStatusLabel({
+        isManagedPromptWaiting: true,
+        isPromptInFlight: true,
+        sessionShell,
+        takenOverAgentSession: {
+          attachMode: "resume",
+          workState: "idle"
+        }
+      }), undefined);
+    }
+  });
+
   it("falls back to the shell status for a manual session", () => {
     assert.equal(
       resolveLiveHeaderStatus({
