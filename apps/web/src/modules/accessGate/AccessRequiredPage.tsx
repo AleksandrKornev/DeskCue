@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import {
@@ -23,19 +23,15 @@ export function AccessRequiredPage() {
   const recoveryUrlExample = buildRecoveryUrlExample();
   const from = new URLSearchParams(location.search).get("from");
 
-  // runtime-helper-placement: allow -- this click handler closes over component state
-
-  function handleClearSavedCredential() {
+  const handleClearSavedCredential = useCallback(() => {
     clearSavedAccessCredential();
     setHasSavedCredential(false);
-  }
+  }, []);
 
-  // runtime-helper-placement: allow -- this click handler belongs to the rendered retry control
-
-  function handleRetry() {
+  const handleRetry = useCallback(() => {
     clearConnectionPreparationFailure();
     window.location.reload();
-  }
+  }, []);
 
   return (
     <main className={styles.page}>

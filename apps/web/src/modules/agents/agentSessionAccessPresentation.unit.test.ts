@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentSessionSummary } from "@deskcue/protocol";
 
-import { getUnavailableChatPresentation } from "./agentSessionAccessPresentation";
+import {
+  canContinueAgentSession,
+  getUnavailableChatPresentation
+} from "./agentSessionAccessPresentation";
 
 function createSession(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary {
   return {
@@ -26,6 +29,19 @@ function createSession(patch: Partial<AgentSessionSummary> = {}): AgentSessionSu
 }
 
 describe("agent session access presentation", () => {
+  it("does not offer to continue a resumable source chat while its external turn is active", () => {
+    expect(canContinueAgentSession(createSession({
+      agentId: "claude-code",
+      agentLabel: "Claude Code",
+      attachMode: "resume",
+      workState: "running"
+    }))).toBe(false);
+  });
+
+  it("offers to continue an idle resumable source chat", () => {
+    expect(canContinueAgentSession(createSession({ attachMode: "resume" }))).toBe(true);
+  });
+
   it("does not attribute a running Codex turn to Desktop without source evidence", () => {
     const presentation = getUnavailableChatPresentation(createSession({ workState: "running" }));
 

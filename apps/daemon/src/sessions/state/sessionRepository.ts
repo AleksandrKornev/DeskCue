@@ -281,6 +281,12 @@ export class SessionRepository {
     return null;
   }
 
+  private createAttachedSessionCreationCleanup(key: string, created: Promise<SessionDetail>) {
+    return () => {
+      if (this.attachedSessionCreations.get(key) === created) this.attachedSessionCreations.delete(key);
+    };
+  }
+
   runAttachedSessionCreation(
     adapterId: string,
     sourceSessionId: string,
@@ -292,12 +298,7 @@ export class SessionRepository {
     if (pending) return pending;
 
     const created = Promise.resolve().then(operation);
-
-    // runtime-helper-placement: allow -- cleanup must close over this exact keyed promise.
-
-    const clearPending = () => {
-      if (this.attachedSessionCreations.get(key) === created) this.attachedSessionCreations.delete(key);
-    };
+    const clearPending = this.createAttachedSessionCreationCleanup(key, created);
 
     this.attachedSessionCreations.set(key, created);
     created.then(clearPending, clearPending);

@@ -378,6 +378,72 @@ describe("mergeAgentSessionDetail", () => {
     assert.equal(merged.turnState?.fingerprint, "terminal-1");
   });
 
+  it("retains an active lifecycle when a transcript delta carries the previous terminal state", () => {
+    const current = createSessionDetail({
+      turnState: {
+        activityAt: "2026-07-17T10:00:10.000Z",
+        completedAt: null,
+        evidence: "unanswered_user_turn",
+        fingerprint: "start-2",
+        phase: "active",
+        startedAt: "2026-07-17T10:00:10.000Z"
+      },
+      updatedAt: "2026-07-17T10:00:10.000Z",
+      workState: "running"
+    });
+    const staleTerminal = createSessionDetail({
+      turnState: {
+        activityAt: null,
+        completedAt: "2026-07-17T10:00:05.000Z",
+        evidence: "terminal_lifecycle",
+        fingerprint: "terminal-1",
+        phase: "completed",
+        startedAt: null,
+        turnStartFingerprint: "start-1"
+      },
+      updatedAt: "2026-07-17T10:00:10.000Z",
+      workState: "idle"
+    });
+
+    const merged = mergeAgentSessionDetail(current, staleTerminal);
+
+    assert.equal(merged.workState, "running");
+    assert.equal(merged.turnState?.fingerprint, "start-2");
+  });
+
+  it("accepts a terminal lifecycle that completes the current active turn", () => {
+    const current = createSessionDetail({
+      turnState: {
+        activityAt: "2026-07-17T10:00:10.000Z",
+        completedAt: null,
+        evidence: "unanswered_user_turn",
+        fingerprint: "start-2",
+        phase: "active",
+        startedAt: "2026-07-17T10:00:10.000Z"
+      },
+      updatedAt: "2026-07-17T10:00:10.000Z",
+      workState: "running"
+    });
+    const terminal = createSessionDetail({
+      turnState: {
+        activityAt: null,
+        completedAt: "2026-07-17T10:00:20.000Z",
+        evidence: "terminal_lifecycle",
+        fingerprint: "terminal-2",
+        phase: "completed",
+        startedAt: null,
+        turnStartFingerprint: "start-2"
+      },
+      updatedAt: "2026-07-17T10:00:20.000Z",
+      workState: "idle"
+    });
+
+    const merged = mergeAgentSessionDetail(current, terminal);
+
+    assert.equal(merged.workState, "idle");
+    assert.equal(merged.turnState?.fingerprint, "terminal-2");
+  });
+
   it("preserves latest waiting detail entry reference when payload is equal", () => {
     const messageEntry = createEntry("entry:message", "working");
     const waitingEntry = createEntry("entry:waiting", "waiting for approval");

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import { KeyValue, StatusBadge } from "@components/Panel";
 import { SegmentedTabs } from "@components/SegmentedTabs";
@@ -75,26 +75,30 @@ export function ManualSessionChrome({
   // React retries this render before commit, so another command cannot inherit expanded state.
   if (!ownsCommandDisclosure) setCommandDisclosure({ command, isExpanded: false, sessionId: sessionShell.id });
 
-  useLayoutEffect(() => {
+  const measureCommandOverflow = useCallback(() => {
     const commandElement = commandRef.current;
 
     if (!commandElement || isCommandExpanded) return;
 
-    /* runtime-helper-placement: allow -- captures the current element and session. */ const measureCommandOverflow = () => {
-      const value = isManualCommandOverflowing(commandElement);
+    const value = isManualCommandOverflowing(commandElement);
 
-      setCommandOverflow((current) => {
-        if (
-          current?.command === command &&
-          current.sessionId === sessionShell.id &&
-          current.value === value
-        ) {
-          return current;
-        }
+    setCommandOverflow((current) => {
+      if (
+        current?.command === command &&
+        current.sessionId === sessionShell.id &&
+        current.value === value
+      ) {
+        return current;
+      }
 
-        return { command, sessionId: sessionShell.id, value };
-      });
-    };
+      return { command, sessionId: sessionShell.id, value };
+    });
+  }, [command, isCommandExpanded, sessionShell.id]);
+
+  useLayoutEffect(() => {
+    const commandElement = commandRef.current;
+
+    if (!commandElement || isCommandExpanded) return;
 
     measureCommandOverflow();
     if (typeof ResizeObserver === "undefined") return;
@@ -104,7 +108,7 @@ export function ManualSessionChrome({
     resizeObserver.observe(commandElement);
 
     return () => resizeObserver.disconnect();
-  }, [command, isCommandExpanded, sessionShell.id]);
+  }, [isCommandExpanded, measureCommandOverflow]);
 
   return (
     <>

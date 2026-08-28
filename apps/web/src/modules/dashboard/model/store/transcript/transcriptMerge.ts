@@ -51,11 +51,44 @@ function shouldRetainTerminalSourceLifecycle(
     nextStartedAt < currentCompletedAt;
 }
 
-function retainTerminalSourceLifecycle(
+function shouldRetainActiveSourceLifecycle(
+  current: AgentSessionDetail,
+  next: AgentSessionDetail
+) {
+  const currentTurnState = current.turnState;
+  const nextTurnState = next.turnState;
+
+  if (
+    !currentTurnState ||
+    currentTurnState.phase !== "active" ||
+    !nextTurnState ||
+    nextTurnState.phase === "active"
+  ) {
+    return false;
+  }
+
+  if (nextTurnState.turnStartFingerprint === currentTurnState.fingerprint) return false;
+
+  const currentStartedAt = Date.parse(
+    currentTurnState.startedAt ?? currentTurnState.activityAt ?? ""
+  );
+  const nextCompletedAt = Date.parse(nextTurnState.completedAt ?? "");
+
+  return Number.isFinite(currentStartedAt) &&
+    Number.isFinite(nextCompletedAt) &&
+    nextCompletedAt < currentStartedAt;
+}
+
+function retainCurrentSourceLifecycle(
   current: AgentSessionDetail,
   next: AgentSessionDetail
 ): AgentSessionDetail {
-  if (!shouldRetainTerminalSourceLifecycle(current, next)) return next;
+  if (
+    !shouldRetainTerminalSourceLifecycle(current, next) &&
+    !shouldRetainActiveSourceLifecycle(current, next)
+  ) {
+    return next;
+  }
 
   return {
     ...next,
@@ -110,7 +143,7 @@ export function mergeAgentSessionDetail(
           contextCompactionCount,
           model
         };
-  const nextDetail = retainTerminalSourceLifecycle(current, normalizedNextDetail);
+  const nextDetail = retainCurrentSourceLifecycle(current, normalizedNextDetail);
   const transcriptViewUnchanged =
     next.transcriptView === undefined ||
     current.transcriptView === transcriptView;

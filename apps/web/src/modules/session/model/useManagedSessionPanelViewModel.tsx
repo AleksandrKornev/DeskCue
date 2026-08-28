@@ -97,6 +97,7 @@ export function useManagedSessionPanelViewModel({
     previewEnabled && activeTab === "preview" && !usesHostPreviewLauncher
   );
   const promptRecovery = sessionShell?.promptRecovery ?? null;
+
   const sourceSessionSummary = useMemo(
     () =>
       findManagedSourceSessionSummary(
@@ -106,6 +107,7 @@ export function useManagedSessionPanelViewModel({
       ),
     [agentSessions, sessionShell, takenOverAgentSession]
   );
+
   const retryRecoveredPrompt = useCallback(
     () => resendRecoveredPrompt({
       clearPendingCommand: () => {
@@ -194,6 +196,9 @@ export function useManagedSessionPanelViewModel({
     agentSessions,
     agentTranscriptHasMoreById,
     hasCompletedManagedPrompt,
+    isManagedPromptWaiting:
+      Boolean(displayedPendingChatPrompt) ||
+      effectiveIsWaitingForChatReply,
     isPromptInFlight:
       Boolean(displayedPendingChatPrompt) ||
       effectiveIsWaitingForChatReply ||
@@ -250,6 +255,7 @@ export function useManagedSessionPanelViewModel({
       waitingDetailSince
     ]
   );
+
   const bottomStickKey = [
     displayedPendingChatPrompt?.requestedAt ?? "",
     effectiveShellWaitingPrompt?.requestedAt ?? "",
@@ -324,6 +330,7 @@ export function useManagedSessionPanelViewModel({
     ),
     [readActivityHydrationErrorLabel, readHydratedActivityEntries]
   );
+
   const immediateInterruptPrompt =
     persistedImmediateInterruptPrompt &&
     (!persistedImmediateInterruptPrompt.sessionId ||

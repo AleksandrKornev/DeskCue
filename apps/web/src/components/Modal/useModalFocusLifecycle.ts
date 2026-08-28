@@ -208,24 +208,22 @@ function collectModalRestoreTargets(entry: ModalLifecycleEntry) {
   return Array.from(new Set(targets));
 }
 
+function focusModalRestoreTarget(entry: ModalLifecycleEntry) {
+  const restoreTargets = collectModalRestoreTargets(entry);
+
+  for (const restoreTarget of restoreTargets) {
+    restoreTarget.focus({ preventScroll: true });
+
+    if (document.activeElement === restoreTarget) return;
+  }
+
+  focusMainFallback();
+}
+
 function restoreModalFocus(entry: ModalLifecycleEntry) {
-  // runtime-helper-placement: allow -- this closure retains the entry for the deferred restore verification.
+  focusModalRestoreTarget(entry);
 
-  const focusRestoreTarget = () => {
-    const restoreTargets = collectModalRestoreTargets(entry);
-
-    for (const restoreTarget of restoreTargets) {
-      restoreTarget.focus({ preventScroll: true });
-
-      if (document.activeElement === restoreTarget) return;
-    }
-
-    focusMainFallback();
-  };
-
-  focusRestoreTarget();
-
-  return window.requestAnimationFrame(focusRestoreTarget);
+  return window.requestAnimationFrame(() => focusModalRestoreTarget(entry));
 }
 
 function createTopModalFocusInHandler(

@@ -2,9 +2,9 @@ import clsx from "clsx";
 import { memo } from "react";
 
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
-import { requestConfirmation } from "@components/ModalDialog";
 import { Tooltip } from "@components/Tooltip";
 import { formatDate } from "@lib/format";
+import { useAgentSessionConfirmationGuard } from "@modules/agents/useAgentSessionConfirmationGuard";
 import { useCurrentAgentSessionActionGuard } from "@modules/agents/useCurrentAgentSessionActionGuard";
 import { ModelRuntimePanel } from "@modules/modelRuntime";
 import {
@@ -67,6 +67,17 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
   const currentDisplaySessionIdRef = useCurrentAgentSessionActionGuard(
     displaySession?.id ?? null
   );
+  const requestCurrentSessionConfirmation = useAgentSessionConfirmationGuard({
+    accessKey: displaySession
+      ? [
+          displaySession.attachMode,
+          displaySession.workState,
+          displaySession.agentId,
+          displaySession.originator ?? ""
+        ].join(":")
+      : "",
+    sessionId: displaySession?.id ?? null
+  });
 
   if (isLoading && !displaySession) {
     return (
@@ -210,8 +221,8 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
                 return;
               }
 
-              if (displaySession.attachMode !== "resume") {
-                const confirmed = await requestConfirmation({
+              if (isSharedLiveThread) {
+                const confirmed = await requestCurrentSessionConfirmation({
                   confirmLabel: unavailableChatPresentation?.confirmLabel ?? "Open view-only chat",
                   description:
                     unavailableChatPresentation?.description ??
