@@ -17,6 +17,7 @@ type AttachSessionDataHandlerOptions = {
 
 type AttachSessionExitHandlerOptions = {
   child: RunningChild;
+  deleteChild: (sessionId: string) => void;
   getSession: (sessionId: string) => SessionDetail | null;
   isCurrentChild: (sessionId: string, child: RunningChild) => boolean;
   onAppendSystemLog: (sessionId: string, text: string) => void;
@@ -70,6 +71,7 @@ export function attachSessionDataHandler({
 
 export function attachSessionExitHandler({
   child,
+  deleteChild,
   getSession,
   isCurrentChild,
   onAppendSystemLog,
@@ -81,6 +83,11 @@ export function attachSessionExitHandler({
 
     if (!current) return;
     if (!isCurrentChild(sessionId, child)) return;
+
+    if (current.finishedAt) {
+      deleteChild(sessionId);
+      return;
+    }
 
     const processExitCode = exitCode ?? null;
     const nextStatus = getExitedSessionStatus(current, processExitCode);

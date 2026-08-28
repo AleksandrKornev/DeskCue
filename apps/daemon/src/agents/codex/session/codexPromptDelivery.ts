@@ -209,6 +209,7 @@ export async function restartCodexTransport(
 
   attachSessionExitHandler({
     child: nextChild,
+    deleteChild: callbacks.deleteChild,
     getSession: callbacks.getSession,
     isCurrentChild: callbacks.isCurrentChild,
     onAppendSystemLog: callbacks.appendSystemLog,

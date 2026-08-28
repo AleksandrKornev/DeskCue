@@ -63,6 +63,7 @@ export function createClaudePromptTransportStrategy(
           options.appendLog(sessionId, "stdout", text),
         appendSystemLog: (sessionId, text, timestamp) =>
           options.appendLog(sessionId, "system", text, timestamp),
+        deleteChild: (sessionId) => options.sessionRunner.deleteChild(sessionId),
         finishSession: (sessionId, status, exitCode) =>
           options.finishSession(sessionId, status, exitCode),
         getChild: (sessionId) => options.sessionRunner.getChild(sessionId),

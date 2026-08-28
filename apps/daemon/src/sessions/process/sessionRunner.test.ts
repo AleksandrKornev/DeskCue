@@ -207,6 +207,7 @@ test("restart termination releases ownership before the old child exits", async 
 
   attachSessionExitHandler({
     child,
+    deleteChild: (sessionId) => runner.deleteChild(sessionId),
     getSession: () => ({
       adapterId: "codex",
       command: "codex exec resume source-session continue",
@@ -241,6 +242,7 @@ test("preserves a source-confirmed successful outcome when its redundant transpo
 
   attachSessionExitHandler({
     child,
+    deleteChild: () => {},
     getSession: () => session,
     isCurrentChild: () => true,
     onAppendSystemLog: (_sessionId, text) => {
@@ -257,6 +259,44 @@ test("preserves a source-confirmed successful outcome when its redundant transpo
   assert.deepEqual(finished, { exitCode: 0, status: "read_only" });
   assert.match(systemLog, /exited with code 1/);
   assert.match(systemLog, /preserving the successful session outcome/);
+});
+
+test("releases an exited child without finalizing an already terminal session again", () => {
+  const child = fakeChild({ exitDelayMs: null });
+  const runner = new SessionRunner({ createPipe: () => child });
+
+  runner.spawnProcess({
+    command: "claude",
+    cwd: "C:\\workspace",
+    env: {},
+    sessionId: "session-source-completed",
+    spawnSpec: { args: [], file: "claude.exe", transport: "pipe" }
+  });
+  let finalizationCount = 0;
+
+  attachSessionExitHandler({
+    child,
+    deleteChild: (sessionId) => runner.deleteChild(sessionId),
+    getSession: () => ({
+      adapterId: "claude-code",
+      command: "claude --resume source-session",
+      exitCode: 0,
+      finishedAt: "2026-08-28T10:00:00.000Z",
+      sourceSessionId: "source-session",
+      status: "done"
+    }) as SessionDetail,
+    isCurrentChild: (sessionId, candidate) => runner.isCurrentChild(sessionId, candidate),
+    onAppendSystemLog: () => undefined,
+    onFinishSession: () => {
+      finalizationCount += 1;
+    },
+    sessionId: "session-source-completed"
+  });
+
+  child.emitExit(1);
+
+  assert.equal(finalizationCount, 0);
+  assert.equal(runner.hasChild("session-source-completed"), false);
 });
 
 test("restart termination restores current ownership when the old child does not exit", async () => {
@@ -494,6 +534,7 @@ test("keeps child identity until the lifecycle exit handler finalizes the sessio
 
   attachSessionExitHandler({
     child,
+    deleteChild: (sessionId) => runner.deleteChild(sessionId),
     getSession: () => ({
       adapterId: "generic-cli",
       command: "agent",

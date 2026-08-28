@@ -495,6 +495,11 @@ export class StoreBackedPromptTransportCoordinator {
       return;
     }
 
+    if (session?.promptRecovery) {
+      this.markUncertainPromptOutcome(sessionId, session);
+      return;
+    }
+
     this.options.promptDeliveries.markCompleted(sessionId);
   }
 }

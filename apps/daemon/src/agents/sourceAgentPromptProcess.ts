@@ -26,6 +26,7 @@ export type SourcePromptProcessCallbacks = {
   appendStderrLog?: (sessionId: string, text: string) => void;
   appendStdoutLog: (sessionId: string, text: string) => void;
   appendSystemLog: (sessionId: string, text: string, timestamp?: string) => void;
+  deleteChild: (sessionId: string) => void;
   finishSession: (sessionId: string, status: SessionStatus, exitCode: number | null) => void;
   getSession: (sessionId: string) => SessionDetail | null;
   isCurrentChild: (sessionId: string, child: RunningChild) => boolean;
@@ -114,18 +115,22 @@ export async function runSourcePromptProcessLifecycle(
 
   callbacks.appendSystemLog(session.id, "Input sent.\n", lifecycle.requestedAt);
   callbacks.appendSystemLog(session.id, lifecycle.startedMessage);
-  await callbacks.persistState();
 
-  // A short-lived source runtime can finish before its handlers are attached.
-  // Register exit only after the session owns the child and is persisted.
-  attachSessionExitHandler({
-    child,
-    getSession: callbacks.getSession,
-    isCurrentChild: callbacks.isCurrentChild,
-    onAppendSystemLog: callbacks.appendSystemLog,
-    onFinishSession: callbacks.finishSession,
-    sessionId: session.id
-  });
+  try {
+    await callbacks.persistState();
+  } finally {
+    // A short-lived source runtime can finish before persistence settles.
+    // Keep its terminal event observable even when the initial save fails.
+    attachSessionExitHandler({
+      child,
+      deleteChild: callbacks.deleteChild,
+      getSession: callbacks.getSession,
+      isCurrentChild: callbacks.isCurrentChild,
+      onAppendSystemLog: callbacks.appendSystemLog,
+      onFinishSession: callbacks.finishSession,
+      sessionId: session.id
+    });
+  }
 
   lifecycle.logStarted(child);
   return callbacks.getSession(session.id);

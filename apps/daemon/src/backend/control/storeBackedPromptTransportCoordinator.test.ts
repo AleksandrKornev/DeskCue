@@ -899,6 +899,48 @@ test(`keeps a clean ${adapterId} transport exit uncertain without transcript evi
 });
 }
 
+for (const adapterId of ["codex", "claude-code"] as const) {
+test(`does not complete a clean ${adapterId} exit while prompt recovery is unresolved`, async () => {
+  const lifecycle: string[] = [];
+  const session = sessionDetail({ adapterId });
+  const restartProcess = async (callbacks: {
+    markPromptAccepted?: (sessionId: string) => void;
+    markPromptDispatching?: (sessionId: string) => void;
+  }) => {
+    callbacks.markPromptDispatching?.(session.id);
+    callbacks.markPromptAccepted?.(session.id);
+    return session;
+  };
+
+  const coordinator = coordinatorFor(
+    session,
+    lifecycle,
+    adapterId === "codex"
+      ? { restartCodexTransportProcess: restartProcess }
+      : { restartClaudePromptTransportProcess: restartProcess }
+  );
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  coordinator.recordSessionFinished(session.id, {
+    ...session,
+    promptRecovery: {
+      phase: "outcome_unknown",
+      promptText: "Continue safely",
+      requestedAt: "2026-08-28T10:00:00.000Z",
+      retryable: false
+    },
+    replyState: emptyReplyState()
+  }, adapterId === "codex" ? "done" : "read_only", 0);
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Continue safely",
+    "dispatching",
+    "accepted",
+    "outcome-unknown"
+  ]);
+});
+}
+
 test("completes the journal after reply state has authoritative completion evidence", async () => {
   const lifecycle: string[] = [];
   const session = sessionDetail();

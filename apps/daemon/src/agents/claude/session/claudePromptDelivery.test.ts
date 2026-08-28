@@ -92,6 +92,7 @@ test("restarts a failed attached Claude shell through a one-shot pipe transport"
     {
       appendStdoutLog: () => {},
       appendSystemLog: (_sessionId, text) => systemLogs.push(text),
+      deleteChild: () => {},
       findBackgroundAgent: async () => null,
       resolveBackgroundControlCapability: async (sourceSessionId) => ({
         kind: "observe_only",
@@ -156,6 +157,7 @@ test("refuses to start a competing Claude prompt for an active external interact
       {
         appendStdoutLog: () => {},
         appendSystemLog: () => {},
+        deleteChild: () => {},
         findBackgroundAgent: async () => null,
         resolveBackgroundControlCapability: async (sourceSessionId) => ({
           kind: "observe_only",
@@ -200,6 +202,7 @@ test("does not spawn Claude when durable dispatch transition fails", async () =>
       {
         appendStdoutLog: () => {},
         appendSystemLog: () => {},
+        deleteChild: () => {},
         findBackgroundAgent: async () => null,
         resolveBackgroundControlCapability: async (sourceSessionId) => ({
           kind: "observe_only",
