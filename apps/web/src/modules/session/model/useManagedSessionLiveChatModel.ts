@@ -15,6 +15,7 @@ import {
 export function useManagedSessionLiveChatModel({
   agentSessions,
   agentTranscriptHasMoreById,
+  hasCompletedManagedPrompt,
   isPromptInFlight,
   loadingMoreAgentTranscriptId,
   managedSessions,
@@ -23,6 +24,7 @@ export function useManagedSessionLiveChatModel({
 }: {
   agentSessions: AgentSessionSummary[];
   agentTranscriptHasMoreById: Map<string, boolean>;
+  hasCompletedManagedPrompt: boolean;
   isPromptInFlight: boolean;
   loadingMoreAgentTranscriptId: string;
   managedSessions: SessionSummary[];
@@ -82,11 +84,13 @@ export function useManagedSessionLiveChatModel({
   const isMoreAgentTranscriptLoading =
     Boolean(liveChatAgentSessionId) && loadingMoreAgentTranscriptId === liveChatAgentSessionId;
   const liveHeaderStatusLabel = resolveLiveHeaderStatusLabel({
+    hasCompletedManagedPrompt,
     isPromptInFlight,
     sessionShell,
     takenOverAgentSession: liveSourceState
   });
   const liveHeaderStatus = resolveLiveHeaderStatus({
+    hasCompletedManagedPrompt,
     isPromptInFlight,
     sessionShell,
     takenOverAgentSession: liveSourceState

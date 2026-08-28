@@ -57,6 +57,18 @@ export class SqliteSessionRepository {
     return { fullSessions, lightweightSessions };
   }
 
+  loadRow(sessionId: string) {
+    const row = this.database.prepare(`
+      SELECT id, json
+      FROM sessions
+      WHERE id = ?
+    `).get(sessionId) as SessionRow | undefined;
+
+    if (row) this.persistedJsonById.set(row.id, row.json);
+
+    return row ?? null;
+  }
+
   rememberRows(rows: SessionRow[]) {
     this.persistedJsonById.clear();
     for (const row of rows) {

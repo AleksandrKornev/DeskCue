@@ -41,6 +41,7 @@ function sessionDetail(): SessionDetail {
 
 test("cancelling a queued prompt schedules its log before durable persistence", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail());
   const lifecycle: string[] = [];
   const operations = new StoreBackedSessionOperations({
@@ -49,6 +50,7 @@ test("cancelling a queued prompt schedules its log before durable persistence", 
     } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {
         lifecycle.push("persist-now");
       },
@@ -72,6 +74,7 @@ test("cancelling a queued prompt schedules its log before durable persistence", 
 
 test("cancelling a queued prompt surfaces durable persistence failure", async () => {
   const repository = new SessionRepository();
+
   repository.setSession(sessionDetail());
   const persistenceError = new Error("sqlite unavailable");
   const operations = new StoreBackedSessionOperations({
@@ -80,6 +83,7 @@ test("cancelling a queued prompt surfaces durable persistence failure", async ()
     } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {
         throw persistenceError;
       },

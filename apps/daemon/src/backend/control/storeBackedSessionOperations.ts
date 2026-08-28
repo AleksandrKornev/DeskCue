@@ -455,7 +455,7 @@ export class StoreBackedSessionOperations {
   }
 
   private getSession(sessionId: string): SessionDetail | null {
-    const session = this.repository.getSession(sessionId);
+    const session = this.persistence.materializeSession(sessionId);
 
     return session ? structuredClone(this.withInputCapability(session)) : null;
   }

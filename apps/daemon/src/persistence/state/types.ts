@@ -16,6 +16,7 @@ export interface PersistedDeskCueStatePatch {
 
 export type DaemonStateStorage = {
   load: () => Promise<PersistedDeskCueState>;
+  loadSession?: (sessionId: string) => SessionDetail | null;
   save: (state: PersistedDeskCueState) => Promise<void>;
 };
 

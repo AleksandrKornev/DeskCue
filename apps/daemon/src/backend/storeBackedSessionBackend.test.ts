@@ -9,11 +9,15 @@ import type { DaemonEventBus } from "#application/ports";
 import { SqliteDatabaseContext } from "#persistence/connection/sqliteConnection";
 import { SqliteAgentSessionReviewStore } from "#persistence/journals/agentSessionReviewStore";
 import { SqlitePromptDeliveryJournalStore } from "#persistence/journals/promptDeliveryJournalStore";
+import { pruneTerminalSessions } from "#persistence/maintenance/storageMaintenanceSessions";
 import { DeskCueSqliteStateStorage } from "#persistence/state/sqliteStateStorage";
+import type { DaemonStateStorage } from "#persistence/state/types";
 import { emptyPreview, emptyReplyState } from "#sessions/model/sessionDefaults";
 import type { RunningChild } from "#sessions/process/sessionProcess";
 import { SessionRunner } from "#sessions/process/sessionRunner";
+import { SessionRepository } from "#sessions/state/sessionRepository";
 
+import { StoreBackedPersistenceController } from "./persistence/storeBackedPersistenceController.ts";
 import { StoreBackedSessionBackend } from "./storeBackedSessionBackend.ts";
 
 test("backend drains borrowed SQLite stores before the shared context closes", async () => {
@@ -101,6 +105,35 @@ async function recoveryFixture(adapterId: "claude-code" | "codex" | "generic-cli
   return { context, directory, eventBus, session, workspace };
 }
 
+test("invalidates a partial shell when storage cannot materialize sessions", async () => {
+  const fixture = await recoveryFixture("codex");
+
+  try {
+    const repository = new SessionRepository();
+    const stateStorage: DaemonStateStorage = {
+      async load() {
+        return { version: 1, workspaces: [], sessions: [] };
+      },
+      async save() {}
+    };
+
+    const persistence = new StoreBackedPersistenceController(repository, stateStorage);
+
+    repository.setWorkspace(fixture.workspace);
+    repository.setSession(fixture.session, { partial: true });
+    repository.markAllPersisted();
+
+    assert.equal(persistence.materializeSession(fixture.session.id), null);
+    assert.equal(repository.getSession(fixture.session.id), null);
+    assert.deepEqual(repository.listPartialSessionIds(), []);
+
+    await persistence.close();
+  } finally {
+    fixture.context.close();
+    await rm(fixture.directory, { force: true, recursive: true });
+  }
+});
+
 test("restart exposes a prepared prompt as definitely not sent without auto retry", async () => {
   const fixture = await recoveryFixture("codex");
 
@@ -124,6 +157,120 @@ test("restart exposes a prepared prompt as definitely not sent without auto retr
     assert.deepEqual(recovered?.replyState, emptyReplyState());
     assert.match(recovered?.logs.at(-1)?.text ?? "", /was not sent/i);
     await backend.close();
+  } finally {
+    fixture.context.close();
+    await rm(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("restart materializes terminal Codex state before applying durable prompt recovery", async () => {
+  const fixture = await recoveryFixture("codex");
+
+  try {
+    const terminalSession: SessionDetail = {
+      ...fixture.session,
+      status: "done",
+      finishedAt: "2026-08-11T10:01:00.000Z",
+      exitCode: 0,
+      replyState: emptyReplyState(),
+      logs: [{
+        id: "previous-log",
+        timestamp: "2026-08-11T10:01:00.000Z",
+        stream: "stdout",
+        text: "Previous durable output.\n"
+      }],
+      inputHistory: ["Previous successful prompt"]
+    };
+
+    const storage = new DeskCueSqliteStateStorage(fixture.context);
+
+    await storage.save({
+      version: 1,
+      workspaces: [fixture.workspace],
+      sessions: [terminalSession]
+    });
+
+    storage.close();
+
+    const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
+
+    journal.prepare(terminalSession, "Definitely not sent after restart");
+    journal.close();
+
+    const backend = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
+    const recovered = backend.getSession(terminalSession.id);
+
+    assert.deepEqual(recovered?.inputHistory, terminalSession.inputHistory);
+    assert.equal(recovered?.logs[0]?.text, "Previous durable output.\n");
+    assert.equal(recovered?.promptRecovery?.phase, "not_sent");
+
+    await backend.close();
+
+    const row = fixture.context.database.prepare(
+      "SELECT json FROM sessions WHERE id = ?"
+    ).get(terminalSession.id) as { json: string };
+    const persisted = JSON.parse(row.json) as SessionDetail;
+
+    assert.deepEqual(persisted.inputHistory, terminalSession.inputHistory);
+    assert.equal(persisted.logs[0]?.text, "Previous durable output.\n");
+    assert.equal(persisted.promptRecovery?.phase, "not_sent");
+  } finally {
+    fixture.context.close();
+    await rm(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("invalidates a lightweight session when maintenance removed its durable row", async () => {
+  const fixture = await recoveryFixture("codex");
+
+  try {
+    const terminalSession: SessionDetail = {
+      ...fixture.session,
+      status: "done",
+      finishedAt: "2026-08-11T10:01:00.000Z",
+      exitCode: 0,
+      replyState: emptyReplyState(),
+      logs: [{
+        id: "durable-log",
+        timestamp: "2026-08-11T10:01:00.000Z",
+        stream: "stdout",
+        text: "Durable output.\n"
+      }],
+      inputHistory: ["Previous successful prompt"]
+    };
+
+    const storage = new DeskCueSqliteStateStorage(fixture.context);
+
+    await storage.save({
+      version: 1,
+      workspaces: [fixture.workspace],
+      sessions: [terminalSession]
+    });
+
+    storage.close();
+
+    const backend = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
+    const deletedRows = pruneTerminalSessions(
+      fixture.context.database,
+      7 * 24 * 60 * 60 * 1_000,
+      1_000,
+      new Date("2026-08-20T10:01:00.000Z")
+    );
+
+    assert.equal(deletedRows, 1);
+    assert.equal(backend.getSession(terminalSession.id), null);
+    await assert.rejects(
+      backend.sendInput(terminalSession.id, "Must not reach the source"),
+      /Session is not accepting input/
+    );
+
+    await backend.close();
+
+    const row = fixture.context.database.prepare(
+      "SELECT id FROM sessions WHERE id = ?"
+    ).get(terminalSession.id);
+
+    assert.equal(row, undefined);
   } finally {
     fixture.context.close();
     await rm(fixture.directory, { force: true, recursive: true });

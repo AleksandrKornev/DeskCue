@@ -45,7 +45,9 @@ test("rejects an active external agent turn without a verified control channel",
   const operations = new StoreBackedSessionOperations({
     eventBus: {} as never,
     gitPolling: {} as never,
-    persistence: {} as never,
+    persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId)
+    } as never,
     repository,
     sessionRunner: {
       hasChild: () => false
@@ -70,7 +72,9 @@ test("does not advertise interrupt for an external Codex Desktop chat", async ()
   const operations = new StoreBackedSessionOperations({
     eventBus: {} as never,
     gitPolling: {} as never,
-    persistence: {} as never,
+    persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId)
+    } as never,
     repository,
     sessionRunner: {
       hasChild: () => false
@@ -117,6 +121,7 @@ test("journals and serializes prompt writes for a daemon-owned Generic PTY", asy
     eventBus: { publishServerEvent: () => {} } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: () => persistGate,
       schedulePersist: () => {}
     } as never,
@@ -198,7 +203,9 @@ test("opens only an external Codex Desktop session on the host", async () => {
   const operations = new StoreBackedSessionOperations({
     eventBus: {} as never,
     gitPolling: {} as never,
-    persistence: {} as never,
+    persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId)
+    } as never,
     repository,
     sessionRunner: {
       hasChild: () => false
@@ -237,6 +244,7 @@ test("records and confirms an owned interrupt after a synchronous managed transp
     } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {},
       schedulePersist: () => {}
     } as never,
@@ -360,6 +368,7 @@ test("publishes a rollback when an owned source interrupt cannot stop its transp
     } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {},
       schedulePersist: () => {}
     } as never,
@@ -425,6 +434,7 @@ test("does not leave a detached Codex prompt queued when transport cannot start"
     } as never,
     gitPolling: {} as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {
         lifecycle.push("persist");
       },
@@ -490,6 +500,7 @@ test("marks an unconfirmed shutdown survivor as recovery-required instead of sto
       stop: (sessionId: string) => events.push(`git-stop:${sessionId}`)
     } as never,
     persistence: {
+      materializeSession: (sessionId: string) => repository.getSession(sessionId),
       persistNow: async () => {},
       schedulePersist: () => {}
     } as never,

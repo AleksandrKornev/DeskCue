@@ -74,10 +74,12 @@ export function resolveLiveSourceState(
 }
 
 export function resolveLiveHeaderStatus({
+  hasCompletedManagedPrompt = false,
   isPromptInFlight,
   takenOverAgentSession,
   sessionShell
 }: {
+  hasCompletedManagedPrompt?: boolean;
   isPromptInFlight: boolean;
   sessionShell: Pick<
     SessionDetail | SessionSummary,
@@ -89,6 +91,7 @@ export function resolveLiveHeaderStatus({
   if (sessionShell?.status === "done") return "done";
   if (sessionShell?.status === "stopped") return "stopped";
   if (sessionShell?.promptRecovery) return "read_only";
+  if (sessionShell?.sourceSessionId && hasCompletedManagedPrompt) return "read_only";
 
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
 
@@ -121,10 +124,12 @@ export function resolveLiveHeaderStatus({
 }
 
 export function resolveLiveHeaderStatusLabel({
+  hasCompletedManagedPrompt = false,
   isPromptInFlight,
   sessionShell,
   takenOverAgentSession
 }: {
+  hasCompletedManagedPrompt?: boolean;
   isPromptInFlight: boolean;
   sessionShell: Pick<
     SessionDetail | SessionSummary,
@@ -139,6 +144,10 @@ export function resolveLiveHeaderStatusLabel({
   if (sessionShell.status === "failed") return "failed";
   if (sessionShell.status === "done") return "ready";
   if (sessionShell.status === "stopped") return "ready";
+
+  if (hasCompletedManagedPrompt) {
+    return takenOverAgentSession?.attachMode === "resume" ? "ready" : "view only";
+  }
 
   const interruptLifecycle = getSessionInterruptLifecycle(takenOverAgentSession);
 

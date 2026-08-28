@@ -88,10 +88,11 @@ function createAgentSession({
   if (includeReply) {
     transcript.push({
       id: "assistant-current",
+      phase: null,
       role: "assistant",
       text: "Implemented.",
       timestamp: "2026-08-21T08:00:01.000Z"
-    } as AgentSessionDetail["transcript"][number]);
+    });
   }
 
   return {

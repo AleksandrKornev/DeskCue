@@ -121,7 +121,7 @@ export class StoreBackedSessionBackend {
   }
 
   getSession(id: string) {
-    const session = this.repository.getSession(id);
+    const session = this.persistence.materializeSession(id);
 
     return session ? structuredClone(this.operations.withInputCapability(session)) : null;
   }
@@ -273,7 +273,7 @@ export class StoreBackedSessionBackend {
     let recoveryStateChanged = false;
 
     for (const prompt of latestRecoveryBySession.values()) {
-      const session = this.repository.getSession(prompt.sessionId);
+      const session = this.persistence.materializeSession(prompt.sessionId);
 
       if (!session) {
         this.promptDeliveries.markInterrupted(prompt.sessionId);
