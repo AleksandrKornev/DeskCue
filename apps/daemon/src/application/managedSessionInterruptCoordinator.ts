@@ -1,13 +1,18 @@
 import type { AgentSessionDetail, ExternalForceStopTarget, SessionDetail } from "@deskcue/protocol";
+import {
+  findOwnedActiveSourceTurn,
+  isActiveSourceTurnAlreadyInterrupted
+} from "#agents/managedSourceTurnOwnership";
 
 import { AppError } from "./errors.ts";
 import type {
   ManagedSessionBackend,
-  SourceAgentSessionDiscovery,
+  ManagedSourceAgentSessionDiscovery,
   SourceTurnInterruptTarget
 } from "./ports.ts";
 
 const MANAGED_INTERRUPT_TRANSCRIPT_TAIL = 160;
+const MANAGED_INTERRUPT_CHAT_MESSAGE_TAIL = 8;
 
 function unverifiedDesktopChatError() {
   return new AppError(
@@ -18,10 +23,11 @@ function unverifiedDesktopChatError() {
 
 function readInterruptibleManagedPrompt(session: SessionDetail) {
   const replyState = session.replyState;
-  if (!replyState) {
-    return null;
-  }
+
+  if (!replyState) return null;
+
   const { phase, promptText, requestedAt } = replyState;
+
   if (
     (phase !== "sending" && phase !== "waiting") ||
     !promptText?.trim() ||
@@ -29,64 +35,31 @@ function readInterruptibleManagedPrompt(session: SessionDetail) {
   ) {
     return null;
   }
+
   const requestedAtMs = Date.parse(requestedAt);
-  if (!Number.isFinite(requestedAtMs)) {
-    return null;
-  }
+
+  if (!Number.isFinite(requestedAtMs)) return null;
+
   return { promptText: promptText.trim(), requestedAtMs };
-}
-
-function findOwnedActiveUserEntry(
-  transcript: AgentSessionDetail["transcript"],
-  activeTurnFingerprint: string,
-  pendingPrompt: { promptText: string; requestedAtMs: number }
-) {
-  const activeTurnIndex = transcript.findIndex((entry) => entry.id === activeTurnFingerprint);
-  if (activeTurnIndex < 0) {
-    return null;
-  }
-
-  const matchingUserEntry = [...transcript].reverse().find((entry) => {
-    if (entry.role !== "user" || entry.text.trim() !== pendingPrompt.promptText) {
-      return false;
-    }
-    const entryTimestamp = Date.parse(entry.timestamp);
-    return Number.isFinite(entryTimestamp) && entryTimestamp >= pendingPrompt.requestedAtMs - 15_000;
-  });
-  if (!matchingUserEntry) {
-    return null;
-  }
-
-  const userIndex = transcript.findIndex((entry) => entry.id === matchingUserEntry.id);
-  if (userIndex < 0 || userIndex > activeTurnIndex) {
-    return null;
-  }
-  for (let index = userIndex + 1; index < activeTurnIndex; index += 1) {
-    const entry = transcript[index];
-    const status = entry.parts?.find((part) => part.type === "status");
-    const label = status?.type === "status" ? status.label : entry.text;
-    if (
-      entry.role === "system" &&
-      (label === "Turn completed" || label === "Turn failed" || label === "Turn interrupted")
-    ) {
-      return null;
-    }
-  }
-  return matchingUserEntry;
 }
 
 export class ManagedSessionInterruptCoordinator {
   constructor(
     private readonly backend: ManagedSessionBackend,
-    private readonly discovery: SourceAgentSessionDiscovery
+    private readonly discovery: ManagedSourceAgentSessionDiscovery
   ) {}
 
   async interruptSession(sessionId: string): Promise<SessionDetail> {
     const session = this.backend.getSession(sessionId);
-    const sourceTurn = session ? await this.readActiveSourceTurn(session) : null;
+    const sourceTurnContext = session ? await this.readActiveSourceTurn(session) : null;
+    const sourceTurn = sourceTurnContext?.target ?? null;
 
     try {
-      return await this.backend.interruptSession(sessionId, sourceTurn);
+      return await this.backend.interruptSession(
+        sessionId,
+        sourceTurn,
+        sourceTurnContext?.agentSession ?? null
+      );
     } catch (error) {
       if (
         error instanceof AppError &&
@@ -100,13 +73,15 @@ export class ManagedSessionInterruptCoordinator {
           "DeskCue cannot interrupt this Codex Desktop chat directly."
         );
       }
+
       throw error;
     }
   }
 
   async interruptExternalDesktopSession(sessionId: string): Promise<SessionDetail> {
     const session = this.backend.getSession(sessionId);
-    const sourceTurn = session ? await this.readActiveSourceTurn(session) : null;
+    const sourceTurn = session ? (await this.readActiveSourceTurn(session))?.target ?? null : null;
+
     return this.backend.interruptExternalDesktopSession(sessionId, sourceTurn);
   }
 
@@ -115,34 +90,36 @@ export class ManagedSessionInterruptCoordinator {
     target: ExternalForceStopTarget
   ): Promise<SessionDetail> {
     const session = this.backend.getSession(sessionId);
-    const sourceTurn = session ? await this.readActiveSourceTurn(session) : null;
+    const sourceTurn = session ? (await this.readActiveSourceTurn(session))?.target ?? null : null;
+
     return this.backend.forceStopExternalProcess(sessionId, target, sourceTurn);
   }
 
   async openExternalCodexDesktopChat(sessionId: string): Promise<void> {
     const session = this.backend.getSession(sessionId);
-    if (session?.adapterId !== "codex" || !session.sourceSessionId) {
-      throw unverifiedDesktopChatError();
-    }
-    if (!await this.isVerifiedExternalCodexDesktopChat(session)) {
-      throw unverifiedDesktopChatError();
-    }
+
+    if (session?.adapterId !== "codex" || !session.sourceSessionId) throw unverifiedDesktopChatError();
+    if (!await this.isVerifiedExternalCodexDesktopChat(session)) throw unverifiedDesktopChatError();
+
     await this.backend.openExternalCodexDesktopChat(sessionId);
   }
 
   private async readActiveSourceTurn(
     session: SessionDetail
-  ): Promise<SourceTurnInterruptTarget | null> {
-    if (!session.sourceSessionId) {
-      return null;
-    }
+  ): Promise<{
+    agentSession: AgentSessionDetail;
+    target: SourceTurnInterruptTarget;
+  } | null> {
+    if (!session.sourceSessionId) return null;
 
     const pendingPrompt = readInterruptibleManagedPrompt(session);
     const agentSession = await this.discovery.getSessionDetailForManagedSession(
       session,
-      MANAGED_INTERRUPT_TRANSCRIPT_TAIL
+      MANAGED_INTERRUPT_TRANSCRIPT_TAIL,
+      MANAGED_INTERRUPT_CHAT_MESSAGE_TAIL
     );
     const turnState = agentSession?.turnState;
+
     if (
       !agentSession ||
       turnState?.phase !== "active" ||
@@ -152,22 +129,24 @@ export class ManagedSessionInterruptCoordinator {
       return null;
     }
 
+    if (isActiveSourceTurnAlreadyInterrupted(agentSession)) return null;
+
     // Non-managed/external control callers do not have a DeskCue prompt to
     // match. Preserve their source-turn identity; only a managed prompt is
     // required to prove the user entry before its lifecycle can be projected.
     if (!pendingPrompt) {
       return {
-        fingerprint: turnState.fingerprint,
-        startedAt: turnState.startedAt
+        agentSession,
+        target: {
+          fingerprint: turnState.fingerprint,
+          startedAt: turnState.startedAt
+        }
       };
     }
 
-    const userEntry = findOwnedActiveUserEntry(
-      agentSession.transcript,
-      turnState.fingerprint,
-      pendingPrompt
-    );
-    if (!userEntry) {
+    const target = findOwnedActiveSourceTurn(agentSession, pendingPrompt);
+
+    if (!target) {
       // A stale source read must never attach an interrupt lifecycle marker to
       // an earlier turn. The transport can still be stopped safely; only the
       // source-backed projection waits until it can prove prompt ownership.
@@ -175,17 +154,16 @@ export class ManagedSessionInterruptCoordinator {
     }
 
     return {
-      fingerprint: turnState.fingerprint,
-      startedAt: turnState.startedAt,
-      userEntryId: userEntry.id
+      agentSession,
+      target
     };
   }
 
   private async isVerifiedExternalCodexDesktopChat(session: SessionDetail) {
-    if (session.adapterId !== "codex" || !session.sourceSessionId) {
-      return false;
-    }
+    if (session.adapterId !== "codex" || !session.sourceSessionId) return false;
+
     const agentSession = await this.discovery.getSessionDetailForManagedSession(session, 0, 0);
+
     return (
       agentSession?.agentId === "codex" &&
       agentSession.sourceSessionId === session.sourceSessionId &&

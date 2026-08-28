@@ -1,7 +1,8 @@
 import { codexAdapter } from "@deskcue/adapters";
-import type { SessionDetail } from "@deskcue/protocol";
+import type { AgentSessionDetail, AgentSessionSummary, SessionDetail } from "@deskcue/protocol";
 import { interruptCodexSession } from "#agents/codex/session/codexSessionCommands";
 import type {
+  ManagedSourceTurnInterruptRequest,
   SourceTurnInterruptLifecycle,
   SourceTurnInterruptTarget
 } from "#agents/sourceTurnInterruptLifecycle";
@@ -14,15 +15,31 @@ type StoreBackedSessionInterruptOptions = {
   getCommandCallbacks: () => Parameters<typeof interruptManagedPtySession>[0];
   getSession: (sessionId: string) => SessionDetail | null;
   hasManagedChild: (sessionId: string) => boolean;
+  publishSourceSessionUpdate: (session: AgentSessionSummary) => void;
   sourceTurnInterrupts: SourceTurnInterruptLifecycle;
 };
+
+function publishSourceInterruptLifecycle(
+  options: StoreBackedSessionInterruptOptions,
+  sourceAgentSession: AgentSessionDetail | null | undefined
+) {
+  if (!sourceAgentSession) return;
+
+  const { transcript: _transcript, ...summary } = options.sourceTurnInterrupts.decorate(
+    sourceAgentSession
+  );
+
+  options.publishSourceSessionUpdate(summary);
+}
 
 export async function interruptStoreBackedSession(
   options: StoreBackedSessionInterruptOptions,
   sessionId: string,
-  sourceTurn?: SourceTurnInterruptTarget | null
+  sourceTurn?: SourceTurnInterruptTarget | null,
+  sourceAgentSession?: AgentSessionDetail | null
 ) {
   const session = options.getSession(sessionId);
+
   if (session?.adapterId === codexAdapter.id && session.replyState.phase === "queued") {
     return options.cancelQueuedPrompt(session);
   }
@@ -30,23 +47,44 @@ export async function interruptStoreBackedSession(
   if (session && sourceTurn && !options.hasManagedChild(session.id)) {
     throw new AppError(
       "not_accepting_input",
-      "DeskCue sees an active external Codex turn, but does not have a verified control channel to interrupt it."
+      "DeskCue sees an active external agent turn, but does not have a verified control channel to interrupt it."
     );
   }
 
-  const interruptedSession = await interruptManagedPtySession(
-    options.getCommandCallbacks(),
-    sessionId
-  );
+  let sourceInterruptRequest: ManagedSourceTurnInterruptRequest | null = null;
+  let interruptedSession: SessionDetail | null;
+  try {
+    if (session && sourceTurn) {
+      sourceInterruptRequest = options.sourceTurnInterrupts.requestManaged(session, sourceTurn);
+      publishSourceInterruptLifecycle(options, sourceAgentSession);
+    }
+
+    interruptedSession = await interruptManagedPtySession(
+      options.getCommandCallbacks(),
+      sessionId
+    );
+  } catch (error) {
+    if (session && sourceTurn && sourceInterruptRequest) {
+      options.sourceTurnInterrupts.cancelManagedRequest(session, sourceTurn, sourceInterruptRequest);
+      publishSourceInterruptLifecycle(options, sourceAgentSession);
+    }
+
+    throw error;
+  }
+
   if (interruptedSession) {
     if (sourceTurn && session) {
-      options.sourceTurnInterrupts.request(session, sourceTurn);
       // A one-shot pipe transport can report its exit synchronously from kill().
-      if (!options.hasManagedChild(session.id)) {
-        options.sourceTurnInterrupts.confirmManagedTransportExit(session);
-      }
+      if (!options.hasManagedChild(session.id)) options.sourceTurnInterrupts.confirmManagedTransportExit(session);
+      publishSourceInterruptLifecycle(options, sourceAgentSession);
     }
+
     return interruptedSession;
+  }
+
+  if (session && sourceTurn && sourceInterruptRequest) {
+    options.sourceTurnInterrupts.cancelManagedRequest(session, sourceTurn, sourceInterruptRequest);
+    publishSourceInterruptLifecycle(options, sourceAgentSession);
   }
 
   if (options.hasManagedChild(sessionId)) {

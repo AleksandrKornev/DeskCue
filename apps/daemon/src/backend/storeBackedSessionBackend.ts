@@ -201,8 +201,12 @@ export class StoreBackedSessionBackend {
     return this.operations.markPromptRecoveryOutcomeUnknown(sessionId);
   }
 
-  interruptSession(sessionId: string, sourceTurn?: SourceTurnInterruptTarget | null) {
-    return this.operations.interruptSession(sessionId, sourceTurn);
+  interruptSession(
+    sessionId: string,
+    sourceTurn?: SourceTurnInterruptTarget | null,
+    sourceAgentSession?: AgentSessionDetail | null
+  ) {
+    return this.operations.interruptSession(sessionId, sourceTurn, sourceAgentSession);
   }
 
   getExternalClaudeBackgroundStopCapability(

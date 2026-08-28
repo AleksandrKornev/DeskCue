@@ -22,6 +22,7 @@ test("source agent session service separates live metadata from forced discovery
     calls.push([limit, workspaces, options]);
     return [];
   };
+
   const service = new SourceAgentSessionService(
     {} as ConstructorParameters<typeof SourceAgentSessionService>[0],
     {
@@ -104,6 +105,7 @@ test("source agent session service publishes reviewed and updated events for oth
     agentSessionId: "codex:source-1",
     reviewedAt: "2026-07-17T07:30:00.000Z"
   });
+
   assert.equal(events[0]?.type, "agent.session.reviewed");
   assert.equal(events[1]?.type, "agent.session.updated");
   assert.equal(events[1]?.payload.id, "codex:source-1");
@@ -156,8 +158,10 @@ test("source agent session service dedupes concurrent detail reads", async () =>
 
 async function waitFor(predicate: () => boolean) {
   const deadline = Date.now() + 2_000;
+
   while (!predicate()) {
     if (Date.now() >= deadline) throw new Error("Timed out waiting for source-agent reads.");
+
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }
@@ -172,7 +176,9 @@ test("source agent session service keeps dedupe ownership while bounding active 
     {
       getSessionDetail: async (sessionId: string) => {
         const index = Number(sessionId.slice(sessionId.lastIndexOf("-") + 1));
+
         startedReads += 1;
+
         activeReads += 1;
         maxActiveReads = Math.max(maxActiveReads, activeReads);
         await gates[index]!.promise;
@@ -190,6 +196,7 @@ test("source agent session service keeps dedupe ownership while bounding active 
 
   const reads = gates.map((_, index) => service.getSessionDetail(`codex:source-${index}`));
   const duplicateQueuedRead = service.getSessionDetail("codex:source-128");
+
   await waitFor(() => startedReads === 128);
 
   assert.equal(maxActiveReads, 128);
@@ -199,7 +206,9 @@ test("source agent session service keeps dedupe ownership while bounding active 
   gates.slice(1).forEach((gate) => gate.resolve());
 
   const [results, duplicate] = await Promise.all([Promise.all(reads), duplicateQueuedRead]);
+
   assert.equal(results.length, 129);
+
   assert.equal(duplicate?.id, "codex:source-1");
   assert.equal(maxActiveReads, 128);
   assert.equal(startedReads, 129);
@@ -231,6 +240,7 @@ test("source agent session service rejects unique reads beyond its hard queue ca
     service.getSessionDetail("codex:overflow"),
     (error: unknown) => error instanceof AppError && /queue is full/i.test(error.message)
   );
+
   assert.equal(startedReads, 1);
 
   gate.resolve();
@@ -264,10 +274,12 @@ test("source agent session service close rejects queued reads and drains active 
     queued,
     (error: unknown) => error instanceof AppError && /shutting down/i.test(error.message)
   );
+
   await assert.rejects(
     service.getSessionDetail("codex:late"),
     (error: unknown) => error instanceof AppError && /shutting down/i.test(error.message)
   );
+
   assert.equal(closeFinished, false);
 
   gate.resolve();
@@ -277,6 +289,7 @@ test("source agent session service close rejects queued reads and drains active 
 
 test("source agent session service preserves hidden detail metadata after review decoration", async () => {
   const detail = agentSessionDetail();
+
   markSourceAgentDetailMetadata(detail, { readMode: "append-cache" });
   const service = new SourceAgentSessionService(
     {} as ConstructorParameters<typeof SourceAgentSessionService>[0],
@@ -302,6 +315,46 @@ test("source agent session service preserves hidden detail metadata after review
   assert.equal(JSON.stringify(session).includes("sourceAgentDetailMetadata"), false);
 });
 
+test("managed source detail keeps review metadata and current attached state", async () => {
+  const service = new SourceAgentSessionService(
+    {
+      reconcileAttachedAgentSession: (session: AgentSessionDetail) => ({
+        ...session,
+        attachMode: "resume" as const,
+        attachModeReason: null
+      })
+    } as SourceAgentSessionBackend,
+    {
+      getSessionDetailForManagedSession: async () => ({
+        ...agentSessionDetail(),
+        attachMode: "read_only",
+        attachModeReason: "Stale discovery state"
+      })
+    } as unknown as SourceAgentSessionDiscovery,
+    {
+      listWorkspaces: () => []
+    } as unknown as WorkspaceService,
+    {
+      decorateSession: (session) => ({
+        ...session,
+        reviewedAt: "2026-07-17T07:30:00.000Z"
+      }),
+      decorateSessions: (sessions) => sessions,
+      markReviewed: () => "2026-07-17T07:30:00.000Z"
+    }
+  );
+
+  const detail = await service.getSessionDetailForManagedSession({
+    id: "managed-1",
+    adapterId: "codex",
+    sourceSessionId: "source-1"
+  } as Parameters<SourceAgentSessionDiscovery["getSessionDetailForManagedSession"]>[0]);
+
+  assert.equal(detail?.reviewedAt, "2026-07-17T07:30:00.000Z");
+  assert.equal(detail?.attachMode, "resume");
+  assert.equal(detail?.attachModeReason, null);
+});
+
 test("source agent session service decorates source versions with review and local state", async () => {
   const backend: Pick<
     SourceAgentSessionBackend,
@@ -314,6 +367,7 @@ test("source agent session service decorates source versions with review and loc
       attachModeReason: null
     })
   };
+
   const service = new SourceAgentSessionService(
     backend as SourceAgentSessionBackend,
     {

@@ -1,6 +1,6 @@
 import type { AgentSessionDetail, SessionDetail } from "@deskcue/protocol";
 
-import type { ManagedSessionBackend, SourceAgentSessionDiscovery } from "./ports.ts";
+import type { ManagedSessionBackend, ManagedSourceAgentSessionDiscovery } from "./ports.ts";
 
 const MANAGED_REPLY_SYNC_TRANSCRIPT_TAIL = 160;
 const MANAGED_REPLY_SYNC_CHAT_MESSAGE_TAIL = 8;
@@ -22,7 +22,7 @@ export class ManagedSessionReplyStateSynchronizer {
 
   constructor(
     private readonly backend: ManagedSessionBackend,
-    private readonly discovery: SourceAgentSessionDiscovery
+    private readonly discovery: ManagedSourceAgentSessionDiscovery
   ) {}
 
   async startQueuedCodexPromptIfReady(
@@ -46,9 +46,8 @@ export class ManagedSessionReplyStateSynchronizer {
       MANAGED_REPLY_SYNC_TRANSCRIPT_TAIL,
       MANAGED_REPLY_SYNC_CHAT_MESSAGE_TAIL
     );
-    if (!canStartQueuedCodexPrompt(sourceSession)) {
-      return session;
-    }
+
+    if (!canStartQueuedCodexPrompt(sourceSession)) return session;
 
     return this.backend.startQueuedPrompt(sessionId);
   }
@@ -58,9 +57,8 @@ export class ManagedSessionReplyStateSynchronizer {
       await this.runningOverviewSync;
       return;
     }
-    if (Date.now() - this.overviewSyncedAt < MANAGED_REPLY_SYNC_OVERVIEW_THROTTLE_MS) {
-      return;
-    }
+
+    if (Date.now() - this.overviewSyncedAt < MANAGED_REPLY_SYNC_OVERVIEW_THROTTLE_MS) return;
 
     const runningAttachedSessions = this.backend
       .listSessions()
@@ -86,22 +84,21 @@ export class ManagedSessionReplyStateSynchronizer {
 
   syncSession(sessionId: string): Promise<SessionDetail | null> {
     const runningSync = this.sessionSyncs.get(sessionId);
-    if (runningSync) {
-      return runningSync;
-    }
+
+    if (runningSync) return runningSync;
 
     const operation = this.syncSessionNow(sessionId);
     const trackedOperation = operation.finally(() => {
-      if (this.sessionSyncs.get(sessionId) === trackedOperation) {
-        this.sessionSyncs.delete(sessionId);
-      }
+      if (this.sessionSyncs.get(sessionId) === trackedOperation) this.sessionSyncs.delete(sessionId);
     });
+
     this.sessionSyncs.set(sessionId, trackedOperation);
     return trackedOperation;
   }
 
   private async syncSessionNow(sessionId: string): Promise<SessionDetail | null> {
     const session = this.backend.getSession(sessionId);
+
     if (
       !session ||
       !session.sourceSessionId ||
@@ -118,9 +115,8 @@ export class ManagedSessionReplyStateSynchronizer {
       MANAGED_REPLY_SYNC_TRANSCRIPT_TAIL,
       MANAGED_REPLY_SYNC_CHAT_MESSAGE_TAIL
     );
-    if (!agentSession) {
-      return this.backend.markPromptRecoveryOutcomeUnknown?.(sessionId) ?? session;
-    }
+
+    if (!agentSession) return this.backend.markPromptRecoveryOutcomeUnknown?.(sessionId) ?? session;
 
     return (
       this.backend.syncReplyStateFromAgentSession(agentSession) ??

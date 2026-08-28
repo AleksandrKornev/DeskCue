@@ -60,6 +60,9 @@ export class SqliteSourceTurnInterruptStore {
   >;
   private readonly upsertStatement: Database.Statement<SourceTurnInterruptRecord>;
   private readonly deleteStatement: Database.Statement<[string, string, string]>;
+  private readonly deleteRequestedStatement: Database.Statement<
+    [string, string, string, string, string]
+  >;
   private readonly cleanupStatement: Database.Statement<[string]>;
 
   constructor(
@@ -68,7 +71,9 @@ export class SqliteSourceTurnInterruptStore {
     )
   ) {
     const resolved = initializeSqliteDatabaseContext(source);
+
     this.databaseContext = resolved.context;
+
     this.ownsDatabaseContext = resolved.ownsContext;
     this.database = resolved.context.database;
 
@@ -187,6 +192,15 @@ export class SqliteSourceTurnInterruptStore {
         AND source_session_id = ?
         AND turn_fingerprint = ?
     `);
+    this.deleteRequestedStatement = this.database.prepare(`
+      DELETE FROM source_turn_interrupts
+      WHERE agent_id = ?
+        AND source_session_id = ?
+        AND turn_fingerprint = ?
+        AND managed_session_id = ?
+        AND requested_at = ?
+        AND phase = 'requested'
+    `);
     this.cleanupStatement = this.database.prepare(`
       DELETE FROM source_turn_interrupts
       WHERE expires_at <= ?
@@ -194,9 +208,7 @@ export class SqliteSourceTurnInterruptStore {
   }
 
   close() {
-    if (this.ownsDatabaseContext) {
-      this.databaseContext.close();
-    }
+    if (this.ownsDatabaseContext) this.databaseContext.close();
   }
 
   get(key: SourceTurnInterruptKey) {
@@ -223,6 +235,16 @@ export class SqliteSourceTurnInterruptStore {
       key.agentId,
       key.sourceSessionId,
       key.turnFingerprint
+    ).changes;
+  }
+
+  deleteRequested(record: SourceTurnInterruptRecord) {
+    return this.deleteRequestedStatement.run(
+      record.agentId,
+      record.sourceSessionId,
+      record.turnFingerprint,
+      record.managedSessionId,
+      record.requestedAt
     ).changes;
   }
 

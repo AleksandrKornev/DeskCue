@@ -40,6 +40,7 @@ export class StoreBackedAttachedSessionReconciler {
     if (this.closed) {
       return null;
     }
+
     const recoverySession = this.options.repository.listSessionDetails().find(
       (session) =>
         session.adapterId === agentSession.agentId &&
@@ -61,6 +62,7 @@ export class StoreBackedAttachedSessionReconciler {
       },
       agentSession
     );
+
     if (recoverySession && result && !result.promptRecovery) {
       this.scheduleRecoveredPromptResolution(
         result.id,
@@ -76,6 +78,7 @@ export class StoreBackedAttachedSessionReconciler {
     } else if (result?.replyState.phase === "idle" && !result.promptRecovery) {
       this.options.markPromptCompleted(result.id);
     }
+
     return result;
   }
 
@@ -87,9 +90,12 @@ export class StoreBackedAttachedSessionReconciler {
     if (this.closed) {
       return;
     }
+
     const existing = this.pendingPromptRecoveryResolutions.get(sessionId);
     const resolution = existing ?? { completed, inFlight: false };
+
     resolution.completed ||= completed;
+
     this.pendingPromptRecoveryResolutions.set(sessionId, resolution);
     if (resolution.inFlight) {
       return;
@@ -105,6 +111,7 @@ export class StoreBackedAttachedSessionReconciler {
     if (this.closed) {
       return;
     }
+
     this.closed = true;
     await Promise.allSettled([...this.inFlightPersistenceOperations]);
   }
@@ -115,6 +122,7 @@ export class StoreBackedAttachedSessionReconciler {
       () => this.inFlightPersistenceOperations.delete(operation),
       () => this.inFlightPersistenceOperations.delete(operation)
     );
+
     return operation;
   }
 
@@ -126,15 +134,18 @@ export class StoreBackedAttachedSessionReconciler {
     try {
       await (persistence ?? this.options.persistState());
       const persistedSession = this.options.repository.getSession(sessionId);
+
       if (!persistedSession || persistedSession.promptRecovery) {
         this.pendingPromptRecoveryResolutions.delete(sessionId);
         return;
       }
+
       if (resolution.completed) {
         this.options.markPromptCompleted(sessionId);
       } else {
         this.options.markPromptObserved(sessionId);
       }
+
       this.pendingPromptRecoveryResolutions.delete(sessionId);
     } catch (error) {
       resolution.inFlight = false;
@@ -157,11 +168,16 @@ export class StoreBackedAttachedSessionReconciler {
         (session.status === "stopped" || session.status === "read_only") &&
         !this.options.sessionRunner.hasChild(session.id)
       ) {
-        this.options.sourceTurnInterrupts.confirmManagedTransportExit(session);
+        if ("transcript" in agentSession) {
+          this.options.sourceTurnInterrupts.reconcileManagedTransportExit(session, agentSession);
+        } else {
+          this.options.sourceTurnInterrupts.confirmManagedTransportExit(session);
+        }
       }
     }
 
     const decorated = this.options.sourceTurnInterrupts.decorate(agentSession);
+
     return reconcileAttachedAgentSession(
       this.options.repository.listSessionDetails(),
       (sessionId) => this.options.sessionRunner.hasChild(sessionId),

@@ -60,7 +60,8 @@ export type ManagedSessionBackend = {
   getSession: (sessionId: string) => SessionDetail | null;
   interruptSession: (
     sessionId: string,
-    sourceTurn?: SourceTurnInterruptTarget | null
+    sourceTurn?: SourceTurnInterruptTarget | null,
+    sourceAgentSession?: AgentSessionDetail | null
   ) => Promise<SessionDetail>;
   listSessions: () => SessionSummary[];
   markPromptRecoveryOutcomeUnknown?: (sessionId: string) => Promise<SessionDetail | null>;
@@ -167,6 +168,11 @@ export type SourceAgentSessionDiscovery = {
     }
   ) => Promise<AgentSessionsResponse>;
 };
+
+export type ManagedSourceAgentSessionDiscovery = Pick<
+  SourceAgentSessionDiscovery,
+  "getSessionDetailForManagedSession"
+>;
 
 export type SourceAgentSessionBackend = {
   getAttachedAgentSessionStateVersion: (

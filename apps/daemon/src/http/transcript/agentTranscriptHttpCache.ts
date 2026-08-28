@@ -53,6 +53,7 @@ function omitTranscriptViewSession(
   view: AgentTranscriptViewResponse
 ): AgentTranscriptViewResponse {
   const { session: _session, ...cachedView } = view;
+
   return cachedView;
 }
 
@@ -85,9 +86,8 @@ export class AgentTranscriptHttpCache {
 
   readView(key: string) {
     const cached = this.views.get(key);
-    if (!cached) {
-      return null;
-    }
+
+    if (!cached) return null;
 
     this.views.delete(key);
     this.views.set(key, cached);
@@ -101,6 +101,7 @@ export class AgentTranscriptHttpCache {
   ) {
     const cachedView = omitTranscriptViewSession(view);
     const bytes = estimateJsonBytes(cachedView);
+
     if (bytes > this.viewItemMaxBytes) {
       this.deleteView(key);
       return;
@@ -119,9 +120,8 @@ export class AgentTranscriptHttpCache {
       this.viewBytes > this.viewMaxBytes
     ) {
       const oldestKey = this.views.keys().next().value;
-      if (oldestKey === undefined) {
-        return;
-      }
+
+      if (oldestKey === undefined) return;
 
       this.deleteView(oldestKey);
     }
@@ -136,6 +136,7 @@ export class AgentTranscriptHttpCache {
     const normalizedEntryIds = Array.from(new Set(
       entryIds.map((entryId) => entryId.trim()).filter(Boolean)
     ));
+
     if (!sourceVersion) {
       return {
         cachedMissCount: 0,
@@ -166,6 +167,7 @@ export class AgentTranscriptHttpCache {
         sourceVersion.sourceVersion,
         entryId
       );
+
       if (returnedEntryIds.has(entryId)) {
         this.entryMisses.delete(cacheKey);
         continue;
@@ -183,26 +185,22 @@ export class AgentTranscriptHttpCache {
 
   private deleteView(key: string) {
     const existing = this.views.get(key);
-    if (!existing) {
-      return;
-    }
+
+    if (!existing) return;
 
     this.views.delete(key);
     this.viewBytes = Math.max(0, this.viewBytes - existing.bytes);
   }
 
   private setEntryMiss(key: string) {
-    if (this.entryMisses.has(key)) {
-      this.entryMisses.delete(key);
-    }
+    if (this.entryMisses.has(key)) this.entryMisses.delete(key);
 
     this.entryMisses.set(key, true);
 
     while (this.entryMisses.size > this.entryMissLimit) {
       const oldestKey = this.entryMisses.keys().next().value;
-      if (oldestKey === undefined) {
-        return;
-      }
+
+      if (oldestKey === undefined) return;
 
       this.entryMisses.delete(oldestKey);
     }
@@ -217,6 +215,7 @@ export function buildTranscriptViewCacheKey(
     agentSessionId: version.summary.id,
     chatMessageTail: options.chatMessageTail,
     fullTranscript: options.fullTranscript,
+    localStateVersion: version.localStateVersion ?? null,
     sourceVersion: version.sourceVersion,
     transcriptDetail: options.transcriptDetail,
     transcriptTail: options.transcriptTail,

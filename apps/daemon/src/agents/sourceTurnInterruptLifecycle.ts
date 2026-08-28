@@ -2,11 +2,14 @@ import type {
   AgentSessionDetail,
   AgentSessionSummary,
   AgentSessionInterruptLifecycle,
-  SessionDetail
+  SessionDetail,
+  SessionLogLine
 } from "@deskcue/protocol";
 import { deriveSourceAgentTurnState } from "#agents/sourceAgentTurnState";
 import { SqliteSourceTurnInterruptStore } from "#persistence/journals/sourceTurnInterruptStore";
 import type { SourceTurnInterruptRecord } from "#persistence/journals/sourceTurnInterruptStore";
+
+import { findOwnedActiveSourceTurn } from "./managedSourceTurnOwnership.ts";
 
 export type SourceTurnInterruptTarget = {
   fingerprint: string;
@@ -14,10 +17,18 @@ export type SourceTurnInterruptTarget = {
   userEntryId?: string;
 };
 
+export type ManagedSourceTurnInterruptRequest = {
+  ownsCancellation: boolean;
+  record: SourceTurnInterruptRecord;
+};
+
 const REQUEST_CONFIRMATION_GRACE_MS = 20_000;
 const REQUESTED_RETENTION_MS = 24 * 60 * 60 * 1000;
 const UNRESOLVED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const EXTERNAL_FORCE_STOP_FALLBACK_PREFIX = "external-force-stop:";
+const LATE_SOURCE_ENTRY_GRACE_MS = 15_000;
+const INPUT_SENT_LOG = "Input sent.\n";
+const PROMPT_INTERRUPT_REQUESTED_LOG = "Prompt interrupt requested.\n";
 
 function toPublicLifecycle(record: SourceTurnInterruptRecord): AgentSessionInterruptLifecycle {
   if (record.phase === "confirmed_source") {
@@ -67,6 +78,14 @@ function expiresAt(timestamp: string, durationMs: number) {
   return new Date(Date.parse(timestamp) + durationMs).toISOString();
 }
 
+function findLastSystemLogIndex(logs: SessionLogLine[], text: string) {
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    if (logs[index].stream === "system" && logs[index].text === text) return index;
+  }
+
+  return -1;
+}
+
 export class SourceTurnInterruptLifecycle {
   constructor(private readonly store: SqliteSourceTurnInterruptStore) {}
 
@@ -75,11 +94,10 @@ export class SourceTurnInterruptLifecycle {
   }
 
   request(session: SessionDetail, target: SourceTurnInterruptTarget) {
-    if (!session.sourceSessionId) {
-      return null;
-    }
+    if (!session.sourceSessionId) return null;
 
     const now = new Date().toISOString();
+
     return this.store.upsert({
       agentId: session.adapterId,
       sourceSessionId: session.sourceSessionId,
@@ -102,6 +120,33 @@ export class SourceTurnInterruptLifecycle {
     });
   }
 
+  requestManaged(
+    session: SessionDetail,
+    target: SourceTurnInterruptTarget
+  ): ManagedSourceTurnInterruptRequest | null {
+    if (!session.sourceSessionId) return null;
+
+    const turnFingerprint = target.userEntryId ?? target.fingerprint;
+    const existing = this.store.get({
+      agentId: session.adapterId,
+      sourceSessionId: session.sourceSessionId,
+      turnFingerprint
+    });
+
+    if (
+      existing?.managedSessionId === session.id &&
+      existing.turnStartEntryId === target.fingerprint &&
+      existing.phase === "requested" &&
+      Date.parse(existing.expiresAt) > Date.now()
+    ) {
+      return { ownsCancellation: false, record: existing };
+    }
+
+    const record = this.request(session, target);
+
+    return record ? { ownsCancellation: true, record } : null;
+  }
+
   requestExternalForceStop(
     session: SessionDetail,
     target?: SourceTurnInterruptTarget | null
@@ -122,6 +167,7 @@ export class SourceTurnInterruptLifecycle {
 
   confirmManagedTransportExit(session: SessionDetail) {
     const record = this.store.getLatestForManagedSession(session.id);
+
     if (
       !record ||
       (record.phase !== "requested" && record.phase !== "unresolved")
@@ -136,13 +182,71 @@ export class SourceTurnInterruptLifecycle {
     return this.upsertPhase(record, "confirmed_process", "verified_process", null, "interrupted");
   }
 
-  decorate<T extends AgentSessionSummary | AgentSessionDetail>(session: T): T {
-    const record = this.store.getLatestForSource(session.agentId, session.sourceSessionId);
-    if (!record) {
-      return session;
+  reconcileManagedTransportExit(session: SessionDetail, agentSession: AgentSessionDetail) {
+    const existing = this.store.getLatestForManagedSession(session.id);
+
+    if (existing) return this.confirmManagedTransportExit(session);
+
+    const interruptLogIndex = findLastSystemLogIndex(
+      session.logs,
+      PROMPT_INTERRUPT_REQUESTED_LOG
+    );
+    const interruptLog = session.logs[interruptLogIndex];
+    const hasNewerInput = interruptLogIndex >= 0 && session.logs.slice(interruptLogIndex + 1)
+      .some((log) => log.stream === "system" && log.text === INPUT_SENT_LOG);
+
+    if (hasNewerInput) return null;
+
+    const inputLog = [...session.logs].reverse().find((log) =>
+      log.stream === "system" &&
+      log.text === INPUT_SENT_LOG &&
+      (!interruptLog || Date.parse(log.timestamp) <= Date.parse(interruptLog.timestamp))
+    );
+    const promptText = session.inputHistory.at(-1)?.trim() ?? "";
+    const requestedAtMs = inputLog ? Date.parse(inputLog.timestamp) : Number.NaN;
+    const interruptedAtMs = interruptLog ? Date.parse(interruptLog.timestamp) : Number.NaN;
+
+    if (!promptText || !Number.isFinite(requestedAtMs) || !Number.isFinite(interruptedAtMs)) return null;
+
+    const target = findOwnedActiveSourceTurn(agentSession, {
+      promptText,
+      requestedAtMs,
+      acceptedUntilMs: interruptedAtMs + LATE_SOURCE_ENTRY_GRACE_MS
+    });
+
+    if (!target || !this.requestManaged(session, target)) return null;
+
+    return this.confirmManagedTransportExit(session);
+  }
+
+  cancelManagedRequest(
+    session: SessionDetail,
+    target: SourceTurnInterruptTarget,
+    request: ManagedSourceTurnInterruptRequest
+  ) {
+    if (!request.ownsCancellation) return false;
+
+    const record = this.store.getLatestForManagedSession(session.id);
+
+    if (
+      !record ||
+      record.phase !== "requested" ||
+      record.turnStartEntryId !== target.fingerprint ||
+      record.requestedAt !== request.record.requestedAt
+    ) {
+      return false;
     }
 
+    return this.store.deleteRequested(request.record) === 1;
+  }
+
+  decorate<T extends AgentSessionSummary | AgentSessionDetail>(session: T): T {
+    const record = this.store.getLatestForSource(session.agentId, session.sourceSessionId);
+
+    if (!record) return session;
+
     const now = Date.now();
+
     if (Date.parse(record.expiresAt) <= now) {
       this.store.delete(record);
       return session;
@@ -153,9 +257,8 @@ export class SourceTurnInterruptLifecycle {
       ? deriveSourceAgentTurnState(session)
       : session.turnState;
     const nextRecord = this.reconcileRecord(record, turnState, hasTranscript);
-    if (!nextRecord) {
-      return session;
-    }
+
+    if (!nextRecord) return session;
 
     return {
       ...session,
@@ -165,6 +268,7 @@ export class SourceTurnInterruptLifecycle {
 
   getStateVersion(agentId: string, sourceSessionId: string) {
     const record = this.store.getLatestForSource(agentId, sourceSessionId);
+
     return record
       ? {
           confirmationEntryId: record.confirmationEntryId,
@@ -186,6 +290,7 @@ export class SourceTurnInterruptLifecycle {
     const isExternalForceStopFallback = record.turnFingerprint.startsWith(
       EXTERNAL_FORCE_STOP_FALLBACK_PREFIX
     );
+
     if (turnState?.phase === "active") {
       if (
         isExternalForceStopFallback &&
@@ -232,9 +337,7 @@ export class SourceTurnInterruptLifecycle {
 
       // Summary payloads do not tell us which turn a terminal entry belongs to.
       // Wait for a transcript-backed refresh instead of confirming a newer turn.
-      if (!hasTranscript) {
-        return record;
-      }
+      if (!hasTranscript) return record;
 
       return this.upsertPhase(
         record,
@@ -263,6 +366,7 @@ export class SourceTurnInterruptLifecycle {
     terminalOutcome: SourceTurnInterruptRecord["terminalOutcome"] = null
   ) {
     const now = new Date().toISOString();
+
     return this.store.upsert({
       ...record,
       phase,

@@ -60,7 +60,9 @@ async function requestJson<T>(
 
 function createTestApp(installRoutes: (app: express.Express) => void) {
   const app = express();
+
   app.use(express.json());
+
   installRoutes(app);
   app.use(errorHandler);
   return app;
@@ -81,13 +83,16 @@ function closeServer(server: Server) {
 
 async function withServer(app: express.Express, callback: (baseUrl: string) => Promise<void>) {
   const server = createServer(app);
+
   await new Promise<void>((resolve) => {
     server.listen(0, "127.0.0.1", resolve);
   });
 
   try {
     const address = server.address();
+
     assert(address && typeof address === "object");
+
     await callback(`http://127.0.0.1:${address.port}`);
   } finally {
     await closeServer(server);
@@ -137,6 +142,7 @@ test("push subscription routes expose safe browser records and remove only the a
           id: "device-current",
           label: "Current device"
         });
+
         next();
       });
       installPushNotificationRoutes(target, {
@@ -149,6 +155,7 @@ test("push subscription routes expose safe browser records and remove only the a
         subscriptionCount: number;
         subscriptions: Array<{ current: boolean; id: string }>;
       }>(`${baseUrl}/api/push/subscriptions?pushClientId=push-current`);
+
       assert.equal(listed.subscriptionCount, 2);
       assert.equal(listed.subscriptions.find((item) => item.id === current.id)?.current, true);
       assert.equal(listed.subscriptions.find((item) => item.id === other.id)?.current, false);
@@ -158,15 +165,18 @@ test("push subscription routes expose safe browser records and remove only the a
         `${baseUrl}/api/push/subscriptions/${current.id}`,
         { method: "DELETE" }
       );
+
       assert.deepEqual(removed, {
         removedCount: 1,
         subscriptionCount: 1
       });
+
       assert.equal(pushNotifications.getStatus().subscriptionCount, 1);
 
       const missing = await fetch(`${baseUrl}/api/push/subscriptions/${current.id}`, {
         method: "DELETE"
       });
+
       assert.equal(missing.status, 404);
     });
   } finally {
@@ -311,9 +321,8 @@ function agentSessionDetail(): AgentSessionDetail {
 
 function requireSession(sessionMap: Map<string, SessionDetail>, sessionId: string) {
   const session = sessionMap.get(sessionId);
-  if (!session) {
-    throw new Error("Session not found.");
-  }
+
+  if (!session) throw new Error("Session not found.");
 
   return session;
 }
@@ -390,6 +399,7 @@ function fakeApplication({
         ...session,
         inputHistory: [...session.inputHistory, input]
       };
+
       sessionMap.set(sessionId, updated);
       return updated;
     },
@@ -409,6 +419,7 @@ function fakeApplication({
           artifacts: session.preview.artifacts ?? []
         }
       };
+
       sessionMap.set(sessionId, updated);
       return updated;
     },
@@ -431,6 +442,7 @@ function fakeApplication({
           ]
         }
       };
+
       sessionMap.set(sessionId, updated);
       return updated;
     },
@@ -441,6 +453,7 @@ function fakeApplication({
         finishedAt: "2026-06-22T10:05:00.000Z",
         status: "stopped"
       };
+
       sessionMap.set(sessionId, updated);
       return updated;
     },
@@ -460,6 +473,7 @@ function fakeApplication({
           lastUpdatedAt: "2026-06-22T10:02:00.000Z"
         }
       };
+
       sessionMap.set(sessionId, updated);
       return updated;
     },
@@ -548,16 +562,16 @@ function fakeApplication({
         chatMessageTail,
         transcriptTail
       };
+
       if (options.lightweight !== undefined && options.lightweight !== false) {
         detailRequest.lightweight = options.lightweight;
       }
+
       agentSessionDetailRequests.push(detailRequest);
       return agentSessionId === "codex:source-1" ? agentSessionDetailResponse : null;
     },
     async getSessionVersion(agentSessionId: string) {
-      if (agentSessionId !== "codex:source-1") {
-        return null;
-      }
+      if (agentSessionId !== "codex:source-1") return null;
 
       return agentSessionVersionResponse ?? {
         localStateVersion: "none",
@@ -574,11 +588,10 @@ function fakeApplication({
       agentTranscriptEntriesRequests.push({
         entryIds
       });
-      if (agentSessionId !== "codex:source-1") {
-        return [];
-      }
+      if (agentSessionId !== "codex:source-1") return [];
 
       const requestedEntryIds = new Set(entryIds);
+
       return agentSessionDetailResponse.transcript.filter((entry) => requestedEntryIds.has(entry.id));
     },
     async getTranscriptWindow(
@@ -590,9 +603,7 @@ function fakeApplication({
       }
     ) {
       agentTranscriptWindowRequests.push(options);
-      if (agentSessionId !== "codex:source-1") {
-        return null;
-      }
+      if (agentSessionId !== "codex:source-1") return null;
 
       return agentTranscriptWindowResponse ?? null;
     },
@@ -603,9 +614,7 @@ function fakeApplication({
       } = {}
     ) {
       agentTranscriptTailWindowRequests.push(options);
-      if (agentSessionId !== "codex:source-1") {
-        return null;
-      }
+      if (agentSessionId !== "codex:source-1") return null;
 
       return agentTranscriptTailWindowResponse ?? null;
     },
@@ -616,9 +625,7 @@ function fakeApplication({
       }
     ) {
       agentTranscriptPreviousWindowRequests.push(options);
-      if (agentSessionId !== "codex:source-1") {
-        return null;
-      }
+      if (agentSessionId !== "codex:source-1") return null;
 
       return agentTranscriptPreviousWindowResponse ?? null;
     },
@@ -745,13 +752,14 @@ test("overview route does not expose native dialogs through a loopback reverse p
   });
 });
 
-test("agent transcript view ETag ignores attached state when session summary is omitted", async () => {
+test("agent transcript view ETag tracks attached state without a session summary", async () => {
   const detail = agentSessionDetail();
   let localStateVersion = "attached-state-1";
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionVersionResponse: null
   });
+
   application.sourceAgentSessions.getSessionVersion = async () => ({
     localStateVersion,
     sourceFileMtimeMs: 1000,
@@ -771,21 +779,26 @@ test("agent transcript view ETag ignores attached state when session summary is 
       `${baseUrl}/api/agents/sessions/${detail.id}/transcript-view?chatMessageTail=40&transcriptDetail=summary`;
     const firstResponse = await fetch(transcriptViewUrl);
     const firstEtag = firstResponse.headers.get("etag");
+
     assert.equal(firstResponse.status, 200);
+
     assert.equal(Boolean(firstEtag), true);
 
     localStateVersion = "attached-state-2";
-    const unchangedResponse = await fetch(transcriptViewUrl, {
+    const changedResponse = await fetch(transcriptViewUrl, {
       headers: {
         "if-none-match": firstEtag ?? ""
       }
     });
-    assert.equal(unchangedResponse.status, 304);
+
+    assert.equal(changedResponse.status, 200);
 
     const summaryUrl = `${transcriptViewUrl}&includeSessionSummary=1`;
     const summaryResponse = await fetch(summaryUrl);
     const summaryEtag = summaryResponse.headers.get("etag");
+
     assert.equal(summaryResponse.status, 200);
+
     assert.equal(Boolean(summaryEtag), true);
 
     localStateVersion = "attached-state-3";
@@ -794,6 +807,7 @@ test("agent transcript view ETag ignores attached state when session summary is 
         "if-none-match": summaryEtag ?? ""
       }
     });
+
     assert.equal(changedSummaryResponse.status, 200);
   });
 });
@@ -858,6 +872,7 @@ test("agent transcript view summary recomputes running state from source tail wi
       startedAt: null
     }
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentTranscriptTailWindowResponse: [
@@ -923,6 +938,7 @@ test("agent transcript view summary clears stale running state after a source te
       startedAt: "2026-06-22T10:00:00.000Z"
     }
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionPatch: {
@@ -1015,6 +1031,7 @@ test("agent transcript updates returns a bounded suffix with overlap and ETag", 
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionVersionResponse: null
@@ -1052,6 +1069,7 @@ test("agent transcript updates returns a bounded suffix with overlap and ETag", 
         "if-none-match": etag ?? ""
       }
     });
+
     assert.equal(unchangedResponse.status, 304);
     assert.equal(unchangedResponse.headers.get("cache-control"), "no-cache");
     assert.equal(await unchangedResponse.text(), "");
@@ -1069,6 +1087,7 @@ test("agent transcript updates gzips large JSON responses when accepted", async 
       phase: null
     }))
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionVersionResponse: null
@@ -1113,6 +1132,7 @@ test("agent transcript view gzips large JSON responses when accepted", async () 
       phase: null
     }))
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionVersionResponse: null
@@ -1154,6 +1174,7 @@ test("agent transcript view skips gzip when route compression is disabled", asyn
       phase: null
     }))
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionVersionResponse: null
@@ -1187,6 +1208,7 @@ test("agent transcript view skips gzip when route compression is disabled", asyn
 
 test("session routes keep response shape for detail and commands", async () => {
   const session = sessionDetail();
+
   session.logs = [
     ...session.logs,
     {
@@ -1211,7 +1233,9 @@ test("session routes keep response shape for detail and commands", async () => {
     const detail = await requestJson<SessionDetail>(`${baseUrl}/api/sessions/session-1`);
     const chatDetailResponse = await fetch(`${baseUrl}/api/sessions/session-1?view=chat`);
     const chatDetailEtag = chatDetailResponse.headers.get("etag");
+
     assert.equal(chatDetailResponse.ok, true);
+
     assert.equal(Boolean(chatDetailEtag), true);
     const chatDetail = (await chatDetailResponse.json()) as SessionDetail;
     const unchangedChatDetailResponse = await fetch(`${baseUrl}/api/sessions/session-1?view=chat`, {
@@ -1221,7 +1245,9 @@ test("session routes keep response shape for detail and commands", async () => {
     });
     const debugDetailResponse = await fetch(`${baseUrl}/api/sessions/session-1?view=debug`);
     const debugDetailEtag = debugDetailResponse.headers.get("etag");
+
     assert.equal(debugDetailResponse.ok, true);
+
     assert.equal(Boolean(debugDetailEtag), true);
     const debugDetail = (await debugDetailResponse.json()) as SessionDetail;
     const unchangedDebugDetailResponse = await fetch(`${baseUrl}/api/sessions/session-1?view=debug`, {
@@ -1230,18 +1256,22 @@ test("session routes keep response shape for detail and commands", async () => {
       }
     });
     const debugTailResponse = await fetch(`${baseUrl}/api/sessions/session-1?view=debug&logTail=1`);
+
     assert.equal(debugTailResponse.ok, true);
     const debugTail = (await debugTailResponse.json()) as SessionDetail;
     const chatRefreshResponse = await fetch(`${baseUrl}/api/sessions/session-1/refresh-git?view=chat`, {
       method: "POST"
     });
+
     assert.equal(chatRefreshResponse.ok, true);
     const chatRefresh = (await chatRefreshResponse.json()) as SessionDetail;
     const diffRefreshResponse = await fetch(`${baseUrl}/api/sessions/session-1/refresh-git?view=diff`, {
       method: "POST"
     });
     const diffRefreshEtag = diffRefreshResponse.headers.get("etag");
+
     assert.equal(diffRefreshResponse.ok, true);
+
     assert.equal(Boolean(diffRefreshEtag), true);
     const diffRefresh = (await diffRefreshResponse.json()) as SessionDetail;
     const unchangedDiffRefreshResponse = await fetch(
@@ -1400,6 +1430,7 @@ test("session routes keep response shape for detail and commands", async () => {
       kind: "available",
       state: "working"
     });
+
     assert.equal(externalClaudeBackgroundStopped.id, "session-1");
     assert.deepEqual(application.externalClaudeBackgroundStopRequests, ["session-1"]);
     assert.deepEqual(externalForceStopCapability, {
@@ -1407,6 +1438,7 @@ test("session routes keep response shape for detail and commands", async () => {
       processCreatedAt: "2026-07-30T13:23:00.000Z",
       processId: 310
     });
+
     assert.equal(externalForceStopped.id, "session-1");
     assert.deepEqual(application.externalForceStopRequests, [
       {
@@ -1424,10 +1456,12 @@ test("session routes keep response shape for detail and commands", async () => {
     assert.deepEqual(await invalidExternalForceStop.json(), {
       error: "Field processCreatedAt must be a non-empty string."
     });
+
     assert.equal(invalidPreview.status, 400);
     assert.deepEqual(await invalidPreview.json(), {
       error: "Field port must be an integer between 1 and 65535, or null."
     });
+
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), {
       error: "Session not found."
@@ -1478,6 +1512,7 @@ test("agent session routes trim transcript and preserve attached metadata", asyn
       chatMessageTail: 24,
       transcriptTail: undefined
     });
+
     assert.deepEqual(transcriptPage.entries.map((entry) => entry.id), ["entry-3", "entry-4"]);
     assert.equal(transcriptPage.hasMore, true);
     assert.deepEqual(
@@ -1486,10 +1521,12 @@ test("agent session routes trim transcript and preserve attached metadata", asyn
         .map((item) => item.entry.id),
       ["entry-3", "entry-4"]
     );
+
     assert.deepEqual(application.agentSessionDetailRequests[2], {
       chatMessageTail: 1,
       transcriptTail: undefined
     });
+
     assert.equal(trimmed.transcript.length, 1);
     assert.equal(trimmed.transcript[0].id, "entry-5");
     assert.equal(trimmed.attachMode, "read_only");
@@ -1576,6 +1613,7 @@ test("agent session route keeps chat-tail detail responses without entry trimmin
       }))
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -1595,6 +1633,7 @@ test("agent session route keeps chat-tail detail responses without entry trimmin
       chatMessageTail: 24,
       transcriptTail: undefined
     });
+
     assert.equal(defaultDetail.transcript.length, detail.transcript.length);
     assert.equal(defaultDetail.transcript[0]?.role, "user");
     assert.equal(defaultDetail.transcript[1]?.role, "assistant");
@@ -1652,6 +1691,7 @@ test("agent session route can summarize and hydrate transcript entries", async (
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -1678,7 +1718,9 @@ test("agent session route can summarize and hydrate transcript entries", async (
       `${baseUrl}/api/agents/sessions/${detail.id}/transcript-entries?entryIds=entry-1,entry-2`
     );
     const hydratedEtag = hydratedResponse.headers.get("etag");
+
     assert.equal(hydratedResponse.ok, true);
+
     assert.equal(Boolean(hydratedEtag), true);
     const unchangedHydratedResponse = await fetch(
       `${baseUrl}/api/agents/sessions/${detail.id}/transcript-entries?entryIds=entry-1,entry-2`,
@@ -1688,6 +1730,7 @@ test("agent session route can summarize and hydrate transcript entries", async (
         }
       }
     );
+
     assert.equal(unchangedHydratedResponse.status, 304);
     assert.equal(await unchangedHydratedResponse.text(), "");
     const postHydrated = await requestJson<{
@@ -1705,6 +1748,7 @@ test("agent session route can summarize and hydrate transcript entries", async (
     const summarizedToolEntry = summarized.transcript.find((entry) =>
       entry.sourceEntryIds?.includes("entry-1")
     );
+
     assert.equal(summarizedToolEntry?.isCompact, true);
     assert.deepEqual(summarizedToolEntry?.sourceEntryIds, ["entry-1", "entry-2"]);
     assert.ok((summarizedToolEntry?.text.length ?? 0) < longToolOutput.length);
@@ -1714,6 +1758,7 @@ test("agent session route can summarize and hydrate transcript entries", async (
         : false,
       "Tool events"
     );
+
     assert.equal(hydrated.entries.length, 2);
     assert.equal(hydrated.entries[0]?.id, "entry-1");
     assert.equal(hydrated.entries[0]?.isCompact, undefined);
@@ -1854,6 +1899,7 @@ test("agent session summary compacts diff activity for live chat hydration", asy
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -2031,6 +2077,7 @@ test("agent transcript summary keeps standalone system records out of assistant 
   const finalMessage = view.items.find(
     (item) => item.type === "message" && item.key === "entry-assistant-1"
   );
+
   assert.ok(finalMessage && finalMessage.type === "message");
   assert.deepEqual(
     finalMessage.activities.map((activity) => [activity.kind, activity.sourceEntryIds]),
@@ -2039,10 +2086,12 @@ test("agent transcript summary keeps standalone system records out of assistant 
       ["tools", ["entry-tool-1"]]
     ]
   );
+
   assert.equal(
     view.items.some((item) => item.type === "activity" && item.activity.kind === "details"),
     false
   );
+
   assert.equal(
     view.items.some((item) => item.type === "activity" && item.activity.kind === "context"),
     true
@@ -2116,6 +2165,7 @@ test("agent transcript view groups timeline activity and hydrates activity group
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -2134,7 +2184,9 @@ test("agent transcript view groups timeline activity and hydrates activity group
       `${baseUrl}/api/agents/sessions/${detail.id}/transcript-view?chatMessageTail=40&transcriptDetail=summary`;
     const transcriptViewResponse = await fetch(transcriptViewUrl);
     const transcriptViewEtag = transcriptViewResponse.headers.get("etag");
+
     assert.equal(transcriptViewResponse.ok, true);
+
     assert.equal(Boolean(transcriptViewEtag), true);
 
     const detailRequestCountBeforeUnchangedTranscriptView = application.agentSessionDetailRequests.length;
@@ -2143,6 +2195,7 @@ test("agent transcript view groups timeline activity and hydrates activity group
         "if-none-match": transcriptViewEtag ?? ""
       }
     });
+
     assert.equal(unchangedTranscriptViewResponse.status, 304);
     assert.equal(await unchangedTranscriptViewResponse.text(), "");
     assert.equal(
@@ -2187,7 +2240,9 @@ test("agent transcript view groups timeline activity and hydrates activity group
       `${baseUrl}/api/agents/sessions/${detail.id}/changes/${encodeURIComponent(changes?.id ?? "")}`
     );
     const hydratedChangesEtag = hydratedChangesResponse.headers.get("etag");
+
     assert.equal(hydratedChangesResponse.ok, true);
+
     assert.equal(Boolean(hydratedChangesEtag), true);
     const unchangedHydratedChangesResponse = await fetch(
       `${baseUrl}/api/agents/sessions/${detail.id}/changes/${encodeURIComponent(changes?.id ?? "")}`,
@@ -2197,6 +2252,7 @@ test("agent transcript view groups timeline activity and hydrates activity group
         }
       }
     );
+
     assert.equal(unchangedHydratedChangesResponse.status, 304);
     assert.equal(await unchangedHydratedChangesResponse.text(), "");
     const detailRequestCountBeforeFallbackChanges = application.agentSessionDetailRequests.length;
@@ -2234,6 +2290,7 @@ test("agent transcript view groups timeline activity and hydrates activity group
       application.agentSessionDetailRequests.length,
       detailRequestCountBeforeMissedEntryChanges + 1
     );
+
     assert.equal(
       detailRequestCountBeforeMissedEntryChanges,
       detailRequestCountBeforeFallbackChanges
@@ -2255,6 +2312,7 @@ test("agent transcript updates reuses cached transcript view for the same source
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -2296,6 +2354,7 @@ test("agent transcript updates skips cached transcript view for running source v
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionPatch: {
@@ -2353,6 +2412,7 @@ test("agent transcript updates uses lightweight source window for running source
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionPatch: {
@@ -2381,6 +2441,7 @@ test("agent transcript updates uses lightweight source window for running source
       maxLineCount: 16_384,
       overlapLineCount: 96
     });
+
     assert.equal(application.agentSessionDetailRequests.length, 0);
   });
 });
@@ -2405,6 +2466,7 @@ test("agent transcript updates falls back when lightweight source window misses 
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentSessionPatch: {
@@ -2453,6 +2515,7 @@ test("agent transcript updates uses source tail window when the source cursor is
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentTranscriptWindowResponse: [
@@ -2554,6 +2617,7 @@ test("agent transcript view compacts sparse changes source refs into spans", asy
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -2573,6 +2637,7 @@ test("agent transcript view compacts sparse changes source refs into spans", asy
       .flatMap((item) => item.type === "message" ? item.changeActivities : [])
       .find((activity) => activity.kind === "changes");
     assert.equal(changes?.sourceEntryIds, undefined);
+
     assert.equal(changes?.sourceEntryRanges, undefined);
     assert.deepEqual(changes?.sourceEntrySpans, [
       {
@@ -2656,6 +2721,7 @@ test("agent transcript view avoids fake file counts for compact hidden changes",
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -2716,6 +2782,7 @@ test("agent transcript view keeps waiting pending when compact detail cannot be 
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -2762,6 +2829,7 @@ test("agent transcript view keeps waiting pending until a detail follows turn st
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -2831,6 +2899,7 @@ test("agent transcript view hydrates compact waiting detail from exact source re
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentTranscriptTailWindowResponse: [
@@ -2923,6 +2992,7 @@ test("agent transcript view keeps waiting pending when compact details contain o
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail,
     agentTranscriptTailWindowResponse: [
@@ -3006,6 +3076,7 @@ test("agent transcript view labels compact details by addressable source referen
       }
     ]
   };
+
   const application = fakeApplication({
     agentSessionDetailResponse: detail
   });
@@ -3076,6 +3147,7 @@ test("runtime route returns runtime summary shape without probing local tools", 
     lastActiveModel: "llama3",
     statusText: "Running"
   };
+
   const app = createTestApp((target) => {
     installRuntimeRoutes(target, {
       listRuntimes: async () => [runtime]
@@ -3101,6 +3173,7 @@ test("runtime route starts the LM Studio Local Server without loading a model", 
     lastActiveModel: "local-model",
     statusText: "installed, local server is off"
   };
+
   const app = createTestApp((target) => {
     installRuntimeRoutes(target, {
       startLmStudioServer: async () => ({
@@ -3138,6 +3211,7 @@ test("runtime route starts Ollama once for concurrent wake-up requests", async (
     lastActiveModel: null,
     statusText: "2 local models available"
   };
+
   let markBothRequestsEntered!: () => void;
   let releaseStart!: () => void;
   const bothRequestsEntered = new Promise<void>((resolve) => {
@@ -3151,6 +3225,7 @@ test("runtime route starts Ollama once for concurrent wake-up requests", async (
         requestCount += 1;
         if (requestCount === 2) markBothRequestsEntered();
       }
+
       next();
     });
     installRuntimeRoutes(target, {
@@ -3169,7 +3244,9 @@ test("runtime route starts Ollama once for concurrent wake-up requests", async (
   await withServer(app, async (baseUrl) => {
     const first = fetch(`${baseUrl}/api/runtimes/ollama/server/start`, { method: "POST" });
     const second = fetch(`${baseUrl}/api/runtimes/ollama/server/start`, { method: "POST" });
+
     await bothRequestsEntered;
+
     releaseStart();
     const responses = await Promise.all([first, second]);
     const results = await Promise.all(responses.map((response) => response.json()));
@@ -3196,6 +3273,7 @@ test("runtime route exposes exact local LM Studio model choices", async () => {
 
   await withServer(app, async (baseUrl) => {
     const result = await requestJson<{ models: typeof models }>(`${baseUrl}/api/runtimes/lm-studio/models`);
+
     assert.deepEqual(result, { models });
   });
 });
@@ -3213,6 +3291,7 @@ test("runtime route exposes exact local Ollama model choices", async () => {
 
   await withServer(app, async (baseUrl) => {
     const result = await requestJson<{ models: typeof models }>(`${baseUrl}/api/runtimes/ollama/models`);
+
     assert.deepEqual(result, { models });
   });
 });
@@ -3230,11 +3309,13 @@ test("runtime route validates and normalizes LM Studio model preparation through
     lastActiveModel: "qwen/qwen3-4b",
     statusText: "ready"
   };
+
   const model = {
     displayName: "Qwen3 4B",
     modelKey: "qwen/qwen3-4b",
     path: "qwen/qwen3-4b"
   };
+
   const app = createTestApp((target) => {
     installRuntimeRoutes(target, {
       prepareLmStudioModel: async (modelKey) => {

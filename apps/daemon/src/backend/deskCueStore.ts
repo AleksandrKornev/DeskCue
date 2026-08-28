@@ -27,6 +27,7 @@ export class DeskCueStore {
     sqliteContext?: SqliteDatabaseContext
   ) {
     const backend = await StoreBackedSessionBackend.create(eventBus, sqliteContext);
+
     return new DeskCueStore(backend);
   }
 
@@ -66,8 +67,12 @@ export class DeskCueStore {
     return this.backend.stopSession(sessionId);
   }
 
-  interruptSession(sessionId: string, sourceTurn?: SourceTurnInterruptTarget | null) {
-    return this.backend.interruptSession(sessionId, sourceTurn);
+  interruptSession(
+    sessionId: string,
+    sourceTurn?: SourceTurnInterruptTarget | null,
+    sourceAgentSession?: AgentSessionDetail | null
+  ) {
+    return this.backend.interruptSession(sessionId, sourceTurn, sourceAgentSession);
   }
 
   getExternalClaudeBackgroundStopCapability(

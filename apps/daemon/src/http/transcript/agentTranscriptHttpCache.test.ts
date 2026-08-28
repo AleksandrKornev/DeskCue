@@ -83,9 +83,11 @@ test("does not cache an oversized transcript view", () => {
 
 function version(
   sourceVersion: string,
-  workState: AgentSessionSummary["workState"] = "idle"
+  workState: AgentSessionSummary["workState"] = "idle",
+  localStateVersion = "local-v1"
 ): AgentSessionSourceVersion {
   return {
+    localStateVersion,
     summary: summary(workState),
     sourceFileMtimeMs: 1,
     sourceFileSizeBytes: 1,
@@ -135,6 +137,12 @@ test("builds stable view keys and only caches finished source versions", () => {
     buildTranscriptViewCacheKey(version("v1"), options),
     buildTranscriptViewCacheKey(version("v1"), options)
   );
+
+  assert.notEqual(
+    buildTranscriptViewCacheKey(version("v1"), options),
+    buildTranscriptViewCacheKey(version("v1", "idle", "local-v2"), options)
+  );
+
   assert.equal(shouldCacheTranscriptViewForSourceVersion(version("v1", "idle")), true);
   assert.equal(shouldCacheTranscriptViewForSourceVersion(version("v1", "running")), false);
 });

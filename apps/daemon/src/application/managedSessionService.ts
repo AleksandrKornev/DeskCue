@@ -14,8 +14,8 @@ import { ManagedSessionInterruptCoordinator } from "./managedSessionInterruptCoo
 import { ManagedSessionReplyStateSynchronizer } from "./managedSessionReplyStateSync.ts";
 import type {
   ManagedSessionBackend,
-  ManagedSessionGitRefreshOptions,
-  SourceAgentSessionDiscovery
+  ManagedSourceAgentSessionDiscovery,
+  ManagedSessionGitRefreshOptions
 } from "./ports.ts";
 import {
   requireNonEmptyString,
@@ -29,7 +29,7 @@ export class ManagedSessionService {
 
   constructor(
     private readonly backend: ManagedSessionBackend,
-    discovery: SourceAgentSessionDiscovery
+    discovery: ManagedSourceAgentSessionDiscovery
   ) {
     this.interrupts = new ManagedSessionInterruptCoordinator(backend, discovery);
     this.replyStateSync = new ManagedSessionReplyStateSynchronizer(backend, discovery);
@@ -53,6 +53,7 @@ export class ManagedSessionService {
       normalizedSessionId,
       requireNonEmptyString(input, "input")
     );
+
     return this.replyStateSync.startQueuedCodexPromptIfReady(normalizedSessionId, session);
   }
 

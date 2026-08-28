@@ -111,7 +111,10 @@ function buildChatThreadOperation(
   if (
     input.waiting.kind === "idle" ||
     isPromptQueued ||
-    isInterruptLifecycleWaitingSuppressed(input.interruptLifecycle)
+    isInterruptLifecycleWaitingSuppressed(
+      input.interruptLifecycle,
+      input.pendingChatPrompt?.requestedAt
+    )
   ) return { kind: "idle" };
 
   return {

@@ -75,8 +75,6 @@ export function useManagedSessionReplyState({
   const interruptLifecycle = getSessionInterruptLifecycle(liveSourceState);
   const isServerInterruptRequested = interruptLifecycle.phase === "requested";
   const isEffectiveInterruptingPrompt = isInterruptingPrompt || isServerInterruptRequested;
-  const suppressWaitingForInterruptLifecycle =
-    isInterruptLifecycleWaitingSuppressed(interruptLifecycle);
   const isPromptInterruptibleSessionShell =
     sessionShell?.status === "running" ||
     sessionShell?.status === "read_only" ||
@@ -97,6 +95,15 @@ export function useManagedSessionReplyState({
     isPromptTrackableSessionShell,
     sessionShell
   });
+  const currentManagedPromptRequestedAt =
+    effectiveShellWaitingPrompt?.requestedAt ??
+    rawPendingChatPrompt?.requestedAt ??
+    displayedPendingChatPrompt?.requestedAt ??
+    null;
+  const suppressWaitingForInterruptLifecycle = isInterruptLifecycleWaitingSuppressed(
+    interruptLifecycle,
+    currentManagedPromptRequestedAt
+  );
   const hasConfirmedRawPendingPrompt = isConfirmedDeskCuePendingPrompt(rawPendingChatPrompt);
   const promptRecovery = sessionShell?.promptRecovery ?? null;
   const isExternalSourceTurn = isSourceTurnOutsideDeskCue(
