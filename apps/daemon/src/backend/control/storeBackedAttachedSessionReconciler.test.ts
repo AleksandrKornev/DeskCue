@@ -152,6 +152,7 @@ test("close drains durable recovery persistence across repeated source syncs", a
 
   repository.setSession(sessionDetail({
     promptRecovery: {
+      observedPromptAt: "2026-08-05T10:00:01.000Z",
       phase: "checking",
       promptText: "Recovered prompt",
       requestedAt: "2026-08-05T10:00:00.000Z",
@@ -237,6 +238,7 @@ test("does not resolve the journal when recovery state persistence fails", async
 
   repository.setSession(sessionDetail({
     promptRecovery: {
+      observedPromptAt: "2026-08-05T10:00:01.000Z",
       phase: "checking",
       promptText: "Recovered prompt",
       requestedAt: "2026-08-05T10:00:00.000Z",
@@ -301,4 +303,55 @@ test("does not resolve the journal when recovery state persistence fails", async
   reconciler.syncReplyState(completedAgentSession);
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(journalTransitions, ["completed"]);
+});
+
+test("does not complete the journal when transcript confirmation remains pending", () => {
+  const repository = new SessionRepository();
+  const session = sessionDetail({
+    status: "running",
+    finishedAt: null,
+    replyState: {
+      deliveryRequestedAt: "2026-08-05T10:00:00.000Z",
+      phase: "sending",
+      promptText: "Unconfirmed prompt",
+      requestedAt: "2026-08-05T10:00:00.000Z"
+    }
+  });
+
+  repository.setSession(session);
+  const journalTransitions: string[] = [];
+  const reconciler = new StoreBackedAttachedSessionReconciler({
+    getCallbackContext: () => ({
+      appendLog: () => {},
+      detachAttachedSession: async () => {},
+      emitServerEvent: () => {},
+      getSession: (sessionId: string) => repository.getSession(sessionId),
+      persistState: async () => {},
+      repository,
+      sessionRunner: {
+        getChild: () => ({}),
+        hasChild: () => true,
+        killChild: async () => {}
+      },
+      toSummary: (current: SessionDetail) => current,
+      updateSession: (sessionId: string, patch: Partial<SessionDetail>) => {
+        repository.updateSession(sessionId, patch);
+      }
+    } as never),
+    markPromptCompleted: () => journalTransitions.push("completed"),
+    markPromptObserved: () => journalTransitions.push("observed"),
+    persistState: async () => {},
+    repository,
+    sessionRunner: { hasChild: () => true } as never,
+    sourceTurnInterrupts: { decorate: <T>(sourceSession: T) => sourceSession } as never,
+    startQueuedPrompt: async (current) => current
+  });
+
+  const result = reconciler.syncReplyState({
+    ...agentSessionDetail(),
+    transcript: []
+  });
+
+  assert.equal(result?.replyState.phase, "sending");
+  assert.deepEqual(journalTransitions, []);
 });

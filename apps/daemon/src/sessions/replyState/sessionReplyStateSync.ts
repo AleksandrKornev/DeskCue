@@ -8,8 +8,8 @@ import type {
 } from "@deskcue/protocol";
 import {
   deriveReplyStateFromAgentSession,
-  isLatestManagedCodexPromptConfirmedComplete,
   isManagedSessionOwnActiveTurn,
+  isManagedSessionOwnCompletedTurn,
   isReplyStateEqual
 } from "#agents/codex/session/codexReplyState";
 import { logger } from "#infrastructure/logging/logger";
@@ -25,6 +25,7 @@ export type SessionReplyStateSyncCallbacks = {
   detachPromptTransport: (sessionId: string, reason: string) => void;
   emitServerEvent: (event: ServerEvent) => void;
   getPublicSession: (sessionId: string) => SessionDetail | null;
+  hasPromptTransport?: (sessionId: string) => boolean;
   listSessions: () => SessionDetail[];
   persistState: () => Promise<void>;
   startQueuedPrompt: (session: SessionDetail) => Promise<SessionDetail>;
@@ -44,13 +45,17 @@ function hasManagedPromptInFlight(session: Pick<SessionDetail, "replyState">) {
 
 function shouldDetachCompletedPromptTransport(
   session: Pick<SessionDetail, "replyState" | "sourceSessionId">,
-  nextReplyState: SessionDetail["replyState"]
+  nextReplyState: SessionDetail["replyState"],
+  agentSession: AgentSessionDetail,
+  canObserveOwnedPrompt: boolean
 ) {
   return (
+    canObserveOwnedPrompt &&
     Boolean(session.sourceSessionId) &&
     (session.replyState.phase === "sending" || session.replyState.phase === "waiting") &&
     Boolean(session.replyState.promptText?.trim()) &&
-    nextReplyState.phase === "idle"
+    nextReplyState.phase === "idle" &&
+    isManagedSessionOwnCompletedTurn(session, agentSession)
   );
 }
 
@@ -62,20 +67,6 @@ function selectLatestActivityTimestamp(session: SessionDetail, agentSession: Age
   return session.lastActivityAt > agentSession.updatedAt
     ? session.lastActivityAt
     : agentSession.updatedAt;
-}
-
-function shouldNormalizeCompletedCodexExitCode(
-  session: SessionDetail,
-  agentSession: AgentSessionDetail
-) {
-  return (
-    session.adapterId === "codex" &&
-    session.status === "read_only" &&
-    session.exitCode !== null &&
-    session.exitCode !== 0 &&
-    session.replyState.phase === "idle" &&
-    isLatestManagedCodexPromptConfirmedComplete(session, agentSession)
-  );
 }
 
 export function syncManagedSessionReplyState(
@@ -95,28 +86,38 @@ export function syncManagedSessionReplyState(
 
   if (promptRecovery) {
     const lastActivityAt = selectLatestActivityTimestamp(session, agentSession);
+    const recoveredStatus = promptRecovery.confirmed && (
+      session.status === "stopped" || session.status === "failed"
+    )
+      ? "read_only" as const
+      : session.status;
+    const recoveredExitCode = promptRecovery.terminalOutcome === "completed" &&
+      session.exitCode !== null && session.exitCode !== 0
+      ? 0
+      : session.exitCode;
     const recoveryChanged =
       session.promptRecovery?.phase !== promptRecovery.promptRecovery?.phase ||
       session.promptRecovery?.retryable !== promptRecovery.promptRecovery?.retryable ||
+      session.promptRecovery?.observedPromptAt !== promptRecovery.promptRecovery?.observedPromptAt ||
+      session.status !== recoveredStatus ||
+      session.exitCode !== recoveredExitCode ||
       !isReplyStateEqual(session.replyState, promptRecovery.replyState);
     if (!recoveryChanged) return callbacks.getPublicSession(session.id);
 
     callbacks.updateSession(session.id, {
       lastActivityAt,
+      exitCode: recoveredExitCode,
       promptRecovery: promptRecovery.promptRecovery,
       replyState: promptRecovery.replyState,
-      status: promptRecovery.confirmed && session.status === "stopped"
-        ? "read_only"
-        : session.status
+      status: recoveredStatus
     });
     const updatedSession = {
       ...session,
       lastActivityAt,
+      exitCode: recoveredExitCode,
       promptRecovery: promptRecovery.promptRecovery,
       replyState: promptRecovery.replyState,
-      status: promptRecovery.confirmed && session.status === "stopped"
-        ? "read_only" as const
-        : session.status
+      status: recoveredStatus
     };
 
     callbacks.emitServerEvent({
@@ -166,49 +167,21 @@ export function syncManagedSessionReplyState(
     return callbacks.getPublicSession(session.id);
   }
 
-  const nextReplyState = deriveReplyStateFromAgentSession(session, agentSession);
-  const shouldNormalizeExitCode = shouldNormalizeCompletedCodexExitCode(
+  const canObserveOwnedPrompt = callbacks.hasPromptTransport?.(session.id) === true;
+  const nextReplyState = deriveReplyStateFromAgentSession(
     session,
-    agentSession
+    agentSession,
+    canObserveOwnedPrompt
   );
-
-  if (shouldNormalizeExitCode) {
-    callbacks.updateSession(session.id, {
-      exitCode: 0
-    });
-    callbacks.emitServerEvent({
-      type: "session.updated",
-      payload: callbacks.toSummary({
-        ...session,
-        exitCode: 0
-      })
-    });
-    void callbacks.persistState().catch((error) => {
-      logger.error("Failed to persist source-confirmed Codex outcome", {
-        message: error instanceof Error ? error.message : String(error),
-        sessionId: session.id
-      });
-    });
-
-    return callbacks.getPublicSession(session.id);
-  }
 
   if (isReplyStateEqual(session.replyState, nextReplyState)) return callbacks.getPublicSession(session.id);
 
-  const shouldLogInputConfirmationTimeout =
-    session.replyState.phase === "sending" &&
-    nextReplyState.phase === "idle" &&
-    Boolean(session.replyState.promptText);
-
-  if (shouldLogInputConfirmationTimeout) {
-    callbacks.appendLog(
-      session.id,
-      "system",
-      "Codex did not confirm the prompt in the transcript within 2 minutes. The transport is still running; try sending again or interrupt the prompt.\n"
-    );
-  }
-
-  if (shouldDetachCompletedPromptTransport(session, nextReplyState)) {
+  if (shouldDetachCompletedPromptTransport(
+    session,
+    nextReplyState,
+    agentSession,
+    canObserveOwnedPrompt
+  )) {
     callbacks.detachPromptTransport(session.id, "completed-prompt");
     return callbacks.getPublicSession(session.id);
   }

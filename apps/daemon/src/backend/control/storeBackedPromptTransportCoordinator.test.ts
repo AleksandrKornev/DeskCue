@@ -675,7 +675,7 @@ test("records an interrupt before attempting to restart the Codex transport", as
   assert.deepEqual(lifecycle, ["interrupted"]);
 });
 
-test("keeps Claude print ownership until source reconciliation completes", () => {
+test("does not invent source prompt outcomes without an active journal delivery", () => {
   const lifecycle: string[] = [];
   const claudeSession = sessionDetail({
     adapterId: "claude-code",
@@ -699,7 +699,7 @@ test("keeps Claude print ownership until source reconciliation completes", () =>
 
   coordinator.recordSessionFinished("session-1", claudeSession, "failed", 1);
 
-  assert.deepEqual(lifecycle, ["completed", "interrupted"]);
+  assert.deepEqual(lifecycle, []);
 });
 
 test("records a user-stopped prompt transport as interrupted even with a zero exit", () => {
@@ -754,6 +754,7 @@ test("preserves an active-writer conflict as definitely not sent", async () => {
 
 test("does not reuse an active-writer conflict from an earlier prompt attempt", async () => {
   const lifecycle: string[] = [];
+  const updates: Array<Partial<SessionDetail>> = [];
   const session = sessionDetail({
     logs: [{
       id: "stale-writer-conflict",
@@ -762,6 +763,145 @@ test("does not reuse an active-writer conflict from an earlier prompt attempt", 
       timestamp: "2026-08-05T10:00:00.000Z"
     }]
   });
+  const coordinator = coordinatorFor(
+    session,
+    lifecycle,
+    {
+      restartCodexTransportProcess: async (callbacks: {
+        markPromptAccepted?: (sessionId: string) => void;
+        markPromptDispatching?: (sessionId: string) => void;
+      }) => {
+        callbacks.markPromptDispatching?.(session.id);
+        callbacks.markPromptAccepted?.(session.id);
+        return session;
+      }
+    },
+    (patch) => updates.push(patch)
+  );
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  const requestedAt = new Date().toISOString();
+
+  coordinator.recordSessionFinished(session.id, {
+    ...session,
+    replyState: {
+      phase: "sending",
+      promptText: "Continue safely",
+      requestedAt
+    }
+  }, "failed", 1);
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Continue safely",
+    "dispatching",
+    "accepted",
+    "outcome-unknown"
+  ]);
+  assert.deepEqual(updates.at(-1)?.promptRecovery, {
+    phase: "outcome_unknown",
+    promptText: "Continue safely",
+    requestedAt,
+    retryable: false
+  });
+});
+
+test("keeps exact observed prompt identity when an accepted transport fails", async () => {
+  const lifecycle: string[] = [];
+  const updates: Array<Partial<SessionDetail>> = [];
+  const session = sessionDetail();
+  const coordinator = coordinatorFor(
+    session,
+    lifecycle,
+    {
+      restartCodexTransportProcess: async (callbacks: {
+        markPromptAccepted?: (sessionId: string) => void;
+        markPromptDispatching?: (sessionId: string) => void;
+      }) => {
+        callbacks.markPromptDispatching?.(session.id);
+        callbacks.markPromptAccepted?.(session.id);
+        return session;
+      }
+    },
+    (patch) => updates.push(patch)
+  );
+  const deliveryRequestedAt = "2026-08-28T10:00:00.000Z";
+  const observedPromptAt = "2026-08-28T10:00:01.000Z";
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  coordinator.recordSessionFinished(session.id, {
+    ...session,
+    replyState: {
+      deliveryRequestedAt,
+      phase: "waiting",
+      promptText: "Continue safely",
+      requestedAt: observedPromptAt,
+      sourcePromptObserved: true
+    }
+  }, "failed", 1);
+
+  assert.equal(lifecycle.at(-1), "outcome-unknown");
+  assert.deepEqual(updates.at(-1)?.promptRecovery, {
+    observedPromptAt,
+    phase: "checking",
+    promptText: "Continue safely",
+    requestedAt: deliveryRequestedAt,
+    retryable: false
+  });
+});
+
+for (const adapterId of ["codex", "claude-code"] as const) {
+test(`keeps a clean ${adapterId} transport exit uncertain without transcript evidence`, async () => {
+  const lifecycle: string[] = [];
+  const updates: Array<Partial<SessionDetail>> = [];
+  const session = sessionDetail({ adapterId });
+  const restartProcess = async (callbacks: {
+    markPromptAccepted?: (sessionId: string) => void;
+    markPromptDispatching?: (sessionId: string) => void;
+  }) => {
+    callbacks.markPromptDispatching?.(session.id);
+    callbacks.markPromptAccepted?.(session.id);
+    return session;
+  };
+
+  const coordinator = coordinatorFor(
+    session,
+    lifecycle,
+    adapterId === "codex"
+      ? { restartCodexTransportProcess: restartProcess }
+      : { restartClaudePromptTransportProcess: restartProcess },
+    (patch) => updates.push(patch)
+  );
+  const deliveryRequestedAt = "2026-08-28T10:00:00.000Z";
+
+  await coordinator.sendSourceInput(session, {} as never, "Continue safely");
+  coordinator.recordSessionFinished(session.id, {
+    ...session,
+    replyState: {
+      deliveryRequestedAt,
+      phase: "sending",
+      promptText: "Continue safely",
+      requestedAt: deliveryRequestedAt
+    }
+  }, adapterId === "codex" ? "done" : "read_only", 0);
+
+  assert.deepEqual(lifecycle, [
+    "prepare:Continue safely",
+    "dispatching",
+    "accepted",
+    "outcome-unknown"
+  ]);
+  assert.deepEqual(updates.at(-1)?.promptRecovery, {
+    phase: "outcome_unknown",
+    promptText: "Continue safely",
+    requestedAt: deliveryRequestedAt,
+    retryable: false
+  });
+});
+}
+
+test("completes the journal after reply state has authoritative completion evidence", async () => {
+  const lifecycle: string[] = [];
+  const session = sessionDetail();
   const coordinator = coordinatorFor(session, lifecycle, {
     restartCodexTransportProcess: async (callbacks: {
       markPromptAccepted?: (sessionId: string) => void;
@@ -776,18 +916,14 @@ test("does not reuse an active-writer conflict from an earlier prompt attempt", 
   await coordinator.sendSourceInput(session, {} as never, "Continue safely");
   coordinator.recordSessionFinished(session.id, {
     ...session,
-    replyState: {
-      phase: "sending",
-      promptText: "Continue safely",
-      requestedAt: new Date().toISOString()
-    }
-  }, "failed", 1);
+    replyState: emptyReplyState()
+  }, "done", 0);
 
   assert.deepEqual(lifecycle, [
     "prepare:Continue safely",
     "dispatching",
     "accepted",
-    "interrupted"
+    "completed"
   ]);
 });
 

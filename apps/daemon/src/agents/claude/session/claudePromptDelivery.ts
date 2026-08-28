@@ -79,7 +79,8 @@ function resolveClaudeHomeDirectory(sourceSessionFilePath?: string | null) {
 export async function restartClaudePromptTransport(
   callbacks: RestartClaudePromptTransportCallbacks,
   session: SessionDetail,
-  input: string
+  input: string,
+  requestedAt = new Date().toISOString()
 ) {
   const prompt = input.trim();
 
@@ -131,7 +132,6 @@ export async function restartClaudePromptTransport(
 
   if (!workspace) throw new AppError("not_found", "Workspace not found.");
 
-  const requestedAt = new Date().toISOString();
   const { command, spawnSpec } = buildClaudeResumePrintTransport(session.sourceSessionId, prompt);
   const claudeHome = resolveClaudeHomeDirectory(session.sourceSessionFilePath);
   const configuredClaudeConfigDirectory = process.env.CLAUDE_CONFIG_DIR?.trim();

@@ -307,7 +307,17 @@ export function resolveInputUnavailableLabel({
   const explicitInputBlockedReason = inputBlockedReason?.trim();
 
   if (promptRecovery?.phase === "not_sent" && explicitInputBlockedReason) return explicitInputBlockedReason;
-  if (promptRecovery) return "DeskCue lost control of this turn";
+  if (promptRecovery?.phase === "not_sent") return "DeskCue confirmed that the agent did not receive this prompt";
+  if (promptRecovery?.phase === "checking") return "DeskCue is checking the source agent for this turn's outcome";
+
+  if (promptRecovery?.phase === "outcome_unknown" && promptRecovery.observedPromptAt) {
+    return "DeskCue could not confirm this turn's final outcome";
+  }
+
+  if (promptRecovery?.phase === "outcome_unknown") {
+    return "DeskCue could not confirm whether the agent received this prompt";
+  }
+
   if (explicitInputBlockedReason) return explicitInputBlockedReason;
   if (sourceSessionId) return "This chat is view only";
 

@@ -142,6 +142,90 @@ describe("useManagedSessionShellViewModel", () => {
     expect(result.current.selectedSessionDetail?.canSendInput).toBe(false);
   });
 
+  it("introduces prompt recovery from a newer realtime summary", () => {
+    const detail = createDetail("session-1");
+    const summary = {
+      ...createSummary("session-1", "Source chat workspace"),
+      canSendInput: false,
+      lastActivityAt: "2026-08-22T08:00:01.000Z",
+      promptRecovery: {
+        observedPromptAt: "2026-08-22T08:00:00.500Z",
+        phase: "checking" as const,
+        promptText: "Continue",
+        requestedAt: "2026-08-22T08:00:00.000Z",
+        retryable: false
+      }
+    };
+
+    const { result } = renderHook(() => useManagedSessionShellViewModel({
+      managedSessions: [summary],
+      selectedSession: detail,
+      selectedSessionId: detail.id
+    }));
+
+    expect(result.current.selectedSessionDetail?.promptRecovery).toEqual(summary.promptRecovery);
+  });
+
+  it("replaces stale observed recovery truth at an equal activity timestamp", () => {
+    const detail = {
+      ...createDetail("session-1"),
+      canSendInput: false,
+      promptRecovery: {
+        observedPromptAt: "2026-08-22T08:00:00.500Z",
+        phase: "outcome_unknown" as const,
+        promptText: "Repeat",
+        requestedAt: "2026-08-22T08:00:00.000Z",
+        retryable: false
+      }
+    };
+
+    const summary = {
+      ...createSummary("session-1", "Source chat workspace"),
+      canSendInput: false,
+      promptRecovery: {
+        phase: "outcome_unknown" as const,
+        promptText: "Repeat",
+        requestedAt: "2026-08-22T08:00:00.000Z",
+        retryable: false
+      }
+    };
+
+    const { result } = renderHook(() => useManagedSessionShellViewModel({
+      managedSessions: [summary],
+      selectedSession: detail,
+      selectedSessionId: detail.id
+    }));
+
+    expect(result.current.selectedSessionDetail?.promptRecovery).toEqual(summary.promptRecovery);
+  });
+
+  it("clears prompt recovery from a newer realtime summary", () => {
+    const detail = {
+      ...createDetail("session-1"),
+      canSendInput: false,
+      promptRecovery: {
+        phase: "outcome_unknown" as const,
+        promptText: "Continue",
+        requestedAt: "2026-08-22T08:00:00.000Z",
+        retryable: false
+      }
+    };
+
+    const summary = {
+      ...createSummary("session-1", "Source chat workspace"),
+      lastActivityAt: "2026-08-22T08:00:01.000Z",
+      promptRecovery: null
+    };
+
+    const { result } = renderHook(() => useManagedSessionShellViewModel({
+      managedSessions: [summary],
+      selectedSession: detail,
+      selectedSessionId: detail.id
+    }));
+
+    expect(result.current.selectedSessionDetail?.promptRecovery).toBeNull();
+  });
+
   it("does not regress an equal-timestamp terminal detail to a running summary", () => {
     const detail = {
       ...createDetail("session-1"),

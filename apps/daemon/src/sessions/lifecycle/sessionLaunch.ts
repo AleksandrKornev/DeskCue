@@ -174,6 +174,7 @@ export async function launchManagedSession(
     preview: emptyPreview(),
     replyState: argvPrompt
       ? {
+          deliveryRequestedAt: requestedAt,
           phase: "sending",
           promptText: argvPrompt,
           requestedAt

@@ -1,5 +1,6 @@
 import type { SessionDetail, SessionLogLine } from "@deskcue/protocol";
 import { logger } from "#infrastructure/logging/logger";
+import { emptyReplyState } from "#sessions/model/sessionDefaults";
 
 import {
   createSessionLookupCallbacksForBackend,
@@ -51,6 +52,13 @@ export function createSessionReplyStateSyncCallbacks(
     detachAttachedSession: context.detachAttachedSession,
     detachPromptTransport: (sessionId: string, reason: string) => {
       const child = context.sessionRunner.getChild(sessionId);
+
+      // The exact source turn is already terminal. Record that evidence before
+      // termination can synchronously publish a child exit.
+      context.updateSession(sessionId, {
+        promptRecovery: null,
+        replyState: emptyReplyState()
+      });
 
       void context.sessionRunner.killChild(sessionId, child, reason).catch((error) => {
         logger.error("Failed to terminate completed prompt transport", {

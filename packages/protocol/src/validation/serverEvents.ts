@@ -174,12 +174,15 @@ function validateSessionSummary(payload: Record<string, unknown>) {
 
   requireStrings(replyState, "phase");
   requireNullableStrings(replyState, "promptText", "requestedAt");
+  requireOptionalNullableStrings(replyState, "deliveryRequestedAt");
+  requireOptionalBoolean(replyState, "sourcePromptObserved");
   requireOneOf(replyState, "phase", ["idle", "queued", "sending", "waiting"]);
   if (payload.promptRecovery !== undefined && payload.promptRecovery !== null) {
     const promptRecovery = readProtocolObject(payload.promptRecovery);
 
     requireStrings(promptRecovery, "phase", "requestedAt");
     requireNullableStrings(promptRecovery, "promptText");
+    requireOptionalNullableStrings(promptRecovery, "observedPromptAt");
     requireOneOf(promptRecovery, "phase", ["checking", "outcome_unknown", "not_sent"]);
     requireBoolean(promptRecovery, "retryable");
   }

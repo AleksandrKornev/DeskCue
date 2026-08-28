@@ -87,6 +87,7 @@ test("restarts a failed attached Claude shell through a one-shot pipe transport"
     spawnInput: null as { command: string; spawnSpec?: { args: string[] } } | null
   };
 
+  const deliveryRequestedAt = "2026-07-31T10:00:01.000Z";
   const result = await restartClaudePromptTransport(
     {
       appendStdoutLog: () => {},
@@ -117,11 +118,13 @@ test("restarts a failed attached Claude shell through a one-shot pipe transport"
       }
     },
     current,
-    "continue from DeskCue"
+    "continue from DeskCue",
+    deliveryRequestedAt
   );
 
   assert.equal(result.status, "running");
   assert.equal(result.replyState.phase, "sending");
+  assert.equal(result.replyState.deliveryRequestedAt, deliveryRequestedAt);
   assert.deepEqual(result.inputHistory, ["continue from DeskCue"]);
   assert.deepEqual(captured.spawnInput?.spawnSpec?.args, [
     "--resume",

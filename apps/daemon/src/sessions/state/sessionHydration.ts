@@ -79,7 +79,7 @@ export function hydratePersistedSessions(sessions: SessionDetail[]): HydratedSes
       restored.finishedAt = restored.finishedAt ?? new Date().toISOString();
       restored.lastActivityAt = new Date().toISOString();
       restored.exitCode = null;
-      restored.replyState = emptyReplyState();
+      if (restored.replyState.phase !== "waiting") restored.replyState = emptyReplyState();
       restored.actionRequest = null;
       restored.inputBlockedReason = activeWriterConflict
         ? CODEX_ACTIVE_WRITER_BLOCKED_REASON
@@ -100,7 +100,7 @@ export function hydratePersistedSessions(sessions: SessionDetail[]): HydratedSes
       restored.status = "stopped";
       restored.finishedAt = restored.finishedAt ?? new Date().toISOString();
       restored.lastActivityAt = new Date().toISOString();
-      restored.replyState = emptyReplyState();
+      if (restored.replyState.phase !== "waiting") restored.replyState = emptyReplyState();
       restored.actionRequest = null;
       restored.logs = [
         ...restored.logs,
@@ -122,7 +122,7 @@ export function hydratePersistedSessions(sessions: SessionDetail[]): HydratedSes
       restored.status = "stopped";
       restored.finishedAt = restored.finishedAt ?? new Date().toISOString();
       restored.lastActivityAt = new Date().toISOString();
-      restored.replyState = emptyReplyState();
+      if (restored.replyState.phase !== "waiting") restored.replyState = emptyReplyState();
       restored.actionRequest = null;
       restored.logs = [
         ...restored.logs,

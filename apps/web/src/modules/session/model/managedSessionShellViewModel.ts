@@ -9,6 +9,11 @@ function hasLifecycleDifference(detail: SessionDetail, summary: SessionSummary) 
     detail.exitCode !== summary.exitCode ||
     detail.finishedAt !== summary.finishedAt ||
     detail.inputBlockedReason !== summary.inputBlockedReason ||
+    detail.promptRecovery?.observedPromptAt !== summary.promptRecovery?.observedPromptAt ||
+    detail.promptRecovery?.phase !== summary.promptRecovery?.phase ||
+    detail.promptRecovery?.promptText !== summary.promptRecovery?.promptText ||
+    detail.promptRecovery?.requestedAt !== summary.promptRecovery?.requestedAt ||
+    detail.promptRecovery?.retryable !== summary.promptRecovery?.retryable ||
     detail.replyState.phase !== summary.replyState.phase ||
     detail.replyState.promptText !== summary.replyState.promptText ||
     detail.replyState.requestedAt !== summary.replyState.requestedAt ||
@@ -56,6 +61,7 @@ export function mergeManagedSessionLifecycle(
     finishedAt: summary.finishedAt,
     inputBlockedReason: summary.inputBlockedReason,
     lastActivityAt: summary.lastActivityAt,
+    promptRecovery: summary.promptRecovery,
     replyState: summary.replyState,
     status: summary.status
   };

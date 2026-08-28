@@ -23,6 +23,7 @@ export type SourcePromptTransportStrategy = {
   start: (
     session: SessionDetail,
     prompt: string,
+    requestedAt: string,
     journalHooks: PromptTransportJournalHooks
   ) => Promise<SessionDetail>;
 };
@@ -37,14 +38,14 @@ export function createCodexPromptTransportStrategy(
 ): SourcePromptTransportStrategy {
   return {
     queuePolicy: { kind: "never" },
-    start: (session, prompt, journalHooks) =>
+    start: (session, prompt, requestedAt, journalHooks) =>
       (options.restartCodexTransportProcess ?? restartCodexTransportProcess)(
         {
           ...createCodexPromptDeliveryCallbacks(options.getCallbackContext()),
           ...journalHooks
         },
         session,
-        { prompt, reason: "prompt" }
+        { prompt, reason: "prompt", requestedAt }
       )
   };
 }
@@ -54,7 +55,7 @@ export function createClaudePromptTransportStrategy(
 ): SourcePromptTransportStrategy {
   return {
     queuePolicy: { kind: "never" },
-    start: (session, prompt, journalHooks) =>
+    start: (session, prompt, requestedAt, journalHooks) =>
       (options.restartClaudePromptTransportProcess ?? restartClaudePromptTransportProcess)({
         appendStderrLog: (sessionId, text) =>
           options.appendLog(sessionId, "stderr", text),
@@ -76,7 +77,7 @@ export function createClaudePromptTransportStrategy(
           options.gitPolling.start(sessionId, workspacePath),
         stopGitPolling: (sessionId) => options.gitPolling.stop(sessionId),
         updateSession: (sessionId, patch) => options.updateSession(sessionId, patch)
-      }, session, prompt)
+      }, session, prompt, requestedAt)
   };
 }
 

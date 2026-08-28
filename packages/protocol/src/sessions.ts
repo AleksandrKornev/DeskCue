@@ -84,12 +84,15 @@ export interface GitSnapshot {
 }
 
 export interface ReplyState {
+  deliveryRequestedAt?: string | null;
   phase: "idle" | "queued" | "sending" | "waiting";
   promptText: string | null;
   requestedAt: string | null;
+  sourcePromptObserved?: boolean;
 }
 
 export interface PromptRecoveryState {
+  observedPromptAt?: string | null;
   phase: "checking" | "outcome_unknown" | "not_sent";
   promptText: string | null;
   requestedAt: string;

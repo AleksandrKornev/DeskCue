@@ -287,16 +287,28 @@ export class StoreBackedSessionBackend {
       const alreadyMaterialized =
         session.promptRecovery?.promptText === prompt.promptText &&
         session.promptRecovery.requestedAt === prompt.requestedAt;
+      const materializedObservedPromptAt = alreadyMaterialized
+        ? session.promptRecovery?.observedPromptAt ?? null
+        : null;
+      const observedPromptAt = materializedObservedPromptAt ?? (
+        session.replyState.phase === "waiting" &&
+        session.replyState.sourcePromptObserved === true &&
+        session.replyState.deliveryRequestedAt === prompt.requestedAt &&
+        session.replyState.promptText?.trim() === prompt.promptText.trim()
+          ? session.replyState.requestedAt
+          : null
+      );
       const recoveryPhase = definitelyNotSent
         ? "not_sent"
         : alreadyMaterialized && session.promptRecovery?.phase === "outcome_unknown"
           ? "outcome_unknown"
-          : canReconcileSourceTranscript
+          : canReconcileSourceTranscript && observedPromptAt
             ? "checking"
             : "outcome_unknown";
       this.repository.updateSession(session.id, {
         replyState: emptyReplyState(),
         promptRecovery: {
+          ...(observedPromptAt ? { observedPromptAt } : {}),
           phase: recoveryPhase,
           promptText: prompt.promptText,
           requestedAt: prompt.requestedAt,
@@ -321,12 +333,14 @@ export class StoreBackedSessionBackend {
     }
 
     for (const session of this.repository.listSessionDetails()) {
-      if (session.promptRecovery && !latestRecoveryBySession.has(session.id)) {
-        this.repository.updateSession(session.id, {
-          promptRecovery: null
-        });
-        recoveryStateChanged = true;
-      }
+      if (latestRecoveryBySession.has(session.id)) continue;
+      if (!session.promptRecovery && session.replyState.phase === "idle") continue;
+
+      this.repository.updateSession(session.id, {
+        promptRecovery: null,
+        replyState: emptyReplyState()
+      });
+      recoveryStateChanged = true;
     }
 
     if (recoveryStateChanged) await this.persistence.persistFull();

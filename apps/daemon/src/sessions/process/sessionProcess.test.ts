@@ -222,6 +222,24 @@ test("runs a one-shot process without a PTY and forwards stdout", async () => {
   assert.equal(output, "DESKCUE_PIPE_OK");
 });
 
+test("rejects pipe startup when the executable cannot be spawned", async () => {
+  const child = createSessionPipe(process.cwd(), {}, {
+    file: join(tmpdir(), `missing-agent-${Date.now()}.exe`),
+    args: [],
+    transport: "pipe"
+  });
+  let output = "";
+
+  child.onData((chunk) => {
+    output += chunk;
+  });
+
+  assert.ok(child.startupReady);
+  await assert.rejects(child.startupReady, /ENOENT/);
+  assert.equal(await waitForPipeExit(child), 1);
+  assert.match(output, /Failed to start process/);
+});
+
 test("survive-parent-exit pipe process completes after its DeskCue parent exits", async () => {
   const directory = await mkdtemp(join(tmpdir(), "deskcue-surviving-pipe-"));
   const markerPath = join(directory, "completed.marker");

@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 
 import type { AgentSessionDetail, AgentSessionSummary, SessionDetail } from "@deskcue/protocol";
+import { isManagedSessionOwnCompletedTurn } from "#agents/codex/session/codexReplyState";
 import type { SourceTurnInterruptLifecycle } from "#agents/sourceTurnInterruptLifecycle";
 import { logger } from "#infrastructure/logging/logger";
 import type { SessionRunner } from "#sessions/process/sessionRunner";
+import { reconcileSessionPromptRecovery } from "#sessions/replyState/sessionPromptRecovery";
 import {
   reconcileAttachedAgentSession,
   syncManagedSessionReplyState
@@ -37,15 +39,25 @@ export class StoreBackedAttachedSessionReconciler {
   ) {}
 
   syncReplyState(agentSession: AgentSessionDetail) {
-    if (this.closed) {
-      return null;
-    }
+    if (this.closed) return null;
 
-    const recoverySession = this.options.repository.listSessionDetails().find(
+    const matchingSession = this.options.repository.listSessionDetails().find(
       (session) =>
+        (session.status === "running" || session.status === "read_only" || Boolean(session.promptRecovery)) &&
         session.adapterId === agentSession.agentId &&
-        session.sourceSessionId === agentSession.sourceSessionId &&
-        Boolean(session.promptRecovery)
+        session.sourceSessionId === agentSession.sourceSessionId
+    );
+    const recoverySession = matchingSession?.promptRecovery ? matchingSession : null;
+    const recoveryResolution = recoverySession
+      ? reconcileSessionPromptRecovery(recoverySession, agentSession)
+      : null;
+    const hasOwnedPromptTransport = matchingSession
+      ? this.options.sessionRunner.hasChild(matchingSession.id)
+      : false;
+    const hasConfirmedLiveCompletion = Boolean(
+      matchingSession &&
+      hasOwnedPromptTransport &&
+      isManagedSessionOwnCompletedTurn(matchingSession, agentSession)
     );
     const callbacks = createSessionReplyStateSyncCallbacks(
       this.options.getCallbackContext(),
@@ -55,6 +67,7 @@ export class StoreBackedAttachedSessionReconciler {
     const result = syncManagedSessionReplyState(
       {
         ...callbacks,
+        hasPromptTransport: (sessionId) => this.options.sessionRunner.hasChild(sessionId),
         persistState: () => {
           syncPersistence = this.trackPersistence(this.options.persistState());
           return syncPersistence;
@@ -66,16 +79,20 @@ export class StoreBackedAttachedSessionReconciler {
     if (recoverySession && result && !result.promptRecovery) {
       this.scheduleRecoveredPromptResolution(
         result.id,
-        result.replyState.phase === "idle",
+        recoveryResolution?.terminalOutcome === "completed",
         syncPersistence
       );
     } else if (result && this.pendingPromptRecoveryResolutions.has(result.id)) {
       this.scheduleRecoveredPromptResolution(
         result.id,
-        result.replyState.phase === "idle",
+        false,
         syncPersistence
       );
-    } else if (result?.replyState.phase === "idle" && !result.promptRecovery) {
+    } else if (
+      result?.replyState.phase === "idle" &&
+      !result.promptRecovery &&
+      hasConfirmedLiveCompletion
+    ) {
       this.options.markPromptCompleted(result.id);
     }
 
@@ -87,9 +104,7 @@ export class StoreBackedAttachedSessionReconciler {
     completed: boolean,
     persistence: Promise<void> | null = null
   ) {
-    if (this.closed) {
-      return;
-    }
+    if (this.closed) return;
 
     const existing = this.pendingPromptRecoveryResolutions.get(sessionId);
     const resolution = existing ?? { completed, inFlight: false };
@@ -97,9 +112,7 @@ export class StoreBackedAttachedSessionReconciler {
     resolution.completed ||= completed;
 
     this.pendingPromptRecoveryResolutions.set(sessionId, resolution);
-    if (resolution.inFlight) {
-      return;
-    }
+    if (resolution.inFlight) return;
 
     resolution.inFlight = true;
     void this.trackPersistence(
@@ -108,9 +121,7 @@ export class StoreBackedAttachedSessionReconciler {
   }
 
   async close() {
-    if (this.closed) {
-      return;
-    }
+    if (this.closed) return;
 
     this.closed = true;
     await Promise.allSettled([...this.inFlightPersistenceOperations]);
@@ -223,9 +234,7 @@ export class StoreBackedAttachedSessionReconciler {
         };
       });
 
-    if (attachedSessions.length === 0) {
-      return "none";
-    }
+    if (attachedSessions.length === 0) return "none";
 
     return createHash("sha1")
       .update(JSON.stringify(attachedSessions))

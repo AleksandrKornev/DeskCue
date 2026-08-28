@@ -63,7 +63,7 @@ SQLite at `.deskcue-data/service/deskcue.sqlite` is the authoritative service st
 
 Prompt delivery state is written before transport starts. A delivery left in `prepared` is known not to have reached the runtime. Once dispatch starts, its outcome stays unknown until the source transcript proves that the prompt was accepted. DeskCue never resends an ambiguous prompt automatically.
 
-The source-backed Codex and Claude Code prompt subprocess is designed to keep running across a graceful daemon restart. After startup, an ambiguous delivery is shown as `checking`; the next source-detail sync reconciles it against the native transcript. If the prompt is found, DeskCue restores the real reply state and transcript view. Otherwise the delivery becomes `outcome_unknown`. A `not_sent` prompt can be retried safely. Retrying an unknown outcome requires an explicit force action because it may duplicate work.
+The source-backed Codex and Claude Code prompt subprocess is designed to keep running across a graceful daemon restart. After startup, only a delivery with durable identity for an observed native prompt is shown as `checking`; the source-detail sync then waits for that same turn's terminal entry. Missing identity or a missing terminal outcome becomes `outcome_unknown`. A `not_sent` prompt can be retried safely. DeskCue does not offer a resend action for an unknown outcome because it may duplicate work.
 
 Generic CLI processes and DeskCue-owned Ollama or LM Studio generations remain daemon-managed and are not promised to survive a daemon restart.
 

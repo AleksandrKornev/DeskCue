@@ -207,6 +207,29 @@ describe("managed session live chat model", () => {
     }), "failed");
   });
 
+  it("shows unresolved recovery instead of a failed transport status", () => {
+    assert.equal(
+      resolveLiveHeaderStatusLabel({
+        isPromptInFlight: false,
+        sessionShell: {
+          promptRecovery: {
+            phase: "outcome_unknown",
+            promptText: "Continue",
+            requestedAt: "2026-08-25T10:00:00.000Z",
+            retryable: false
+          },
+          sourceSessionId: "source-1",
+          status: "failed"
+        },
+        takenOverAgentSession: {
+          attachMode: "resume",
+          workState: "idle"
+        }
+      }),
+      "control lost"
+    );
+  });
+
   it("keeps a completed resumable shell ready despite stale active source detail", () => {
     const sessionShell = { sourceSessionId: "source-1", status: "done" as const };
     const staleSourceSession = { attachMode: "resume" as const, workState: "running" as const };

@@ -84,7 +84,7 @@ describe("managed session reply state helpers", () => {
     }), writerConflictReason);
   });
 
-  it("uses the bounded control-loss label for an unknown recovery outcome", () => {
+  it("describes an unobserved prompt without claiming a terminal outcome", () => {
     assert.equal(resolveInputUnavailableLabel({
       canSendInput: false,
       inputBlockedReason: "Provider-specific stale detail",
@@ -96,7 +96,53 @@ describe("managed session reply state helpers", () => {
         retryable: false
       },
       sourceSessionId: "source-1"
-    }), "DeskCue lost control of this turn");
+    }), "DeskCue could not confirm whether the agent received this prompt");
+  });
+
+  it("describes an observed prompt as an unknown terminal outcome", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: null,
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        observedPromptAt: "2026-08-11T12:00:01.000Z",
+        phase: "outcome_unknown",
+        promptText: "Continue",
+        requestedAt,
+        retryable: false
+      },
+      sourceSessionId: "source-1"
+    }), "DeskCue could not confirm this turn's final outcome");
+  });
+
+  it("describes an active delivery check without claiming control is already lost", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: null,
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        phase: "checking",
+        promptText: "Continue",
+        requestedAt,
+        retryable: false
+      },
+      sourceSessionId: "source-1"
+    }), "DeskCue is checking the source agent for this turn's outcome");
+  });
+
+  it("describes a retryable prompt as not received without claiming control loss", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: null,
+      isExternalSourceTurn: false,
+      promptRecovery: {
+        phase: "not_sent",
+        promptText: "Continue",
+        requestedAt,
+        retryable: true
+      },
+      sourceSessionId: "source-1"
+    }), "DeskCue confirmed that the agent did not receive this prompt");
   });
 
   it("ignores stale active source metadata after the managed transport is done", () => {

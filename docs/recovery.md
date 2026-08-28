@@ -24,21 +24,23 @@ prompt was interrupted:
   `not_sent` and can be retried safely by the user;
 - `dispatching` or `accepted` means the runtime may already have received the
   prompt, so DeskCue does not resend it automatically;
-- for source-backed Codex and Claude Code sessions, startup exposes `checking`
-  until the next bounded source-detail read looks for the prompt in the native
-  transcript;
-- when the prompt is observed, DeskCue clears recovery state and reconstructs
-  the current reply state and transcript view from that source;
-- when it cannot be confirmed, the UI exposes `outcome_unknown`. Sending the
-  same instruction again is an explicit force retry and may duplicate work
+- for source-backed Codex and Claude Code sessions, startup keeps `checking`
+  only when durable state already identifies the observed native prompt;
+- without that identity, an ambiguous delivery starts as `outcome_unknown`
+  instead of guessing from later transcript text;
+- when the exact prompt is observed, DeskCue keeps checking until the same
+  source turn has a terminal outcome; observation alone does not prove how the
+  turn ended;
+- when delivery or the terminal outcome cannot be confirmed, the UI exposes
+  `outcome_unknown` and does not offer a resend action
 
 Startup reconciliation is deliberately bounded to the newest 160 native
 transcript entries and 8 projected chat messages. A very tool-heavy or rapidly
 advancing source conversation can therefore move the matching user message
 outside the inspected window. That case is a safe false negative: DeskCue keeps
 the delivery as `outcome_unknown` and never turns missing bounded evidence into
-an automatic resend. The user can inspect the native chat before choosing the
-explicit force-retry action.
+an automatic or user-triggered resend from the recovery card. The user can
+inspect the native chat to determine what happened.
 
 The source-backed Codex and Claude Code prompt subprocess is designed to outlive
 a graceful daemon shutdown, so the agent can keep working while DeskCue

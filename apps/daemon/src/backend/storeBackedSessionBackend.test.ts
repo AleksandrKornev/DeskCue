@@ -184,7 +184,7 @@ test("restart keeps an ambiguous source prompt recoverable across repeated resta
     ).length;
 
     assert.deepEqual(first.getSession(fixture.session.id)?.promptRecovery, {
-      phase: "checking",
+      phase: "outcome_unknown",
       promptText: "May still be running",
       requestedAt: first.getSession(fixture.session.id)?.promptRecovery?.requestedAt,
       retryable: false
@@ -194,7 +194,7 @@ test("restart keeps an ambiguous source prompt recoverable across repeated resta
 
     const second = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
 
-    assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "checking");
+    assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "outcome_unknown");
 
     assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.retryable, false);
     assert.ok(firstRecoveryLogCount && firstRecoveryLogCount > 0);
@@ -277,8 +277,32 @@ test("unfinished source prompt remains recoverable across repeated restarts", as
   const fixture = await recoveryFixture("codex");
 
   try {
+    const deliveryRequestedAt = "2026-08-11T10:00:00.000Z";
+    const observedPromptAt = "2026-08-11T10:00:01.000Z";
+    const storage = new DeskCueSqliteStateStorage(fixture.context);
+
+    await storage.save({
+      version: 1,
+      workspaces: [fixture.workspace],
+      sessions: [{
+        ...fixture.session,
+        replyState: {
+          deliveryRequestedAt,
+          phase: "waiting",
+          promptText: "Observed active prompt",
+          requestedAt: observedPromptAt,
+          sourcePromptObserved: true
+        }
+      }]
+    });
+
+    storage.close();
     const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
-    const deliveryId = journal.prepare(fixture.session, "Observed active prompt");
+    const deliveryId = journal.prepare(
+      fixture.session,
+      "Observed active prompt",
+      deliveryRequestedAt
+    );
 
     journal.markDispatching(deliveryId);
 
@@ -286,13 +310,13 @@ test("unfinished source prompt remains recoverable across repeated restarts", as
     journal.close();
 
     const first = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
-    const requestedAt = first.getSession(fixture.session.id)?.promptRecovery?.requestedAt;
+    const recovery = first.getSession(fixture.session.id)?.promptRecovery;
 
-    assert.ok(requestedAt);
+    assert.equal(recovery?.observedPromptAt, observedPromptAt);
     const reconciled = first.syncReplyStateFromAgentSession(sourceDetail([
       {
         id: "observed-user",
-        timestamp: new Date(Date.parse(requestedAt) + 1).toISOString(),
+        timestamp: observedPromptAt,
         role: "user",
         text: "Observed active prompt",
         phase: null
@@ -317,9 +341,86 @@ test("unfinished source prompt remains recoverable across repeated restarts", as
     const second = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
 
     assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "outcome_unknown");
+    assert.equal(
+      second.getSession(fixture.session.id)?.promptRecovery?.observedPromptAt,
+      observedPromptAt
+    );
 
     assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.retryable, false);
     await second.close();
+  } finally {
+    fixture.context.close();
+    await rm(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("does not associate an older waiting prompt with a newer identical delivery", async () => {
+  const fixture = await recoveryFixture("codex");
+
+  try {
+    const oldObservedAt = "2026-08-11T10:00:01.000Z";
+    const storage = new DeskCueSqliteStateStorage(fixture.context);
+
+    await storage.save({
+      version: 1,
+      workspaces: [fixture.workspace],
+      sessions: [{
+        ...fixture.session,
+        promptRecovery: {
+          observedPromptAt: oldObservedAt,
+          phase: "checking",
+          promptText: "Repeat",
+          requestedAt: "2026-08-11T10:00:00.000Z",
+          retryable: false
+        },
+        replyState: {
+          deliveryRequestedAt: "2026-08-11T10:00:00.000Z",
+          phase: "waiting",
+          promptText: "Repeat",
+          requestedAt: oldObservedAt,
+          sourcePromptObserved: true
+        }
+      }]
+    });
+
+    storage.close();
+
+    const journal = new SqlitePromptDeliveryJournalStore(fixture.context);
+    const deliveryId = journal.prepare(
+      fixture.session,
+      "Repeat",
+      "2026-08-11T10:10:00.000Z"
+    );
+
+    journal.markDispatching(deliveryId);
+    journal.markAccepted(deliveryId);
+    journal.close();
+
+    const backend = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
+    const recovered = backend.getSession(fixture.session.id)?.promptRecovery;
+
+    assert.equal(recovered?.phase, "outcome_unknown");
+    assert.equal(recovered?.observedPromptAt, undefined);
+
+    const reconciled = backend.syncReplyStateFromAgentSession(sourceDetail([
+      {
+        id: "old-user",
+        timestamp: oldObservedAt,
+        role: "user",
+        text: "Repeat",
+        phase: null
+      },
+      {
+        id: "old-terminal",
+        timestamp: "2026-08-11T10:00:02.000Z",
+        role: "system",
+        text: "Turn completed",
+        phase: null
+      }
+    ]));
+
+    assert.equal(reconciled?.promptRecovery?.phase, "outcome_unknown");
+    await backend.close();
   } finally {
     fixture.context.close();
     await rm(fixture.directory, { force: true, recursive: true });
@@ -414,7 +515,8 @@ test("graceful close preserves a source pipe transport and recovers it on next h
 
     const second = await StoreBackedSessionBackend.create(fixture.eventBus, fixture.context);
 
-    assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "checking");
+    assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.phase, "outcome_unknown");
+    assert.equal(second.getSession(fixture.session.id)?.promptRecovery?.retryable, false);
 
     await second.close();
   } finally {

@@ -104,6 +104,7 @@ export async function runSourcePromptProcessLifecycle(
     inputBlockedReason: null,
     inputHistory: [...session.inputHistory, lifecycle.prompt],
     replyState: {
+      deliveryRequestedAt: lifecycle.requestedAt,
       phase: "sending",
       promptText: lifecycle.prompt,
       requestedAt: lifecycle.requestedAt

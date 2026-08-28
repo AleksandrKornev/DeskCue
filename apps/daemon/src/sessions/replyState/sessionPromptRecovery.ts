@@ -11,24 +11,22 @@ export type SessionPromptRecoveryReconciliation = {
   confirmed: boolean;
   promptRecovery: PromptRecoveryState | null;
   replyState: ReplyState;
+  terminalOutcome: "completed" | "failed" | "interrupted" | null;
 };
 
-function isAtOrAfterRecovery(entryTimestamp: string, requestedAt: string) {
-  const entryTime = Date.parse(entryTimestamp);
-  const requestedTime = Date.parse(requestedAt);
-
-  if (Number.isNaN(entryTime) || Number.isNaN(requestedTime)) return false;
-
-  return entryTime >= requestedTime;
-}
-
-function isTerminalRecoveryEntry(entry: AgentTranscriptEntry) {
-  if (entry.role !== "system") return false;
+function readTerminalRecoveryOutcome(
+  entry: AgentTranscriptEntry
+): SessionPromptRecoveryReconciliation["terminalOutcome"] {
+  if (entry.role !== "system") return null;
 
   const statusPart = entry.parts?.find((part) => part.type === "status");
   const label = statusPart?.type === "status" ? statusPart.label : entry.text;
 
-  return label === "Turn completed" || label === "Turn interrupted" || label === "Turn failed";
+  if (label === "Turn completed") return "completed";
+  if (label === "Turn interrupted") return "interrupted";
+  if (label === "Turn failed") return "failed";
+
+  return null;
 }
 
 function findRecoveryTurnEndIndex(
@@ -47,7 +45,7 @@ function findRecoveryTurnEndIndex(
 function findMatchingRecoveryPromptIndex(
   transcript: AgentTranscriptEntry[],
   promptText: string,
-  requestedAt: string
+  observedPromptAt: string
 ) {
   for (let index = 0; index < transcript.length; index += 1) {
     const entry = transcript[index];
@@ -55,7 +53,7 @@ function findMatchingRecoveryPromptIndex(
     if (
       entry.role === "user" &&
       entry.text.trim() === promptText &&
-      isAtOrAfterRecovery(entry.timestamp, requestedAt)
+      entry.timestamp === observedPromptAt
     ) return index;
   }
 
@@ -70,10 +68,23 @@ export function reconcileSessionPromptRecovery(
 
   if (!recovery || recovery.phase === "not_sent" || !recovery.promptText?.trim()) return null;
 
+  if (!recovery.observedPromptAt) {
+    return {
+      confirmed: false,
+      promptRecovery: {
+        ...recovery,
+        phase: "outcome_unknown",
+        retryable: false
+      },
+      replyState: emptyReplyState(),
+      terminalOutcome: null
+    };
+  }
+
   const matchingUserEntryIndex = findMatchingRecoveryPromptIndex(
     agentSession.transcript,
     recovery.promptText.trim(),
-    recovery.requestedAt
+    recovery.observedPromptAt
   );
 
   if (matchingUserEntryIndex < 0) {
@@ -84,7 +95,8 @@ export function reconcileSessionPromptRecovery(
         phase: "outcome_unknown",
         retryable: false
       },
-      replyState: emptyReplyState()
+      replyState: emptyReplyState(),
+      terminalOutcome: null
     };
   }
 
@@ -92,11 +104,12 @@ export function reconcileSessionPromptRecovery(
     agentSession.transcript,
     matchingUserEntryIndex
   );
-  const hasTerminalOutcome = agentSession.transcript
+  const terminalOutcome = agentSession.transcript
     .slice(matchingUserEntryIndex + 1, recoveryTurnEndIndex)
-    .some(isTerminalRecoveryEntry);
+    .map(readTerminalRecoveryOutcome)
+    .find((outcome) => outcome !== null) ?? null;
 
-  if (!hasTerminalOutcome) {
+  if (!terminalOutcome) {
     return {
       confirmed: true,
       promptRecovery: {
@@ -104,13 +117,15 @@ export function reconcileSessionPromptRecovery(
         phase: "outcome_unknown",
         retryable: false
       },
-      replyState: emptyReplyState()
+      replyState: emptyReplyState(),
+      terminalOutcome: null
     };
   }
 
   return {
     confirmed: true,
     promptRecovery: null,
-    replyState: emptyReplyState()
+    replyState: emptyReplyState(),
+    terminalOutcome
   };
 }
