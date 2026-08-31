@@ -116,6 +116,19 @@ export function ManagedSessionChatThread({
         ) : null}
       </div>
 
+      <span
+        aria-atomic="true"
+        aria-live="polite"
+        className={styles.chatMessageActionStatus}
+        role="status"
+      >
+        {copyFeedback
+          ? copyFeedback.status === "copied"
+            ? "Copied"
+            : "Copy failed"
+          : ""}
+      </span>
+
       <button
         aria-hidden={!showScrollToLatest}
         aria-label="Scroll to latest"

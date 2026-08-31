@@ -3,6 +3,7 @@ import type { AgentSessionSummary } from "@deskcue/protocol";
 export const INITIAL_VISIBLE_SESSIONS = 8;
 export const VISIBLE_SESSIONS_INCREMENT = 24;
 export const AGENT_SESSIONS_COMPACT_MEDIA_QUERY = "(max-width: 1120px)";
+export const AGENT_SESSIONS_MOBILE_MEDIA_QUERY = "(max-width: 720px)";
 export const SOURCE_SWITCH_MIN_PLACEHOLDER_MS = 400;
 
 export function filterAndSortAgentSessionsByQuery(

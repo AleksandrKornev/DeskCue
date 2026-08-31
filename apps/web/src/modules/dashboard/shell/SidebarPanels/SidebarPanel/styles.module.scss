@@ -1,8 +1,10 @@
+@use "@assets/variables" as vars;
+
 .panel {
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 20px;
-  background: rgba(13, 14, 18, 0.88);
+  background: vars.$color-surface-panel;
 }
 
 .header {
@@ -20,7 +22,7 @@
 
 .header p {
   margin: 6px 0 0;
-  color: #999da8;
+  color: vars.$color-text-muted;
   font-size: 0.92rem;
   line-height: 1.45;
 }
@@ -30,11 +32,11 @@
 }
 
 .secondaryPanel {
-  border-color: rgba(255, 255, 255, 0.05);
+  border-color: vars.$color-border-hairline;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.016), rgba(255, 255, 255, 0.01)),
-    rgba(11, 12, 16, 0.76);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    linear-gradient(180deg, vars.$color-surface-raised-subtle, transparent),
+    vars.$color-surface-panel;
+  box-shadow: inset 0 1px 0 vars.$color-surface-raised-subtle;
 }
 
 .secondaryHeader {
@@ -48,7 +50,7 @@
 .secondarySubtitle {
   max-width: 28ch;
   margin-top: 4px;
-  color: #8f96a2;
+  color: vars.$color-text-muted;
   font-size: 0.86rem;
 }
 

@@ -5,7 +5,7 @@
   display: grid;
   gap: 10px;
   padding: 16px 18px 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid vars.$color-border-subtle;
   background: vars.$color-surface-app;
   transition: background-color 180ms ease;
 }
@@ -21,7 +21,7 @@
   min-width: min(260px, 100%);
   min-height: 44px;
   padding: 9px 12px;
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-hover;
   color: vars.$color-text-primary;
   font-size: 0.88rem;
   font-weight: 600;
@@ -34,15 +34,15 @@
 }
 
 .chatHistoryGateButtonLoading {
-  background: rgba(214, 164, 103, 0.12);
-  color: #f0d4a4;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
 }
 
 .chatHistoryGateSpinner {
   width: 13px;
   height: 13px;
-  border: 2px solid rgba(240, 212, 164, 0.28);
-  border-top-color: #f0d4a4;
+  border: 2px solid vars.$color-border-warning;
+  border-top-color: vars.$color-status-warning;
   border-radius: 999px;
   animation: chatHistoryGateSpin 720ms linear infinite;
 }
@@ -51,8 +51,8 @@
 .skeletonBlock {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-shimmer;
+  background: vars.$color-surface-input;
 }
 
 .skeletonPill::after,
@@ -64,7 +64,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.05) 48%,
+    vars.$color-shimmer 48%,
     transparent 100%
   );
   animation: skeletonShimmer 1.6s infinite;
@@ -81,8 +81,8 @@
   contain: layout paint;
   padding: 12px 14px;
   border-radius: vars.$radius-md;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-control-subtle;
 }
 
 .activityEntry.chatWaitingDetailEntry {
@@ -91,17 +91,17 @@
 }
 
 .activityEntryCommentary {
-  background: rgba(214, 164, 103, 0.08);
-  border-color: rgba(214, 164, 103, 0.18);
+  background: vars.$color-surface-warning;
+  border-color: vars.$color-border-warning-subtle;
 }
 
 .activityEntryTool {
-  background: rgba(28, 116, 88, 0.16);
-  border-color: rgba(74, 178, 140, 0.2);
+  background: vars.$color-surface-success;
+  border-color: vars.$color-border-success;
 }
 
 .activityEntrySystem {
-  background: rgba(255, 255, 255, 0.05);
+  background: vars.$color-shimmer;
 }
 
 .activityEntryHeader {
@@ -109,7 +109,7 @@
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  color: #9fa4af;
+  color: vars.$color-text-muted;
   font-size: 0.82rem;
 }
 
@@ -122,28 +122,6 @@
 @keyframes chatHistoryGateSpin {
   100% {
     transform: rotate(360deg);
-  }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .chatMessageFooter {
-    opacity: 0;
-    max-height: 0;
-    overflow: hidden;
-    margin-top: -4px;
-    pointer-events: none;
-    transition:
-      opacity 140ms ease,
-      max-height 140ms ease,
-      margin-top 140ms ease;
-  }
-
-  .chatMessage:hover .chatMessageFooter,
-  .chatMessage:focus-within .chatMessageFooter {
-    opacity: 1;
-    max-height: vars.$control-height-touch;
-    margin-top: 2px;
-    pointer-events: auto;
   }
 }
 
@@ -185,7 +163,8 @@
   }
 
   .chatMessageAction {
-    width: vars.$control-height-touch;
+    width: 88px;
+    min-width: 88px;
     height: vars.$control-height-touch;
   }
 

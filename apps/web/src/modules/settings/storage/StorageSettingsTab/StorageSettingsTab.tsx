@@ -1,6 +1,11 @@
 import clsx from "clsx";
 import { observer } from "mobx-react-lite";
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from "react";
 import { Link } from "react-router";
 
 import { ConfirmDialog } from "@components/ModalDialog";
@@ -17,12 +22,15 @@ import styles from "./styles.module.scss";
 export const StorageSettingsTab = observer(function StorageSettingsTab() {
   const { storageStore } = useSettingsPageContext();
   const [confirmationTarget, setConfirmationTarget] = useState<"service" | "backups" | null>(null);
+  const confirmationConnectionRevisionRef = useRef<number | null>(null);
+  const confirmationTargetRef = useRef<"service" | "backups" | null>(null);
+  const confirmationRevisionRef = useRef(0);
   const {
     clearingMigrationBackups,
     compactingStorage,
     daemonSettings,
     loadingStorageStats,
-    savingStorageBudget,
+    settingsMutationPending,
     storageStats
   } = storageStore;
   const serviceUsagePercent = storageStats
@@ -36,10 +44,18 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
     : serviceUsagePercent >= 90
       ? "Near limit"
       : "Healthy";
+  const storageBudgetLocked = daemonSettings?.sources.storageMaxMb.source === "env";
 
   useEffect(() => {
     storageStore.loadStorageStats();
   }, [storageStore]);
+
+  useEffect(() => {
+    confirmationRevisionRef.current += 1;
+    confirmationConnectionRevisionRef.current = null;
+    confirmationTargetRef.current = null;
+    setConfirmationTarget(null);
+  }, [storageStore.connectionRevision]);
 
   const isConfirming =
     confirmationTarget === "service"
@@ -54,15 +70,47 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
     ? "This permanently removes all non-running session cards and DeskCue logs. Running sessions, pairing and access, workspaces, settings, recovery copies, and Ollama or LM Studio chats stay unchanged."
     : `This permanently removes ${storageStats?.migrationBackups.count ?? 0} migration recovery copies (${formatBytes(storageStats?.migrationBackups.bytes ?? 0)}). Service data and all chats stay unchanged.`;
 
+  const handleOpenConfirmation = useCallback((target: "service" | "backups") => {
+    confirmationRevisionRef.current += 1;
+    confirmationConnectionRevisionRef.current = storageStore.connectionRevision;
+    confirmationTargetRef.current = target;
+    setConfirmationTarget(target);
+  }, [storageStore]);
+
+  const handleCloseConfirmation = useCallback(() => {
+    confirmationRevisionRef.current += 1;
+    confirmationConnectionRevisionRef.current = null;
+    confirmationTargetRef.current = null;
+    setConfirmationTarget(null);
+  }, []);
+
   const handleConfirm = useCallback(async () => {
-    if (confirmationTarget === "service") {
-      await storageStore.compactStorage();
-    } else if (confirmationTarget === "backups") {
-      await storageStore.clearMigrationBackups();
+    const target = confirmationTargetRef.current;
+    const ownerConnectionRevision = confirmationConnectionRevisionRef.current;
+
+    if (!target || ownerConnectionRevision !== storageStore.connectionRevision) {
+      handleCloseConfirmation();
+      return;
     }
 
-    setConfirmationTarget(null);
-  }, [confirmationTarget, storageStore]);
+    const operationRevision = ++confirmationRevisionRef.current;
+    let succeeded = false;
+
+    if (target === "service") {
+      succeeded = await storageStore.compactStorage();
+    } else {
+      succeeded = await storageStore.clearMigrationBackups();
+    }
+
+    const stillOwnsConfirmation =
+      operationRevision === confirmationRevisionRef.current &&
+      ownerConnectionRevision === storageStore.connectionRevision &&
+      confirmationTargetRef.current === target;
+
+    if (!succeeded || !stillOwnsConfirmation) return;
+
+    handleCloseConfirmation();
+  }, [handleCloseConfirmation, storageStore]);
 
   return (
     <>
@@ -130,22 +178,6 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
               ) : null}
             </section>
 
-            <section className={styles.quickCleanup} aria-label="Manual service cleanup">
-              <div>
-                <span className={styles.label}>Manual cleanup</span>
-                <strong>Clear service history and logs</strong>
-                <small>Running sessions, recovery copies, and local model chats stay unchanged.</small>
-              </div>
-              <button
-                className={styles.clearButton}
-                disabled={compactingStorage || loadingStorageStats}
-                onClick={() => setConfirmationTarget("service")}
-                type="button"
-              >
-                {compactingStorage ? "Clearing..." : "Clear service storage"}
-              </button>
-            </section>
-
             {daemonSettings ? (
               <section className={styles.cacheBudgetPanel}>
                 <div>
@@ -153,14 +185,20 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
                   <strong>Choose the service storage budget</strong>
                   <small>DeskCue automatically retains up to 1,000 non-running session cards for 7 days and rotates logs.</small>
                 </div>
-                <div className={styles.cacheBudgetOptions}>
+                <div
+                  aria-describedby={storageBudgetLocked ? "storage-budget-lock-notice" : undefined}
+                  aria-label="Service storage budget"
+                  className={styles.cacheBudgetOptions}
+                  role="group"
+                >
                   {storageLimitPresets.map((budget) => (
                     <button
+                      aria-pressed={daemonSettings.storageMaxMb === budget}
                       className={clsx(
                         styles.inlineButton,
                         daemonSettings.storageMaxMb === budget && styles.cacheBudgetSelected
                       )}
-                      disabled={savingStorageBudget || daemonSettings.sources.storageMaxMb.source === "env"}
+                      disabled={settingsMutationPending || storageBudgetLocked}
                       key={budget}
                       onClick={() => { storageStore.setStorageBudgetFromPreset(budget); }}
                       type="button"
@@ -169,17 +207,23 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
                     </button>
                   ))}
                   <button
+                    aria-pressed={!storageLimitPresets.includes(daemonSettings.storageMaxMb)}
                     className={clsx(
                       styles.inlineButton,
                       !storageLimitPresets.includes(daemonSettings.storageMaxMb) && styles.cacheBudgetSelected
                     )}
-                    disabled={savingStorageBudget || daemonSettings.sources.storageMaxMb.source === "env"}
+                    disabled={settingsMutationPending || storageBudgetLocked}
                     onClick={storageStore.openCustomStorageLimitDialog}
                     type="button"
                   >
                     Custom
                   </button>
                 </div>
+                {storageBudgetLocked ? (
+                  <p className={styles.budgetLockNotice} id="storage-budget-lock-notice" role="status">
+                    Controlled by the daemon environment. Remove the override to change this limit.
+                  </p>
+                ) : null}
               </section>
             ) : null}
 
@@ -226,7 +270,7 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
                 <button
                   className={styles.inlineButton}
                   disabled={clearingMigrationBackups || loadingStorageStats}
-                  onClick={() => setConfirmationTarget("backups")}
+                  onClick={() => handleOpenConfirmation("backups")}
                   type="button"
                 >
                   {clearingMigrationBackups ? "Deleting..." : "Delete copies"}
@@ -238,8 +282,24 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
               <summary>
                 <span>Maintenance & paths</span>
                 <small>Clear history, logs, and inspect files</small>
+                <span aria-hidden="true" className={styles.disclosureIndicator}>›</span>
               </summary>
               <div className={styles.detailsDisclosureBody}>
+                <section className={styles.quickCleanup} aria-label="Manual service cleanup">
+                  <div>
+                    <span className={styles.label}>Manual cleanup</span>
+                    <strong>Clear service history and logs</strong>
+                    <small>Running sessions, recovery copies, and local model chats stay unchanged.</small>
+                  </div>
+                  <button
+                    className={styles.clearButton}
+                    disabled={compactingStorage || loadingStorageStats}
+                    onClick={() => handleOpenConfirmation("service")}
+                    type="button"
+                  >
+                    {compactingStorage ? "Clearing..." : "Clear service storage"}
+                  </button>
+                </section>
                 <Link className={styles.logsLink} to="/logs">
                   Open system logs
                 </Link>
@@ -317,7 +377,7 @@ export const StorageSettingsTab = observer(function StorageSettingsTab() {
         isOpen={confirmationTarget !== null}
         title={confirmTitle}
         tone="danger"
-        onCancel={() => setConfirmationTarget(null)}
+        onCancel={handleCloseConfirmation}
         onConfirm={handleConfirm}
       />
     </>

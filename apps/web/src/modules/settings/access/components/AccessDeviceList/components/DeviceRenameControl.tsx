@@ -3,6 +3,7 @@ import styles from "@modules/settings/access/components/AccessDeviceList/styles.
 
 export type DeviceRenameControlProps = {
   device: AccessDeviceSummary;
+  disabled: boolean;
   draft: string;
   editing: boolean;
   saving: boolean;
@@ -14,6 +15,7 @@ export type DeviceRenameControlProps = {
 
 export function DeviceRenameControl({
   device,
+  disabled,
   draft,
   editing,
   saving,
@@ -29,6 +31,7 @@ export function DeviceRenameControl({
     return (
       <button
         className={styles.inlineButton}
+        disabled={disabled}
         onClick={() => onStart(device)}
         type="button"
       >
@@ -49,6 +52,7 @@ export function DeviceRenameControl({
     >
       <input
         aria-label="Device name"
+        disabled={disabled}
         id={`access-device-label-${device.id}`}
         maxLength={80}
         name={`accessDeviceLabel-${device.id}`}
@@ -57,14 +61,14 @@ export function DeviceRenameControl({
       />
       <button
         className={styles.inlineButton}
-        disabled={!canSave || saving}
+        disabled={disabled || !canSave || saving}
         type="submit"
       >
         {saving ? "Saving..." : "Save"}
       </button>
       <button
         className={styles.inlineButton}
-        disabled={saving}
+        disabled={disabled || saving}
         onClick={onCancel}
         type="button"
       >

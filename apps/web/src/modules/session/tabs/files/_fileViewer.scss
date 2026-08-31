@@ -1,11 +1,17 @@
 @use "@assets/mixins" as *;
+@use "@assets/variables" as vars;
 
 .fileViewer {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  background: #090b0f;
+  background: vars.$color-surface-terminal;
+}
+
+.fileViewer:focus {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: -2px;
 }
 
 .fileViewerExpanded {
@@ -18,13 +24,33 @@
   overflow: hidden;
 }
 
+.fileViewerExpanded .fileViewerHeader {
+  padding-top: calc(11px + env(safe-area-inset-top, 0px));
+  padding-right: calc(14px + env(safe-area-inset-right, 0px));
+  padding-left: calc(14px + env(safe-area-inset-left, 0px));
+}
+
+.fileViewerExpanded .fileContent {
+  --file-content-padding: calc(16px + env(safe-area-inset-left, 0px));
+
+  padding-right: calc(16px + env(safe-area-inset-right, 0px));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+}
+
+.fileViewerExpanded .workspaceImagePreview {
+  padding-right: calc(16px + env(safe-area-inset-right, 0px));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+}
+
 .fileViewerHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 11px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid vars.$color-border-muted;
 }
 
 .fileViewerHeader div {
@@ -61,7 +87,7 @@
 .fileViewerHeader strong {
   min-width: 0;
   overflow: hidden;
-  color: #f0f1f4;
+  color: vars.$color-text-primary;
   font-size: 0.86rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -69,7 +95,7 @@
 
 .fileViewerHeader span,
 .fileTruncated {
-  color: #9297a2;
+  color: vars.$color-text-muted;
   font-size: 0.76rem;
   white-space: nowrap;
 }
@@ -84,7 +110,7 @@
   margin: 0;
   padding: 16px;
   overflow: auto;
-  color: #d9e4d4;
+  color: vars.$color-text-terminal;
   font-family: "Cascadia Code", "Consolas", monospace;
   font-size: 0.82rem;
   line-height: 1.55;
@@ -93,7 +119,7 @@
 }
 
 .fileContent:focus-visible {
-  outline: 2px solid rgba(214, 164, 103, 0.72);
+  outline: 2px solid vars.$color-focus-ring;
   outline-offset: -2px;
 }
 
@@ -108,9 +134,9 @@
   left: 0;
   z-index: 1;
   padding-right: 1ch;
-  background: #090b0f;
-  box-shadow: 8px 0 8px -8px rgba(0, 0, 0, 0.8);
-  color: #858b96;
+  background: vars.$color-surface-terminal;
+  box-shadow: 8px 0 8px -8px vars.$color-surface-backdrop;
+  color: vars.$color-text-muted;
   text-align: right;
   user-select: none;
 }
@@ -121,7 +147,7 @@
   right: 100%;
   bottom: 0;
   width: var(--file-content-padding);
-  background: #090b0f;
+  background: vars.$color-surface-terminal;
   content: "";
 }
 
@@ -148,21 +174,21 @@
   place-content: center;
   min-height: 260px;
   padding: 24px;
-  color: #969ba6;
+  color: vars.$color-text-muted;
   text-align: center;
 }
 
 .fileViewerEmpty strong,
 .filesEmptyState strong {
   margin-bottom: 7px;
-  color: #f0f1f4;
+  color: vars.$color-text-primary;
 }
 
 .fileViewerEmpty p,
 .filesEmptyState p,
 .filesMuted {
   margin: 0;
-  color: #969ba6;
+  color: vars.$color-text-muted;
   font-size: 0.84rem;
   line-height: 1.45;
 }
@@ -174,12 +200,12 @@
   place-items: center;
   overflow: auto;
   padding: 16px;
-  background-color: #101318;
+  background-color: vars.$color-surface-canvas-raised;
   background-image:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.025) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.025) 75%);
+    linear-gradient(45deg, vars.$color-surface-control-subtle 25%, transparent 25%),
+    linear-gradient(-45deg, vars.$color-surface-control-subtle 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, vars.$color-surface-control-subtle 75%),
+    linear-gradient(-45deg, transparent 75%, vars.$color-surface-control-subtle 75%);
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
   background-size: 16px 16px;
 }
@@ -190,13 +216,15 @@
   max-width: 100%;
   max-height: 100%;
   border-radius: 8px;
-  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.32);
+  box-shadow: vars.$shadow-preview;
   object-fit: contain;
 }
 
 .workspaceImagePreviewLoading { visibility: hidden; }
 
 .workspaceImagePreview .filesLoadingState { grid-area: 1 / 1; }
+
+.workspaceImagePreview > .workspaceImagePreviewMessage { grid-area: 1 / 1; }
 
 .workspaceImagePreviewMessage {
   display: grid;
@@ -205,11 +233,11 @@
   gap: 8px;
   min-height: 260px;
   padding: 24px;
-  color: #969ba6;
+  color: vars.$color-text-muted;
   text-align: center;
 }
 
-.workspaceImagePreviewMessage strong { color: #f0f1f4; }
+.workspaceImagePreviewMessage strong { color: vars.$color-text-primary; }
 
 .workspaceImagePreviewMessage p {
   max-width: 460px;
@@ -224,11 +252,13 @@
   margin-top: 6px;
   border: 0;
   border-radius: 10px;
-  background: rgba(214, 164, 103, 0.18);
-  color: #f3d2a7;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
   font: inherit;
   font-weight: 700;
 }
+
+.workspaceImagePreviewMessage button[aria-disabled="true"] { cursor: wait; }
 
 .filesMuted {
   padding: 16px 10px;
@@ -241,15 +271,15 @@
   justify-items: center;
   gap: 12px;
   padding: 24px;
-  color: #aeb3bd;
+  color: vars.$color-text-secondary;
   font-size: 0.84rem;
 }
 
 .filesLoadingSpinner {
   width: 22px;
   height: 22px;
-  border: 2px solid rgba(214, 164, 103, 0.18);
-  border-top-color: #d6a467;
+  border: 2px solid vars.$color-surface-accent;
+  border-top-color: vars.$color-accent;
   border-radius: 999px;
   animation: filesLoadingSpin 760ms linear infinite;
 }
@@ -280,6 +310,7 @@
   .changedFilter,
   .viewChangeButton,
   .filesBackButton,
+  .filesError button,
   .fileWrapButton,
   .fileViewerExpandButton {
     min-height: 44px;
@@ -348,6 +379,13 @@
 }
 
 @media (max-width: 720px) {
+  .filesError {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filesError button { width: 100%; }
+
   .filesBrowser {
     min-height: calc(100dvh - 260px);
     border-right: 0;
@@ -366,7 +404,7 @@
 
   .filesList {
     border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid vars.$color-border-subtle;
   }
 
   .fileRow {

@@ -6,9 +6,11 @@ export type AttachedManagedSessionInfo = Pick<
 >;
 
 export interface AgentTranscriptPanelProps {
+  selectedSessionId: string;
   session: AgentSessionDetail | null;
   sessionSummary?: AgentSessionSummary | null;
   isLoading: boolean;
+  loadError?: string | null;
   attaching: boolean;
   attachedManagedSessionId: string | null;
   attachedManagedSessionInfo: AttachedManagedSessionInfo | null;
@@ -17,6 +19,7 @@ export interface AgentTranscriptPanelProps {
   onAttach: () => void;
   onMarkReviewed: (sessionId: string) => void;
   onOpenManagedSession: (sessionId: string) => void;
+  onRetryLoad?: () => void;
 }
 
 export type TranscriptEntry = AgentSessionDetail["transcript"][number];

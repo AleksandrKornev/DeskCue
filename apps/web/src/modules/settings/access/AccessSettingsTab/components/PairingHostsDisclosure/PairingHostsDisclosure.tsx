@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { observer } from "mobx-react-lite";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { formatOriginsValue, formatSavedPairingHostsSummary, formatStringValue } from "@modules/settings/access/AccessSettingsTab/helpers";
 import styles from "@modules/settings/access/AccessSettingsTab/styles.module.scss";
@@ -9,25 +9,67 @@ import { SettingSourceDetails } from "@modules/settings/shared/SettingSourceDeta
 
 import { PairingHostsDisclosureSkeleton } from "./PairingHostsDisclosureSkeleton";
 
+function focusPairingHostAfterRemoval(removedIndex: number, previousHostCount: number) {
+  const remainingHostCount = previousHostCount - 1;
+  const nextInputIndex = Math.min(removedIndex, remainingHostCount - 1);
+  const target = remainingHostCount > 0
+    ? document.getElementById(`daemon-pairing-host-${nextInputIndex}`)
+    : document.getElementById("daemon-pairing-hosts-add");
+
+  target?.focus();
+}
+
+function cancelPairingHostRemovalFocus(frameRef: { current: number | null }) {
+  if (frameRef.current === null) return;
+
+  window.cancelAnimationFrame(frameRef.current);
+  frameRef.current = null;
+}
+
+function schedulePairingHostRemovalFocus(
+  frameRef: { current: number | null },
+  removedIndex: number,
+  previousHostCount: number
+) {
+  cancelPairingHostRemovalFocus(frameRef);
+  frameRef.current = window.requestAnimationFrame(() => {
+    frameRef.current = null;
+    focusPairingHostAfterRemoval(removedIndex, previousHostCount);
+  });
+}
+
 export const PairingHostsDisclosure = observer(function PairingHostsDisclosure() {
   const { accessStore } = useSettingsPageContext();
   const { daemonSettings, daemonSettingsDraft } = accessStore;
+  const disclosureRef = useRef<HTMLDetailsElement>(null);
+  const removalFocusFrameRef = useRef<number | null>(null);
+  const focusRequest = accessStore.pairingHostsFocusRequest;
+  const isPairingHostsEditorReady = Boolean(daemonSettings && daemonSettingsDraft);
 
   useEffect(() => {
-    if (accessStore.pairingHostsFocusRequest === 0) {
-      return;
-    }
+    if (!isPairingHostsEditorReady) return;
+    if (!accessStore.shouldHandlePairingHostsFocusRequest(focusRequest)) return;
+
+    if (disclosureRef.current) disclosureRef.current.open = true;
 
     const frame = window.requestAnimationFrame(() => {
       const hosts = accessStore.daemonSettingsDraft?.pairingHosts ?? [];
       const target = hosts.length > 0
         ? document.getElementById(`daemon-pairing-host-${hosts.length - 1}`)
         : document.getElementById("daemon-pairing-hosts-add");
-      target?.focus();
+
+      if (!target) return;
+
+      target.focus();
+      accessStore.acknowledgePairingHostsFocusRequest(focusRequest);
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [accessStore, accessStore.pairingHostsFocusRequest]);
+  }, [accessStore, focusRequest, isPairingHostsEditorReady]);
+
+  useEffect(() => () => {
+    cancelPairingHostRemovalFocus(removalFocusFrameRef);
+  }, []);
 
   if (!daemonSettings || !daemonSettingsDraft) {
     return <PairingHostsDisclosureSkeleton />;
@@ -36,7 +78,7 @@ export const PairingHostsDisclosure = observer(function PairingHostsDisclosure()
   const hasEmptyPairingHost = daemonSettingsDraft.pairingHosts.some((host) => !host.trim());
 
   return (
-    <details className={styles.addressDisclosure}>
+    <details className={styles.addressDisclosure} ref={disclosureRef}>
       <summary>
         <span className={styles.addressDisclosureSummary}>
           <span className={styles.addressDisclosureEyebrow}>
@@ -96,6 +138,7 @@ export const PairingHostsDisclosure = observer(function PairingHostsDisclosure()
               daemonSettingsDraft.pairingHosts.map((host, index) => (
                 <div className={styles.hostRow} key={index}>
                   <input
+                    aria-label={`Pairing host ${index + 1}`}
                     className={styles.field}
                     id={`daemon-pairing-host-${index}`}
                     name={`pairingHost-${index}`}
@@ -106,9 +149,18 @@ export const PairingHostsDisclosure = observer(function PairingHostsDisclosure()
                     }}
                   />
                   <button
+                    aria-label={`Remove pairing host ${index + 1}`}
                     className={clsx(styles.inlineButton, styles.hostRowButton)}
                     onClick={() => {
+                      const previousHostCount = daemonSettingsDraft.pairingHosts.length;
+
                       accessStore.onRemovePairingHost(index);
+
+                      schedulePairingHostRemovalFocus(
+                        removalFocusFrameRef,
+                        index,
+                        previousHostCount
+                      );
                     }}
                     type="button"
                   >

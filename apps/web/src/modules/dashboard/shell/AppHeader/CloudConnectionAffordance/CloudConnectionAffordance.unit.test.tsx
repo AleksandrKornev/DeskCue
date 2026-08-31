@@ -39,7 +39,7 @@ describe("CloudConnectionAffordance", () => {
     );
 
     const link = screen.getByRole("link", {
-      name: "DeskCue local only; open Connections settings"
+      name: "Local only; open Connections settings"
     });
 
     expect(link).toHaveTextContent("Local only");
@@ -60,7 +60,7 @@ describe("CloudConnectionAffordance", () => {
     );
 
     expect(screen.getByRole("link", {
-      name: "DeskCue local only; open Connections settings"
+      name: "Local only; open Connections settings"
     })).toBeInTheDocument();
     expect(screen.queryByText("Cloud access revoked")).not.toBeInTheDocument();
   });
@@ -74,7 +74,7 @@ describe("CloudConnectionAffordance", () => {
     );
 
     expect(screen.getByRole("link", {
-      name: "DeskCue checking cloud; open Connections settings"
+      name: "Checking Cloud; open Connections settings"
     })).toBeInTheDocument();
     expect(screen.queryByText("Local only")).not.toBeInTheDocument();
   });
@@ -87,7 +87,7 @@ describe("CloudConnectionAffordance", () => {
     );
 
     expect(screen.getByRole("link", {
-      name: "DeskCue cloud status unavailable; open Connections settings"
+      name: "Cloud status unavailable; open Connections settings"
     })).toBeInTheDocument();
     expect(screen.queryByText("Local only")).not.toBeInTheDocument();
   });
@@ -107,7 +107,7 @@ describe("CloudConnectionAffordance", () => {
     );
 
     expect(screen.getByRole("link", {
-      name: "DeskCue cloud status unavailable; open Connections settings"
+      name: "Cloud status unavailable; open Connections settings"
     })).toBeInTheDocument();
     expect(screen.queryByText("Cloud connected")).not.toBeInTheDocument();
   });
@@ -126,10 +126,9 @@ describe("CloudConnectionAffordance", () => {
     );
 
     expect(screen.getByRole("link", {
-      name: "DeskCue cloud reconnecting; open Connections settings"
+      name: "Cloud reconnecting; open Connections settings"
     })).toBeInTheDocument();
     expect(screen.getByText("Cloud reconnecting")).toBeInTheDocument();
-    expect(screen.getByText("Retrying")).toBeInTheDocument();
   });
 
   it("does not present revoked Cloud access as reconnecting", () => {
@@ -146,7 +145,7 @@ describe("CloudConnectionAffordance", () => {
     );
 
     expect(screen.getByRole("link", {
-      name: "DeskCue cloud access revoked; open Connections settings"
+      name: "Cloud access revoked; open Connections settings"
     })).toBeInTheDocument();
     expect(screen.getByText("Cloud access revoked")).toBeInTheDocument();
     expect(screen.queryByText("Cloud reconnecting")).not.toBeInTheDocument();

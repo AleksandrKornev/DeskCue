@@ -20,7 +20,7 @@
   position: absolute;
   top: 50%;
   right: 13px;
-  color: #c7ccd8;
+  color: vars.$color-text-secondary;
   font-size: 0.82rem;
   font-weight: 700;
   pointer-events: none;
@@ -33,6 +33,18 @@
   gap: 8px;
 }
 
+.lockNotice {
+  margin: 0;
+  border: 1px solid vars.$color-border-warning;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .customStorageLimitActions > button {
+  min-height: vars.$control-height-touch;
   width: 100%;
 }

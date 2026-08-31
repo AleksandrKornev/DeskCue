@@ -29,7 +29,9 @@ export function useAgentTranscriptPanelState({
   attachedManagedSessionInfo,
   attaching,
   isLoading,
+  loadError,
   previewItems = ATTACH_TRANSCRIPT_PREVIEW_ITEMS,
+  selectedSessionId,
   session,
   sessionSummary
 }: Pick<
@@ -38,7 +40,9 @@ export function useAgentTranscriptPanelState({
   | "attachedManagedSessionInfo"
   | "attaching"
   | "isLoading"
+  | "loadError"
   | "previewItems"
+  | "selectedSessionId"
   | "session"
   | "sessionSummary"
 >) {
@@ -46,9 +50,12 @@ export function useAgentTranscriptPanelState({
   const [showModelContext, setShowModelContext] = useState(false);
   const [attachWaitStage, setAttachWaitStage] = useState<AttachWaitStage>("idle");
 
-  const displaySession = session ?? sessionSummary ?? null;
-  const isWaitingForSessionDetail = Boolean(sessionSummary) && !session;
+  const displayedSessionDetail = session?.id === selectedSessionId ? session : null;
+  const displayedSessionSummary = sessionSummary?.id === selectedSessionId ? sessionSummary : null;
+  const displaySession = displayedSessionDetail ?? displayedSessionSummary;
+  const isWaitingForSessionDetail = Boolean(displayedSessionSummary) && !displayedSessionDetail;
   const isHydratingSelection = Boolean(displaySession) && (isLoading || isWaitingForSessionDetail);
+  const hasBlockingLoadError = Boolean(loadError && !displayedSessionDetail);
   const isReviewOnlyRuntime =
     displaySession?.agentId === "other" && displaySession.agentLabel === "LM Studio";
   const canContinueSourceChat = displaySession ? canContinueAgentSession(displaySession) : false;
@@ -57,11 +64,13 @@ export function useAgentTranscriptPanelState({
   const unavailableChatPresentation = displaySession
     ? getUnavailableChatPresentation(displaySession)
     : null;
-  const sourceCapabilityLabel = isHydratingSelection
-    ? "Loading chat"
-    : canContinueSourceChat
-      ? "Ready to continue"
-      : unavailableChatPresentation?.capabilityLabel ?? "View only";
+  const sourceCapabilityLabel = hasBlockingLoadError
+    ? "Chat unavailable"
+    : isHydratingSelection
+      ? "Loading chat"
+      : canContinueSourceChat
+        ? "Ready to continue"
+        : unavailableChatPresentation?.capabilityLabel ?? "View only";
   const actionButtonLabel = buildAttachActionButtonLabel({
     attachWaitStage,
     attaching,
@@ -90,8 +99,10 @@ export function useAgentTranscriptPanelState({
     : null;
 
   const transcriptTimeline = useMemo(
-    () => buildTranscriptTimeline(filterHumanVisibleTranscriptEntries(session?.transcript ?? [])),
-    [session?.transcript]
+    () => buildTranscriptTimeline(
+      filterHumanVisibleTranscriptEntries(displayedSessionDetail?.transcript ?? [])
+    ),
+    [displayedSessionDetail?.transcript]
   );
 
   const textOnlyTranscriptEntries = useMemo(
@@ -107,7 +118,7 @@ export function useAgentTranscriptPanelState({
   );
 
   useEffect(() => {
-    if (!session?.id || isLoading) return;
+    if (!displayedSessionDetail?.id || isLoading) return;
 
     const transcriptElement = transcriptRef.current;
 
@@ -120,7 +131,7 @@ export function useAgentTranscriptPanelState({
     return () => {
       window.cancelAnimationFrame(animationFrame);
     };
-  }, [isLoading, session?.id, session?.transcript.length]);
+  }, [displayedSessionDetail?.id, displayedSessionDetail?.transcript.length, isLoading]);
 
   useEffect(() => {
     if (!attaching) {
@@ -146,6 +157,7 @@ export function useAgentTranscriptPanelState({
     attachWaitStage,
     attachedSessionHint,
     displaySession,
+    displayedSessionDetail,
     hiddenPreviewText,
     isActionPending: attaching,
     isHydratingSelection,

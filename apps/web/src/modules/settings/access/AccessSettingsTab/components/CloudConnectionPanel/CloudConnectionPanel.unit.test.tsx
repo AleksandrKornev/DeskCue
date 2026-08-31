@@ -161,6 +161,164 @@ describe("CloudConnectionPanel", () => {
     }));
   });
 
+  it("keeps architecture guidance collapsed for an existing connection", () => {
+    cloudMocks.connected = true;
+
+    render(<CloudConnectionPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+
+    const summary = screen.getByText("How DeskCue Cloud connects and what stays local");
+    const explainer = summary.closest("details");
+    const summaryElement = summary.closest("summary");
+
+    expect(explainer).not.toBeNull();
+    expect(explainer).not.toHaveAttribute("open");
+    expect(summaryElement?.querySelector("[aria-hidden=\"true\"]"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Choose what this Cloud connection can request"))
+      .toBeInTheDocument();
+
+    fireEvent.click(summary);
+
+    expect(explainer).toHaveAttribute("open");
+  });
+
+  it("blocks enrollment actions until Cloud status is authoritative", () => {
+    cloudMocks.loading = true;
+    cloudMocks.statusAvailable = false;
+
+    render(<CloudConnectionPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Checking Cloud connection");
+    expect(screen.queryByRole("button", { name: "Connect to DeskCue Cloud" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Custom or self-hosted Cloud" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText("Outbound-only flow")).not.toBeInTheDocument();
+  });
+
+  it("keeps trust guidance expanded before authoritative enrollment", () => {
+    render(<CloudConnectionPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+
+    expect(screen.getByText("Outbound-only flow")).toBeInTheDocument();
+    expect(screen.getByText("Local-first data boundary")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect to DeskCue Cloud" }))
+      .toBeEnabled();
+  });
+
+  it("retries an unavailable unknown status without exposing enrollment", () => {
+    cloudMocks.error = "offline";
+    cloudMocks.statusAvailable = false;
+
+    render(<CloudConnectionPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry Cloud status" }));
+
+    expect(cloudMocks.refresh).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Connect to DeskCue Cloud" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText("Outbound-only flow")).not.toBeInTheDocument();
+  });
+
+  it("hands focus from the unknown-status gate to authoritative profile controls", () => {
+    cloudMocks.error = "offline";
+    cloudMocks.statusAvailable = false;
+
+    const view = render(<CloudConnectionPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+
+    const retry = screen.getByRole("button", { name: "Retry Cloud status" });
+
+    retry.focus();
+    cloudMocks.error = null;
+    cloudMocks.connected = true;
+    cloudMocks.profileEnabled = true;
+    cloudMocks.statusAvailable = true;
+    view.rerender(<CloudConnectionPanel />);
+
+    expect(screen.getByRole("button", { name: /Full access/i })).toHaveFocus();
+  });
+
+  it("does not reclaim status-gate focus after the user moves to the dialog chrome", () => {
+    cloudMocks.error = "offline";
+    cloudMocks.statusAvailable = false;
+
+    const view = render(<CloudConnectionPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+    screen.getByRole("button", { name: "Retry Cloud status" }).focus();
+    screen.getByRole("button", { name: "Close dialog" }).focus();
+    cloudMocks.error = null;
+    cloudMocks.connected = true;
+    cloudMocks.profileEnabled = true;
+    cloudMocks.statusAvailable = true;
+    view.rerender(<CloudConnectionPanel />);
+
+    expect(screen.getByRole("button", { name: "Close dialog" })).toHaveFocus();
+  });
+
+  it("restores unknown-status focus to a pending enrollment link", async () => {
+    cloudMocks.error = "offline";
+    cloudMocks.statusAvailable = false;
+    cloudMocks.getEnrollmentAttempt.mockResolvedValue({
+      attempt: {
+        attemptId: "attempt-1",
+        cloudOrigin: "https://cloud.example.test",
+        expiresAt: "2026-08-30T15:00:00.000Z",
+        lastErrorCode: null,
+        verificationUrl: "https://cloud.example.test/verify"
+      }
+    });
+
+    const view = render(<CloudConnectionPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+    await waitFor(() => expect(cloudMocks.getEnrollmentAttempt).toHaveBeenCalled());
+    screen.getByRole("button", { name: "Retry Cloud status" }).focus();
+    cloudMocks.error = null;
+    cloudMocks.statusAvailable = true;
+    view.rerender(<CloudConnectionPanel />);
+
+    expect(await screen.findByRole("link", { name: "Continue in Cloud" })).toHaveFocus();
+  });
+
+  it("hands focus from a disconnected profile action to enrollment controls", () => {
+    cloudMocks.connected = true;
+    cloudMocks.profileEnabled = true;
+
+    const view = render(<CloudConnectionPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+    screen.getByRole("button", { name: "Disconnect" }).focus();
+    cloudMocks.connected = false;
+    cloudMocks.profileEnabled = false;
+    view.rerender(<CloudConnectionPanel />);
+
+    expect(screen.getByRole("button", { name: /Full access/i })).toHaveFocus();
+  });
+
+  it("clears pending focus ownership when the dialog closes", () => {
+    cloudMocks.error = "offline";
+    cloudMocks.statusAvailable = false;
+
+    const view = render(<CloudConnectionPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+    screen.getByRole("button", { name: "Retry Cloud status" }).focus();
+    fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+    cloudMocks.error = null;
+    cloudMocks.connected = true;
+    cloudMocks.profileEnabled = true;
+    cloudMocks.statusAvailable = true;
+    view.rerender(<CloudConnectionPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Open DeskCue Cloud details" }));
+
+    expect(screen.getByRole("button", { name: /Full access/i })).not.toHaveFocus();
+  });
+
   it("updates all connected Cloud permissions through one explicit save", async () => {
     cloudMocks.connected = true;
     cloudMocks.updatePermissions.mockResolvedValue({

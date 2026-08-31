@@ -2,21 +2,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { notificationsApi } from "@api/endpoint/notifications/endpoints";
 
-import { enablePushNotifications } from "./pushNotificationsService";
+import {
+  disablePushNotifications,
+  enablePushNotifications
+} from "./pushNotificationsService";
 
 vi.mock("@api/endpoint/notifications/endpoints", () => ({
   notificationsApi: {
     getPushStatus: vi.fn(),
-    registerPushSubscription: vi.fn()
+    registerPushSubscription: vi.fn(),
+    removePushSubscription: vi.fn()
   }
 }));
 
 describe("enablePushNotifications", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubGlobal("Notification", {
       permission: "default",
       requestPermission: vi.fn().mockResolvedValue("granted")
     });
+
     vi.stubGlobal("PushManager", class PushManager {});
     Object.defineProperty(globalThis, "isSecureContext", { configurable: true, value: true });
     localStorage.clear();
@@ -30,6 +36,10 @@ describe("enablePushNotifications", () => {
         subscriptionId: "11111111-1111-4111-8111-111111111111",
         subscriptionCount: 1
       },
+      ok: true
+    });
+    vi.mocked(notificationsApi.removePushSubscription).mockResolvedValue({
+      data: { removedCount: 1, subscriptionCount: 0 },
       ok: true
     });
   });
@@ -70,7 +80,9 @@ describe("enablePushNotifications", () => {
     });
 
     const pending = enablePushNotifications();
+
     await Promise.resolve();
+
     await Promise.resolve();
 
     expect(subscribe).not.toHaveBeenCalled();
@@ -79,5 +91,37 @@ describe("enablePushNotifications", () => {
 
     await expect(pending).resolves.toMatchObject({ ok: true });
     expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes the server subscription when service workers are unavailable", async () => {
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: undefined
+    });
+
+    await expect(disablePushNotifications()).resolves.toMatchObject({ ok: true });
+
+    expect(notificationsApi.removePushSubscription).toHaveBeenCalledTimes(1);
+    const [payload] = vi.mocked(notificationsApi.removePushSubscription).mock.calls[0] ?? [];
+
+    expect(payload?.endpoint).toBeNull();
+    expect(typeof payload?.pushClientId).toBe("string");
+  });
+
+  it("removes the server subscription when local subscription cleanup throws", async () => {
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        getRegistration: vi.fn().mockRejectedValue(new Error("PushManager unavailable"))
+      }
+    });
+
+    await expect(disablePushNotifications()).resolves.toMatchObject({ ok: true });
+
+    expect(notificationsApi.removePushSubscription).toHaveBeenCalledTimes(1);
+    const [payload] = vi.mocked(notificationsApi.removePushSubscription).mock.calls[0] ?? [];
+
+    expect(payload?.endpoint).toBeNull();
+    expect(typeof payload?.pushClientId).toBe("string");
   });
 });

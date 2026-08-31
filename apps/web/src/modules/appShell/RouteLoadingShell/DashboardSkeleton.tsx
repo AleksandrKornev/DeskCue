@@ -4,7 +4,7 @@ import styles from "./styles.module.scss";
 
 export function DashboardSkeleton() {
   return (
-    <section className={styles.dashboardGrid} aria-label="Loading recent chats">
+    <section className={styles.dashboardGrid} aria-hidden="true">
       <div className={styles.panelIntro}>
         <span className={clsx(styles.line, styles.linePanelTitle)} />
         <span className={clsx(styles.line, styles.linePanelSubtitle)} />

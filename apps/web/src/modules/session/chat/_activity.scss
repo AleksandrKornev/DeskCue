@@ -14,9 +14,9 @@
   min-height: 44px;
   padding: 10px 14px;
   border-radius: vars.$radius-md;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
-  color: #ece6db;
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
   cursor: pointer;
   font-size: 0.82rem;
   font-weight: 600;
@@ -24,23 +24,23 @@
 }
 
 .chatInlineActivityToggleChanges {
-  background: rgba(38, 58, 109, 0.36);
-  border-color: rgba(95, 138, 255, 0.24);
+  background: vars.$color-surface-info;
+  border-color: vars.$color-border-info;
 }
 
 .chatInlineActivityToggleTools {
-  background: rgba(28, 116, 88, 0.18);
-  border-color: rgba(74, 178, 140, 0.2);
+  background: vars.$color-surface-success;
+  border-color: vars.$color-border-success;
 }
 
 .chatInlineActivityToggleContext {
-  background: rgba(128, 105, 55, 0.18);
-  border-color: rgba(219, 174, 86, 0.24);
+  background: vars.$color-surface-warning;
+  border-color: vars.$color-border-warning;
 }
 
 .chatInlineActivityToggleModel {
-  background: rgba(55, 70, 128, 0.18);
-  border-color: rgba(132, 161, 255, 0.24);
+  background: vars.$color-surface-info;
+  border-color: vars.$color-border-info;
 }
 
 .chatInlineActivityRow {
@@ -70,32 +70,32 @@
 }
 
 .chatInlineActivityBadgeTools {
-  background: rgba(74, 178, 140, 0.18);
-  color: #a9efcf;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
 .chatInlineActivityBadgeChanges {
-  background: rgba(78, 127, 255, 0.16);
-  color: #c9dcff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
 }
 
 .chatInlineActivityBadgeContext {
-  background: rgba(219, 174, 86, 0.16);
-  color: #f2d69a;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
 }
 
 .chatInlineActivityBadgeModel {
-  background: rgba(132, 161, 255, 0.16);
-  color: #cbd8ff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
 }
 
 .chatInlineActivityBadgeDetails {
-  background: rgba(255, 255, 255, 0.08);
-  color: #d2ccc3;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-secondary;
 }
 
 .chatInlineActivityTime {
-  color: #969ba6;
+  color: vars.$color-text-muted;
   white-space: nowrap;
 }
 
@@ -128,10 +128,10 @@
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border: 1px solid rgba(219, 174, 86, 0.12);
+  border: 1px solid vars.$color-border-warning-subtle;
   border-radius: 14px;
-  background: rgba(219, 174, 86, 0.045);
-  color: #d8d0c0;
+  background: vars.$color-surface-warning;
+  color: vars.$color-text-secondary;
   font-size: 0.76rem;
 }
 
@@ -144,11 +144,11 @@
 }
 
 .chatContextActivityText span {
-  color: #aeb2bc;
+  color: vars.$color-text-secondary;
 }
 
 .chatContextActivityTime {
-  color: #969ba6;
+  color: vars.$color-text-muted;
   white-space: nowrap;
 }
 
@@ -170,15 +170,15 @@
   contain: layout paint;
   padding: 10px;
   border-radius: 14px;
-  border: 1px solid rgba(95, 138, 255, 0.18);
-  background: rgba(38, 58, 109, 0.16);
+  border: 1px solid vars.$color-border-info;
+  background: vars.$color-surface-info;
 }
 
 .chatMessageChangesHeader {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #cdd9f3;
+  color: vars.$color-status-info;
   font-size: 0.8rem;
   font-weight: 650;
 }

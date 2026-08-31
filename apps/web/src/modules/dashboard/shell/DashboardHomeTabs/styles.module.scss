@@ -43,3 +43,9 @@
     gap: 10px;
   }
 }
+
+@media (max-height: 520px) and (max-width: 1120px) {
+  .shell {
+    gap: 8px;
+  }
+}

@@ -4,12 +4,14 @@ import { AppErrorBoundary } from "@components/AppErrorBoundary/AppErrorBoundary"
 import { AccessGate } from "@modules/accessGate/AccessGate";
 import { RemoteAccessGate } from "@modules/accessGate/RemoteAccessGate";
 import { useDeskCueRuntime } from "@runtime";
+import { useDeskCueLayoutMode } from "@web/layout";
 
 import { DeskCueRoutes } from "./pages/DeskCueRoutes";
 import { LazyRoute } from "./pages/DeskCueRoutes/LazyRoute";
 import { AccessRequiredPage, LogsPage, SettingsPage } from "./pages/lazyPages";
 
 export function DeskCueApp() {
+  const layoutMode = useDeskCueLayoutMode();
   const runtime = useDeskCueRuntime();
 
   const routes = (
@@ -28,7 +30,7 @@ export function DeskCueApp() {
   );
 
   return (
-    <AppErrorBoundary>
+    <AppErrorBoundary embedded={layoutMode === "embedded"}>
       {runtime.mode === "local" ? (
         <AccessGate>{routes}</AccessGate>
       ) : (

@@ -20,8 +20,11 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
     daemonSettings,
     daemonSettingsDraft,
     daemonSettingsStatus,
+    resettingDaemonSettings,
+    savingDaemonSettings,
     securityStatus,
-    securityStatusMessage
+    securityStatusMessage,
+    settingsMutationPending
   } = accessStore;
 
   return (
@@ -103,7 +106,7 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
                 <span className={styles.filePath}>{daemonSettings.settingsFilePath}</span>
               </div>
 
-              <div className={styles.toggleRow}>
+              <label className={styles.toggleRow}>
                 <input
                   aria-describedby="daemon-auth-required-help"
                   aria-labelledby="daemon-auth-required-label"
@@ -119,7 +122,7 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
                     Protects the HTTP API and WebSocket after save
                   </small>
                 </span>
-              </div>
+              </label>
               <SettingSourceDetails
                 source={daemonSettings.sources.authRequired}
                 valueFormatter={formatBooleanValue}
@@ -146,29 +149,32 @@ export const AccessProtectionPanel = observer(function AccessProtectionPanel() {
                 valueFormatter={formatOriginsValue}
               />
 
-              <div className={styles.actions}>
+              <div className={styles.actions} data-settings-action-bar>
                 {daemonSettingsStatus?.kind === "error" ? (
                   <span
                     className={clsx(
                       styles.saveStatus,
                       styles.saveStatusError
                     )}
+                    role="alert"
                   >
                     {daemonSettingsStatus.message}
                   </span>
                 ) : null}
                 <button
                   className={clsx(styles.button, styles.dangerButton)}
+                  disabled={settingsMutationPending}
                   onClick={accessStore.onResetDaemonSettings}
                   type="button"
                 >
-                  Reset to env
+                  {resettingDaemonSettings ? "Resetting..." : "Reset to env"}
                 </button>
                 <button
                   className={styles.button}
+                  disabled={settingsMutationPending}
                   type="submit"
                 >
-                  Save settings
+                  {savingDaemonSettings ? "Saving..." : "Save settings"}
                 </button>
               </div>
             </form>

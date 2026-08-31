@@ -153,11 +153,15 @@ describe("AgentChatDetailResource", () => {
     });
 
     const oldRequest = resource.loadDetail("agent-1", createLoadOptions());
+
     await waitForMicrotasks();
+
     resource.clear();
 
     const currentRequest = resource.loadDetail("agent-1", createLoadOptions());
+
     await waitForMicrotasks();
+
     pending[1]?.resolve(createDetailResult("agent-1", "2026-07-26T10:02:00.000Z"));
     await currentRequest;
 
@@ -166,7 +170,9 @@ describe("AgentChatDetailResource", () => {
 
     assert.equal(resource.readSnapshot("agent-1").updatedAt, "2026-07-26T10:02:00.000Z");
     const cached = await resource.loadDetail("agent-1", createLoadOptions());
+
     assert.ok(cached);
+
     assert.equal(cached.updatedAt, "2026-07-26T10:02:00.000Z");
     assert.equal(requestCount, 2);
   });
@@ -255,7 +261,9 @@ describe("AgentChatDetailResource", () => {
 
     await resource.loadDetail("agent-1", createLoadOptions());
     const firstSnapshot = resource.readSnapshot("agent-1");
+
     now = 2_000;
+
     await resource.refreshNow("agent-1", createLoadOptions());
     const secondSnapshot = resource.readSnapshot("agent-1");
 
@@ -299,6 +307,7 @@ describe("AgentChatDetailResource", () => {
       }),
       true
     );
+
     assert.equal(resource.hasRecentlyValidatedDetail("agent-1", 15_000), false);
   });
 
@@ -372,6 +381,7 @@ describe("AgentChatDetailResource", () => {
       }),
       true
     );
+
     assert.equal(resource.readSnapshot("agent-1").status, "stale");
 
     const refreshed = await resource.loadDetail("agent-1", {
@@ -398,6 +408,7 @@ describe("AgentChatDetailResource", () => {
 
     await resource.loadDetail("agent-1", createLoadOptions());
     const eventUpdatedAt = "2026-07-26T10:00:01.000Z";
+
     resource.invalidate("agent-1", {
       minimumUpdatedAt: eventUpdatedAt,
       reason: "live-event"
@@ -633,6 +644,7 @@ describe("AgentChatDetailResource", () => {
         retry: true
       })
     );
+
     assert.equal(timers.length, 1);
     assert.equal(resource.readSnapshot("agent-1").retryAttempt, 1);
     assert.equal(resource.readSnapshot("agent-1").retryAfterAt, 10_250);
@@ -669,6 +681,43 @@ describe("AgentChatDetailResource", () => {
     assert.equal(resource.readSnapshot("agent-1").status, "error");
   });
 
+  it("retains the last detail error while a recovery request is pending", async () => {
+    const recoveryRequest = createDeferred<AgentChatDetailFetchResult>();
+    let requestCount = 0;
+    const resource = new AgentChatDetailResource({
+      transport: createTransport({
+        fetchDetail: () => {
+          requestCount += 1;
+          return requestCount === 1
+            ? Promise.reject(new Error("daemon unavailable"))
+            : recoveryRequest.promise;
+        }
+      })
+    });
+
+    await assert.rejects(
+      resource.refreshNow("agent-1", {
+        ...createLoadOptions(),
+        retry: false
+      })
+    );
+
+    const retry = resource.refreshNow("agent-1", {
+      ...createLoadOptions(),
+      retry: false
+    });
+    const pendingSnapshot = resource.readSnapshot("agent-1");
+
+    assert.equal(pendingSnapshot.status, "loading");
+    assert.equal(pendingSnapshot.error?.message, "daemon unavailable");
+
+    recoveryRequest.resolve(createDetailResult("agent-1", "2026-07-26T10:03:00.000Z"));
+    await retry;
+
+    assert.equal(resource.readSnapshot("agent-1").status, "synced");
+    assert.equal(resource.readSnapshot("agent-1").error, null);
+  });
+
   it("limits hydration actions to the configured concurrency", async () => {
     const pendingRequests: Array<{
       activeCountAtStart: number;
@@ -691,6 +740,7 @@ describe("AgentChatDetailResource", () => {
               });
             }
           );
+
           activeCount -= 1;
           return {
             ...result,
@@ -708,6 +758,7 @@ describe("AgentChatDetailResource", () => {
       resource.hydrateTranscriptEntries("agent-1", ["entry-3"]),
       resource.hydrateTranscriptEntries("agent-1", ["entry-4"])
     ];
+
     await waitForMicrotasks();
 
     assert.equal(pendingRequests.length, 2);
@@ -727,7 +778,9 @@ describe("AgentChatDetailResource", () => {
     }
 
     const hydratedEntries = await Promise.all(loads);
+
     assert.equal(maxActiveCount, 2);
+
     assert.deepEqual(
       hydratedEntries.map((entries) => entries[0]?.id),
       ["entry-1", "entry-2", "entry-3", "entry-4"]
@@ -889,6 +942,7 @@ describe("AgentChatDetailResource", () => {
               resolveFirst = resolve;
             });
           }
+
           return Promise.resolve(createEntriesResult(entryIds.map(createTranscriptEntry)));
         }
       })
@@ -896,7 +950,9 @@ describe("AgentChatDetailResource", () => {
 
     const active = resource.hydrateTranscriptEntries("agent-1", ["entry-1"]);
     const queued = resource.hydrateTranscriptEntries("agent-1", ["entry-2"]);
+
     await waitForMicrotasks();
+
     assert.equal(requestCount, 1);
 
     resource.clear();
@@ -904,7 +960,9 @@ describe("AgentChatDetailResource", () => {
     await assert.rejects(queued, { name: "AbortError" });
 
     const afterClear = await resource.hydrateTranscriptEntries("agent-1", ["entry-3"]);
+
     assert.deepEqual(afterClear.map((entry) => entry.id), ["entry-3"]);
+
     assert.equal(requestCount, 2);
 
     resolveFirst(createEntriesResult([createTranscriptEntry("entry-1")]));
@@ -923,6 +981,7 @@ describe("AgentChatDetailResource", () => {
       transport: createTransport({})
     });
     const unsubscribe = resource.subscribe("agent-1", () => undefined);
+
     await resource.loadDetail("agent-1", createLoadOptions());
 
     unsubscribe();

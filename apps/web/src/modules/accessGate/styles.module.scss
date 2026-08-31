@@ -1,3 +1,5 @@
+@use "@assets/variables" as vars;
+
 .page {
   display: grid;
   min-height: 100dvh;
@@ -9,10 +11,10 @@
   display: grid;
   gap: 16px;
   width: min(100%, 560px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 24px;
-  background: rgba(13, 14, 18, 0.9);
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: 20px;
+  padding: 28px;
+  background: vars.$color-surface-panel;
 }
 
 .logo {
@@ -21,7 +23,7 @@
   align-items: center;
   min-height: 44px;
   padding: 0;
-  color: #fff5e1;
+  color: vars.$color-accent-strong;
   text-decoration: none;
 }
 
@@ -30,7 +32,7 @@
 }
 
 .label {
-  color: #8f96a2;
+  color: vars.$color-text-muted;
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -39,36 +41,57 @@
 
 .panel h1 {
   margin: -8px 0 0;
-  color: #f7f2ea;
+  color: vars.$color-text-primary;
   font-size: clamp(2rem, 8vw, 3rem);
   line-height: 1;
 }
 
+.panel h1:focus {
+  outline: 0;
+}
+
 .panel p {
   margin: 0;
-  color: #c7ccd8;
+  color: vars.$color-text-dialog-secondary;
   line-height: 1.45;
 }
 
 .originHint {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.92rem;
+}
+
+.pairingGuide {
+  display: grid;
+  gap: 10px;
+}
+
+.pairingGuide h2,
+.recoveryPanel h2 {
+  margin: 0;
+  color: vars.$color-text-primary;
+  font-size: 1rem;
+  line-height: 1.3;
 }
 
 .steps {
   display: grid;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.steps div {
+.steps li {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 10px;
   align-items: start;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  min-width: 0;
+  border: 1px solid vars.$color-border-muted;
+  border-radius: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-input;
 }
 
 .steps span {
@@ -77,32 +100,51 @@
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: rgba(214, 164, 103, 0.16);
-  color: #f4d0a0;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
   font-size: 0.78rem;
   font-weight: 900;
 }
 
 .returnHint {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.9rem;
 }
 
 .warning {
   display: grid;
   gap: 4px;
-  border: 1px solid rgba(214, 164, 103, 0.22);
-  border-radius: 8px;
+  border: 1px solid vars.$color-border-warning-subtle;
+  border-radius: 12px;
   padding: 12px;
-  background: rgba(214, 164, 103, 0.1);
+  background: vars.$color-surface-warning;
 }
 
 .warning strong {
-  color: #f4d0a0;
+  color: vars.$color-status-warning;
 }
 
 .warning span {
-  color: #d8c5aa;
+  color: vars.$color-accent-text;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.offlineNotice {
+  display: grid;
+  gap: 4px;
+  border: 1px solid vars.$color-border-info;
+  border-radius: 12px;
+  padding: 12px;
+  background: vars.$color-surface-info;
+}
+
+.offlineNotice strong {
+  color: vars.$color-status-info;
+}
+
+.offlineNotice span {
+  color: vars.$color-text-dialog-secondary;
   font-size: 0.9rem;
   line-height: 1.4;
 }
@@ -110,25 +152,25 @@
 .error {
   display: grid;
   gap: 4px;
-  border: 1px solid rgba(184, 72, 72, 0.32);
-  border-radius: 8px;
+  border: 1px solid vars.$color-border-danger;
+  border-radius: 12px;
   padding: 12px;
-  background: rgba(184, 72, 72, 0.14);
+  background: vars.$color-surface-danger;
 }
 
 .error strong {
-  color: #ffcbc7;
+  color: vars.$color-status-danger;
 }
 
 .error span {
-  color: #e8bbb7;
+  color: vars.$color-text-dialog-secondary;
   font-size: 0.9rem;
   line-height: 1.4;
 }
 
 .steps code {
   overflow-wrap: anywhere;
-  color: #f4f7ff;
+  color: vars.$color-text-primary;
   font: inherit;
   font-weight: 700;
 }
@@ -136,26 +178,24 @@
 .recoveryPanel {
   display: grid;
   gap: 8px;
-  border: 1px solid rgba(80, 132, 255, 0.18);
-  border-radius: 8px;
+  min-width: 0;
+  border: 1px solid vars.$color-border-info;
+  border-radius: 12px;
   padding: 12px;
-  background: rgba(80, 132, 255, 0.08);
-}
-
-.recoveryPanel strong {
-  color: #d9e2ff;
+  background: vars.$color-surface-info;
 }
 
 .recoveryPanel p {
-  color: #bcc7e5;
+  color: vars.$color-status-info;
   font-size: 0.9rem;
 }
 
 .recoveryPanel code {
+  overflow-wrap: anywhere;
   border-radius: 5px;
   padding: 1px 5px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f4f7ff;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
   font-size: 0.88em;
 }
 
@@ -166,23 +206,47 @@
   justify-content: flex-end;
 }
 
+.liveStatus {
+  color: vars.$color-status-success;
+  font-size: 0.9rem;
+}
+
+.liveStatus:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .primaryButton,
 .secondaryButton {
-  min-height: 40px;
+  min-height: vars.$control-height-touch;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 0 16px;
-  color: #fff;
+  color: vars.$color-on-action-primary;
   font: inherit;
   font-weight: 800;
+  cursor: pointer;
 }
 
 .primaryButton {
-  background: #3b5cc4;
+  background: vars.$color-action-primary;
 }
 
 .secondaryButton {
-  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid vars.$color-border-control;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
+}
+
+.logo:focus-visible,
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible {
+  outline: 0;
+  box-shadow: vars.$shadow-focus-ring;
 }
 
 @media (max-width: 520px) {
@@ -192,6 +256,7 @@
   }
 
   .panel {
+    border-radius: 16px;
     padding: 18px;
   }
 

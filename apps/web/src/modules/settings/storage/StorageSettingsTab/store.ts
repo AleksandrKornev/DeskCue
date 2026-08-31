@@ -2,6 +2,7 @@ import { makeAutoObservable, observable, runInAction } from "mobx";
 
 import type { DaemonSettingsResponse } from "@deskcue/protocol";
 import type { StorageMaintenanceStatsResponse } from "@api/endpoint/daemon/types";
+import { SettingsMutationCoordinator } from "@modules/settings/settingsMutationCoordinator";
 
 import { storageSettingsController } from "./controller";
 import type { StorageSettingsController } from "./controller";
@@ -17,6 +18,7 @@ const noop = () => {};
 export class StorageSettingsStore {
   clearingMigrationBackups = false;
   compactingStorage = false;
+  connectionRevision = 0;
   customStorageMaxMb = "";
   daemonSettings: DaemonSettingsResponse | null = null;
   isCustomStorageLimitDialogOpen = false;
@@ -25,17 +27,23 @@ export class StorageSettingsStore {
   storageStats: StorageMaintenanceStatsResponse | null = null;
   syncDaemonSettings: StorageSettingsDependencies["syncDaemonSettings"] = noop;
   private readonly controller: StorageSettingsController;
+  private readonly settingsMutationCoordinator: SettingsMutationCoordinator;
   private requestGeneration = 0;
 
-  constructor(controller: StorageSettingsController = storageSettingsController) {
+  constructor(
+    controller: StorageSettingsController = storageSettingsController,
+    settingsMutationCoordinator = new SettingsMutationCoordinator()
+  ) {
     this.controller = controller;
-    makeAutoObservable<this, "controller" | "requestGeneration">(
+    this.settingsMutationCoordinator = settingsMutationCoordinator;
+    makeAutoObservable<this, "controller" | "requestGeneration" | "settingsMutationCoordinator">(
       this,
       {
         controller: false,
         daemonSettings: observable.ref,
         storageStats: observable.ref,
         requestGeneration: false,
+        settingsMutationCoordinator: false,
         syncDaemonSettings: false
       },
       {
@@ -44,9 +52,15 @@ export class StorageSettingsStore {
     );
   }
 
+  get settingsMutationPending() {
+    return this.settingsMutationCoordinator.pendingMutation !== null;
+  }
+
   updateDependencies(dependencies: StorageSettingsDependencies) {
     const previousStorageMaxMb = this.daemonSettings?.storageMaxMb;
+
     this.daemonSettings = dependencies.daemonSettings;
+
     this.syncDaemonSettings = dependencies.syncDaemonSettings;
 
     if (
@@ -67,16 +81,20 @@ export class StorageSettingsStore {
 
   async refreshStorageStats() {
     const generation = this.requestGeneration;
+
     this.loadingStorageStats = true;
 
     try {
       const storageStats = await this.controller.getStorageStats();
+
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.storageStats = storageStats;
       });
     } catch (error) {
       if (generation !== this.requestGeneration) return;
+
       this.controller.notifyError(
         error instanceof Error ? error.message : "Failed to load storage maintenance stats"
       );
@@ -91,18 +109,21 @@ export class StorageSettingsStore {
 
   async compactStorage() {
     if (this.compactingStorage) {
-      return;
+      return false;
     }
 
     const generation = this.requestGeneration;
+
     this.compactingStorage = true;
+
     try {
       const result = await this.controller.compactStorage();
-      if (generation !== this.requestGeneration) return;
+
+      if (generation !== this.requestGeneration) return false;
 
       if (!result.ok) {
         this.controller.notifyError(result.data.error ?? "Storage compaction failed");
-        return;
+        return false;
       }
 
       runInAction(() => {
@@ -118,9 +139,13 @@ export class StorageSettingsStore {
       this.controller.notifySuccess(
         `Service storage cleared: ${result.data.deletedTerminalSessions} terminal session card${result.data.deletedTerminalSessions === 1 ? "" : "s"} and ${formatBytes(result.data.clearedLogBytes)} of DeskCue logs removed. ${formatBytes(releasedBytes)} reclaimed.${migrationBackupNotice}`
       );
+
+      return true;
     } catch (error) {
-      if (generation !== this.requestGeneration) return;
+      if (generation !== this.requestGeneration) return false;
+
       this.controller.notifyError(error instanceof Error ? error.message : "Storage compaction failed");
+      return false;
     } finally {
       if (generation === this.requestGeneration) {
         runInAction(() => {
@@ -132,18 +157,21 @@ export class StorageSettingsStore {
 
   async clearMigrationBackups() {
     if (this.clearingMigrationBackups) {
-      return;
+      return false;
     }
 
     const generation = this.requestGeneration;
+
     this.clearingMigrationBackups = true;
+
     try {
       const result = await this.controller.clearMigrationBackups();
-      if (generation !== this.requestGeneration) return;
+
+      if (generation !== this.requestGeneration) return false;
 
       if (!result.ok) {
         this.controller.notifyError(result.data.error ?? "Failed to delete migration backups");
-        return;
+        return false;
       }
 
       runInAction(() => {
@@ -152,9 +180,13 @@ export class StorageSettingsStore {
       this.controller.notifySuccess(
         `Deleted ${result.data.deletedBackups} migration backup${result.data.deletedBackups === 1 ? "" : "s"} (${formatBytes(result.data.deletedBytes)}).`
       );
+
+      return true;
     } catch (error) {
-      if (generation !== this.requestGeneration) return;
+      if (generation !== this.requestGeneration) return false;
+
       this.controller.notifyError(error instanceof Error ? error.message : "Failed to delete migration backups");
+      return false;
     } finally {
       if (generation === this.requestGeneration) {
         runInAction(() => {
@@ -181,10 +213,17 @@ export class StorageSettingsStore {
       return false;
     }
 
+    const mutationToken = this.settingsMutationCoordinator.tryStart("storage");
+
+    if (mutationToken === null) return false;
+
     const generation = this.requestGeneration;
+
     this.savingStorageBudget = true;
+
     try {
       const result = await this.controller.updateStorageBudget(storageMaxMb);
+
       if (generation !== this.requestGeneration) return false;
 
       if (!result.ok) {
@@ -198,9 +237,12 @@ export class StorageSettingsStore {
       return true;
     } catch (error) {
       if (generation !== this.requestGeneration) return false;
+
       this.controller.notifyError(error instanceof Error ? error.message : "Failed to update storage limit");
       return false;
     } finally {
+      this.settingsMutationCoordinator.finish(mutationToken);
+
       if (generation === this.requestGeneration) {
         runInAction(() => {
           this.savingStorageBudget = false;
@@ -215,6 +257,7 @@ export class StorageSettingsStore {
 
   async submitCustomStorageLimit() {
     const storageMaxMb = Number(this.customStorageMaxMb);
+
     if (!Number.isInteger(storageMaxMb) || storageMaxMb < 20 || storageMaxMb > 500) {
       this.controller.notifyError("Enter a whole number between 20 and 500 MiB");
       return;
@@ -229,6 +272,7 @@ export class StorageSettingsStore {
 
   resetForConnectionChange() {
     this.requestGeneration += 1;
+    this.connectionRevision += 1;
     this.clearingMigrationBackups = false;
     this.compactingStorage = false;
     this.customStorageMaxMb = "";

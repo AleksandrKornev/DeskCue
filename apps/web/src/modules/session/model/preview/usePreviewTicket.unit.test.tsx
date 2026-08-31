@@ -130,6 +130,7 @@ describe("usePreviewTicket", () => {
     rerender({ networkMode: "deskcue-host" });
 
     expect(result.current.url).toBe("https://deskcue.example/api/preview/sessions/session-1/");
+    expect(result.current.loading).toBe(true);
     expect(result.current.documentRevision).toBe(0);
     await waitFor(() => expect(issueTicket).toHaveBeenCalledTimes(2));
     resolveSecond({ ...firstTicket });
@@ -161,6 +162,7 @@ describe("usePreviewTicket", () => {
 
     await waitFor(() => expect(result.current.url).not.toBeNull());
     rerender({ port: 3000 });
+    expect(result.current.loading).toBe(true);
     await waitFor(() => expect(issueTicket).toHaveBeenCalledTimes(2));
     expect(result.current.documentRevision).toBe(0);
 
@@ -208,6 +210,36 @@ describe("usePreviewTicket", () => {
     expect(issueTicket).toHaveBeenCalledTimes(2);
     expect(result.current.url).toBe("https://deskcue.example/api/preview/sessions/session-1/");
     expect(result.current.documentRevision).toBe(0);
+  });
+
+  it("reloads the document only after explicit validation succeeds", async () => {
+    const ticket = {
+      credentialRevision: "AAAAAAAAAAAAAAAA",
+      expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
+      previewUrl: "/api/preview/sessions/session-1/"
+    };
+
+    let resolveValidation!: (value: typeof ticket) => void;
+
+    issueTicket
+      .mockResolvedValueOnce(ticket)
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveValidation = resolve;
+      }));
+    const session = {
+      id: "session-1",
+      preview: { active: true, networkMode: "device-direct", port: 5173 }
+    } as never;
+    const { result } = renderHook(() => usePreviewTicket(session, true));
+
+    await waitFor(() => expect(result.current.url).not.toBeNull());
+
+    act(() => result.current.validate());
+    await waitFor(() => expect(issueTicket).toHaveBeenCalledTimes(2));
+    expect(result.current.documentRevision).toBe(0);
+
+    resolveValidation(ticket);
+    await waitFor(() => expect(result.current.documentRevision).toBe(1));
   });
 
   it("refreshes after reconnect and advances once for a new daemon credential generation", async () => {
@@ -348,6 +380,70 @@ describe("usePreviewTicket", () => {
 
     expect(issueTicket).toHaveBeenCalledTimes(3);
     expect(result.current.documentRevision).toBe(0);
+  });
+
+  it("surfaces an unavailable port when explicitly validating a live preview", async () => {
+    let rejectValidation!: (error: Error) => void;
+
+    issueTicket
+      .mockResolvedValueOnce({
+        credentialRevision: "AAAAAAAAAAAAAAAA",
+        expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
+        previewUrl: "/api/preview/sessions/session-1/"
+      })
+      .mockImplementationOnce(() => new Promise((_, reject) => {
+        rejectValidation = reject;
+      }));
+    const session = {
+      id: "session-1",
+      preview: { active: true, networkMode: "device-direct", port: 5173 }
+    } as never;
+    const { result } = renderHook(() => usePreviewTicket(session, true));
+
+    await waitFor(() => expect(result.current.url).not.toBeNull());
+
+    act(() => result.current.validate());
+    expect(result.current).toMatchObject({ error: "", loading: true });
+
+    rejectValidation(new Error("The local preview server is unavailable."));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current).toMatchObject({
+      error: "The local preview server is unavailable.",
+      url: null
+    });
+  });
+
+  it("shows pending feedback while retrying an unavailable port", async () => {
+    let resolveRetry!: (ticket: {
+      credentialRevision: string;
+      expiresAt: string;
+      previewUrl: string;
+    }) => void;
+
+    issueTicket
+      .mockRejectedValueOnce(new Error("Preview unavailable"))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveRetry = resolve;
+      }));
+    const session = {
+      id: "session-1",
+      preview: { active: true, networkMode: "device-direct", port: 5173 }
+    } as never;
+    const { result } = renderHook(() => usePreviewTicket(session, true));
+
+    await waitFor(() => expect(result.current.error).toBe("Preview unavailable"));
+
+    act(() => result.current.retry());
+    expect(result.current).toMatchObject({ error: "", loading: true, url: null });
+
+    resolveRetry({
+      credentialRevision: "AAAAAAAAAAAAAAAA",
+      expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
+      previewUrl: "/api/preview/sessions/session-1/"
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
   });
 
   it("bounds automatic retries for an unavailable configured preview", async () => {

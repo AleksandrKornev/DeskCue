@@ -1,3 +1,5 @@
+@use "@assets/variables" as vars;
+
 .previewSetupState {
   width: min(1120px, calc(100% - 64px));
   min-height: clamp(400px, calc(100dvh - 350px), 460px);
@@ -9,11 +11,11 @@
   justify-content: stretch;
   gap: clamp(36px, 5vw, 72px);
   padding: clamp(32px, 4vw, 56px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 20px;
   background:
-    radial-gradient(circle at top left, rgba(49, 82, 181, 0.12), transparent 46%),
-    rgba(255, 255, 255, 0.018);
+    radial-gradient(circle at top left, vars.$color-surface-info-glow-strong, transparent 46%),
+    vars.$color-surface-raised-subtle;
   text-align: left;
 }
 
@@ -24,7 +26,7 @@
 .previewSetupEyebrow {
   display: block;
   margin-bottom: 12px;
-  color: #d6a467;
+  color: vars.$color-accent;
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -39,7 +41,7 @@
 
 .previewSetupState .previewSetupSummary p {
   margin: 0;
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
   font-size: 0.94rem;
 }
 
@@ -48,10 +50,10 @@
   box-sizing: border-box;
   margin: 0;
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control;
   border-radius: 16px;
-  background: rgba(8, 10, 15, 0.7);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+  background: vars.$color-surface-preview-panel;
+  box-shadow: vars.$shadow-preview-panel;
 }
 
 .previewRecoveryActions {
@@ -67,7 +69,7 @@
 
 .previewDiscoveryError {
   margin-top: 8px !important;
-  color: #e8b1a4;
+  color: vars.$color-status-danger;
   font-size: 0.82rem;
 }
 
@@ -113,7 +115,7 @@
   grid-column: 1 / -1;
   margin-bottom: 2px;
   padding: 0 2px;
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -127,24 +129,24 @@
   align-items: start;
   gap: 9px;
   box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control;
   border-radius: 12px;
   padding: 10px 11px;
-  background: rgba(255, 255, 255, 0.025);
-  color: #a9adb7;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-secondary;
   cursor: pointer;
 }
 
 .previewNetworkMode:hover,
 .previewNetworkMode:focus-within,
 .previewNetworkModeSelected {
-  border-color: rgba(214, 164, 103, 0.42);
-  background: rgba(214, 164, 103, 0.09);
+  border-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
 }
 
 .previewNetworkMode input {
   margin: 3px 0 0;
-  accent-color: #d6a467;
+  accent-color: vars.$color-accent;
 }
 
 .previewNetworkMode span {
@@ -154,12 +156,12 @@
 }
 
 .previewNetworkMode strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.84rem;
 }
 
 .previewNetworkMode small {
-  color: #969ba6;
+  color: vars.$color-text-muted;
   font-size: 0.74rem;
   line-height: 1.35;
 }
@@ -176,19 +178,19 @@
   min-width: 0;
   display: grid;
   gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control;
   border-radius: 12px;
   padding: 11px 12px;
-  background: rgba(255, 255, 255, 0.025);
-  color: #a9adb7;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-secondary;
   text-align: left;
 }
 
 .previewCandidate:hover,
 .previewCandidate:focus-visible,
 .previewCandidateSelected {
-  border-color: rgba(88, 223, 154, 0.42);
-  background: rgba(88, 223, 154, 0.09);
+  border-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
 }
 
 .previewCandidate span {
@@ -205,15 +207,18 @@
   box-sizing: border-box;
   margin: 0;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
   text-align: left;
 }
 
 .previewAdvanced summary {
+  min-height: vars.$control-height-touch;
+  display: flex;
+  align-items: center;
   cursor: pointer;
-  color: #d7d9df;
+  color: vars.$color-text-secondary;
   font-size: 0.88rem;
   font-weight: 600;
 }
@@ -317,7 +322,7 @@
   }
 }
 
-@media (max-width: 640px), (max-height: 900px) {
+@media (max-width: 640px), (max-width: 900px) and (max-height: 900px) {
   .previewReviewConnectionOpen {
     grid-template-rows: auto minmax(0, 1fr);
   }
@@ -360,7 +365,9 @@
 
   .previewToolbarButton {
     width: 44px;
+    min-width: 44px;
     min-height: 44px;
+    flex: 0 0 44px;
     padding: 0;
   }
 
@@ -391,7 +398,7 @@
   }
 
   .previewShellFrame {
-    min-height: calc(100dvh - 210px);
+    min-height: 0;
   }
 
   .previewEmptyState {
@@ -458,8 +465,25 @@
   .previewToolbarButton { font-size: 0.76rem; white-space: nowrap; }
   .previewStatusLong,
   .previewToolbarText { display: none; }
-  .previewStatusCompact { display: inline; }
-  .previewStatusCompact { max-width: 78px; overflow: hidden; text-overflow: ellipsis; }
+  .previewStatusCompact {
+    display: inline-block;
+    min-width: 0;
+    max-width: 78px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 340px) {
+  .previewReviewToolbar { gap: 4px; }
+
+  .previewToolbarButtonStop {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+  }
+
+  .previewToolbarButtonStop .previewToolbarText { display: none; }
 }
 
 @media (max-width: 640px) and (max-height: 680px) {

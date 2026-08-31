@@ -21,8 +21,8 @@
   min-height: 24px;
   padding: 0 8px;
   border-radius: vars.$radius-pill;
-  background: rgba(49, 82, 181, 0.16);
-  color: #b8cbff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -32,8 +32,8 @@
 .sourcePillMuted {
   min-height: 22px;
   padding: 0 7px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.66rem;
   letter-spacing: 0.07em;
 }
@@ -41,8 +41,8 @@
 .skeletonPill {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-border-hairline;
+  background: vars.$color-surface-input;
 }
 
 .skeletonPill::after {
@@ -53,7 +53,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.05) 48%,
+    vars.$color-shimmer 48%,
     transparent 100%
   );
   animation: skeletonShimmer 1.6s infinite;
@@ -127,8 +127,8 @@
   min-height: 22px;
   padding: 0 7px;
   border-radius: vars.$radius-pill;
-  background: rgba(132, 161, 255, 0.12);
-  color: #cbd8ff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
   font-size: 0.68rem;
   letter-spacing: 0;
   overflow: hidden;
@@ -180,8 +180,8 @@
 .headerStatusBadge {
   min-height: 22px;
   padding: 0 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.66rem;
   letter-spacing: 0.07em;
 }
@@ -191,8 +191,8 @@
   min-height: 22px;
   padding: 0 7px;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.66rem;
   line-height: 1;
   letter-spacing: 0.07em;
@@ -201,23 +201,23 @@
 }
 
 .headerStatusBadgeRunning {
-  background: rgba(44, 156, 92, 0.16);
-  color: #8ac79d;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
 .headerStatusBadgeRunning[class] {
-  background: rgba(44, 156, 92, 0.16);
-  color: #8ac79d;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
 .headerStatusBadgeActionable[class] {
-  background: rgba(214, 164, 103, 0.16);
-  color: #f2dfbf;
+  background: vars.$color-surface-accent-hover;
+  color: vars.$color-accent-text;
 }
 
 .headerStatusBadgeDanger[class] {
-  background: rgba(179, 63, 63, 0.22);
-  color: #ffaaaa;
+  background: vars.$color-surface-danger-strong;
+  color: vars.$color-status-danger;
 }
 
 .path {
@@ -246,8 +246,8 @@
   min-height: 24px;
   padding: 0 9px;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.7rem;
   line-height: 1;
   white-space: nowrap;
@@ -259,7 +259,7 @@
   height: 7px;
   border-radius: vars.$radius-pill;
   background: currentColor;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.035);
+  box-shadow: 0 0 0 2px vars.$color-surface-input;
 }
 
 .liveConnectionLabel {
@@ -287,61 +287,61 @@
 }
 
 .liveConnectionLive {
-  background: rgba(44, 156, 92, 0.13);
-  color: #51d486;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-running-strong;
 }
 
 .liveConnectionLive .liveConnectionDetail,
 .liveConnectionLive .liveConnectionCompactDetail {
-  color: #c8f6da;
+  color: vars.$color-status-success-detail;
 }
 
 .liveConnectionLive .liveConnectionLabel {
-  color: #51d486;
+  color: vars.$color-status-running-strong;
 }
 
 .liveConnectionLive .liveConnectionDot {
-  background: #51d486;
+  background: vars.$color-status-running-strong;
 }
 
 .liveConnectionConnecting {
-  background: rgba(49, 82, 181, 0.14);
-  color: #8fb6ff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-connecting;
 }
 
 .liveConnectionReconnecting {
-  background: rgba(214, 164, 103, 0.14);
-  color: #ffb15e;
+  background: vars.$color-surface-accent;
+  color: vars.$color-status-reconnecting;
 }
 
 .liveConnectionReconnecting .liveConnectionLabel,
 .liveConnectionReconnecting .liveConnectionDot {
-  color: #ffb15e;
+  color: vars.$color-status-reconnecting;
 }
 
 .liveConnectionReconnecting .liveConnectionDot {
-  background: #ffb15e;
-  box-shadow: 0 0 0 2px rgba(255, 177, 94, 0.14);
+  background: vars.$color-status-reconnecting;
+  box-shadow: vars.$shadow-status-warning;
 }
 
 .liveConnectionOffline {
-  background: rgba(194, 69, 69, 0.16);
-  color: #ff6d7a;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-offline;
 }
 
 .liveConnectionOffline .liveConnectionLabel,
 .liveConnectionOffline .liveConnectionDot {
-  color: #ff6d7a;
+  color: vars.$color-status-offline;
 }
 
 .liveConnectionOffline .liveConnectionDot {
-  background: #ff6d7a;
-  box-shadow: 0 0 0 2px rgba(255, 109, 122, 0.14);
+  background: vars.$color-status-offline;
+  box-shadow: vars.$shadow-status-offline;
 }
 
 .liveConnectionOffline .liveConnectionDetail,
 .liveConnectionReconnecting .liveConnectionDetail {
-  color: #f3c9b3;
+  color: vars.$color-status-danger-detail;
 }
 
 .liveNav {

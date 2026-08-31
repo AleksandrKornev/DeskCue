@@ -45,6 +45,95 @@ describe("RichTranscriptContent", () => {
     expect(screen.getByRole("button", { name: "Download" })).toBeEnabled();
   });
 
+  it("recovers a raw Windows Markdown target emitted by a local agent", () => {
+    render(
+      <RichTranscriptContent
+        entry={{
+          parts: [{
+            type: "markdown",
+            text: "[mobile evidence](D:\\work\\DeskCueWorkspace\\mobile-evidence.png)"
+          }],
+          text: ""
+        }}
+      />
+    );
+
+    const assetLink = screen.getByRole("button", { name: "mobile evidence" });
+
+    expect(assetLink).toHaveAttribute(
+      "title",
+      "D:/work/DeskCueWorkspace/mobile-evidence.png"
+    );
+
+    fireEvent.click(assetLink);
+    expect(screen.getByRole("dialog", { name: "mobile evidence" })).toBeInTheDocument();
+  });
+
+  it("keeps a Markdown title out of the requested Windows asset path", () => {
+    render(
+      <RichTranscriptContent
+        entry={{
+          parts: [{
+            type: "markdown",
+            text: "[report](D:\\work\\DeskCueWorkspace\\report.txt \"Readable title\")"
+          }],
+          text: ""
+        }}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "report" })).toHaveAttribute(
+      "title",
+      "D:/work/DeskCueWorkspace/report.txt"
+    );
+  });
+
+  it("leaves escaped Windows link examples as prose", () => {
+    render(
+      <RichTranscriptContent
+        entry={{
+          parts: [{
+            type: "markdown",
+            text: "\\[literal](D:\\work\\DeskCueWorkspace\\literal.txt)"
+          }],
+          text: ""
+        }}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "literal" })).not.toBeInTheDocument();
+    expect(screen.getByText(/D:\\work\\DeskCueWorkspace\\literal\.txt/u)).toBeInTheDocument();
+  });
+
+  it("keeps an open local-asset dialog mounted across transcript refreshes", () => {
+    const entry = {
+      parts: [{
+        type: "markdown" as const,
+        text: "[report](D:\\work\\DeskCueWorkspace\\report.txt)"
+      }],
+      text: ""
+    };
+
+    const view = render(
+      <RichTranscriptContent
+        assetContext={{ managedSessionId: "managed-1" }}
+        entry={entry}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "report" }));
+    expect(screen.getByRole("dialog", { name: "report" })).toBeInTheDocument();
+
+    view.rerender(
+      <RichTranscriptContent
+        assetContext={{ managedSessionId: "managed-1" }}
+        entry={{ ...entry, parts: [...entry.parts] }}
+      />
+    );
+
+    expect(screen.getByRole("dialog", { name: "report" })).toBeInTheDocument();
+  });
+
   it("treats local video Markdown embeds as files instead of unsupported images", () => {
     render(
       <RichTranscriptContent
@@ -64,6 +153,26 @@ describe("RichTranscriptContent", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Download" })).toBeEnabled();
+  });
+
+  it("does not nest local asset buttons for a linked non-image embed", () => {
+    render(
+      <RichTranscriptContent
+        entry={{
+          parts: [{
+            type: "markdown",
+            text: "[![video](D:\\media\\clip.mp4)](D:\\reports\\index.txt)"
+          }],
+          text: ""
+        }}
+      />
+    );
+
+    const assetButtons = screen.getAllByRole("button", { name: "video" });
+
+    expect(assetButtons).toHaveLength(1);
+    expect(assetButtons[0]).toHaveAttribute("title", "D:/reports/index.txt");
+    expect(assetButtons[0]?.querySelector("button")).toBeNull();
   });
 
   it("keeps large tool groups bounded until the user asks for every detail", () => {

@@ -48,9 +48,36 @@ type ShellHarnessProps = {
   managedSessions: SessionSummary[];
   selectedSession: SessionDetail | null;
   selectedSessionId: string;
+  suppressSessionShell?: boolean;
 };
 
 describe("useManagedSessionShellViewModel", () => {
+  it("hides retained detail and summary while initial route recovery is terminal", () => {
+    const detail = createDetail("session-1");
+    const summary = createSummary("session-1", "Source chat workspace");
+    const initialProps: ShellHarnessProps = {
+      managedSessions: [summary],
+      selectedSession: detail,
+      selectedSessionId: detail.id
+    };
+
+    const { result, rerender } = renderHook(
+      (props: ShellHarnessProps) => useManagedSessionShellViewModel(props),
+      { initialProps }
+    );
+
+    rerender({ ...initialProps, suppressSessionShell: true });
+
+    expect(result.current.selectedSessionDetail).toBeNull();
+    expect(result.current.sessionShell).toBeNull();
+    expect(result.current.isSessionShellLoading).toBe(false);
+
+    rerender({ ...initialProps, suppressSessionShell: false });
+
+    expect(result.current.selectedSessionDetail).toBe(detail);
+    expect(result.current.sessionShell).toBe(detail);
+  });
+
   it("keeps the matching detail while a tab-only route transition refreshes it", () => {
     const detail = createDetail("session-1");
     const summary = createSummary("session-1", "Generic workspace");

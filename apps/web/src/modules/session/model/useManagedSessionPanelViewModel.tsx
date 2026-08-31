@@ -57,10 +57,11 @@ export function useManagedSessionPanelViewModel({
   pendingChatPrompt,
   selectedSession,
   selectedSessionId,
+  sessionLoadError,
   suppressExternalWaiting = false,
   takenOverAgentSession
 }: ManagedSessionPanelProps) {
-  const { copyFeedback, handleCopyMessage } = useMessageCopyFeedback();
+  const { copyFeedback, handleCopyMessage } = useMessageCopyFeedback(selectedSessionId);
   const previewReview = previewReviewStore;
   const runtime = useDeskCueRuntime();
 
@@ -81,7 +82,8 @@ export function useManagedSessionPanelViewModel({
   } = useManagedSessionShellViewModel({
     managedSessions,
     selectedSession,
-    selectedSessionId
+    selectedSessionId,
+    suppressSessionShell: Boolean(sessionLoadError)
   });
   const previewEnabled = runtime.features.preview === true && hasPreview !== false;
   const usesHostPreviewLauncher = runtime.launchSessionPreview !== undefined;
@@ -412,6 +414,7 @@ export function useManagedSessionPanelViewModel({
     previewCandidatesLoading: previewCandidates.loading,
     previewLoading: previewTicket.loading,
     previewRetry: previewTicket.retry,
+    previewValidate: previewTicket.validate,
     previewUrl: previewTicket.url,
     renderActivityEntries,
     selectedSessionDetail,

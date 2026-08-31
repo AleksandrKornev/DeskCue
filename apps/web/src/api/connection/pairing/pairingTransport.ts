@@ -11,9 +11,19 @@ export class PairingEndpointError extends Error {
   }
 }
 
-async function readPairingEndpointError(response: Response) {
+export class AcceptedPairingResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AcceptedPairingResponseError";
+  }
+}
+
+async function readPairingEndpointError(response: Response, timeout: Promise<never>) {
   try {
-    const payload = await response.json() as { error?: unknown };
+    const payload = await Promise.race([
+      response.json() as Promise<{ error?: unknown }>,
+      timeout
+    ]);
 
     return typeof payload.error === "string" && payload.error.trim()
       ? payload.error.trim()
@@ -27,30 +37,41 @@ export async function fetchPairingEndpoint(
   url: string,
   body: Record<string, string>,
   failureMessage: string
-) {
+): Promise<unknown> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => {
-    controller.abort();
-  }, LOCAL_PAIRING_TIMEOUT_MS);
+  let timeoutId = 0;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timeoutId = window.setTimeout(() => {
+      controller.abort();
+      reject(new DOMException("DeskCue access request timed out", "AbortError"));
+    }, LOCAL_PAIRING_TIMEOUT_MS);
+  });
 
   try {
-    const response = await fetch(url, {
-      body: JSON.stringify(body),
-      credentials: "include",
-      headers: {
-        "content-type": "application/json"
-      },
-      method: "POST",
-      signal: controller.signal
-    });
+    const response = await Promise.race([
+      fetch(url, {
+        body: JSON.stringify(body),
+        credentials: "include",
+        headers: {
+          "content-type": "application/json"
+        },
+        method: "POST",
+        signal: controller.signal
+      }),
+      timeout
+    ]);
 
     if (!response.ok) {
-      const responseMessage = await readPairingEndpointError(response);
+      const responseMessage = await readPairingEndpointError(response, timeout);
 
       throw new PairingEndpointError(responseMessage ?? failureMessage, response.status);
     }
 
-    return response;
+    try {
+      return await Promise.race([response.json() as Promise<unknown>, timeout]);
+    } catch {
+      throw new AcceptedPairingResponseError(failureMessage);
+    }
   } finally {
     window.clearTimeout(timeoutId);
   }

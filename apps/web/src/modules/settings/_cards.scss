@@ -9,7 +9,7 @@ $settings-action-bar-reserve: 132px;
   border-bottom: 0;
   border-radius: vars.$radius-sm vars.$radius-sm 0 0;
   padding: 12px 12px 0;
-  background: rgba(13, 14, 18, 0.82);
+  background: vars.$color-surface-panel;
 }
 
 .card {
@@ -21,7 +21,7 @@ $settings-action-bar-reserve: 132px;
   border: 1px solid vars.$color-border-muted;
   border-radius: 0 0 vars.$radius-sm vars.$radius-sm;
   padding: 18px;
-  background: rgba(13, 14, 18, 0.82);
+  background: vars.$color-surface-panel;
 }
 
 .page:has(.settingsForm > .actions) .card,
@@ -69,18 +69,18 @@ $settings-action-bar-reserve: 132px;
 }
 
 .lowRisk {
-  background: rgba(64, 162, 104, 0.16);
-  color: #82d7a5;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
 .mediumRisk {
-  background: rgba(214, 164, 103, 0.16);
-  color: #f0c78f;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
 }
 
 .highRisk {
-  background: rgba(184, 72, 72, 0.2);
-  color: #ffaaa4;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
 }
 
 .securityGrid {
@@ -92,14 +92,14 @@ $settings-action-bar-reserve: 132px;
 
 .securityGrid div {
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 8px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .securityGrid dt {
-  color: #8f96a2;
+  color: vars.$color-text-muted;
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -109,7 +109,7 @@ $settings-action-bar-reserve: 132px;
 .securityGrid dd {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.92rem;
   line-height: 1.35;
 }
@@ -117,15 +117,15 @@ $settings-action-bar-reserve: 132px;
 .warningBox {
   display: grid;
   gap: 6px;
-  border: 1px solid rgba(214, 164, 103, 0.18);
+  border: 1px solid vars.$color-border-warning-subtle;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(214, 164, 103, 0.08);
+  background: vars.$color-surface-accent;
 }
 
 .warningBox p {
   margin: 0;
-  color: #ead3b3;
+  color: vars.$color-accent-text;
   font-size: 0.9rem;
 }
 
@@ -145,16 +145,14 @@ $settings-action-bar-reserve: 132px;
   z-index: 4;
   box-sizing: border-box;
   margin: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid vars.$color-border-subtle;
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
   border-radius: 0;
   padding: 12px 24px calc(12px + env(safe-area-inset-bottom));
-  background:
-    linear-gradient(180deg, rgba(24, 25, 30, 0.96), rgba(19, 20, 24, 0.98)),
-    rgba(19, 20, 24, 0.98);
-  box-shadow: 0 -14px 32px rgba(0, 0, 0, 0.24);
+  background: vars.$color-surface-toast;
+  box-shadow: vars.$shadow-bottom-sheet;
   backdrop-filter: blur(14px);
 }
 }

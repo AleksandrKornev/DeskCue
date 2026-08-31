@@ -5,9 +5,9 @@ import {
   useState
 } from "react";
 import type {
-  FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
-  PointerEvent as ReactPointerEvent
+  PointerEvent as ReactPointerEvent,
+  SubmitEvent
 } from "react";
 
 import { requestConfirmation } from "@components/ModalDialog";
@@ -164,7 +164,7 @@ export function useSessionMessageComposerController({
 
       blurComposerField(field);
     },
-    handleSubmit(event: FormEvent<HTMLFormElement>) {
+    handleSubmit(event: SubmitEvent<HTMLFormElement>) {
       event.preventDefault();
       void actions.submitDraft();
     },

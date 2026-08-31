@@ -1,7 +1,37 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { DiffTabPanel } from "./DiffTabPanel";
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return { promise, resolve };
+}
+
+function createMatchMediaController(initialMatches: boolean) {
+  let matches = initialMatches;
+  const listeners = new Set<() => void>();
+  const mediaQuery = {
+    get matches() {
+      return matches;
+    },
+    media: "(max-width: 900px)",
+    addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+    removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener)
+  };
+
+  return {
+    matchMedia: vi.fn(() => mediaQuery),
+    setMatches(nextMatches: boolean) {
+      matches = nextMatches;
+      listeners.forEach((listener) => listener());
+    }
+  };
+}
 
 describe("DiffTabPanel", () => {
   it("shows one useful source-chat empty state without workspace git controls", () => {
@@ -68,7 +98,11 @@ describe("DiffTabPanel", () => {
     );
 
     expect(screen.getByRole("heading", { name: "1 workspace change" })).toBeInTheDocument();
+    expect(screen.getByRole("button", {
+      name: "Modified: src/app.ts, 1 addition, 1 deletion"
+    })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Diff for src/app.ts" })).toHaveTextContent("const ready = true;");
+    expect(screen.getByRole("region", { name: "Diff for src/app.ts" })).toHaveAttribute("tabindex", "0");
     screen.getByRole("button", { name: "Open in Files" }).click();
     expect(onOpenFile).toHaveBeenCalledWith("src/app.ts");
   });
@@ -255,7 +289,222 @@ describe("DiffTabPanel", () => {
     });
 
     expect(screen.getByText("No changed files match this filter.")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "0 matching workspace changes" }))
+      .toHaveTextContent("0");
     expect(screen.getByText("No matching file selected")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Diff for src/app.ts" })).not.toBeInTheDocument();
+  });
+
+  it("announces the total match count when the visible file list is bounded", () => {
+    const changedFiles = Array.from({ length: 41 }, (_, index) => `src/file-${index}.ts`);
+
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles,
+          diff: "",
+          isDirty: true,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffParts={[]}
+      />
+    );
+
+    expect(screen.getByRole("status", { name: "41 matching workspace changes" }))
+      .toHaveTextContent("41");
+    expect(screen.getAllByRole("button", { name: /Details unavailable: src\/file-/ }))
+      .toHaveLength(40);
+    expect(screen.getByText("1 more matching file is outside this bounded view."))
+      .toBeInTheDocument();
+  });
+
+  it("announces loading workspace changes", () => {
+    render(<DiffTabPanel git={null} sourceDiffParts={[]} />);
+
+    expect(screen.getByRole("status", { name: "Loading workspace changes" }))
+      .toBeInTheDocument();
+  });
+
+  it("shows bounded progress while refreshing workspace changes", async () => {
+    const request = deferred();
+    const onRefreshGit = vi.fn(() => request.promise);
+
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: [],
+          diff: "",
+          isDirty: false,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffParts={[]}
+        onRefreshGit={onRefreshGit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Refreshing…" })).toHaveAttribute("aria-busy", "true");
+
+    await act(async () => {
+      request.resolve();
+      await request.promise;
+    });
+
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  });
+
+  it("recovers the Refresh action after a rejected request", async () => {
+    const onRefreshGit = vi.fn(() => Promise.reject(new Error("refresh failed")));
+
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: [],
+          diff: "",
+          isDirty: false,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffParts={[]}
+        onRefreshGit={onRefreshGit}
+      />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+    expect(screen.getByRole("status", { name: "" }))
+      .toHaveTextContent("Could not refresh workspace changes");
+  });
+
+  it("moves focus between the mobile file list and review detail", () => {
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: ["src/app.ts"],
+          changedFileStatuses: { "src/app.ts": "M" },
+          diff: "",
+          isDirty: true,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffParts={[]}
+      />
+    );
+
+    const fileButton = screen.getByRole("button", { name: "Modified: src/app.ts" });
+
+    fireEvent.click(fileButton);
+
+    expect(screen.getByRole("button", { name: "← Files" })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "← Files" }));
+
+    expect(fileButton).toHaveFocus();
+  });
+
+  it("moves focus from desktop detail to the mobile Back action after a compact resize", () => {
+    const media = createMatchMediaController(false);
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: ["src/app.ts"],
+          changedFileStatuses: { "src/app.ts": "M" },
+          diff: "",
+          isDirty: true,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffParts={[]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Modified: src/app.ts" }));
+
+    expect(screen.getByRole("article", { name: "Change details for src/app.ts" }))
+      .toHaveFocus();
+
+    act(() => media.setMatches(true));
+
+    expect(screen.getByRole("button", { name: "← Files" })).toHaveFocus();
+    vi.unstubAllGlobals();
+  });
+
+  it("resets local review state when the owning session key changes", () => {
+    const git = {
+      branch: "main",
+      changedFiles: ["src/app.ts"],
+      diff: "",
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+    };
+
+    const { rerender } = render(
+      <DiffTabPanel git={git} key="session-a" sourceDiffParts={[]} />
+    );
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Filter workspace changes" }), {
+      target: { value: "missing" }
+    });
+
+    rerender(<DiffTabPanel git={git} key="session-b" sourceDiffParts={[]} />);
+
+    expect(screen.getByRole("searchbox", { name: "Filter workspace changes" }))
+      .toHaveValue("");
+  });
+
+  it("does not reopen a reviewed file after Back when the same preference refreshes", () => {
+    const git = {
+      branch: "main",
+      changedFiles: ["src/app.ts"],
+      changedFileStatuses: { "src/app.ts": "M" as const },
+      diff: "",
+      isDirty: true,
+      isGitRepo: true,
+      lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+    };
+
+    const { container, rerender } = render(
+      <DiffTabPanel
+        git={git}
+        preferredFilePath="src/app.ts"
+        sourceDiffParts={[]}
+      />
+    );
+
+    expect(container.querySelector("[class*='changesLayoutReviewing']"))
+      .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "← Files" }));
+
+    expect(container.querySelector("[class*='changesLayoutReviewing']"))
+      .not.toBeInTheDocument();
+
+    rerender(
+      <DiffTabPanel
+        git={{ ...git, lastUpdatedAt: "2026-08-07T10:01:00.000Z" }}
+        preferredFilePath="src/app.ts"
+        sourceDiffParts={[]}
+      />
+    );
+
+    expect(container.querySelector("[class*='changesLayoutReviewing']"))
+      .not.toBeInTheDocument();
   });
 });

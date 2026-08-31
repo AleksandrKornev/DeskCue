@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MAX_VISIBLE_DIFF_FILES } from "@modules/session/tabs/constants";
 import {
@@ -21,6 +21,71 @@ import {
   parseUnifiedDiff
 } from "./helpers";
 import styles from "./styles.module.scss";
+import type { DiffFileReview } from "./types";
+
+const REFRESH_CHANGES_ERROR = "Could not refresh workspace changes";
+const CHANGES_COMPACT_MEDIA_QUERY = "(max-width: 900px)";
+
+type RefreshChangesArgs = {
+  onRefreshGit: NonNullable<DiffTabPanelProps["onRefreshGit"]>;
+  setRefreshError: (value: string) => void;
+  setRefreshing: (value: boolean) => void;
+};
+
+async function refreshChanges({
+  onRefreshGit,
+  setRefreshError,
+  setRefreshing
+}: RefreshChangesArgs) {
+  setRefreshError("");
+  setRefreshing(true);
+
+  try {
+    await onRefreshGit();
+  } catch {
+    setRefreshError(REFRESH_CHANGES_ERROR);
+  } finally {
+    setRefreshing(false);
+  }
+}
+
+function describeCount(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function describeReviewFileAction(file: DiffFileReview) {
+  const identity = `${describeDiffStatus(file.status)}: ${file.path}`;
+
+  if (!file.hasLineStats) return identity;
+
+  return `${identity}, ${describeCount(file.additions, "addition", "additions")}, ${describeCount(
+    file.deletions,
+    "deletion",
+    "deletions"
+  )}`;
+}
+
+function useCompactChangesViewport() {
+  const [compact, setCompact] = useState(() =>
+    typeof window === "undefined" || typeof window.matchMedia !== "function"
+      ? true
+      : window.matchMedia(CHANGES_COMPACT_MEDIA_QUERY).matches
+  );
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+
+    const mediaQuery = window.matchMedia(CHANGES_COMPACT_MEDIA_QUERY);
+    const controller = new AbortController();
+
+    setCompact(mediaQuery.matches);
+    mediaQuery.addEventListener("change", () => setCompact(mediaQuery.matches), { signal: controller.signal });
+
+    return () => controller.abort();
+  }, []);
+
+  return compact;
+}
 
 export function ChangesReview({
   git,
@@ -31,12 +96,15 @@ export function ChangesReview({
   onRefreshGit,
   onSelectFile
 }: DiffTabPanelProps) {
+  const compactViewport = useCompactChangesViewport();
   const visibleChangedFiles = useMemo(() => git ? filterDiffFiles(git.changedFiles) : [], [git]);
   const hiddenChangedFileCount = git ? git.changedFiles.length - visibleChangedFiles.length : 0;
+
   const visibleDiff = useMemo(() => git
     ? trimUnifiedDiff(filterUnifiedDiff(git.diff), git.diffTruncated)
     : null, [git]);
   const parsedFiles = useMemo(() => parseUnifiedDiff(visibleDiff?.text ?? ""), [visibleDiff?.text]);
+
   const reviewFiles = useMemo(
     () => mergeDiffReviewFiles(
       visibleChangedFiles,
@@ -46,9 +114,17 @@ export function ChangesReview({
     ),
     [git?.changedFilePreviousPaths, git?.changedFileStatuses, parsedFiles, visibleChangedFiles]
   );
+
   const [query, setQuery] = useState("");
+  const [refreshError, setRefreshError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [reviewingFile, setReviewingFile] = useState(false);
   const [selectedPath, setSelectedPath] = useState("");
+  const detailRef = useRef<HTMLElement>(null);
+  const mobileBackButtonRef = useRef<HTMLButtonElement>(null);
+  const openedPreferredFilePathRef = useRef("");
+  const returnFocusToListRef = useRef(false);
+  const selectedFileButtonRef = useRef<HTMLButtonElement>(null);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const matchingFiles = normalizedQuery
     ? reviewFiles.filter((file) => file.path.toLocaleLowerCase().includes(normalizedQuery))
@@ -71,8 +147,30 @@ export function ChangesReview({
 
     setSelectedPath((current) => preferred ?? reviewFiles.find((file) => file.path === current)?.path ?? reviewFiles[0]?.path ?? "");
 
-    if (preferred) setReviewingFile(true);
+    if (!preferredFilePath) {
+      openedPreferredFilePathRef.current = "";
+      return;
+    }
+
+    if (preferred && openedPreferredFilePathRef.current !== preferredFilePath) {
+      openedPreferredFilePathRef.current = preferredFilePath;
+      setReviewingFile(true);
+    }
   }, [preferredFilePath, reviewFiles]);
+
+  useEffect(() => {
+    if (reviewingFile) {
+      if (compactViewport) mobileBackButtonRef.current?.focus();
+      else detailRef.current?.focus();
+
+      return;
+    }
+
+    if (!returnFocusToListRef.current) return;
+
+    returnFocusToListRef.current = false;
+    selectedFileButtonRef.current?.focus();
+  }, [compactViewport, reviewingFile, selectedPath]);
 
   return (
     <div className={clsx(styles.changesStack, styles.changesReviewStack)}>
@@ -96,25 +194,39 @@ export function ChangesReview({
 
       {showWorkspaceGit ? (
         <section className={styles.changesReview}>
-          <header className={styles.changesHeader}>
-            <div>
-              <div className={styles.changesEyebrow}>{git?.branch ? `Branch · ${git.branch}` : "Workspace changes"}</div>
-              <h2>{reviewFiles.length === 0 && hiddenChangedFileCount > 0
-                ? "0 reviewable workspace changes"
-                : reviewFiles.length === 1
-                  ? "1 workspace change"
-                  : `${reviewFiles.length} workspace changes`}</h2>
-              <p>Review the working tree without staging or modifying files.</p>
-            </div>
-            {onRefreshGit ? (
-              <button className={styles.refreshButton} onClick={onRefreshGit} type="button">
-                Refresh
-              </button>
-            ) : null}
-          </header>
+          <div className={styles.changesHeaderStack}>
+            <header className={styles.changesHeader}>
+              <div>
+                <div className={styles.changesEyebrow}>{git?.branch ? `Branch · ${git.branch}` : "Workspace changes"}</div>
+                <h2>{reviewFiles.length === 0 && hiddenChangedFileCount > 0
+                  ? "0 reviewable workspace changes"
+                  : reviewFiles.length === 1
+                    ? "1 workspace change"
+                    : `${reviewFiles.length} workspace changes`}</h2>
+                <p>Review the working tree without staging or modifying files.</p>
+              </div>
+              {onRefreshGit ? (
+                <button
+                  aria-busy={refreshing}
+                  className={styles.refreshButton}
+                  disabled={refreshing}
+                  onClick={() => {
+                    void refreshChanges({ onRefreshGit, setRefreshError, setRefreshing });
+                  }}
+                  type="button"
+                >
+                  {refreshing ? "Refreshing…" : "Refresh"}
+                </button>
+              ) : null}
+            </header>
+
+            {refreshError ? <p className={styles.refreshError} role="status">{refreshError}</p> : null}
+          </div>
 
           {!git ? (
-            <div className={styles.loadingPanel} role="status" />
+            <div aria-label="Loading workspace changes" className={styles.loadingPanel} role="status">
+              <span className={styles.visuallyHidden}>Loading workspace changes</span>
+            </div>
           ) : reviewFiles.length === 0 ? (
             <div className={styles.emptyState}>
               <strong>{!git.isGitRepo
@@ -142,7 +254,11 @@ export function ChangesReview({
                       type="search"
                       value={query}
                     />
-                    <span>{filteredFiles.length}</span>
+                    <span
+                      aria-label={`${matchingFiles.length} matching workspace changes`}
+                      aria-live="polite"
+                      role="status"
+                    >{matchingFiles.length}</span>
                   </label>
                   {hiddenChangedFileCount > 0 ? (
                     <p className={styles.sidebarNote}>{hiddenChangedFileCount === 1
@@ -154,6 +270,7 @@ export function ChangesReview({
                   {filteredFiles.map((file) => (
                     <div key={file.path} role="listitem">
                       <button
+                        aria-label={describeReviewFileAction(file)}
                         aria-current={selectedFile?.path === file.path ? "true" : undefined}
                         className={clsx(styles.changedFileRow, selectedFile?.path === file.path && styles.changedFileRowSelected)}
                         onClick={() => {
@@ -161,6 +278,7 @@ export function ChangesReview({
                           setReviewingFile(true);
                           onSelectFile?.(file.path);
                         }}
+                        ref={selectedFile?.path === file.path ? selectedFileButtonRef : undefined}
                         type="button"
                       >
                         <span
@@ -178,15 +296,32 @@ export function ChangesReview({
                     </div>
                   ))}
                   {filteredFiles.length === 0 ? <p className={styles.sidebarNote}>No changed files match this filter.</p> : null}
-                  {remainingFileCount > 0 ? <p className={styles.sidebarNote}>{remainingFileCount} more matching files are outside this bounded view.</p> : null}
+                  {remainingFileCount > 0 ? (
+                    <p className={styles.sidebarNote}>{remainingFileCount === 1
+                      ? "1 more matching file is outside this bounded view."
+                      : `${remainingFileCount} more matching files are outside this bounded view.`}</p>
+                  ) : null}
                 </div>
               </aside>
 
-              <article className={styles.diffViewer}>
+              <article
+                aria-label={selectedFile ? `Change details for ${selectedFile.path}` : "Workspace change details"}
+                className={styles.diffViewer}
+                ref={detailRef}
+                tabIndex={-1}
+              >
                 {selectedFile ? (
                   <>
                     <header className={styles.diffViewerHeader}>
-                      <button className={styles.mobileBackButton} onClick={() => setReviewingFile(false)} type="button">← Files</button>
+                      <button
+                        className={styles.mobileBackButton}
+                        onClick={() => {
+                          returnFocusToListRef.current = true;
+                          setReviewingFile(false);
+                        }}
+                        ref={mobileBackButtonRef}
+                        type="button"
+                      >← Files</button>
                       <div className={styles.diffFileTitle}>
                         <strong title={selectedFile.path}>{selectedFile.previousPath
                           ? `${selectedFile.previousPath} → ${selectedFile.path}`
@@ -202,7 +337,12 @@ export function ChangesReview({
                     </header>
                     {visibleDiff?.wasTrimmed ? <p className={styles.diffNotice}>Workspace diff truncated to keep review responsive.</p> : null}
                     {selectedFile.lines.length > 0 ? (
-                      <div aria-label={`Diff for ${selectedFile.path}`} className={styles.diffLines} role="region">
+                      <div
+                        aria-label={`Diff for ${selectedFile.path}`}
+                        className={styles.diffLines}
+                        role="region"
+                        tabIndex={0}
+                      >
                         {selectedFile.lines.map((line, index) => (
                           <div className={clsx(styles.diffLine, styles[`diffLine${line.kind}`])} key={`${line.oldLine}:${line.newLine}:${index}`}>
                             <span>{line.oldLine ?? ""}</span>

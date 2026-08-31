@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SubmitEvent } from "react";
 
 import type {
   LocalLlmChatDetail,
@@ -7,11 +7,16 @@ import type {
 } from "@deskcue/protocol";
 import { localLlmChatsApi } from "@api/endpoint/localLlmChats/endpoints";
 import type { PendingChatPrompt, SendInputOptions } from "@models/promptDelivery";
-import { isCurrentDeskCuePreviewPort } from "@models/sessionPreview";
+import {
+  isCurrentDeskCuePreviewPort,
+  parsePreviewPort
+} from "@models/sessionPreview";
 import type { SessionTab } from "@models/sessionTabs";
 import styles from "@modules/localLlmChats/shared/styles.module.scss";
 import sessionChromeStyles from "@modules/session/chrome/styles.module.scss";
 import { ManagedSessionPanel } from "@modules/session/index";
+import { SessionOpeningSkeleton } from "@modules/session/skeleton";
+import type { SessionOpeningRetryContext } from "@modules/session/skeleton";
 
 import { readLocalLlmError } from "./controllers/helpers";
 import { useLmStudioChatController } from "./controllers/useLmStudioChatController";
@@ -22,7 +27,84 @@ import {
   hasMoreLocalLlmHistory
 } from "./localLlmManagedSessionAdapter";
 import { LocalLlmManagedSessionDialogs } from "./LocalLlmManagedSessionDialogs";
+import {
+  queueLocalLlmPreviewMutation
+} from "./localLlmPreviewMutationQueue";
+import type {
+  LocalLlmPreviewMutationQueue
+} from "./localLlmPreviewMutationQueue";
 import type { LocalLlmManagedSessionPanelProps } from "./types";
+
+type LocalChatRefresh = ReturnType<typeof useLocalLlmChatController>["refresh"];
+type LocalLlmPreviewIntent = {
+  currentChatIdRef: { current: string };
+  intentEpoch: number;
+  mountedRef: { current: boolean };
+  previewIntentEpochRef: { current: number };
+  targetChatId: string;
+};
+
+const RECOVERY_FOCUS_MAX_FRAMES = 8;
+
+function isLocalLlmPreviewIntentCurrent({
+  currentChatIdRef,
+  intentEpoch,
+  mountedRef,
+  previewIntentEpochRef,
+  targetChatId
+}: LocalLlmPreviewIntent) {
+  return mountedRef.current &&
+    currentChatIdRef.current === targetChatId &&
+    previewIntentEpochRef.current === intentEpoch;
+}
+
+function focusRecoveredLocalChat(
+  targetId: string,
+  retryChatId: string,
+  retryContext: SessionOpeningRetryContext,
+  mountedRef: { current: boolean },
+  currentChatIdRef: { current: string },
+  currentRefreshRef: { current: LocalChatRefresh },
+  retryRefresh: LocalChatRefresh,
+  attempt = 0
+) {
+  window.requestAnimationFrame(() => {
+    if (
+      !mountedRef.current ||
+      currentChatIdRef.current !== retryChatId ||
+      currentRefreshRef.current !== retryRefresh ||
+      !retryContext.hasFocusOwnership()
+    ) return;
+
+    const activeElement = document.activeElement;
+    const focusReturnedToDocument =
+      activeElement === document.body || activeElement === document.documentElement;
+    const retryStillOwnsFocus = activeElement instanceof HTMLElement &&
+      activeElement.hasAttribute("data-session-retry-control");
+
+    if (!focusReturnedToDocument && !retryStillOwnsFocus) return;
+
+    const target = document.getElementById(targetId);
+
+    if (target) {
+      target.focus();
+      return;
+    }
+
+    if (attempt < RECOVERY_FOCUS_MAX_FRAMES) {
+      focusRecoveredLocalChat(
+        targetId,
+        retryChatId,
+        retryContext,
+        mountedRef,
+        currentChatIdRef,
+        currentRefreshRef,
+        retryRefresh,
+        attempt + 1
+      );
+    }
+  });
+}
 
 export function LocalLlmManagedSessionPanel({
   chatId,
@@ -30,8 +112,10 @@ export function LocalLlmManagedSessionPanel({
   workspaces,
   onExit
 }: LocalLlmManagedSessionPanelProps) {
+  const currentChatIdRef = useRef(chatId);
+  const mountedRef = useRef(true);
   const {
-    detail,
+    detail: loadedDetail,
     error,
     historyWindowFull,
     hydrateChangeSet,
@@ -41,11 +125,23 @@ export function LocalLlmManagedSessionPanel({
     refresh,
     setError
   } = useLocalLlmChatController(chatId);
+  const detail = loadedDetail?.id === chatId ? loadedDetail : null;
+  const currentRefreshRef = useRef(refresh);
+  const serverPreviewNetworkModeRef = useRef<PreviewNetworkMode>("device-direct");
   const runtime = detail
     ? runtimes.find((candidate) => candidate.id === detail.runtimeId) ?? null
     : null;
   const [activeTab, setActiveTab] = useState<SessionTab>("overview");
   const [previewPort, setPreviewPort] = useState("");
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewDraftDirtyRef = useRef(false);
+  const previewIntentEpochRef = useRef(0);
+  const previewMutationQueueRef = useRef<LocalLlmPreviewMutationQueue>({
+    active: null,
+    pending: null
+  });
+  const previewNetworkModeRef = useRef<PreviewNetworkMode>("device-direct");
+  const previewNetworkModeDirtyRef = useRef(false);
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
   const [modeDialogOpen, setModeDialogOpen] = useState(false);
   const [workspaceId, setWorkspaceId] = useState("");
@@ -63,6 +159,19 @@ export function LocalLlmManagedSessionPanel({
     updateModel: handleLmStudioModelUpdate,
     updatingModel: updatingLmStudioModel
   } = useLmStudioChatController({ chatId, detail, mutateDetail, runtime, setError });
+  const recoveryFocusTargetId = `local-llm-session-recovered-${chatId}`;
+
+  currentChatIdRef.current = chatId;
+  currentRefreshRef.current = refresh;
+  serverPreviewNetworkModeRef.current = detail?.preview?.networkMode ?? "device-direct";
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const pendingLmStudioPrompt = detail?.pendingLmStudioPrompt ?? null;
   const pendingChatPrompt: PendingChatPrompt | null = pendingLmStudioPrompt && detail
@@ -72,21 +181,48 @@ export function LocalLlmManagedSessionPanel({
       status: "not_confirmed",
       text: pendingLmStudioPrompt.text
     }
+
     : null;
 
   useEffect(() => {
     setActiveTab("overview");
+    setPreviewError(null);
+    previewDraftDirtyRef.current = false;
+    previewNetworkModeRef.current = "device-direct";
+    previewNetworkModeDirtyRef.current = false;
+    previewIntentEpochRef.current += 1;
   }, [chatId]);
 
   useEffect(() => {
+    if (previewDraftDirtyRef.current) return;
+
     setPreviewPort(detail?.preview?.port ? String(detail.preview.port) : "");
   }, [chatId, detail?.preview?.port]);
 
   useEffect(() => {
+    if (previewNetworkModeDirtyRef.current) return;
+
+    previewNetworkModeRef.current = detail?.preview?.networkMode ?? "device-direct";
+  }, [chatId, detail?.preview?.networkMode]);
+
+  const handleChangePreviewPort = useCallback((value: string) => {
+    previewDraftDirtyRef.current = true;
+    previewNetworkModeRef.current = serverPreviewNetworkModeRef.current;
+    previewNetworkModeDirtyRef.current = false;
+    previewIntentEpochRef.current += 1;
+    setPreviewPort(value);
+    setPreviewError(null);
+  }, []);
+
+  useEffect(() => {
     if (activeTab !== "diff" || !detail) return;
+
     const changeSetsNeedingHydration = detail.changeSets.filter((changeSet) => !changeSet.diff);
+
     if (!changeSetsNeedingHydration.length) return;
+
     let active = true;
+
     void Promise.all(changeSetsNeedingHydration.map((changeSet) =>
       hydrateChangeSet(`local-llm:changes:${changeSet.id}`)
     )).catch((hydrateError: unknown) => {
@@ -106,11 +242,13 @@ export function LocalLlmManagedSessionPanel({
     if (detail.generationState === "running" && !options?.replaceRunningPrompt) {
       return false;
     }
+
     try {
       await mutateDetail(async () => {
         if (detail.generationState === "running") {
           await localLlmChatsApi.interrupt(detail.id);
         }
+
         return localLlmChatsApi.send(detail.id, { text });
       });
       return true;
@@ -131,6 +269,7 @@ export function LocalLlmManagedSessionPanel({
     }
 
     setError(null);
+
     try {
       await mutateDetail(() => localLlmChatsApi.interrupt(detail.id));
       return true;
@@ -149,8 +288,10 @@ export function LocalLlmManagedSessionPanel({
     if (!detail) {
       return;
     }
+
     setUpdatingWorkspace(true);
     setError(null);
+
     try {
       await mutateDetail(() => localLlmChatsApi.updateWorkspace(detail.id, {
         workspaceId: workspaceId || null
@@ -165,7 +306,9 @@ export function LocalLlmManagedSessionPanel({
 
   const handleAgentModeUpdate = useCallback(async (agentMode: LocalLlmChatDetail["agentMode"]) => {
     if (!detail || detail.agentMode === agentMode) return;
+
     setError(null);
+
     try {
       await mutateDetail(() => localLlmChatsApi.updateAgentMode(detail.id, { agentMode }));
       setModeDialogOpen(false);
@@ -176,7 +319,9 @@ export function LocalLlmManagedSessionPanel({
 
   const handleActionResolution = useCallback(async (actionRequestId: string, decision: "approve" | "reject") => {
     if (!detail) return;
+
     setError(null);
+
     try {
       await mutateDetail(() => localLlmChatsApi.resolveAction(detail.id, actionRequestId, decision));
     } catch (actionError) {
@@ -184,62 +329,161 @@ export function LocalLlmManagedSessionPanel({
     }
   }, [detail, mutateDetail, setError]);
 
-  const handleSetPreview = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+  const handleSetPreview = useCallback(async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!detail) return;
-    const normalizedPort = previewPort.trim() ? Number(previewPort) : null;
-    if (normalizedPort !== null && (!Number.isInteger(normalizedPort) || normalizedPort < 1 || normalizedPort > 65535)) {
-      setError("Preview port must be an integer between 1 and 65535");
+
+    const targetChatId = detail.id;
+    const intentEpoch = ++previewIntentEpochRef.current;
+    const parsedPort = parsePreviewPort(previewPort);
+
+    if (!parsedPort.ok) return;
+
+    if (isCurrentDeskCuePreviewPort(parsedPort.port, window.location)) {
+      setPreviewError("Preview target cannot be the DeskCue web app. Choose the port of the app you want to review");
       return;
     }
-    if (isCurrentDeskCuePreviewPort(normalizedPort, window.location)) {
-      setError("Preview target cannot be the DeskCue web app. Choose the port of the app you want to review");
-      return;
-    }
-    setError(null);
-    try {
-      await mutateDetail(() => localLlmChatsApi.updatePreview(detail.id, {
-        networkMode: detail.preview?.networkMode ?? "device-direct",
-        port: normalizedPort
-      }));
-    } catch (previewError) {
-      setError(readLocalLlmError(previewError));
-    }
-  }, [detail, mutateDetail, previewPort, setError]);
+
+    const networkMode = previewNetworkModeRef.current;
+    const previewIntent = {
+      currentChatIdRef,
+      intentEpoch,
+      mountedRef,
+      previewIntentEpochRef,
+      targetChatId
+    };
+
+    setPreviewError(null);
+
+    await queueLocalLlmPreviewMutation(
+      previewMutationQueueRef,
+      () => isLocalLlmPreviewIntentCurrent(previewIntent),
+      async () => {
+        try {
+          await mutateDetail(() => localLlmChatsApi.updatePreview(targetChatId, {
+            networkMode,
+            port: parsedPort.port
+          }));
+
+          if (isLocalLlmPreviewIntentCurrent(previewIntent)) {
+            previewDraftDirtyRef.current = false;
+            previewNetworkModeDirtyRef.current = false;
+          }
+
+          return true;
+        } catch (previewError) {
+          if (isLocalLlmPreviewIntentCurrent(previewIntent)) {
+            previewNetworkModeRef.current = serverPreviewNetworkModeRef.current;
+            previewNetworkModeDirtyRef.current = false;
+            setPreviewError(readLocalLlmError(previewError));
+          }
+
+          return false;
+        }
+      }
+    );
+  }, [detail, mutateDetail, previewPort]);
 
   const handleChangePreviewNetworkMode = useCallback(async (networkMode: PreviewNetworkMode) => {
     if (!detail) return false;
-    setError(null);
-    try {
-      await mutateDetail(() => localLlmChatsApi.updatePreview(detail.id, {
-        networkMode,
-        port: detail.preview?.port ?? null
-      }));
-      return true;
-    } catch (previewError) {
-      setError(readLocalLlmError(previewError));
-      return false;
-    }
-  }, [detail, mutateDetail, setError]);
+
+    const parsedPort = parsePreviewPort(previewPort, detail.preview?.port ?? null);
+
+    if (!parsedPort.ok) return false;
+
+    const targetChatId = detail.id;
+    const intentEpoch = ++previewIntentEpochRef.current;
+    const previewIntent = {
+      currentChatIdRef,
+      intentEpoch,
+      mountedRef,
+      previewIntentEpochRef,
+      targetChatId
+    };
+
+    previewNetworkModeRef.current = networkMode;
+    previewNetworkModeDirtyRef.current = true;
+    setPreviewError(null);
+
+    return queueLocalLlmPreviewMutation(
+      previewMutationQueueRef,
+      () => isLocalLlmPreviewIntentCurrent(previewIntent),
+      async () => {
+        try {
+          await mutateDetail(() => localLlmChatsApi.updatePreview(targetChatId, {
+            networkMode,
+            port: parsedPort.port
+          }));
+
+          if (isLocalLlmPreviewIntentCurrent(previewIntent)) {
+            previewDraftDirtyRef.current = false;
+            previewNetworkModeDirtyRef.current = false;
+          }
+
+          return true;
+        } catch (previewError) {
+          if (isLocalLlmPreviewIntentCurrent(previewIntent)) {
+            previewNetworkModeRef.current = serverPreviewNetworkModeRef.current;
+            previewNetworkModeDirtyRef.current = false;
+            setPreviewError(readLocalLlmError(previewError));
+          }
+
+          return false;
+        }
+      }
+    );
+  }, [detail, mutateDetail, previewPort]);
 
   const handleStopPreview = useCallback(async () => {
     if (!detail) return false;
-    setError(null);
-    try {
-      await mutateDetail(() => localLlmChatsApi.updatePreview(detail.id, {
-        networkMode: detail.preview?.networkMode ?? "device-direct",
-        port: null
-      }));
-      return true;
-    } catch (previewError) {
-      setError(readLocalLlmError(previewError));
-      return false;
-    }
-  }, [detail, mutateDetail, setError]);
+
+    const targetChatId = detail.id;
+    const intentEpoch = ++previewIntentEpochRef.current;
+    const networkMode = previewNetworkModeRef.current;
+    const previewIntent = {
+      currentChatIdRef,
+      intentEpoch,
+      mountedRef,
+      previewIntentEpochRef,
+      targetChatId
+    };
+
+    setPreviewError(null);
+
+    return queueLocalLlmPreviewMutation(
+      previewMutationQueueRef,
+      () => isLocalLlmPreviewIntentCurrent(previewIntent),
+      async () => {
+        try {
+          await mutateDetail(() => localLlmChatsApi.updatePreview(targetChatId, {
+            networkMode,
+            port: null
+          }));
+
+          if (isLocalLlmPreviewIntentCurrent(previewIntent)) {
+            previewDraftDirtyRef.current = false;
+            previewNetworkModeDirtyRef.current = false;
+          }
+
+          return true;
+        } catch (previewError) {
+          if (isLocalLlmPreviewIntentCurrent(previewIntent)) {
+            previewNetworkModeRef.current = serverPreviewNetworkModeRef.current;
+            previewNetworkModeDirtyRef.current = false;
+            setPreviewError(readLocalLlmError(previewError));
+          }
+
+          return false;
+        }
+      }
+    );
+  }, [detail, mutateDetail]);
 
   const handleRefreshGit = useCallback(async () => {
     if (!detail) return;
+
     setError(null);
+
     try {
       await mutateDetail(() => localLlmChatsApi.refreshGit(detail.id));
     } catch (gitError) {
@@ -247,17 +491,74 @@ export function LocalLlmManagedSessionPanel({
     }
   }, [detail, mutateDetail, setError]);
 
+  const handleRetryInitialLoad = useCallback(async (retryContext: SessionOpeningRetryContext) => {
+    const retryChatId = chatId;
+    const retryRefresh = refresh;
+
+    try {
+      const nextDetail = await retryRefresh("initial");
+      const retryStillCurrent = mountedRef.current &&
+        currentChatIdRef.current === retryChatId &&
+        currentRefreshRef.current === retryRefresh;
+
+      if (nextDetail?.id === retryChatId && retryStillCurrent) {
+        setError(null);
+
+        if (retryContext.hasFocusOwnership()) {
+          focusRecoveredLocalChat(
+            recoveryFocusTargetId,
+            retryChatId,
+            retryContext,
+            mountedRef,
+            currentChatIdRef,
+            currentRefreshRef,
+            retryRefresh
+          );
+        }
+      }
+
+      return nextDetail;
+    } catch (loadError) {
+      if (
+        mountedRef.current &&
+        currentChatIdRef.current === retryChatId &&
+        currentRefreshRef.current === retryRefresh
+      ) {
+        setError(readLocalLlmError(loadError));
+      }
+
+      return null;
+    }
+  }, [chatId, recoveryFocusTargetId, refresh, setError]);
+
   const adapter = useMemo(
     () => detail ? buildLocalSessionAdapter(detail, activeRuntime) : null,
     [activeRuntime, detail]
   );
 
+  const visibleError = error || previewError;
+
   if (!adapter) {
-    return <div className={styles.empty}>{error ?? "Loading local chat..."}</div>;
+    return (
+      <SessionOpeningSkeleton
+        key={chatId}
+        errorMessage={error
+          ? "The local chat may have changed or its runtime may be unavailable."
+          : null}
+        loadingLabel="Loading local chat"
+        onExit={onExit}
+        onRetry={handleRetryInitialLoad}
+      />
+    );
   }
 
   return (
-    <div className={styles.managedSession}>
+    <div
+      aria-label="Local chat loaded"
+      className={styles.managedSession}
+      id={recoveryFocusTargetId}
+      tabIndex={-1}
+    >
       <ManagedSessionPanel
         activeTab={activeTab}
         agentSessions={[adapter.agentSession]}
@@ -276,6 +577,7 @@ export function LocalLlmManagedSessionPanel({
           Boolean(pendingLmStudioPrompt) ||
           adapter.detail.actionRequests.some((request) => request.status === "pending")
         }
+
         chatComposerSupplement={
           <LocalLlmChatComposerSupplement
             detail={adapter.detail}
@@ -285,6 +587,7 @@ export function LocalLlmManagedSessionPanel({
             onStartLmStudioAndSend={() => void handleStartLmStudioAndSend()}
           />
         }
+
         headerMenuItem={
           <>
             <button
@@ -315,6 +618,7 @@ export function LocalLlmManagedSessionPanel({
             ) : null}
           </>
         }
+
         liveUpdatesConnection={localLiveConnection}
         managedSessions={[adapter.session]}
         pendingChatPrompt={pendingChatPrompt}
@@ -323,7 +627,7 @@ export function LocalLlmManagedSessionPanel({
         selectedSessionId={adapter.session.id}
         showTools={false}
         takenOverAgentSession={adapter.agentSession}
-        onChangePreviewPort={setPreviewPort}
+        onChangePreviewPort={handleChangePreviewPort}
         onChangePreviewNetworkMode={handleChangePreviewNetworkMode}
         onExitSession={onExit}
         onHydrateAgentSessionChanges={(_agentSessionId, groupId) => hydrateChangeSet(groupId)}
@@ -363,7 +667,7 @@ export function LocalLlmManagedSessionPanel({
         onWorkspaceIdChange={setWorkspaceId}
         onWorkspaceUpdate={() => void handleWorkspaceUpdate()}
       />
-      {error ? <p className={styles.error} role="alert">{error}</p> : null}
+      {visibleError ? <p className={styles.error} role="alert">{visibleError}</p> : null}
     </div>
   );
 }

@@ -26,6 +26,8 @@ export function CollapsedAgentSessionsPanel(props: CollapsedAgentSessionsPanelPr
 
         <button
           className={clsx(styles.button, styles.ghostButton)}
+          data-chat-list-focus-fallback=""
+          data-chat-list-focus-priority=""
           onClick={onExpand}
           type="button"
         >

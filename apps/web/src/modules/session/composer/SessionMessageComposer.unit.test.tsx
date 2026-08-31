@@ -181,6 +181,13 @@ describe("SessionMessageComposer", () => {
     expect(onSendInput).not.toHaveBeenCalled();
   });
 
+  it("uses an actionable compact composer prompt", () => {
+    renderComposer({ compactViewport: true });
+
+    expect(screen.getByRole("textbox", { name: "Next message" }))
+      .toHaveAttribute("placeholder", "Continue the task or give a new instruction…");
+  });
+
   it("keeps Ctrl+Enter as a newline action in the compact mobile layout", () => {
     const onSendInput = vi.fn(() => Promise.resolve(true));
 
@@ -313,6 +320,7 @@ describe("SessionMessageComposer", () => {
       "placeholder",
       "Waiting for connection"
     );
+
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     expect(screen.getByText(/Reconnecting — your draft is saved/u)).toBeInTheDocument();
 

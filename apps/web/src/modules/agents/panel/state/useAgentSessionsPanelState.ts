@@ -1,16 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 import type { AgentSessionSummary } from "@deskcue/protocol";
 import type { AgentSessionsPanelProps } from "@modules/agents/types";
 
 import {
   AGENT_SESSIONS_COMPACT_MEDIA_QUERY,
+  AGENT_SESSIONS_MOBILE_MEDIA_QUERY,
   filterAndSortAgentSessionsByQuery,
   INITIAL_VISIBLE_SESSIONS,
   isEditableKeyboardTarget,
   VISIBLE_SESSIONS_INCREMENT
 } from "./helpers";
 import { useAgentSessionsSearchState } from "./search/useAgentSessionsSearchState";
+
+function createMediaQueryChangeHandler(
+  mediaQuery: MediaQueryList,
+  setMatches: Dispatch<SetStateAction<boolean>>
+) {
+  return () => setMatches(mediaQuery.matches);
+}
+
+function createAgentSessionsKeyDownHandler(onClearSelection: () => void) {
+  return (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    if (event.defaultPrevented) return;
+    if (isEditableKeyboardTarget(event.target)) return;
+
+    onClearSelection();
+  };
+}
 
 export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
   const {
@@ -31,6 +50,9 @@ export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
 
   const [isCompactViewport, setIsCompactViewport] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia(AGENT_SESSIONS_COMPACT_MEDIA_QUERY).matches : false
+  );
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(AGENT_SESSIONS_MOBILE_MEDIA_QUERY).matches : false
   );
   const [visibleSessionsCount, setVisibleSessionsCount] = useState(INITIAL_VISIBLE_SESSIONS);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -83,6 +105,7 @@ export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
     setOptimisticSelectedAgentSessionSummary(
       agentSessions.find((session) => session.id === sessionId) ?? null
     );
+
     setSettlingAgentSessionId(sessionId);
     onSelectAgentSession(sessionId);
   }, [agentSessions, onSelectAgentSession]);
@@ -98,6 +121,7 @@ export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
       setVisibleSessionsCount((current) =>
         Math.min(current + VISIBLE_SESSIONS_INCREMENT, filteredByQuery.length)
       );
+
       return;
     }
 
@@ -106,6 +130,7 @@ export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
     }
 
     setIsLoadingMoreSessions(true);
+
     try {
       await onLoadMoreAgentSessions(query, { sourceId: selectedSourceId });
       setVisibleSessionsCount((current) => current + VISIBLE_SESSIONS_INCREMENT);
@@ -150,7 +175,23 @@ export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
     }
 
     const mediaQuery = window.matchMedia(AGENT_SESSIONS_COMPACT_MEDIA_QUERY);
-    const syncViewport = () => setIsCompactViewport(mediaQuery.matches);
+    const syncViewport = createMediaQueryChangeHandler(mediaQuery, setIsCompactViewport);
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(AGENT_SESSIONS_MOBILE_MEDIA_QUERY);
+    const syncViewport = createMediaQueryChangeHandler(mediaQuery, setIsMobileViewport);
 
     syncViewport();
     mediaQuery.addEventListener("change", syncViewport);
@@ -165,21 +206,7 @@ export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
       return;
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return;
-      }
-
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      if (isEditableKeyboardTarget(event.target)) {
-        return;
-      }
-
-      handleClearAgentSessionSelection();
-    };
+    const handleKeyDown = createAgentSessionsKeyDownHandler(handleClearAgentSessionSelection);
 
     window.addEventListener("keydown", handleKeyDown);
 
@@ -197,6 +224,7 @@ export function useAgentSessionsPanelState(props: AgentSessionsPanelProps) {
     hiddenSessionsCount,
     isCompactViewport,
     isLoadingMoreSessions,
+    isMobileViewport,
     isSearchLoading,
     isSelectedAgentSessionSettling,
     isSourceSwitching,

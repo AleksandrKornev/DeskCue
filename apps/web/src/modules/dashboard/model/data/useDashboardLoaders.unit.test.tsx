@@ -108,6 +108,7 @@ function deferred<T>() {
     resolve = promiseResolve;
     reject = promiseReject;
   });
+
   return { promise, reject, resolve };
 }
 
@@ -119,6 +120,7 @@ describe("useDashboardLoaders request ownership", () => {
   it("does not let an older overview response overwrite the latest load", async () => {
     const first = deferred<OverviewResponse>();
     const latest = overview("latest");
+
     apiMocks.getOverview
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce(latest);
@@ -126,9 +128,11 @@ describe("useDashboardLoaders request ownership", () => {
     const { result } = renderHook(() => useDashboardLoaders(harness.args));
 
     const oldLoad = result.current.loadOverview();
+
     await act(async () => {
       await result.current.loadOverview();
     });
+
     first.resolve(overview("stale"));
     await act(async () => {
       await oldLoad;
@@ -140,12 +144,15 @@ describe("useDashboardLoaders request ownership", () => {
 
   it("does not publish an in-flight overview after its runtime tree unmounts", async () => {
     const pending = deferred<OverviewResponse>();
+
     apiMocks.getOverview.mockReturnValueOnce(pending.promise);
     const harness = createHarness();
     const { result, unmount } = renderHook(() => useDashboardLoaders(harness.args));
 
     const loading = result.current.loadOverview();
+
     unmount();
+
     pending.resolve(overview("previous-machine"));
     await act(async () => {
       await loading;
@@ -156,6 +163,7 @@ describe("useDashboardLoaders request ownership", () => {
 
   it("does not publish a failure from a superseded agent-session request", async () => {
     const first = deferred<AgentSessionsResponse>();
+
     apiMocks.getAgentSessions
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce(agentSessionsPage());
@@ -163,9 +171,11 @@ describe("useDashboardLoaders request ownership", () => {
     const { result } = renderHook(() => useDashboardLoaders(harness.args));
 
     const oldLoad = result.current.loadAgentSessions();
+
     await act(async () => {
       await result.current.loadAgentSessions();
     });
+
     first.reject(new Error("stale network failure"));
     await act(async () => {
       await oldLoad;
@@ -178,6 +188,7 @@ describe("useDashboardLoaders request ownership", () => {
   it("keeps a populated agent list ready during a silent exact-count refresh", async () => {
     apiMocks.getAgentSessions.mockResolvedValueOnce(agentSessionsPage());
     const harness = createHarness();
+
     harness.args.agentSessionsRef.current = [{ id: "codex:existing" }] as never;
     const { result } = renderHook(() => useDashboardLoaders(harness.args));
 
@@ -193,6 +204,7 @@ describe("useDashboardLoaders request ownership", () => {
     vi.useFakeTimers();
     apiMocks.getAgentSessions.mockResolvedValueOnce(agentSessionsPage());
     const harness = createHarness();
+
     harness.args.agentSessionsRef.current = [{ id: "codex:existing" }] as never;
     const { unmount } = renderHook(() => useDashboardLoaders(harness.args));
 
@@ -215,6 +227,7 @@ describe("useDashboardLoaders request ownership", () => {
     vi.useFakeTimers();
     apiMocks.getAgentSessions.mockResolvedValue(agentSessionsPage());
     const harness = createHarness();
+
     harness.args.agentSessionsRef.current = [{ id: "claude-code:existing" }] as never;
     const { result, unmount } = renderHook(() => useDashboardLoaders(harness.args));
 
@@ -222,6 +235,7 @@ describe("useDashboardLoaders request ownership", () => {
       await act(async () => {
         await result.current.loadAgentSessions({ sourceId: "claude-code" });
       });
+
       apiMocks.getAgentSessions.mockClear();
 
       window.dispatchEvent(new Event(AGENT_SESSIONS_INVALIDATED_EVENT));
@@ -242,6 +256,7 @@ describe("useDashboardLoaders request ownership", () => {
     vi.useFakeTimers();
     apiMocks.getAgentSessions.mockResolvedValue(agentSessionsPage());
     const harness = createHarness();
+
     harness.args.agentSessionsRef.current = [{ id: "codex:existing" }] as never;
     const { result, unmount } = renderHook(() => useDashboardLoaders(harness.args));
 
@@ -249,6 +264,7 @@ describe("useDashboardLoaders request ownership", () => {
       await act(async () => {
         await result.current.searchAgentSessions("forimex", { sourceId: "codex" });
       });
+
       apiMocks.getAgentSessions.mockClear();
 
       window.dispatchEvent(new Event(AGENT_SESSIONS_INVALIDATED_EVENT));
@@ -269,17 +285,21 @@ describe("useDashboardLoaders request ownership", () => {
   it("keeps the latest managed-session detail when forced loads overlap", async () => {
     const first = deferred<SessionDetail | null>();
     const latest = { id: "managed-1", lastActivityAt: "latest" } as SessionDetail;
+
     apiMocks.fetchManagedSessionDetail
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce(latest);
     const harness = createHarness();
+
     harness.selectedSessionIdRef.current = "managed-1";
     const { result } = renderHook(() => useDashboardLoaders(harness.args));
 
     const oldLoad = result.current.loadSession("managed-1", { force: true });
+
     await act(async () => {
       await result.current.loadSession("managed-1", { force: true });
     });
+
     first.resolve({ id: "managed-1", lastActivityAt: "stale" } as SessionDetail);
     await act(async () => {
       await oldLoad;
@@ -293,10 +313,12 @@ describe("useDashboardLoaders request ownership", () => {
     const debugLoad = deferred<SessionDetail | null>();
     const chatSession = { id: "managed-1", lastActivityAt: "chat" } as SessionDetail;
     const debugSession = { id: "managed-1", lastActivityAt: "debug" } as SessionDetail;
+
     apiMocks.fetchManagedSessionDetail
       .mockReturnValueOnce(debugLoad.promise)
       .mockResolvedValueOnce(chatSession);
     const harness = createHarness();
+
     harness.selectedSessionIdRef.current = "managed-1";
     const { result } = renderHook(() => useDashboardLoaders(harness.args));
 
@@ -304,12 +326,14 @@ describe("useDashboardLoaders request ownership", () => {
       force: true,
       sessionView: "debug"
     });
+
     await act(async () => {
       await result.current.loadSession("managed-1", {
         force: true,
         sessionView: "chat"
       });
     });
+
     debugLoad.resolve(debugSession);
     await act(async () => {
       await pendingDebug;
@@ -320,10 +344,46 @@ describe("useDashboardLoaders request ownership", () => {
     expect(harness.mergeSelectedSessionView).toHaveBeenNthCalledWith(2, debugSession, "debug");
   });
 
+  it("keeps initial-route outcome ownership independent from automatic chat hydration", async () => {
+    const initialLoad = deferred<{
+      data: SessionDetail | null;
+      etag: string | null;
+      notModified: boolean;
+      status: number;
+    }>();
+    const chatSession = { id: "managed-1", lastActivityAt: "chat" } as SessionDetail;
+
+    apiMocks.fetchManagedSessionDetailWithMeta.mockReturnValueOnce(initialLoad.promise);
+    apiMocks.fetchManagedSessionDetail.mockResolvedValueOnce(chatSession);
+
+    const harness = createHarness();
+
+    harness.selectedSessionIdRef.current = "managed-1";
+    const { result } = renderHook(() => useDashboardLoaders(harness.args));
+
+    const initialOutcome = result.current.loadSessionWithOutcome("managed-1", {
+      requestScope: "initial-route",
+      sessionView: "chat"
+    });
+
+    await act(async () => {
+      await result.current.loadSession("managed-1", { sessionView: "chat" });
+    });
+
+    initialLoad.reject(new Error("Initial route request failed"));
+
+    await expect(initialOutcome).resolves.toEqual({
+      kind: "error",
+      message: "Initial route request failed"
+    });
+  });
+
   it("rejects an ABA managed-session response from an older selection epoch", async () => {
     const staleLoad = deferred<SessionDetail | null>();
+
     apiMocks.fetchManagedSessionDetail.mockReturnValueOnce(staleLoad.promise);
     const harness = createHarness();
+
     harness.selectedSessionIdRef.current = "managed-1";
     const { result } = renderHook(() => useDashboardLoaders(harness.args));
 
@@ -331,6 +391,7 @@ describe("useDashboardLoaders request ownership", () => {
       force: true,
       sessionView: "debug"
     });
+
     harness.selectedSessionSelectionEpochRef.current += 2;
     staleLoad.resolve({ id: "managed-1", lastActivityAt: "stale" } as SessionDetail);
     await act(async () => {

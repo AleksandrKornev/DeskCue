@@ -1,184 +1,169 @@
+import type { SubmitEvent } from "react";
+import { toast } from "sonner";
+
+import type { WorkspaceActionResult } from "@modules/dashboard/model/dashboardViewModel";
+import { INITIAL_MANAGED_SESSION_RECOVERY_MESSAGE } from "@modules/dashboard/model/data/helpers";
 import type { AgentBrowserShellProps } from "@modules/dashboard/shell/AgentBrowserShell";
 import type { ManagedSessionShellProps } from "@modules/dashboard/shell/ManagedSessionShell";
 import type { SecondaryToolsShellProps } from "@modules/dashboard/shell/SecondaryToolsShell";
 
 import { buildAgentCliRuntimeRows } from "./agentCliRuntimeRows";
-import type { DashboardShellSectionProps } from "./types";
+import type {
+  BuildAgentBrowserShellPropsArgs,
+  BuildManagedSessionShellPropsArgs,
+  BuildSecondaryToolsShellPropsArgs
+} from "./types";
+
+function reportWorkspaceActionFailure(result: WorkspaceActionResult) {
+  if (result.status === "failed") toast.error(result.error);
+}
+
+async function runManualWorkspacePicker(
+  action: () => Promise<WorkspaceActionResult>
+) {
+  reportWorkspaceActionFailure(await action());
+}
+
+async function runManualWorkspaceAdd(
+  action: (event: SubmitEvent<HTMLFormElement>) => Promise<WorkspaceActionResult>,
+  event: SubmitEvent<HTMLFormElement>
+) {
+  reportWorkspaceActionFailure(await action(event));
+}
 
 export function buildAgentBrowserShellProps({
-  agentSessionsHasMore,
-  agentSessionsLoadState,
-  agentSessionsQuery,
-  agentSessionsTotalCountLabel,
-  attachedManagedSessionId,
-  attachedManagedSessionInfo,
-  effectiveSelectedAgentSessionId,
-  effectiveSelectedSourceId,
-  filteredAgentSessions,
-  isAgentSessionLoading,
-  isBootstrapping,
-  isOpeningSelectedAgentSession,
-  managedSessions,
-  onAttachSelectedAgentSession,
-  onClearAgentSessionSelection,
-  onLoadMoreAgentSessions,
-  onMarkAgentSessionReviewed,
-  onOpenManagedSession,
-  onOpenLocalLlmChat,
-  onReloadAgentSessions,
-  onSearchAgentSessions,
-  onSelectAgentSession,
-  onSelectSource,
-  pendingChatPrompt,
-  readyForReviewAgentSessionIds,
-  runtimes,
-  selectedAgentSession,
-  sourceCards,
-  workspaces
-}: DashboardShellSectionProps): AgentBrowserShellProps {
+  overview,
+  agentBrowser,
+  managedSession,
+  manualRunner,
+  prompt,
+  agentBrowserActions,
+  manualRunnerActions,
+  agentBrowserLoaders,
+  route,
+  routeActions
+}: BuildAgentBrowserShellPropsArgs): AgentBrowserShellProps {
   return {
-    totalAgentSessionsCount: agentSessionsTotalCountLabel,
-    agentSessions: filteredAgentSessions,
-    agentSessionsHasMore,
-    agentSessionsLoadState,
-    agentSessionsQuery,
-    runtimes,
-    workspaces,
-    readyForReviewAgentSessionIds,
-    managedSessions,
-    pendingChatPrompt,
-    sourceCards,
-    selectedSourceId: effectiveSelectedSourceId,
-    selectedAgentSessionId: effectiveSelectedAgentSessionId,
-    selectedAgentSession,
-    isAgentSessionLoading,
-    attaching: isOpeningSelectedAgentSession,
-    attachedManagedSessionId,
-    attachedManagedSessionInfo,
-    isBootstrapping,
-    onSelectSource,
-    onLoadMoreAgentSessions,
-    onReloadAgentSessions,
-    onSearchAgentSessions,
-    onMarkAgentSessionReviewed,
-    onSelectAgentSession,
-    onClearAgentSessionSelection,
-    onAttachAgentSession: onAttachSelectedAgentSession,
-    onOpenManagedSession,
-    onOpenLocalLlmChat
+    totalAgentSessionsCount: agentBrowser.agentSessionsTotalCountLabel,
+    agentSessions: agentBrowser.filteredAgentSessions,
+    agentSessionsHasMore: agentBrowser.agentSessionsHasMore,
+    agentSessionsLoadState: agentBrowser.agentSessionsLoadState,
+    agentSessionsQuery: agentBrowser.agentSessionsQuery,
+    runtimes: overview.visibleRuntimes,
+    workspaces: overview.overview.workspaces,
+    readyForReviewAgentSessionIds: agentBrowser.readyForReviewAgentSessionIds,
+    managedSessions: managedSession.managedSessions,
+    pendingChatPrompt: prompt.pendingChatPrompt,
+    sourceCards: overview.sourceCards,
+    selectedSourceId: route.effectiveSelectedSourceId,
+    selectedAgentSessionId: route.effectiveSelectedAgentSessionId,
+    selectedAgentSession: agentBrowser.selectedAgentSession,
+    selectedAgentSessionLoadError: agentBrowser.selectedAgentSessionLoadError,
+    isAgentSessionLoading: agentBrowser.isAgentSessionLoading,
+    attaching: route.isOpeningSelectedAgentSession,
+    attachedManagedSessionId: route.attachedManagedSessionId,
+    attachedManagedSessionInfo: route.attachedManagedSessionInfo,
+    isBootstrapping: overview.isBootstrapping,
+    workspacePath: manualRunner.workspacePath,
+    workspaceLoading: manualRunner.workspaceLoading,
+    pickingWorkspace: manualRunner.workspacePicking,
+    canOpenNativeDialogs: overview.canOpenNativeDialogs,
+    onSelectSource: routeActions.onSelectSource,
+    onLoadMoreAgentSessions: agentBrowserLoaders.loadMoreAgentSessions,
+    onReloadAgentSessions: agentBrowserLoaders.loadAgentSessions,
+    onRetrySelectedAgentSession: agentBrowserActions.refreshSelectedAgentSession,
+    onSearchAgentSessions: agentBrowserLoaders.searchAgentSessions,
+    onMarkAgentSessionReviewed: agentBrowserActions.markAgentSessionReviewed,
+    onSelectAgentSession: routeActions.onSelectAgentSession,
+    onClearAgentSessionSelection: routeActions.onClearAgentSessionSelection,
+    onAttachAgentSession: routeActions.onAttachSelectedAgentSession,
+    onOpenManagedSession: routeActions.onOpenManagedSession,
+    onOpenLocalLlmChat: routeActions.onOpenLocalLlmChat,
+    onChangeWorkspacePath: manualRunnerActions.setWorkspacePath,
+    onPickWorkspace: manualRunnerActions.handlePickWorkspaceAction,
+    onAddWorkspace: manualRunnerActions.handleAddWorkspaceAction
   };
 }
 
 export function buildManagedSessionShellProps({
-  activeTab,
-  agentSessions,
-  agentTranscriptHasMoreById,
-  effectiveSelectedSessionId,
-  initialManagedSessionLoadState,
-  isBootstrapping,
-  isInterruptingPrompt,
-  immediateInterruptPrompt,
-  isTakenOverAgentSessionLoading,
-  isWaitingForChatReply,
-  liveUpdatesConnection,
-  managedSessions,
-  onChangePreviewPort,
-  onChangePreviewNetworkMode,
-  onExitSession,
-  onHydrateAgentSessionChanges,
-  onInterruptPrompt,
-  onHydrateAgentSessionTranscriptEntries,
-  onLoadMoreAgentSessionTranscript,
-  onRefreshGit,
-  onRetryInitialManagedSessionLoad,
-  onSelectManagedSession,
-  onSelectSessionTab,
-  onSendInput,
-  onSetPreview,
-  onStopPreview,
-  onStopAndExitSession,
-  onStopSession,
-  pendingChatPrompt,
-  previewPort,
-  selectedSession,
-  takenOverAgentSession
-}: DashboardShellSectionProps): ManagedSessionShellProps {
+  overview,
+  agentBrowser,
+  managedSession,
+  prompt,
+  agentBrowserActions,
+  managedSessionActions,
+  route,
+  routeActions
+}: BuildManagedSessionShellPropsArgs): ManagedSessionShellProps {
   return {
-    agentSessions,
-    managedSessions,
-    selectedSessionId: effectiveSelectedSessionId,
-    selectedSession,
-    takenOverAgentSession,
-    agentTranscriptHasMoreById,
-    isTakenOverAgentSessionLoading,
-    liveUpdatesConnection,
-    activeTab,
-    previewPort,
-    isBootstrapping,
+    agentSessions: agentBrowser.agentSessions,
+    managedSessions: managedSession.managedSessions,
+    selectedSessionId: route.effectiveSelectedSessionId,
+    selectedSession: managedSession.selectedSession,
+    takenOverAgentSession: route.takenOverAgentSession,
+    agentTranscriptHasMoreById: agentBrowser.agentTranscriptHasMoreById,
+    isTakenOverAgentSessionLoading: route.isTakenOverAgentSessionLoading,
+    liveUpdatesConnection: managedSession.liveUpdatesConnection,
+    activeTab: managedSession.activeTab,
+    previewPort: managedSession.previewPort,
+    isBootstrapping: overview.isBootstrapping,
     sessionLoadError:
-      initialManagedSessionLoadState.kind === "error"
-        ? initialManagedSessionLoadState.message
+      route.initialManagedSessionLoadState.kind === "error" ||
+      route.initialManagedSessionLoadState.kind === "missing" ||
+      route.initialManagedSessionLoadState.kind === "retrying"
+        ? INITIAL_MANAGED_SESSION_RECOVERY_MESSAGE
         : null,
-    pendingChatPrompt,
-    isWaitingForChatReply,
-    isInterruptingPrompt,
-    immediateInterruptPrompt,
-    onSelectSession: onSelectManagedSession,
-    onSelectTab: onSelectSessionTab,
-    onSendInput,
-    onHydrateAgentSessionChanges,
-    onHydrateAgentSessionTranscriptEntries,
-    onLoadMoreAgentSessionTranscript,
-    onInterruptPrompt,
-    onStopSession,
-    onStopAndExitSession,
-    onExitSession,
-    onRefreshGit,
-    onRetrySessionLoad: onRetryInitialManagedSessionLoad,
-    onChangePreviewPort,
-    onChangePreviewNetworkMode,
-    onSetPreview,
-    onStopPreview
+    pendingChatPrompt: prompt.pendingChatPrompt,
+    isWaitingForChatReply: prompt.isWaitingForChatReply,
+    isInterruptingPrompt: prompt.isInterruptingPrompt,
+    immediateInterruptPrompt: prompt.immediateInterruptPrompt,
+    onSelectSession: routeActions.onSelectManagedSession,
+    onSelectTab: routeActions.onSelectSessionTab,
+    onSendInput: routeActions.onSendInput,
+    onHydrateAgentSessionChanges: agentBrowserActions.hydrateAgentSessionChanges,
+    onHydrateAgentSessionTranscriptEntries: agentBrowserActions.hydrateAgentSessionTranscriptEntries,
+    onLoadMoreAgentSessionTranscript: agentBrowserActions.loadMoreAgentSessionTranscript,
+    onInterruptPrompt: routeActions.onInterruptPrompt,
+    onStopSession: routeActions.onStopSession,
+    onStopAndExitSession: routeActions.onStopAndExitSession,
+    onExitSession: routeActions.onExitSession,
+    onRefreshGit: managedSessionActions.handleRefreshGit,
+    onRetrySessionLoad: managedSessionActions.retryInitialManagedSessionLoad,
+    onChangePreviewPort: managedSessionActions.setPreviewPort,
+    onChangePreviewNetworkMode: managedSessionActions.handleChangePreviewNetworkMode,
+    onSetPreview: managedSessionActions.handleSetPreview,
+    onStopPreview: managedSessionActions.handleStopPreview
   };
 }
 
 export function buildSecondaryToolsShellProps({
-  agentSessions,
-  canOpenNativeDialogs,
-  command,
-  isBootstrapping,
-  loading,
-  onAddWorkspace,
-  onChangeCommand,
-  onChangeWorkspacePath,
-  onPickWorkspace,
-  onSelectWorkspace,
-  onStartSession,
-  pickingWorkspace,
-  runtimes,
-  selectedWorkspaceId,
-  sourceCards,
-  workspacePath,
-  workspaces
-}: DashboardShellSectionProps): SecondaryToolsShellProps {
+  overview,
+  agentBrowser,
+  manualRunner,
+  manualRunnerActions
+}: BuildSecondaryToolsShellPropsArgs): SecondaryToolsShellProps {
   return {
-    agentCliRuntimes: buildAgentCliRuntimeRows(agentSessions, sourceCards, runtimes),
-    workspacePath,
-    loading,
-    pickingWorkspace,
-    canOpenNativeDialogs,
-    selectedWorkspaceId,
-    workspaces,
-    command,
-    runtimes,
-    isBootstrapping,
+    agentCliRuntimes: buildAgentCliRuntimeRows(
+      agentBrowser.agentSessions,
+      overview.sourceCards,
+      overview.visibleRuntimes
+    ),
+    workspacePath: manualRunner.workspacePath,
+    loading: manualRunner.loading || manualRunner.workspaceLoading,
+    pickingWorkspace: manualRunner.workspacePicking,
+    canOpenNativeDialogs: overview.canOpenNativeDialogs,
+    selectedWorkspaceId: manualRunner.selectedWorkspaceId,
+    workspaces: overview.overview.workspaces,
+    command: manualRunner.command,
+    runtimes: overview.visibleRuntimes,
+    isBootstrapping: overview.isBootstrapping,
     compact: true,
     presentation: "list",
-    onChangeWorkspacePath,
-    onPickWorkspace,
-    onAddWorkspace,
-    onSelectWorkspace,
-    onChangeCommand,
-    onStartSession
+    onChangeWorkspacePath: manualRunnerActions.setWorkspacePath,
+    onPickWorkspace: runManualWorkspacePicker.bind(null, manualRunnerActions.handlePickWorkspaceAction),
+    onAddWorkspace: runManualWorkspaceAdd.bind(null, manualRunnerActions.handleAddWorkspaceAction),
+    onSelectWorkspace: manualRunnerActions.setSelectedWorkspaceId,
+    onChangeCommand: manualRunnerActions.setCommand,
+    onStartSession: manualRunnerActions.handleStartSession
   };
 }

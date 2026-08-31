@@ -1,0 +1,50 @@
+@use "@assets/variables" as vars;
+
+.toaster :global([data-sonner-toast]) {
+  padding-right: 58px;
+  border-color: vars.$color-border-control;
+  background: vars.$color-surface-toast;
+  color: vars.$color-text-primary;
+  font-weight: 750;
+}
+
+.toaster.toaster.toaster :global([data-sonner-toast]) :global([data-close-button]) {
+  top: 50%;
+  right: 6px;
+  left: auto;
+  width: 44px;
+  height: 44px;
+  transform: translateY(-50%);
+  border-color: vars.$color-border-control;
+  background: vars.$color-surface-control-hover;
+  color: inherit;
+}
+
+.toaster.toaster.toaster :global([data-sonner-toast]) :global([data-close-button]:focus-visible) {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.toaster :global([data-sonner-toast][data-type="success"]) {
+  border-color: vars.$color-border-success;
+  background: vars.$color-surface-toast-success;
+  color: vars.$color-status-success;
+}
+
+.toaster :global([data-sonner-toast][data-type="error"]) {
+  border-color: vars.$color-border-danger;
+  background: vars.$color-surface-toast-danger;
+  color: vars.$color-status-danger;
+}
+
+.toaster :global([data-sonner-toast][data-type="warning"]) {
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-toast-warning;
+  color: vars.$color-status-warning;
+}
+
+.toaster :global([data-sonner-toast][data-type="info"]) {
+  border-color: vars.$color-border-info;
+  background: vars.$color-surface-toast-info;
+  color: vars.$color-status-info;
+}

@@ -278,7 +278,7 @@ test("strips recommended plugins and injected workspace context from user messag
 });
 
 test("unwraps the current Codex Desktop attachment envelope", () => {
-  const attachmentPath = "C:\\Users\\Admin\\AppData\\Local\\Temp\\desktop-capture.png";
+  const attachmentPath = "C:\\Users\\person\\AppData\\Local\\Temp\\desktop-capture.png";
   const transcript = parseCodexTranscript(
     jsonl([
       {

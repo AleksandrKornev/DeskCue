@@ -20,29 +20,35 @@ export const NotificationRouteMatrix = observer(function NotificationRouteMatrix
         ))}
       </div>
       {notificationStore.eventOptions.map((eventOption) => (
-        <div className={styles.notificationMatrixRow} key={eventOption.event}>
-          <div>
-            <strong>{eventOption.label}</strong>
-            <small>{eventOption.description}</small>
+        <fieldset className={styles.notificationMatrixRow} key={eventOption.event}>
+          <legend className={styles.notificationMatrixLegend}>
+            {eventOption.label}. {eventOption.description}
+          </legend>
+          <div className={styles.notificationMatrixRowContent}>
+            <div aria-hidden="true" className={styles.notificationMatrixRowCopy}>
+              <strong>{eventOption.label}</strong>
+              <small>{eventOption.description}</small>
+            </div>
+            {notificationStore.providerOptions.map((providerOption) => (
+              <label key={providerOption.provider}>
+                <input
+                  aria-label={`${eventOption.label}: ${providerOption.label}`}
+                  checked={(draft.routes[eventOption.event] ?? []).includes(providerOption.provider)}
+                  name={`notification-route-${eventOption.event}-${providerOption.provider}`}
+                  type="checkbox"
+                  onChange={(event) => {
+                    notificationStore.toggleRoute(
+                      eventOption.event,
+                      providerOption.provider,
+                      event.target.checked
+                    );
+                  }}
+                />
+                <span>{providerOption.label}</span>
+              </label>
+            ))}
           </div>
-          {notificationStore.providerOptions.map((providerOption) => (
-            <label key={providerOption.provider}>
-              <input
-                checked={(draft.routes[eventOption.event] ?? []).includes(providerOption.provider)}
-                name={`notification-route-${eventOption.event}-${providerOption.provider}`}
-                type="checkbox"
-                onChange={(event) => {
-                  notificationStore.toggleRoute(
-                    eventOption.event,
-                    providerOption.provider,
-                    event.target.checked
-                  );
-                }}
-              />
-              <span>{providerOption.label}</span>
-            </label>
-          ))}
-        </div>
+        </fieldset>
       ))}
     </div>
   );

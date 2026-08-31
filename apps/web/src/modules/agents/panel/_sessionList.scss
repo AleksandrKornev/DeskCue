@@ -35,6 +35,13 @@
   min-width: 0;
 }
 
+.listTitle {
+  margin: 2px 0 0;
+  color: vars.$color-text-primary;
+  font-size: 0.94rem;
+  line-height: 1.3;
+}
+
 .listCards {
   display: grid;
   gap: 8px;
@@ -50,8 +57,14 @@
   gap: 10px;
   align-items: center;
   padding: 0 2px 4px;
-  color: #9fa4af;
+  color: vars.$color-text-muted;
   font-size: 0.84rem;
+}
+
+.listSummary:focus-visible {
+  border-radius: vars.$radius-sm;
+  outline: none;
+  box-shadow: inset 0 0 0 2px vars.$color-focus-ring;
 }
 
 .listSummarySkeleton {
@@ -66,13 +79,13 @@
   text-align: left;
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-control-subtle;
   color: inherit;
 }
 
 .listCard span {
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
   font-size: 0.9rem;
   line-height: 1.4;
 }
@@ -96,43 +109,43 @@
 }
 
 .listCardSelected {
-  border-color: rgba(214, 164, 103, 0.72);
-  box-shadow: inset 0 0 0 1px rgba(214, 164, 103, 0.45);
+  border-color: vars.$color-border-accent-strong;
+  box-shadow: inset 0 0 0 1px vars.$color-border-accent;
 }
 
 .listCardWithWork {
-  border-color: rgba(174, 184, 201, 0.22);
+  border-color: vars.$color-border-neutral;
   background:
-    linear-gradient(90deg, rgba(174, 184, 201, 0.08), rgba(174, 184, 201, 0) 34%),
-    rgba(255, 255, 255, 0.035);
+    linear-gradient(90deg, vars.$color-surface-neutral-subtle, vars.$color-surface-neutral-transparent 34%),
+    vars.$color-surface-input;
 }
 
 .listCardWithWork_active {
-  border-color: rgba(76, 217, 129, 0.36);
+  border-color: vars.$color-border-success;
   background:
-    linear-gradient(90deg, rgba(76, 217, 129, 0.14), rgba(76, 217, 129, 0) 34%),
-    rgba(255, 255, 255, 0.035);
+    linear-gradient(90deg, vars.$color-surface-running-glow, vars.$color-surface-running-transparent 34%),
+    vars.$color-surface-input;
 }
 
 .listCardWithWork_waiting {
-  border-color: rgba(214, 164, 103, 0.42);
+  border-color: vars.$color-border-accent;
   background:
-    linear-gradient(90deg, rgba(214, 164, 103, 0.14), rgba(214, 164, 103, 0) 34%),
-    rgba(255, 255, 255, 0.035);
+    linear-gradient(90deg, vars.$color-surface-accent, vars.$color-surface-accent-transparent 34%),
+    vars.$color-surface-input;
 }
 
 .listCardWithWork_review {
-  border-color: rgba(122, 159, 239, 0.38);
+  border-color: vars.$color-border-info;
   background:
-    linear-gradient(90deg, rgba(122, 159, 239, 0.14), rgba(122, 159, 239, 0) 34%),
-    rgba(255, 255, 255, 0.035);
+    linear-gradient(90deg, vars.$color-surface-review-glow, vars.$color-surface-review-transparent 34%),
+    vars.$color-surface-input;
 }
 
 .listCardWithWork_readonly {
-  border-color: rgba(174, 184, 201, 0.24);
+  border-color: vars.$color-border-neutral;
   background:
-    linear-gradient(90deg, rgba(174, 184, 201, 0.08), rgba(174, 184, 201, 0) 34%),
-    rgba(255, 255, 255, 0.035);
+    linear-gradient(90deg, vars.$color-surface-neutral-subtle, vars.$color-surface-neutral-transparent 34%),
+    vars.$color-surface-input;
 }
 
 .listCardHeader {
@@ -186,7 +199,7 @@
 
 .listCardDate {
   min-width: 0;
-  color: #8f96a3;
+  color: vars.$color-text-muted;
   font-size: 0.82rem;
   line-height: 20px;
 }
@@ -204,7 +217,7 @@
   flex: 0 0 auto;
   width: fit-content;
   max-width: 100%;
-  color: #a9d7b8;
+  color: vars.$color-status-success;
   font-size: 0.82rem;
   line-height: 20px;
   white-space: nowrap;
@@ -226,7 +239,7 @@
   height: 7px;
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 0 3px rgba(169, 215, 184, 0.1);
+  box-shadow: vars.$shadow-status-neutral;
   position: relative;
   top: 2px;
 }
@@ -235,49 +248,49 @@
   min-width: 18px;
   border-radius: 999px;
   padding-inline: 5px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #8f96a3;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-muted;
   text-align: center;
 }
 
 .listCard .workIndicator_active {
-  color: #7ee39d;
+  color: vars.$color-status-running-strong;
 }
 
 .listCard .workIndicator_active .workIndicatorDot {
-  box-shadow: 0 0 0 3px rgba(126, 227, 157, 0.15);
+  box-shadow: vars.$shadow-status-running;
 }
 
 .listCard .workIndicator_waiting {
-  color: rgb(214, 164, 103);
+  color: vars.$color-accent;
 }
 
 .listCard .workIndicator_waiting .workIndicatorDot {
-  box-shadow: 0 0 0 3px rgba(214, 164, 103, 0.14);
+  box-shadow: vars.$shadow-status-warning;
 }
 
 .listCard .workIndicator_readonly {
-  color: #aeb8c9;
+  color: vars.$color-status-neutral;
 }
 
 .listCard .workIndicator_readonly .workIndicatorDot {
-  box-shadow: 0 0 0 3px rgba(174, 184, 201, 0.11);
+  box-shadow: vars.$shadow-status-neutral;
 }
 
 .listCard .workIndicator_attached {
-  color: #f2d5a8;
+  color: vars.$color-status-attached;
 }
 
 .listCard .workIndicator_attached .workIndicatorDot {
-  box-shadow: 0 0 0 3px rgba(214, 164, 103, 0.14);
+  box-shadow: vars.$shadow-status-warning;
 }
 
 .listCard .workIndicator_review {
-  color: #9fb7ff;
+  color: vars.$color-status-review-strong;
 }
 
 .listCard .workIndicator_review .workIndicatorDot {
-  box-shadow: 0 0 0 3px rgba(159, 183, 255, 0.14);
+  box-shadow: vars.$shadow-status-review;
 }
 
 .sourcePill {
@@ -287,11 +300,11 @@
   flex: 0 0 auto;
   min-height: 22px;
   padding: 0 8px;
-  border: 1px solid rgba(174, 184, 201, 0.2);
+  border: 1px solid vars.$color-border-neutral;
   border-radius: 999px;
-  background: rgba(174, 184, 201, 0.11);
-  color: #d3d8e2;
-  font-size: 0.72rem;
+  background: vars.$color-surface-neutral;
+  color: vars.$color-text-dialog-secondary;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.01em;
   line-height: 1;
@@ -301,7 +314,7 @@
   width: 13px;
   height: 13px;
   flex: 0 0 auto;
-  color: #d8dde6;
+  color: vars.$color-text-dialog-secondary;
 }
 
 .sourcePill[data-chat-runtime-icon="claude-code"] svg {
@@ -315,8 +328,8 @@
 }
 
 .listCardAttached {
-  border-color: rgba(214, 164, 103, 0.46);
+  border-color: vars.$color-border-accent;
   background:
-    linear-gradient(90deg, rgba(214, 164, 103, 0.15), rgba(214, 164, 103, 0) 34%),
-    rgba(255, 255, 255, 0.035);
+    linear-gradient(90deg, vars.$color-surface-accent-hover, vars.$color-surface-accent-transparent 34%),
+    vars.$color-surface-input;
 }

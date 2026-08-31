@@ -1,3 +1,4 @@
+@use "@assets/variables" as vars;
 @use "./fileViewer";
 
 .filesBrowser {
@@ -7,9 +8,9 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 18px;
-  background: #0b0d12;
+  background: vars.$color-surface-canvas-raised;
 }
 
 .filesContent {
@@ -24,8 +25,8 @@
   display: grid;
   gap: 10px;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.035);
+  border-bottom: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-input;
 }
 
 .filesFilters {
@@ -52,18 +53,20 @@
   display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #d9dbe1;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-secondary;
 }
 
 .filesUpButton:hover:not(:disabled),
 .filesUpButton:focus-visible {
-  border-color: rgba(214, 164, 103, 0.28);
-  background: rgba(214, 164, 103, 0.12);
-  color: #f6e5ca;
+  border-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
 }
+
+.filesUpButton:focus-visible { box-shadow: vars.$shadow-focus-ring; }
 
 .filesUpButton:disabled {
   opacity: 0.34;
@@ -83,17 +86,41 @@
   border: 0;
   border-radius: 10px;
   padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #d9dbe1;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-secondary;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 650;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .fileWrapButtonActive {
-  background: rgba(214, 164, 103, 0.15);
-  color: #f0cca0;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
+}
+
+.changedFilter:hover,
+.changedFilter:focus-visible,
+.viewChangeButton:hover,
+.viewChangeButton:focus-visible,
+.filesBackButton:hover,
+.filesBackButton:focus-visible,
+.fileWrapButton:hover,
+.fileWrapButton:focus-visible,
+.fileViewerExpandButton:hover,
+.fileViewerExpandButton:focus-visible {
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
+}
+
+.changedFilter:focus-visible,
+.viewChangeButton:focus-visible,
+.filesBackButton:focus-visible,
+.fileWrapButton:focus-visible,
+.fileViewerExpandButton:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
 }
 
 .changedFilter {
@@ -101,8 +128,8 @@
 }
 
 .changedFilterActive {
-  background: rgba(214, 164, 103, 0.15);
-  color: #f0cca0;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
 }
 
 .filesSearch {
@@ -111,10 +138,15 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 11px;
   padding: 0 10px;
-  background: rgba(0, 0, 0, 0.18);
+  background: vars.$color-surface-input;
+}
+
+.filesSearch:focus-within {
+  border-color: vars.$color-focus-ring;
+  box-shadow: vars.$shadow-focus-ring;
 }
 
 .filesSearch input {
@@ -123,15 +155,15 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #ebedf1;
+  color: vars.$color-text-primary;
   font: inherit;
   font-size: 0.82rem;
 }
 
-.filesSearch > span:last-child { color: #7f8490; font-size: 0.74rem; }
+.filesSearch > span:last-child { color: vars.$color-text-muted; font-size: 0.74rem; }
 
 .filesWorkspaceLabel {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.88rem;
   font-weight: 700;
 }
@@ -139,7 +171,7 @@
 .filesBreadcrumbs {
   min-width: 0;
   overflow-x: auto;
-  color: #979ca8;
+  color: vars.$color-text-muted;
   white-space: nowrap;
   scrollbar-width: thin;
 }
@@ -150,23 +182,66 @@
   min-height: 44px;
   padding: 2px 7px;
   background: transparent;
-  color: #b9c8ef;
+  color: vars.$color-status-info;
   font: inherit;
   font-size: 0.82rem;
 }
 
 .filesBreadcrumbSeparator {
   padding: 0 3px;
-  color: #686d78;
+  color: vars.$color-text-muted;
 }
 
 .filesError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 9px 14px;
-  border-bottom: 1px solid rgba(235, 111, 111, 0.2);
-  background: rgba(235, 111, 111, 0.08);
-  color: #f0b4b4;
+  border-bottom: 1px solid vars.$color-border-danger;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
   font-size: 0.84rem;
 }
+
+.filesError button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid vars.$color-border-danger;
+  border-radius: 9px;
+  padding: 6px 10px;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-primary;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.filesError button:hover,
+.filesError button:focus-visible {
+  border-color: vars.$color-focus-ring;
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.filesErrorCopy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.filesErrorCopy span {
+  color: vars.$color-text-secondary;
+  line-height: 1.4;
+}
+
+.filesRetrying {
+  border-bottom-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
+  color: vars.$color-text-secondary;
+}
+
+.filesRetrying button { cursor: wait; }
 
 .filesLayout {
   min-height: 0;
@@ -184,7 +259,7 @@
 
 .filesList {
   padding: 8px;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid vars.$color-border-subtle;
 }
 
 .fileRow {
@@ -198,14 +273,20 @@
   border-radius: 10px;
   padding: 9px 10px;
   background: transparent;
-  color: #d9dbe1;
+  color: vars.$color-text-secondary;
   text-align: left;
 }
 
-.fileRow:hover,
-.fileRow:focus-visible,
+.fileRow:hover { background: vars.$color-surface-control-hover; }
+
 .fileRowSelected {
-  background: rgba(255, 255, 255, 0.065);
+  background: vars.$color-surface-accent;
+  box-shadow: inset 0 0 0 1px vars.$color-border-accent;
+}
+
+.fileRow:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
 }
 
 .fileRow:disabled {
@@ -218,7 +299,7 @@
 }
 
 .fileSize {
-  color: #818691;
+  color: vars.$color-text-muted;
 }
 
 .fileGlyph {
@@ -227,7 +308,7 @@
   height: 17px;
   box-sizing: border-box;
   display: block;
-  border: 1.5px solid #7f8797;
+  border: 1.5px solid vars.$color-text-muted;
   border-radius: 3px;
 }
 
@@ -238,15 +319,15 @@
   right: 2px;
   left: 2px;
   height: 1px;
-  background: #7f8797;
-  box-shadow: 0 4px #7f8797, 0 8px #7f8797;
+  background: vars.$color-text-muted;
+  box-shadow: 0 4px vars.$color-text-muted, 0 8px vars.$color-text-muted;
 }
 
 .fileGlyphDirectory {
   width: 17px;
   height: 13px;
   margin-top: 3px;
-  border-color: #b99868;
+  border-color: vars.$color-accent;
 }
 
 .fileGlyphDirectory::before {
@@ -256,7 +337,7 @@
   left: -1.5px;
   width: 8px;
   height: 5px;
-  border: 1.5px solid #b99868;
+  border: 1.5px solid vars.$color-accent;
   border-bottom: 0;
   border-radius: 3px 3px 0 0;
 }
@@ -273,8 +354,8 @@
 .fileChanged {
   border-radius: 999px;
   padding: 3px 6px;
-  background: rgba(214, 164, 103, 0.13);
-  color: #e8c38f;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
 }
 
 .filesLoadMore {
@@ -283,10 +364,32 @@
   margin-top: 6px;
   border: 0;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #d9dbe1;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-secondary;
   font-weight: 600;
 }
+
+.fileRetryButton {
+  min-width: 112px;
+  min-height: 44px;
+  margin-top: 8px;
+  border: 1px solid vars.$color-border-danger;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-primary;
+  font: inherit;
+  font-weight: 700;
+}
+
+.fileRetryButton:hover,
+.fileRetryButton:focus-visible {
+  border-color: vars.$color-focus-ring;
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.fileRetryButton[aria-disabled="true"] { cursor: wait; }
 
 .fileActionDialogActions {
   display: grid;
@@ -300,14 +403,14 @@
   border: 0;
   border-radius: 9px;
   padding: 0 10px;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font: inherit;
   font-size: 0.86rem;
   font-weight: 750;
 }
 
-.fileActionDialogButton { background: rgba(255, 255, 255, 0.07); }
-.fileActionDialogPrimaryButton { background: rgba(214, 164, 103, 0.2); }
+.fileActionDialogButton { background: vars.$color-surface-control-hover; }
+.fileActionDialogPrimaryButton { background: vars.$color-surface-accent; }
 
 .fileActionDialogButton:disabled,
 .fileActionDialogPrimaryButton:disabled {
@@ -320,7 +423,7 @@
   max-height: calc(1.35em * 3);
   overflow: hidden;
   overflow-wrap: anywhere;
-  color: #aeb3be;
+  color: vars.$color-text-secondary;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }

@@ -10,6 +10,7 @@ import type {
   AgentAttachOperationState,
   PromptOperationState
 } from "./commands/types";
+import { useDashboardWorkspaceCommands } from "./commands/useDashboardWorkspaceCommands";
 import { buildDashboardViewModel } from "./dashboardViewModel";
 import {
   useDashboardBootstrap,
@@ -65,7 +66,6 @@ export function useDeskCueDashboard(options?: {
     previewPort,
     error,
     loading,
-    pickingWorkspace,
     attachingAgentSessionId,
     eventStreamAttempt,
     isBootstrapping,
@@ -101,7 +101,6 @@ export function useDeskCueDashboard(options?: {
     setError,
     setErrorIfEmpty,
     setLoading,
-    setPickingWorkspace,
     setAttachingAgentSessionId,
     setIsBootstrapping
   } = store;
@@ -178,6 +177,20 @@ export function useDeskCueDashboard(options?: {
     setErrorIfEmpty
   });
 
+  const {
+    handleAddWorkspace: handleAddWorkspaceAction,
+    handlePickWorkspace: handlePickWorkspaceAction,
+    workspaceLoading,
+    workspacePicking
+  } = useDashboardWorkspaceCommands({
+    workspacePath,
+    getWorkspacePath: () => store.workspacePath,
+    setWorkspacePath,
+    setSelectedWorkspaceId,
+    loadOverview,
+    loadAgentSessions
+  });
+
   useCloudMachineOverviewPolling({
     agentSessionsQuery,
     loadAgentSessions,
@@ -193,6 +206,7 @@ export function useDeskCueDashboard(options?: {
     initialManagedSessionId: options?.initialManagedSessionId,
     suppressManagedSessionAutoSelect: options?.suppressManagedSessionAutoSelect,
     selectedSessionIdRef,
+    selectedSessionSelectionEpochRef,
     loadOverview,
     loadAgentSessions,
     loadRuntimes,
@@ -226,6 +240,7 @@ export function useDeskCueDashboard(options?: {
     epoch: 0,
     targetSessionId: ""
   });
+
   useEffect(() => {
     syncPromptOperationSelection(promptOperationRef, selectedSessionId);
   }, [selectedSessionId]);
@@ -240,6 +255,7 @@ export function useDeskCueDashboard(options?: {
     suppressManagedSessionAutoSelect: options?.suppressManagedSessionAutoSelect,
     overview,
     isBootstrapping,
+    initialManagedSessionLoadState,
     activeTab,
     selectedWorkspaceId,
     selectedAgentSessionId,
@@ -252,7 +268,10 @@ export function useDeskCueDashboard(options?: {
     loadSession
   });
 
-  const refreshSelectedAgentSession = useSelectedAgentSessionController({
+  const {
+    refreshSelectedAgentSession,
+    selectedAgentSessionLoadError
+  } = useSelectedAgentSessionController({
     suppressAgentSessionAutoSelect: options?.suppressAgentSessionAutoSelect,
     activeTab,
     isBootstrapping,
@@ -339,20 +358,18 @@ export function useDeskCueDashboard(options?: {
   });
 
   const {
-    handleAddWorkspace,
-    handlePickWorkspace,
     handleStartSession,
     handleAttachAgentSession,
     handleSendInput,
     handleStopSession,
     handleChangePreviewNetworkMode,
+    handleChangePreviewPort,
     handleRefreshGit,
+    previewError,
     handleSetPreview,
     handleStopPreview
   } = useDashboardCommandHandlers({
     overview,
-    agentSessions,
-    workspacePath,
     selectedWorkspaceId,
     command,
     selectedAgentSessionId,
@@ -365,8 +382,8 @@ export function useDeskCueDashboard(options?: {
     selectedSessionRef,
     promptOperationRef,
     previewPort,
+    setPreviewPort,
     promptDelivery,
-    setWorkspacePath,
     updateOverview,
     setSelectedWorkspaceId,
     setSelectedSessionId,
@@ -374,7 +391,6 @@ export function useDeskCueDashboard(options?: {
     setActiveTab,
     setError,
     setLoading,
-    setPickingWorkspace,
     setAttachingAgentSessionId,
     loadOverview,
     loadAgentSessions,
@@ -389,8 +405,9 @@ export function useDeskCueDashboard(options?: {
     canOpenNativeDialogs,
     isBootstrapping,
     initialManagedSessionLoadState,
-    error
+    error: error || previewError
   };
+
   const agentBrowserState = {
     agentSessions,
     agentSessionsTotalCountLabel,
@@ -401,6 +418,7 @@ export function useDeskCueDashboard(options?: {
     filteredAgentSessions,
     selectedAgentSessionId,
     selectedAgentSession,
+    selectedAgentSessionLoadError,
     readyForReviewAgentSessionIds,
     isAgentSessionLoading,
     activeTakenOverAgentSession,
@@ -408,6 +426,7 @@ export function useDeskCueDashboard(options?: {
     isActiveTakenOverAgentSessionLoading,
     attachingAgentSessionId
   };
+
   const managedSessionState = {
     selectedSessionId,
     selectedSession,
@@ -416,19 +435,23 @@ export function useDeskCueDashboard(options?: {
     previewPort,
     liveUpdatesConnection
   };
+
   const manualRunnerState = {
     loading,
-    pickingWorkspace,
+    workspaceLoading,
+    workspacePicking,
     workspacePath,
     selectedWorkspaceId,
     command
   };
+
   const promptState = {
     pendingChatPrompt: effectivePendingChatPrompt,
     isWaitingForChatReply: effectiveIsWaitingForChatReply,
     isInterruptingPrompt,
     immediateInterruptPrompt
   };
+
   const agentBrowserActions = {
     hydrateAgentSessionChanges,
     hydrateAgentSessionTranscriptEntries,
@@ -439,11 +462,12 @@ export function useDeskCueDashboard(options?: {
     setSelectedAgentSession,
     markAgentSessionReviewed
   };
+
   const managedSessionActions = {
     setSelectedSessionId,
     setSelectedSession,
     setActiveTab,
-    setPreviewPort,
+    setPreviewPort: handleChangePreviewPort,
     handleChangePreviewNetworkMode,
     retryInitialManagedSessionLoad,
     handleSendInput,
@@ -453,15 +477,17 @@ export function useDeskCueDashboard(options?: {
     handleSetPreview,
     handleStopPreview
   };
+
   const manualRunnerActions = {
     setWorkspacePath,
     setSelectedWorkspaceId,
     setCommand,
-    handleAddWorkspace,
-    handlePickWorkspace,
+    handleAddWorkspaceAction,
+    handlePickWorkspaceAction,
     handleStartSession,
     handleAttachAgentSession,
   };
+
   const agentBrowserLoaders = {
     loadAgentSessions,
     loadMoreAgentSessions,

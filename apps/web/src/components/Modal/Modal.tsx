@@ -34,6 +34,7 @@ export function Modal({
   eyebrow,
   footer,
   isOpen,
+  restoreFocusOnClose = true,
   size = "default",
   title,
   titleId,
@@ -48,7 +49,12 @@ export function Modal({
     sheetGestureProps,
     sheetRef: dialogRef
   } = useBottomSheetDrag<HTMLDivElement>({ onDismiss: onClose });
-  const { modalEntryId, onCloseRef } = useModalFocusLifecycle({ dialogRef, isOpen, onClose });
+  const { modalEntryId, onCloseRef } = useModalFocusLifecycle({
+    dialogRef,
+    isOpen,
+    restoreFocusOnClose,
+    onClose
+  });
 
   useEffect(() => {
     if (!isOpen || !closeOnHistoryBack) return;
@@ -104,7 +110,12 @@ export function Modal({
         aria-describedby={description ? generatedDescriptionId : undefined}
         aria-labelledby={resolvedTitleId}
         aria-modal="true"
-        className={clsx(styles.dialog, size === "confirm" && styles.dialogConfirm, className)}
+        className={clsx(
+          styles.dialog,
+          size === "confirm" && styles.dialogConfirm,
+          !footer && styles.dialogWithoutFooter,
+          className
+        )}
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}

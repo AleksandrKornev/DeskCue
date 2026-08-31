@@ -169,8 +169,8 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
             placeholder={
               canUseInput
                 ? compactViewport
-                  ? "continue, explain, or unblock the agent"
-                  : "continue with the next change, explain the diff, or unblock the agent"
+                  ? "Continue the task or give a new instruction…"
+                  : "Continue the task, explain a change, or give a new instruction…"
                 : unavailableInputLabel
             }
 

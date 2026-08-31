@@ -1,11 +1,10 @@
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { toast } from "sonner";
 
 import type { SessionDetail } from "@deskcue/protocol";
 import { agentSessionsApi } from "@api/endpoint/agentSessions/endpoints";
 import { sessionsApi } from "@api/endpoint/sessions/endpoints";
 import { isSessionCommandAccepted } from "@api/endpoint/sessions/types";
-import { workspacesApi } from "@api/endpoint/workspaces/endpoints";
 import {
   hasApiErrorPayload,
   readApiErrorMessage
@@ -35,192 +34,283 @@ import {
   captureSessionSelectionOperation,
   isSessionSelectionOperationCurrent
 } from "./selectionOperation";
-import type { UseDashboardCommandHandlersArgs } from "./types";
+import type { SessionSelectionOperation } from "./selectionOperation";
+import type {
+  AgentAttachOperationState,
+  AttachAgentSessionHandlerArgs,
+  StartSessionHandlerArgs,
+  StopSessionHandlerArgs,
+  UseDashboardCommandHandlersArgs
+} from "./types";
 import { useDashboardPreviewCommandHandlers } from "./useDashboardPreviewCommandHandlers";
 
-export function useDashboardCommandHandlers({
-  overview,
-  workspacePath,
-  selectedWorkspaceId,
-  command,
-  selectedAgentSessionId,
-  selectedAgentSessionIdRef,
-  agentAttachOperationRef,
-  selectedSessionId,
-  selectedSession,
-  selectedSessionIdRef,
-  selectedSessionSelectionEpochRef,
-  selectedSessionRef,
-  promptOperationRef,
-  previewPort,
-  promptDelivery,
-  setWorkspacePath,
-  updateOverview,
-  setSelectedWorkspaceId,
-  setSelectedSessionId,
-  setSelectedSession,
-  setActiveTab,
-  setError,
-  setLoading,
-  setPickingWorkspace,
-  setAttachingAgentSessionId,
-  loadOverview,
-  loadAgentSessions,
-  loadSession
-}: UseDashboardCommandHandlersArgs) {
-  async function handleAddWorkspace(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!workspacePath.trim()) {
-      return;
-    }
+async function runStartSession(
+  args: StartSessionHandlerArgs,
+  event: SubmitEvent<HTMLFormElement>
+) {
+  const {
+    command,
+    loadAgentSessions,
+    loadOverview,
+    selectedWorkspaceId,
+    setError,
+    setLoading
+  } = args;
 
-    setLoading(true);
-    setError("");
-
-    try {
-      const result = await workspacesApi.create(workspacePath);
-      if (!result.ok || hasApiErrorPayload(result.data)) {
-        throw new Error(readApiErrorMessage(result.data, "Failed to add workspace"));
-      }
-
-      setWorkspacePath("");
-      setSelectedWorkspaceId(result.data.id);
-      await Promise.all([loadOverview(), loadAgentSessions()]);
-    } catch (caughtError) {
-      setError(toMessage(caughtError));
-    } finally {
-      setLoading(false);
-    }
+  event.preventDefault();
+  if (!selectedWorkspaceId) {
+    setError("Add or select a workspace first");
+    return;
   }
 
-  async function handlePickWorkspace() {
-    setPickingWorkspace(true);
-    setError("");
+  setLoading(true);
+  setError("");
 
-    try {
-      const result = await workspacesApi.pick();
-      if (!result.ok) {
-        throw new Error(result.data.error ?? "Failed to open folder picker");
-      }
+  try {
+    const result = await sessionsApi.runManualCommand(selectedWorkspaceId, command);
 
-      if ("cancelled" in result.data && result.data.cancelled) {
-        return;
-      }
-
-      if ("workspace" in result.data && result.data.workspace) {
-        setSelectedWorkspaceId(result.data.workspace.id);
-        await Promise.all([loadOverview(), loadAgentSessions()]);
-      }
-    } catch (caughtError) {
-      setError(toMessage(caughtError));
-    } finally {
-      setPickingWorkspace(false);
-    }
-  }
-
-  async function handleStartSession(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedWorkspaceId) {
-      setError("Add or select a workspace first");
-      return;
+    if (!result.ok || hasApiErrorPayload(result.data)) {
+      throw new Error(readApiErrorMessage(result.data, "Failed to run command"));
     }
 
-    setLoading(true);
-    setError("");
-
-    try {
-      const result = await sessionsApi.runManualCommand(selectedWorkspaceId, command);
-      if (!result.ok || hasApiErrorPayload(result.data)) {
-        throw new Error(readApiErrorMessage(result.data, "Failed to run command"));
-      }
-
-      if (result.data.status === "started") {
-        toast.success(
-          `Command started${result.data.pid ? `, pid ${result.data.pid}` : ""}`
-        );
-      } else if (result.data.ok) {
-        toast.success(`Command finished in ${formatManualCommandDuration(result.data.durationMs)}`);
-      } else {
-        toast.error(
-          `Command failed${formatManualCommandExit(result.data)} in ${formatManualCommandDuration(result.data.durationMs)}`
-        );
-      }
-
-      Promise.all([
-        loadOverview({ silent: true }),
-        loadAgentSessions({ silent: true })
-      ]).catch((caughtError) => {
-        setError(toMessage(caughtError));
-      });
-    } catch (caughtError) {
-      setError(toMessage(caughtError));
-      toast.error(toMessage(caughtError));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleAttachAgentSession() {
-    if (!selectedAgentSessionId) {
-      return null;
-    }
-
-    const attachingAgentSessionId = selectedAgentSessionId;
-    const attachOperation = beginAgentAttachOperation(
-      agentAttachOperationRef,
-      attachingAgentSessionId
-    );
-    const attachIsCurrent = () => isAgentAttachOperationCurrent(
-      agentAttachOperationRef,
-      selectedAgentSessionIdRef,
-      attachOperation
-    );
-    setAttachingAgentSessionId(attachingAgentSessionId);
-    setError("");
-
-    try {
-      const command = acquirePendingCloudCommand("source.attach", attachingAgentSessionId);
-      const result = await agentSessionsApi.attach(
-        attachingAgentSessionId,
-        "",
-        command.commandId
+    if (result.data.status === "started") {
+      toast.success(
+        `Command started${result.data.pid ? `, pid ${result.data.pid}` : ""}`
       );
-      if (result.ok && !hasApiErrorPayload(result.data)) clearPendingCloudCommand(command);
-      if (!attachIsCurrent()) {
-        return null;
-      }
-      if (!result.ok || hasApiErrorPayload(result.data)) {
-        throw new Error(readApiErrorMessage(result.data, "Failed to attach agent session"));
-      }
+    } else if (result.data.ok) {
+      toast.success(`Command finished in ${formatManualCommandDuration(result.data.durationMs)}`);
+    } else {
+      toast.error(
+        `Command failed${formatManualCommandExit(result.data)} in ${formatManualCommandDuration(result.data.durationMs)}`
+      );
+    }
 
-      const attachedSession = isSessionCommandAccepted(result.data)
-        ? await loadSession(result.data.sessionId, { sessionView: "chat" })
-        : result.data;
-      if (!attachIsCurrent()) return null;
-      if (!attachedSession) {
-        throw new Error("The attach request was accepted, but DeskCue could not load the session.");
-      }
+    Promise.all([
+      loadOverview({ silent: true }),
+      loadAgentSessions({ silent: true })
+    ]).catch((caughtError) => {
+      setError(toMessage(caughtError));
+    });
+  } catch (caughtError) {
+    setError(toMessage(caughtError));
+    toast.error(toMessage(caughtError));
+  } finally {
+    setLoading(false);
+  }
+}
 
-      setSelectedWorkspaceId(attachedSession.workspaceId);
-      setSelectedSessionId(attachedSession.id);
-      setSelectedSession(attachedSession);
-      setActiveTab("overview");
+function isCurrentAgentAttach(
+  args: AttachAgentSessionHandlerArgs,
+  operation: AgentAttachOperationState
+) {
+  return isAgentAttachOperationCurrent(
+    args.agentAttachOperationRef,
+    args.selectedAgentSessionIdRef,
+    operation
+  );
+}
 
-      loadAgentSessions({ silent: true }).catch((caughtError) => {
-        setError(toMessage(caughtError));
-      });
-      return attachedSession;
-    } catch (caughtError) {
-      if (attachIsCurrent()) {
-        setError(toMessage(caughtError));
-      }
-      return null;
-    } finally {
-      if (attachIsCurrent()) {
-        setAttachingAgentSessionId("");
-      }
+async function runAttachAgentSession(args: AttachAgentSessionHandlerArgs) {
+  const {
+    agentAttachOperationRef,
+    loadAgentSessions,
+    loadSession,
+    selectedAgentSessionId,
+    setActiveTab,
+    setAttachingAgentSessionId,
+    setError,
+    setSelectedSession,
+    setSelectedSessionId,
+    setSelectedWorkspaceId
+  } = args;
+
+  if (!selectedAgentSessionId) return null;
+
+  const attachingAgentSessionId = selectedAgentSessionId;
+  const attachOperation = beginAgentAttachOperation(
+    agentAttachOperationRef,
+    attachingAgentSessionId
+  );
+
+  setAttachingAgentSessionId(attachingAgentSessionId);
+  setError("");
+
+  try {
+    const command = acquirePendingCloudCommand("source.attach", attachingAgentSessionId);
+    const result = await agentSessionsApi.attach(
+      attachingAgentSessionId,
+      "",
+      command.commandId
+    );
+
+    if (result.ok && !hasApiErrorPayload(result.data)) clearPendingCloudCommand(command);
+    if (!isCurrentAgentAttach(args, attachOperation)) return null;
+
+    if (!result.ok || hasApiErrorPayload(result.data)) {
+      throw new Error(readApiErrorMessage(result.data, "Failed to attach agent session"));
+    }
+
+    const attachedSession = isSessionCommandAccepted(result.data)
+      ? await loadSession(result.data.sessionId, { sessionView: "chat" })
+      : result.data;
+
+    if (!isCurrentAgentAttach(args, attachOperation)) return null;
+
+    if (!attachedSession) {
+      throw new Error("The attach request was accepted, but DeskCue could not load the session.");
+    }
+
+    setSelectedWorkspaceId(attachedSession.workspaceId);
+    setSelectedSessionId(attachedSession.id);
+    setSelectedSession(attachedSession);
+    setActiveTab("overview");
+
+    loadAgentSessions({ silent: true }).catch((caughtError) => {
+      setError(toMessage(caughtError));
+    });
+
+    return attachedSession;
+  } catch (caughtError) {
+    if (isCurrentAgentAttach(args, attachOperation)) setError(toMessage(caughtError));
+
+    return null;
+  } finally {
+    if (isCurrentAgentAttach(args, attachOperation)) {
+      setAttachingAgentSessionId("");
     }
   }
+}
+
+function applyStoppedSession(
+  args: StopSessionHandlerArgs,
+  stoppedSession: SessionDetail
+) {
+  const {
+    loadOverview,
+    promptDelivery,
+    selectedSession,
+    setActiveTab,
+    setError,
+    setSelectedSession,
+    updateOverview
+  } = args;
+
+  if (selectedSession?.id === stoppedSession.id) setSelectedSession(stoppedSession);
+
+  promptDelivery.clearPromptDeliveryState();
+  updateOverview((current) => ({
+    ...current,
+    sessions: current.sessions.map((session) =>
+      session.id === stoppedSession.id ? { ...session, ...stoppedSession } : session
+    )
+  }));
+  setActiveTab("overview");
+
+  loadOverview({ silent: true }).catch((caughtError) => {
+    setError(toMessage(caughtError));
+  });
+
+  return true;
+}
+
+function isCurrentSessionStop(
+  args: StopSessionHandlerArgs,
+  operation: SessionSelectionOperation
+) {
+  return isSessionSelectionOperationCurrent(
+    args.selectedSessionIdRef,
+    args.selectedSessionSelectionEpochRef,
+    operation
+  );
+}
+
+async function runStopSession(args: StopSessionHandlerArgs) {
+  const {
+    loadSession,
+    selectedSession,
+    selectedSessionId,
+    selectedSessionSelectionEpochRef,
+    setError
+  } = args;
+
+  if (!selectedSessionId) return false;
+
+  const stoppingSessionId = selectedSessionId;
+  const selectionOperation = captureSessionSelectionOperation(
+    stoppingSessionId,
+    selectedSessionSelectionEpochRef
+  );
+  const pendingCommand = acquirePendingCloudCommand(
+    "managed.stop",
+    stoppingSessionId
+  );
+  const result = await sessionsApi.stop(stoppingSessionId, pendingCommand.commandId);
+  const definitive = clearPendingCloudCommandForResult(pendingCommand, result);
+
+  if (!isCurrentSessionStop(args, selectionOperation)) return false;
+
+  if (result.ok && isCloudControlReceipt(result.data, stoppingSessionId)) {
+    const recoveredSession = await recoverStoppedManagedSession(
+      stoppingSessionId,
+      loadSession
+    );
+
+    if (!isCurrentSessionStop(args, selectionOperation)) return false;
+
+    if (!recoveredSession) {
+      setError("Session stop completed, but DeskCue could not load the stopped session.");
+      return false;
+    }
+
+    return applyStoppedSession(args, recoveredSession);
+  }
+
+  if (!result.ok || hasApiErrorPayload(result.data)) {
+    if (!definitive) {
+      const recoveredSession = await recoverStoppedManagedSession(
+        stoppingSessionId,
+        loadSession
+      );
+
+      if (!isCurrentSessionStop(args, selectionOperation)) return false;
+
+      if (recoveredSession) {
+        clearPendingCloudCommand(pendingCommand);
+        return applyStoppedSession(args, recoveredSession);
+      }
+    }
+
+    setError(readApiErrorMessage(result.data, "Failed to stop session"));
+    return false;
+  }
+
+  const stoppedSession = mergeSessionUpdate(selectedSession, result.data);
+
+  return applyStoppedSession(args, stoppedSession);
+}
+
+export function useDashboardCommandHandlers(args: UseDashboardCommandHandlersArgs) {
+  const {
+    overview,
+    selectedAgentSessionId,
+    selectedSessionId,
+    selectedSession,
+    selectedSessionIdRef,
+    selectedSessionSelectionEpochRef,
+    selectedSessionRef,
+    promptOperationRef,
+    previewPort,
+    setPreviewPort,
+    promptDelivery,
+    setSelectedWorkspaceId,
+    setSelectedSessionId,
+    setSelectedSession,
+    setActiveTab,
+    setError,
+    loadOverview,
+    loadAgentSessions,
+    loadSession
+  } = args;
 
   const handleSendInput = useDashboardPromptCommandHandler({
     overview,
@@ -242,7 +332,9 @@ export function useDashboardCommandHandlers({
 
   const {
     handleChangePreviewNetworkMode,
+    handleChangePreviewPort,
     handleRefreshGit,
+    previewError,
     handleSetPreview,
     handleStopPreview
   } = useDashboardPreviewCommandHandlers({
@@ -251,94 +343,21 @@ export function useDashboardCommandHandlers({
     selectedSessionIdRef,
     selectedSessionSelectionEpochRef,
     previewPort,
+    setPreviewPort,
     setSelectedSession,
     setError,
     loadOverview
   });
 
-  async function handleStopSession() {
-    function applyStoppedSession(stoppedSession: SessionDetail) {
-      if (selectedSession?.id === stoppedSession.id) {
-        setSelectedSession(stoppedSession);
-      }
-      promptDelivery.clearPromptDeliveryState();
-      updateOverview((current) => ({
-        ...current,
-        sessions: current.sessions.map((session) =>
-          session.id === stoppedSession.id ? { ...session, ...stoppedSession } : session
-        )
-      }));
-      setActiveTab("overview");
-      loadOverview({ silent: true }).catch((caughtError) => {
-        setError(toMessage(caughtError));
-      });
-      return true;
-    }
-
-    if (!selectedSessionId) {
-      return false;
-    }
-
-    const stoppingSessionId = selectedSessionId;
-    const selectionOperation = captureSessionSelectionOperation(
-      stoppingSessionId,
-      selectedSessionSelectionEpochRef
-    );
-    const selectionIsCurrent = () => isSessionSelectionOperationCurrent(
-      selectedSessionIdRef,
-      selectedSessionSelectionEpochRef,
-      selectionOperation
-    );
-    const pendingCommand = acquirePendingCloudCommand(
-      "managed.stop",
-      stoppingSessionId
-    );
-    const result = await sessionsApi.stop(stoppingSessionId, pendingCommand.commandId);
-    const definitive = clearPendingCloudCommandForResult(pendingCommand, result);
-    if (!selectionIsCurrent()) {
-      return false;
-    }
-    if (result.ok && isCloudControlReceipt(result.data, stoppingSessionId)) {
-      const recoveredSession = await recoverStoppedManagedSession(
-        stoppingSessionId,
-        loadSession
-      );
-      if (!selectionIsCurrent()) return false;
-      if (!recoveredSession) {
-        setError("Session stop completed, but DeskCue could not load the stopped session.");
-        return false;
-      }
-      return applyStoppedSession(recoveredSession);
-    }
-    if (!result.ok || hasApiErrorPayload(result.data)) {
-      if (!definitive) {
-        const recoveredSession = await recoverStoppedManagedSession(
-          stoppingSessionId,
-          loadSession
-        );
-        if (!selectionIsCurrent()) return false;
-        if (recoveredSession) {
-          clearPendingCloudCommand(pendingCommand);
-          return applyStoppedSession(recoveredSession);
-        }
-      }
-      setError(readApiErrorMessage(result.data, "Failed to stop session"));
-      return false;
-    }
-
-    const stoppedSession = mergeSessionUpdate(selectedSession, result.data);
-    return applyStoppedSession(stoppedSession);
-  }
-
   return {
-    handleAddWorkspace,
-    handlePickWorkspace,
-    handleStartSession,
-    handleAttachAgentSession,
+    handleStartSession: (event: SubmitEvent<HTMLFormElement>) => runStartSession(args, event),
+    handleAttachAgentSession: () => runAttachAgentSession(args),
     handleSendInput,
-    handleStopSession,
+    handleStopSession: () => runStopSession(args),
     handleChangePreviewNetworkMode,
+    handleChangePreviewPort,
     handleRefreshGit,
+    previewError,
     handleSetPreview,
     handleStopPreview
   };

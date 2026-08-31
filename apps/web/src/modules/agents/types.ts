@@ -30,6 +30,7 @@ export interface AgentSessionsPanelProps {
   selectedSourceId: AgentKind | "all";
   selectedAgentSessionId: string;
   selectedAgentSession: AgentSessionDetail | null;
+  selectedAgentSessionLoadError: string | null;
   readyForReviewAgentSessionIds: string[];
   isAgentSessionLoading: boolean;
   attaching: boolean;
@@ -37,12 +38,14 @@ export interface AgentSessionsPanelProps {
   attachedManagedSessionInfo: AttachedManagedSessionInfo | null;
   defaultCollapsed?: boolean;
   isBootstrapping: boolean;
+  secondaryAction?: ReactNode;
   onSelectSource: (sourceId: AgentKind | "all") => void;
   onLoadMoreAgentSessions: (
     query?: string,
     options?: { sourceId?: AgentKind | "all" }
   ) => Promise<AgentSessionSummary[]>;
   onReloadAgentSessions: (options?: { sourceId?: AgentKind | "all" }) => Promise<AgentSessionSummary[]>;
+  onRetrySelectedAgentSession: () => void;
   onSearchAgentSessions: (
     query: string,
     options?: { silent?: boolean; sourceId?: AgentKind | "all" }
@@ -65,6 +68,7 @@ export interface AgentSessionsToolbarProps {
   query: string;
   selectedLocalRuntime: LocalLlmChatSummary["runtimeId"] | null;
   selectedSourceId: AgentKind | "all";
+  sourceCountsUnavailable?: boolean;
   sourceCards: SourceCard[];
   totalAgentSessionsCount: string;
   onQueryChange: (query: string) => void;
@@ -90,6 +94,7 @@ export interface AgentSessionsListProps {
   sessions: AgentSessionSummary[];
   localLlmChats: LocalLlmChatSummary[];
   showAllLocalLlmChats?: boolean;
+  title?: string;
   onSelectAgentSession: (sessionId: string) => void;
   onOpenLocalLlmChat: (chat: LocalLlmChatSummary) => void;
   onShowFewerSessions: () => void;
@@ -119,7 +124,7 @@ export interface MobileAgentSessionDetailProps {
   agentSessionId: string;
   agentSessionLabel: string;
   transcriptPanel: ReactNode;
-  onBackToChats: () => void;
+  onBackToChats: (focusOrigin: HTMLElement) => void;
 }
 
 export interface AgentSessionsDesktopLayoutProps {

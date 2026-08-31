@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import type {
   AgentKind,
@@ -64,6 +64,7 @@ export type DashboardAgentBrowserViewModel = {
   filteredAgentSessions: AgentSessionSummary[];
   selectedAgentSessionId: string;
   selectedAgentSession: AgentSessionDetail | null;
+  selectedAgentSessionLoadError: string | null;
   readyForReviewAgentSessionIds: string[];
   isAgentSessionLoading: boolean;
   activeTakenOverAgentSession: AgentSessionDetail | null;
@@ -83,11 +84,17 @@ export type DashboardManagedSessionViewModel = {
 
 export type DashboardManualRunnerViewModel = {
   loading: boolean;
-  pickingWorkspace: boolean;
+  workspaceLoading: boolean;
+  workspacePicking: boolean;
   workspacePath: string;
   selectedWorkspaceId: string;
   command: string;
 };
+
+export type WorkspaceActionResult =
+  | { status: "created" }
+  | { status: "cancelled" }
+  | { status: "failed"; error: string };
 
 export type DashboardPromptViewModel = {
   pendingChatPrompt: PendingChatPrompt | null;
@@ -131,7 +138,7 @@ export type DashboardManagedSessionActions = {
   handleInterruptPrompt: () => Promise<void>;
   handleStopSession: () => Promise<boolean>;
   handleRefreshGit: () => Promise<void>;
-  handleSetPreview: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleSetPreview: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   handleStopPreview: () => Promise<boolean>;
 };
 
@@ -139,9 +146,9 @@ export type DashboardManualRunnerActions = {
   setWorkspacePath: (value: string) => void;
   setSelectedWorkspaceId: (value: string) => void;
   setCommand: (value: string) => void;
-  handleAddWorkspace: (event: FormEvent<HTMLFormElement>) => Promise<void>;
-  handlePickWorkspace: () => Promise<void>;
-  handleStartSession: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleAddWorkspaceAction: (event: SubmitEvent<HTMLFormElement>) => Promise<WorkspaceActionResult>;
+  handlePickWorkspaceAction: () => Promise<WorkspaceActionResult>;
+  handleStartSession: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   handleAttachAgentSession: () => Promise<SessionDetail | null>;
 };
 

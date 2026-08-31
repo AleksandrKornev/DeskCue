@@ -12,6 +12,7 @@ export type ModalProps = {
   eyebrow?: ReactNode;
   footer?: ReactNode;
   isOpen: boolean;
+  restoreFocusOnClose?: boolean;
   size?: ModalSize;
   title: ReactNode;
   titleId?: string;

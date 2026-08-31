@@ -11,6 +11,7 @@ export function useSelectedManagedSessionController({
   suppressManagedSessionAutoSelect,
   overview,
   isBootstrapping,
+  initialManagedSessionLoadState = { kind: "idle" },
   activeTab,
   selectedWorkspaceId,
   selectedAgentSessionId,
@@ -41,6 +42,7 @@ export function useSelectedManagedSessionController({
       if (selectedSession) {
         setSelectedSession(null);
       }
+
       return;
     }
 
@@ -52,6 +54,7 @@ export function useSelectedManagedSessionController({
       if (preferredSession) {
         setSelectedSessionId(preferredSession.id);
       }
+
       return;
     }
 
@@ -63,6 +66,13 @@ export function useSelectedManagedSessionController({
       return;
     }
 
+    if (
+      initialManagedSessionLoadState.kind === "loading" ||
+      initialManagedSessionLoadState.kind === "error" ||
+      initialManagedSessionLoadState.kind === "missing" ||
+      initialManagedSessionLoadState.kind === "retrying"
+    ) return;
+
     if (preferredSession) {
       setSelectedSessionId(preferredSession.id);
       return;
@@ -70,6 +80,7 @@ export function useSelectedManagedSessionController({
   }, [
     overview.sessions,
     overview.workspaces,
+    initialManagedSessionLoadState.kind,
     selectedAgentSessionId,
     selectedSession,
     selectedSession?.id,
@@ -85,6 +96,15 @@ export function useSelectedManagedSessionController({
 
   useEffect(() => {
     if (isBootstrapping) {
+      return;
+    }
+
+    if (
+      initialManagedSessionLoadState.kind === "error" ||
+      initialManagedSessionLoadState.kind === "missing" ||
+      initialManagedSessionLoadState.kind === "retrying"
+    ) {
+      activeLoadRef.current = null;
       return;
     }
 
@@ -117,12 +137,14 @@ export function useSelectedManagedSessionController({
       key: loadKey,
       token: loadTokenRef.current + 1
     };
+
     loadTokenRef.current = activeLoad.token;
     activeLoadRef.current = activeLoad;
     loadSession(selectedSessionId, loadOptions).finally(() => {
       if (selectedSessionIdRef.current === selectedSessionId) {
         validatedLoadKeyRef.current = loadKey;
       }
+
       if (activeLoadRef.current === activeLoad) {
         activeLoadRef.current = null;
       }
@@ -130,6 +152,7 @@ export function useSelectedManagedSessionController({
   }, [
     activeTab,
     isBootstrapping,
+    initialManagedSessionLoadState.kind,
     selectedSession?.id,
     selectedSessionId,
     selectedSessionIdRef,
@@ -147,6 +170,7 @@ export function useSelectedManagedSessionController({
     }
 
     const refreshKey = `${selectedSessionId}:diff`;
+
     if (lastAutoDiffRefreshRef.current === refreshKey) {
       return;
     }

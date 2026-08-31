@@ -19,6 +19,7 @@ vi.mock("@assets/images/icon-close.svg?react", () => ({
 }));
 
 import { Modal } from "./Modal";
+import styles from "./styles.module.scss";
 
 afterEach(() => {
   document.body.style.overflow = "";
@@ -42,6 +43,22 @@ function ModalFixture() {
         <button type="button">First action</button>
         <button type="button">Last action</button>
       </Modal>
+    </>
+  );
+}
+
+function ModalWithoutFocusRestoreFixture() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <button type="button" onClick={() => setIsOpen(true)}>Open transient view</button>
+      <Modal
+        isOpen={isOpen}
+        restoreFocusOnClose={false}
+        title="Transient view"
+        onClose={() => setIsOpen(false)}
+      />
     </>
   );
 }
@@ -183,6 +200,31 @@ function RemovedNestedOpenerFixture() {
 }
 
 describe("Modal", () => {
+  it("marks a footerless sheet so its scroll body can reserve the bottom safe area", () => {
+    const { rerender } = render(
+      <Modal isOpen title="Safe area dialog" onClose={vi.fn()}>
+        <button type="button">Body action</button>
+      </Modal>
+    );
+
+    expect(screen.getByRole("dialog", { name: "Safe area dialog" }))
+      .toHaveClass(styles.dialogWithoutFooter);
+
+    rerender(
+      <Modal
+        footer={<button type="button">Footer action</button>}
+        isOpen
+        title="Safe area dialog"
+        onClose={vi.fn()}
+      >
+        <button type="button">Body action</button>
+      </Modal>
+    );
+
+    expect(screen.getByRole("dialog", { name: "Safe area dialog" }))
+      .not.toHaveClass(styles.dialogWithoutFooter);
+  });
+
   it("keeps one history entry through the StrictMode effect probe", async () => {
     const pushState = vi.spyOn(window.history, "pushState");
     const back = vi.spyOn(window.history, "back");
@@ -281,6 +323,18 @@ describe("Modal", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
     expect(applicationRoot?.inert).toBeFalsy();
+  });
+
+  it("can hand focus ownership to the surface replacing the modal", () => {
+    render(<ModalWithoutFocusRestoreFixture />);
+    const trigger = screen.getByRole("button", { name: "Open transient view" });
+
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Transient view" })).not.toBeInTheDocument();
+    expect(trigger).not.toHaveFocus();
   });
 
   it("gives keyboard ownership to the top modal and preserves shared locks", () => {

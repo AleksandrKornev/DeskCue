@@ -17,7 +17,6 @@ export function useDashboardMutableRefs({
   const selectedAgentSessionRef = useRef(selectedAgentSession);
   const selectedSessionIdRef = useRef(selectedSessionId);
   const selectedSessionSelectionEpochRef = useRef(0);
-  const previousSelectedSessionIdRef = useRef(selectedSessionId);
   const selectedSessionRef = useRef(selectedSession);
   const overviewRef = useRef(overview);
   const agentSessionsRef = useRef(agentSessions);
@@ -29,10 +28,10 @@ export function useDashboardMutableRefs({
   }, [selectedAgentSessionId]);
 
   useEffect(() => {
-    if (previousSelectedSessionIdRef.current !== selectedSessionId) {
-      previousSelectedSessionIdRef.current = selectedSessionId;
+    if (selectedSessionIdRef.current !== selectedSessionId) {
       selectedSessionSelectionEpochRef.current += 1;
     }
+
     selectedSessionIdRef.current = selectedSessionId;
   }, [selectedSessionId]);
 

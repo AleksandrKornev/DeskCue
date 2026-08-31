@@ -9,10 +9,10 @@
   display: grid;
   gap: 12px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.075);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: vars.$color-surface-control-subtle;
 }
 
 .serviceHeader > div {
@@ -22,7 +22,7 @@
 }
 
 .serviceHeader strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1rem;
 }
 
@@ -44,46 +44,46 @@
 }
 
 .usageRow strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: clamp(1.25rem, 2vw, 1.65rem);
   line-height: 1.1;
 }
 
 .usageStatus {
   flex: 0 0 auto;
-  border: 1px solid rgba(90, 193, 137, 0.25);
+  border: 1px solid vars.$color-border-success;
   border-radius: 999px;
   padding: 5px 9px;
-  background: rgba(90, 193, 137, 0.1);
-  color: #9ae1b8;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
   font-size: 0.78rem;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .usageStatusWarning {
-  border-color: rgba(214, 164, 103, 0.36);
-  background: rgba(214, 164, 103, 0.14);
-  color: #f0c78f;
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
 }
 
 .usageMeter {
   height: 9px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-hover;
 }
 
 .usageMeter > span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #59bd83;
+  background: vars.$color-success;
   transition: width 180ms ease-out;
 }
 
 .usageMeter > .usageMeterWarning {
-  background: #d6a467;
+  background: vars.$color-accent;
 }
 
 .migrationBackups {
@@ -91,10 +91,10 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  border: 1px solid rgba(214, 164, 103, 0.28);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 8px;
   padding: 10px 12px;
-  background: rgba(214, 164, 103, 0.08);
+  background: vars.$color-surface-accent;
 }
 
 .migrationBackups > div {
@@ -103,19 +103,19 @@
 }
 
 .migrationBackups strong {
-  color: #f0c78f;
+  color: vars.$color-status-warning;
 }
 
 .migrationBackups small {
-  color: #e5cfaf;
+  color: vars.$color-status-warning;
   font-size: 0.82rem;
   line-height: 1.35;
 }
 
 .migrationBackups .inlineButton {
-  border-color: rgba(214, 164, 103, 0.5);
-  background: rgba(82, 57, 31, 0.72);
-  color: #f0c78f;
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
 }
 
 .cacheBudgetPanel {
@@ -123,9 +123,9 @@
   gap: 10px;
   padding: 14px;
   border-top: 1px solid var(--border-subtle);
-  border: 1px solid rgba(255, 255, 255, 0.075);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: vars.$color-surface-control-subtle;
 }
 
 .cacheBudgetPanel > div:first-child {
@@ -150,14 +150,21 @@
 }
 
 .cacheBudgetOptions .inlineButton.cacheBudgetSelected {
-  background: #3658c4;
-  border-color: #4d6ee0;
-  color: #fff;
-  box-shadow: 0 0 0 1px rgba(77, 110, 224, 0.35);
+  background: vars.$color-action-primary;
+  border-color: vars.$color-border-info;
+  color: vars.$color-text-primary;
+  box-shadow: 0 0 0 1px vars.$color-surface-info-glow;
+}
+
+.budgetLockNotice {
+  margin: 0;
+  color: vars.$color-status-warning;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .serviceHeader small {
-  color: #c7ccd8;
+  color: vars.$color-text-secondary;
   font-size: 0.86rem;
   line-height: 1.35;
 }
@@ -165,10 +172,10 @@
 .retentionPanel {
   display: grid;
   gap: 8px;
-  border: 1px solid rgba(90, 193, 137, 0.2);
+  border: 1px solid vars.$color-border-success;
   border-radius: 8px;
   padding: 12px 14px;
-  background: rgba(90, 193, 137, 0.055);
+  background: vars.$color-surface-success;
 }
 
 .retentionPanel > div {
@@ -177,13 +184,13 @@
 }
 
 .retentionPanel strong {
-  color: #e9f7ee;
+  color: vars.$color-text-primary;
   font-size: 0.96rem;
 }
 
 .retentionPanel small,
 .retentionPanel p {
-  color: #c7dccf;
+  color: vars.$color-text-secondary;
   font-size: 0.84rem;
   line-height: 1.4;
 }
@@ -201,14 +208,14 @@
 
 .storageGrid div {
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 9px 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .storageGrid dt {
-  color: #8f96a2;
+  color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -218,7 +225,7 @@
 .storageGrid dd {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.92rem;
   font-weight: 800;
   line-height: 1.3;
@@ -228,9 +235,9 @@
   display: grid;
   gap: 12px;
   padding: 14px;
-  border: 1px solid rgba(90, 124, 204, 0.24);
+  border: 1px solid vars.$color-border-info;
   border-radius: 8px;
-  background: rgba(90, 124, 204, 0.05);
+  background: vars.$color-surface-info-glow;
 }
 
 .localChatsPanel > div:first-child {
@@ -239,12 +246,12 @@
 }
 
 .localChatsPanel strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1rem;
 }
 
 .localChatsPanel small {
-  color: #c7ccd8;
+  color: vars.$color-text-secondary;
   font-size: 0.86rem;
   line-height: 1.35;
 }
@@ -258,14 +265,14 @@
 
 .localChatsGrid div {
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 9px 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .localChatsGrid dt {
-  color: #8f96a2;
+  color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -275,7 +282,7 @@
 .localChatsGrid dd {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.92rem;
   font-weight: 800;
   line-height: 1.3;
@@ -292,7 +299,7 @@
   gap: 12px;
   padding: 14px 0;
   cursor: pointer;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-weight: 800;
   list-style: none;
 }
@@ -301,14 +308,14 @@
   display: none;
 }
 
-.detailsDisclosure summary::after {
-  content: "›";
+.disclosureIndicator {
+  flex: 0 0 auto;
   color: var(--text-muted);
   font-size: 1.25rem;
   transition: transform 160ms ease-out;
 }
 
-.detailsDisclosure[open] summary::after {
+.detailsDisclosure[open] .disclosureIndicator {
   transform: rotate(90deg);
 }
 
@@ -331,10 +338,10 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  border: 1px solid rgba(214, 164, 103, 0.28);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(214, 164, 103, 0.07);
+  background: vars.$color-surface-accent;
 }
 
 .quickCleanup > div {
@@ -343,22 +350,22 @@
 }
 
 .quickCleanup strong {
-  color: #f0c78f;
+  color: vars.$color-status-warning;
   font-size: 0.96rem;
 }
 
 .quickCleanup small {
-  color: #e5cfaf;
+  color: vars.$color-status-warning;
   font-size: 0.82rem;
   line-height: 1.4;
 }
 
 .clearButton {
-  border: 1px solid rgba(214, 164, 103, 0.52);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 7px;
   padding: 9px 12px;
-  background: rgba(82, 57, 31, 0.72);
-  color: #f0c78f;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
   font: inherit;
   font-weight: 800;
   cursor: pointer;
@@ -372,10 +379,10 @@
 .logsLink {
   display: inline-flex;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid vars.$color-border-control;
   border-radius: 7px;
   padding: 9px 12px;
-  color: #dbe5ff;
+  color: vars.$color-status-info;
   font-weight: 800;
   text-decoration: none;
 }
@@ -392,7 +399,7 @@
 }
 
 .locationList dt {
-  color: #8f96a2;
+  color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -404,7 +411,18 @@
 }
 
 @media (max-width: 720px) {
+  .migrationBackups .inlineButton,
+  .cacheBudgetOptions .inlineButton,
+  .clearButton,
+  .logsLink {
+    min-height: vars.$control-height-touch;
+  }
+
   .storageGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cacheBudgetOptions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -419,6 +437,10 @@
 
   .detailsDisclosure summary small {
     display: none;
+  }
+
+  .disclosureIndicator {
+    margin-left: auto;
   }
 
   .migrationBackups {

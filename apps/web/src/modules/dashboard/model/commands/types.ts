@@ -26,8 +26,6 @@ export type PromptDeliveryActions = {
 
 export type UseDashboardCommandHandlersArgs = {
   overview: OverviewResponse;
-  agentSessions: AgentSessionSummary[];
-  workspacePath: string;
   selectedWorkspaceId: string;
   command: string;
   selectedAgentSessionId: string;
@@ -40,8 +38,8 @@ export type UseDashboardCommandHandlersArgs = {
   selectedSessionRef: MutableRefObject<SessionDetail | null>;
   promptOperationRef: MutableRefObject<PromptOperationState>;
   previewPort: string;
+  setPreviewPort: (value: string) => void;
   promptDelivery: PromptDeliveryActions;
-  setWorkspacePath: (value: string) => void;
   updateOverview: (updater: (current: OverviewResponse) => OverviewResponse) => void;
   setSelectedWorkspaceId: (value: string) => void;
   setSelectedSessionId: (value: string) => void;
@@ -49,12 +47,51 @@ export type UseDashboardCommandHandlersArgs = {
   setActiveTab: (value: SessionTab) => void;
   setError: (value: string) => void;
   setLoading: (value: boolean) => void;
-  setPickingWorkspace: (value: boolean) => void;
   setAttachingAgentSessionId: (value: string) => void;
   loadOverview: (options?: LoadOptions) => Promise<OverviewResponse>;
   loadAgentSessions: (options?: LoadOptions) => Promise<AgentSessionSummary[]>;
   loadSession: (sessionId: string, options?: LoadOptions) => Promise<SessionDetail | null>;
 };
+
+export type StartSessionHandlerArgs = Pick<
+  UseDashboardCommandHandlersArgs,
+  | "command"
+  | "loadAgentSessions"
+  | "loadOverview"
+  | "selectedWorkspaceId"
+  | "setError"
+  | "setLoading"
+>;
+
+export type AttachAgentSessionHandlerArgs = Pick<
+  UseDashboardCommandHandlersArgs,
+  | "agentAttachOperationRef"
+  | "loadAgentSessions"
+  | "loadSession"
+  | "selectedAgentSessionId"
+  | "selectedAgentSessionIdRef"
+  | "setActiveTab"
+  | "setAttachingAgentSessionId"
+  | "setError"
+  | "setSelectedSession"
+  | "setSelectedSessionId"
+  | "setSelectedWorkspaceId"
+>;
+
+export type StopSessionHandlerArgs = Pick<
+  UseDashboardCommandHandlersArgs,
+  | "loadOverview"
+  | "loadSession"
+  | "promptDelivery"
+  | "selectedSession"
+  | "selectedSessionId"
+  | "selectedSessionIdRef"
+  | "selectedSessionSelectionEpochRef"
+  | "setActiveTab"
+  | "setError"
+  | "setSelectedSession"
+  | "updateOverview"
+>;
 
 export type PromptOperationState = {
   epoch: number;
@@ -73,6 +110,7 @@ export type UseDashboardPreviewCommandHandlersArgs = Pick<
   | "selectedSessionIdRef"
   | "selectedSessionSelectionEpochRef"
   | "previewPort"
+  | "setPreviewPort"
   | "setSelectedSession"
   | "setError"
   | "loadOverview"

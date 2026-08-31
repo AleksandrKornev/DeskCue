@@ -12,9 +12,9 @@
   width: fit-content;
   max-width: 100%;
   padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: vars.$radius-md;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .button {
@@ -23,28 +23,28 @@
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: #d2ccc3;
+  color: vars.$color-text-secondary;
   font: inherit;
   font-size: 0.86rem;
 }
 
 .buttonActive {
-  border-color: rgba(214, 164, 103, 0.34);
-  background: rgba(214, 164, 103, 0.14);
-  color: #f5e6cf;
+  border-color: vars.$color-border-accent-soft;
+  background: vars.$color-surface-accent-hover;
+  color: vars.$color-accent-text;
 
   @include selected-state;
 }
 
 .navNeutral .row {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.028);
+  border-color: vars.$color-border-subtle;
+  background: vars.$color-surface-control-subtle;
 }
 
 .navNeutral .buttonActive {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.12);
-  color: #f4f0e8;
+  border-color: vars.$color-border-control;
+  background: vars.$color-surface-control-strong;
+  color: vars.$color-text-primary;
 
   @include selected-state;
 }
@@ -68,19 +68,26 @@
     width: auto;
     inline-size: max-content;
     min-width: 100%;
-    padding: 3px;
+    padding: 3px 9px;
   }
 
   .button {
     min-height: 44px;
     padding-inline: 10px;
+    scroll-margin-inline: 6px;
     font-size: 0.82rem;
+  }
+
+  .nav:not(.navFillMobile) .row::after {
+    content: "";
+    flex: 0 0 8px;
   }
 
   .navFillMobile .row {
     inline-size: 100%;
     min-width: 0;
     gap: 3px;
+    padding: 3px;
   }
 
   .navFillMobile {

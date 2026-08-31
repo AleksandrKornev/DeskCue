@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
 import { Tooltip } from "@components/Tooltip";
@@ -12,6 +12,7 @@ import {
   resolveSessionCommandsUnavailableReason
 } from "@runtime";
 
+import { AgentTranscriptLoadError } from "./AgentTranscriptLoadError";
 import { getMarkReviewedSessionId } from "./helpers";
 import styles from "./styles.module.scss";
 import { TranscriptPreviewEntry } from "./TranscriptPreview";
@@ -27,13 +28,16 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attachedManagedSessionInfo,
     attaching,
     isLoading,
+    loadError,
     previewItems,
     readyForReviewAgentSessionIds,
+    selectedSessionId,
     session,
     sessionSummary,
     onAttach,
     onMarkReviewed,
     onOpenManagedSession,
+    onRetryLoad,
   } = props;
 
   const {
@@ -41,6 +45,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attachWaitStage,
     attachedSessionHint,
     displaySession,
+    displayedSessionDetail,
     hiddenPreviewText,
     isActionPending,
     isHydratingSelection,
@@ -60,7 +65,9 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attachedManagedSessionInfo,
     attaching,
     isLoading,
+    loadError,
     previewItems,
+    selectedSessionId,
     session,
     sessionSummary
   });
@@ -78,6 +85,59 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
       : "",
     sessionId: displaySession?.id ?? null
   });
+  const detailFocusRef = useRef<HTMLDivElement>(null);
+  const loadRecoveryFocusOwnerRef = useRef<{
+    element: HTMLButtonElement;
+    sessionId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const focusOwner = loadRecoveryFocusOwnerRef.current;
+
+    if (!focusOwner) return;
+
+    if (focusOwner.sessionId !== selectedSessionId) {
+      loadRecoveryFocusOwnerRef.current = null;
+      return;
+    }
+
+    if (loadError || isLoading) return;
+    if (!displaySession || displaySession.id !== selectedSessionId) return;
+
+    const activeElement = document.activeElement;
+    const focusReturnedToDocument =
+      activeElement === document.body || activeElement === document.documentElement;
+    const focusMovedElsewhere = focusOwner.element.isConnected
+      ? activeElement !== focusOwner.element
+      : !focusReturnedToDocument;
+
+    if (focusMovedElsewhere) {
+      loadRecoveryFocusOwnerRef.current = null;
+      return;
+    }
+
+    detailFocusRef.current?.focus();
+    loadRecoveryFocusOwnerRef.current = null;
+  }, [displaySession, isLoading, loadError, selectedSessionId]);
+
+  const hasBlockingLoadError = Boolean(loadError && !displayedSessionDetail && onRetryLoad);
+
+  if (hasBlockingLoadError && !displaySession && loadError && onRetryLoad) {
+    return (
+      <div className={clsx(styles.detail, styles.detailLoading)}>
+        <AgentTranscriptLoadError
+          errorMessage={loadError}
+          isRetrying={isLoading}
+          onFocusOwnershipChange={(focusOwner) => {
+            loadRecoveryFocusOwnerRef.current = focusOwner
+              ? { element: focusOwner, sessionId: selectedSessionId }
+              : null;
+          }}
+          onRetry={onRetryLoad}
+        />
+      </div>
+    );
+  }
 
   if (isLoading && !displaySession) {
     return (
@@ -131,7 +191,12 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
   });
 
   return (
-    <div className={clsx(styles.detail, isHydratingSelection && styles.detailSettling)}>
+    <div
+      aria-label={`${displaySession.title} chat details`}
+      className={clsx(styles.detail, isHydratingSelection && styles.detailSettling)}
+      ref={detailFocusRef}
+      tabIndex={-1}
+    >
       <div className={styles.meta}>
         <div>
           <strong>
@@ -171,7 +236,18 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
         />
       ) : null}
 
-      {session && textOnlyTranscriptEntries.length > 0 ? (
+      {hasBlockingLoadError && loadError && onRetryLoad ? (
+        <AgentTranscriptLoadError
+          errorMessage={loadError}
+          isRetrying={isLoading}
+          onFocusOwnershipChange={(focusOwner) => {
+            loadRecoveryFocusOwnerRef.current = focusOwner
+              ? { element: focusOwner, sessionId: displaySession.id }
+              : null;
+          }}
+          onRetry={onRetryLoad}
+        />
+      ) : displayedSessionDetail && textOnlyTranscriptEntries.length > 0 ? (
         <div className={styles.transcript} ref={transcriptRef}>
           {visibleTextOnlyTranscriptEntries.map((entry) => (
             <TranscriptPreviewEntry
@@ -200,7 +276,8 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
         </div>
       )}
 
-      <div className={clsx(styles.bottom, styles.bottomAttached)}>
+      {hasBlockingLoadError ? null : (
+        <div className={clsx(styles.bottom, styles.bottomAttached)}>
         {!sessionCommandsEnabled ? (
           <p className={styles.nextMessageSubtle}>
             {sessionCommandsUnavailableReason}
@@ -271,7 +348,8 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
             {displaySession.attachModeReason}
           </p>
         ) : null}
-      </div>
+        </div>
+      )}
     </div>
   );
 });

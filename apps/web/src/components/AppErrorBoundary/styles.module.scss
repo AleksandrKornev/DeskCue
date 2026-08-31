@@ -1,48 +1,155 @@
+@use "@assets/variables" as vars;
+
 .page {
-  align-items: center;
-  background: var(--color-bg, #0d0f12);
-  color: var(--color-text, #f4f1eb);
-  display: flex;
+  display: grid;
   min-height: 100dvh;
-  padding: 24px;
+  place-items: center;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at 50% 0%, vars.$color-surface-accent 0%, vars.$color-surface-accent-transparent 46%),
+    linear-gradient(180deg, vars.$color-surface-app 0%, vars.$color-surface-app-end 100%);
+  color: vars.$color-text-primary;
+}
+
+.embedded {
+  min-height: 100%;
 }
 
 .card {
-  background: var(--color-surface, #17191d);
-  border: 1px solid var(--color-border, #30333a);
-  border-radius: 16px;
-  margin: 0 auto;
-  max-width: 520px;
-  padding: 24px;
-  width: 100%;
+  display: grid;
+  width: min(100%, 560px);
+  gap: 16px;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: 20px;
+  padding: 32px;
+  background: vars.$color-surface-panel-strong;
+  box-shadow: vars.$shadow-dialog;
 
   h1 {
-    font-size: 1.35rem;
-    margin: 6px 0 12px;
-  }
-
-  p {
-    color: var(--color-text-muted, #b9bbc2);
-    line-height: 1.5;
-    margin: 0 0 20px;
-  }
-
-  button {
-    background: var(--color-accent, #3d5dcc);
-    border: 0;
-    border-radius: 10px;
-    color: #fff;
-    cursor: pointer;
-    font: inherit;
-    font-weight: 700;
-    padding: 11px 16px;
+    margin: -4px 0 0;
+    color: vars.$color-text-primary;
+    font-size: clamp(1.75rem, 5vw, 2.25rem);
+    line-height: 1.12;
+    text-wrap: balance;
   }
 }
 
+.icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid vars.$color-border-warning;
+  border-radius: 14px;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
 .eyebrow {
-  color: var(--color-warning, #e2b76d) !important;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  margin: 0;
+  color: vars.$color-status-warning;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-wrap: balance;
   text-transform: uppercase;
+}
+
+.message {
+  margin: 0;
+  color: vars.$color-text-dialog-secondary;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.safetyNote {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin: 0;
+  border: 1px solid vars.$color-border-info;
+  border-radius: 12px;
+  padding: 12px;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
+  font-size: 0.92rem;
+  line-height: 1.45;
+
+  span {
+    width: 8px;
+    height: 8px;
+    margin-top: 0.42em;
+    border-radius: 999px;
+    background: vars.$color-info;
+  }
+}
+
+.reloadButton {
+  min-height: vars.$control-height-touch;
+  justify-self: start;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 18px;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
+  font: inherit;
+  font-weight: 800;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+
+  &:hover {
+    background: vars.$color-action-primary-hover;
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+}
+
+@media (max-width: 520px) {
+  .page {
+    align-items: start;
+    padding:
+      max(12px, env(safe-area-inset-top))
+      max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+  }
+
+  .card {
+    gap: 14px;
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .card h1 {
+    font-size: clamp(1.65rem, 8vw, 2rem);
+  }
+
+  .reloadButton {
+    width: 100%;
+    min-height: 48px;
+  }
+}
+
+@media (forced-colors: active) {
+  .card,
+  .icon,
+  .safetyNote,
+  .reloadButton {
+    border: 1px solid CanvasText;
+  }
+
+  .reloadButton {
+    background: ButtonFace;
+    color: ButtonText;
+  }
 }

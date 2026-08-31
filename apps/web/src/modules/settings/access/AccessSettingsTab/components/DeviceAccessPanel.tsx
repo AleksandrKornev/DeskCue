@@ -15,6 +15,7 @@ export const DeviceAccessPanel = observer(function DeviceAccessPanel() {
     accessStatus,
     accessStatusKind,
     accessStatusScope,
+    connectionRevision,
     currentAccess,
     forgettingCurrentBrowser,
     loadingAccessDevices,
@@ -34,6 +35,7 @@ export const DeviceAccessPanel = observer(function DeviceAccessPanel() {
       </div>
       <PairingHostsDisclosure />
       <AccessDeviceList
+        connectionRevision={connectionRevision}
         currentAccess={currentAccess}
         devices={accessDevices}
         forgettingCurrentBrowser={forgettingCurrentBrowser}

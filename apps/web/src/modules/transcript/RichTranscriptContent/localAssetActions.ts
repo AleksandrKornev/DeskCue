@@ -4,9 +4,11 @@ import type { LocalAssetLinkContext } from "@api/endpoint/assets/types";
 export async function openLocalAssetInNewTab(
   assetPath: string,
   displayName: string,
-  context?: LocalAssetLinkContext
+  context?: LocalAssetLinkContext,
+  signal?: AbortSignal
 ) {
   const opened = window.open("about:blank", "_blank");
+
   if (!opened) {
     throw new Error("Popup was blocked.");
   }
@@ -14,9 +16,13 @@ export async function openLocalAssetInNewTab(
   try {
     opened.opener = null;
     opened.document.title = displayName;
-    opened.location.href = (await assetsApi.createLocalAssetLink(assetPath, {
-      context
-    })).url;
+    const ticket = await assetsApi.createLocalAssetLink(assetPath, {
+      context,
+      signal
+    });
+
+    signal?.throwIfAborted();
+    opened.location.href = ticket.url;
   } catch (error) {
     opened.close();
     throw error;
@@ -26,14 +32,20 @@ export async function openLocalAssetInNewTab(
 export async function downloadLocalAsset(
   assetPath: string,
   displayName: string,
-  context?: LocalAssetLinkContext
+  context?: LocalAssetLinkContext,
+  signal?: AbortSignal
 ) {
-  const ticketUrl = (await assetsApi.createLocalAssetLink(assetPath, {
+  const ticket = await assetsApi.createLocalAssetLink(assetPath, {
     context,
-    download: true
-  })).url;
+    download: true,
+    signal
+  });
+
+  signal?.throwIfAborted();
+
   const anchor = document.createElement("a");
-  anchor.href = ticketUrl;
+
+  anchor.href = ticket.url;
   anchor.download = displayName;
   anchor.rel = "noreferrer";
   document.body.append(anchor);

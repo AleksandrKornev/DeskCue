@@ -27,9 +27,16 @@
 
 .panel {
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(13, 14, 18, 0.88);
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-panel;
   overflow: hidden;
+}
+
+.panel:focus,
+.liveChatPanel:focus {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: -3px;
+  box-shadow: vars.$shadow-focus-ring;
 }
 
 .panelHeader {
@@ -47,7 +54,7 @@
 
 .panelHeader p {
   margin: 6px 0 0;
-  color: #999da8;
+  color: vars.$color-text-secondary;
   font-size: 0.92rem;
   line-height: 1.45;
 }

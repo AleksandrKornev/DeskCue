@@ -29,6 +29,7 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
     sessions,
     localLlmChats,
     showAllLocalLlmChats = false,
+    title,
     onSelectAgentSession,
     onOpenLocalLlmChat,
     onShowFewerSessions,
@@ -43,13 +44,41 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
     .slice(0, showAllLocalLlmChats ? Number.MAX_SAFE_INTEGER : Math.max(sessions.length, 8));
   const summaryLabel = isLoading
     ? "Loading chats"
-    : hiddenSessionsCount > 0 || canLoadMoreSessions
+    : title
+      ? `${chatItems.length} recent chats`
+      : hiddenSessionsCount > 0 || canLoadMoreSessions
       ? `Showing ${chatItems.length} of ${totalSessionsCountLabel} chats`
       : `${filteredSessionsCount} chats`;
+  const shouldHideEmptyRecentWork = Boolean(title) &&
+    !isLoading &&
+    chatItems.length === 0 &&
+    !canLoadMoreSessions &&
+    !canShowFewerSessions;
+
+  if (shouldHideEmptyRecentWork) {
+    return (
+      <div
+        aria-hidden="true"
+        className={styles.list}
+        data-chat-list-focus-scope=""
+      />
+    );
+  }
 
   return (
-    <div aria-busy={isLoading || undefined} className={styles.list}>
-      <div aria-live="polite" className={styles.listSummary}>
+    <div
+      aria-busy={isLoading || undefined}
+      className={styles.list}
+      data-chat-list-focus-scope=""
+    >
+      {title ? <h3 className={styles.listTitle}>{title}</h3> : null}
+      <div
+        aria-live="polite"
+        className={styles.listSummary}
+        data-chat-list-focus-fallback=""
+        data-chat-list-focus-priority=""
+        tabIndex={-1}
+      >
         <span>{summaryLabel}</span>
         {query.trim() ? <span>Filter: {query.trim()}</span> : null}
       </div>
@@ -60,6 +89,7 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
         ) : chatItems.map((item) => {
           if (item.kind === "local") {
             const { chat } = item;
+
             return (
               <button
                 key={`local-${chat.id}`}
@@ -70,6 +100,7 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
                   chat.generationState === "running" && styles.listCardWithWork,
                   chat.generationState === "running" && styles.listCardWithWork_active
                 )}
+                data-chat-list-item-id={chat.id}
                 onClick={() => onOpenLocalLlmChat(chat)}
                 type="button"
               >
@@ -149,6 +180,7 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
                 statusIndicator && styles[`listCardWithWork_${statusIndicator.tone}`],
                 session.id === selectedAgentSessionId && styles.listCardSelected
               )}
+              data-chat-list-item-id={session.id}
               onClick={() => onSelectAgentSession(session.id)}
               type="button"
             >

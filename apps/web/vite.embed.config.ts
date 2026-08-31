@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import svgr from "vite-plugin-svgr";
 
-import { getWebManualChunk } from "./vite.chunks.ts";
+import { createWebEmbedManualChunk } from "./vite.chunks.ts";
 
 const srcPath = new URL("./src/", import.meta.url);
 
@@ -26,7 +26,8 @@ export default defineConfig({
         "react-router"
       ],
       output: {
-        manualChunks: getWebManualChunk
+        manualChunks: createWebEmbedManualChunk(),
+        onlyExplicitManualChunks: true
       }
     }
   },

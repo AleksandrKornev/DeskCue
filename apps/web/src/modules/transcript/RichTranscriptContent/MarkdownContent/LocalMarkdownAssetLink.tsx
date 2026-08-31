@@ -13,6 +13,20 @@ interface LocalMarkdownAssetLinkProps {
   displayName: string;
 }
 
+function createLocalAssetDialogKey({
+  assetContext,
+  assetPath,
+  displayName
+}: Pick<LocalMarkdownAssetLinkProps, "assetContext" | "assetPath" | "displayName">) {
+  return [
+    assetContext?.agentSessionId,
+    assetContext?.managedSessionId,
+    assetContext?.workspaceId,
+    assetPath,
+    displayName
+  ].join("\u0000");
+}
+
 export function LocalMarkdownAssetLink({
   assetContext,
   assetPath,
@@ -20,6 +34,7 @@ export function LocalMarkdownAssetLink({
   displayName
 }: LocalMarkdownAssetLinkProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const dialogKey = createLocalAssetDialogKey({ assetContext, assetPath, displayName });
 
   return (
     <>
@@ -32,13 +47,16 @@ export function LocalMarkdownAssetLink({
         {children}
       </button>
 
-      <LocalAssetActionDialog
-        assetContext={assetContext}
-        assetPath={assetPath}
-        displayName={displayName}
-        isOpen={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-      />
+      {dialogOpen ? (
+        <LocalAssetActionDialog
+          key={dialogKey}
+          assetContext={assetContext}
+          assetPath={assetPath}
+          displayName={displayName}
+          isOpen
+          onClose={() => setDialogOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

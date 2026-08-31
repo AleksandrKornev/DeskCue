@@ -21,6 +21,7 @@ export function LocalLlmChatPage({ dashboard }: LocalLlmChatPageProps) {
     <div className={styles.appShell}>
       <main className={styles.layout}>
         <LocalLlmManagedSessionPanel
+          key={chatId}
           chatId={chatId}
           runtimes={dashboard.overview.visibleRuntimes}
           workspaces={dashboard.overview.overview.workspaces}

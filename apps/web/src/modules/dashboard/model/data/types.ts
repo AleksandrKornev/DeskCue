@@ -59,6 +59,7 @@ export type UseDashboardLoadersArgs = {
 export type InitialManagedSessionLoadState =
   | { kind: "idle" }
   | { kind: "loading" }
+  | { kind: "retrying"; message: string }
   | { kind: "loaded" }
   | { kind: "missing" }
   | { kind: "error"; message: string };
@@ -67,6 +68,7 @@ export type UseDashboardBootstrapArgs = {
   initialManagedSessionId?: string;
   suppressManagedSessionAutoSelect?: boolean;
   selectedSessionIdRef: MutableRefObject<string>;
+  selectedSessionSelectionEpochRef: MutableRefObject<number>;
   setSelectedSessionId: (value: string) => void;
   setIsBootstrapping: (value: boolean) => void;
   loadOverview: (options?: LoadOptions) => Promise<OverviewResponse>;

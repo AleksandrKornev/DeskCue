@@ -289,6 +289,16 @@ test("clears transient reconnect and offline messages after live updates resume"
   }
 });
 
+test("preserves an unrelated dashboard error when the user changes the target port", () => {
+  const store = createStore();
+
+  store.setError("Session connection is offline");
+  store.setPreviewPort("5173");
+
+  assert.equal(store.previewPort, "5173");
+  assert.equal(store.error, "Session connection is offline");
+});
+
 test("clears every connection-scoped projection before another daemon can hydrate", () => {
   const store = createStore();
   const session = createAgentSession("codex", "source-1");

@@ -16,12 +16,14 @@ import type {
 
 type ChatThreadTestOverrides = Partial<BuildManagedSessionChatThreadStateInput> & {
   assistantDisplayName?: string;
+  copyFeedback?: ManagedSessionChatThreadProps["copyFeedback"];
   onRetryRecoveredPrompt?: ManagedSessionChatThreadProps["onRetryRecoveredPrompt"];
 };
 
 function renderChatThread(overrides: ChatThreadTestOverrides = {}) {
   const {
     assistantDisplayName = "Codex",
+    copyFeedback = null,
     onRetryRecoveredPrompt = vi.fn(() => Promise.resolve(true)),
     ...stateOverrides
   } = overrides;
@@ -46,7 +48,7 @@ function renderChatThread(overrides: ChatThreadTestOverrides = {}) {
   const props: ManagedSessionChatThreadProps = {
     assistantDisplayName,
     canRevealEarlierHistory: false,
-    copyFeedback: null,
+    copyFeedback,
     hiddenConversationItemCount: 0,
     isActivityExpanded: () => false,
     isLoadingMoreHistory: false,
@@ -68,6 +70,79 @@ function renderChatThread(overrides: ChatThreadTestOverrides = {}) {
 }
 
 describe("ManagedSessionChatThread", () => {
+  it("keeps the Copy action visibly attached to its message bubble", () => {
+    const { container, props } = renderChatThread({
+      hasConversationContent: true,
+      visibleConversationTimeline: [{
+        type: "message",
+        key: "assistant-1",
+        role: "assistant",
+        timestamp: "2026-08-05T12:00:00.000Z",
+        continued: false,
+        entry: {
+          id: "assistant-1",
+          phase: "final",
+          role: "assistant",
+          text: "Completed the task",
+          timestamp: "2026-08-05T12:00:00.000Z"
+        },
+        activities: [],
+        changeActivities: [],
+        turnStatus: null
+      }],
+      waiting: { kind: "idle" }
+    });
+    const copyButton = screen.getByRole("button", { name: "Copy message" });
+
+    expect(copyButton).toHaveTextContent("Copy");
+    expect(copyButton.closest(`.${styles.chatMessageBubble}`)).toBeInTheDocument();
+    expect(container.querySelector(`.${styles.chatMessage} > .${styles.chatMessageFooter}`))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(copyButton);
+    expect(props.onCopyMessage).toHaveBeenCalledWith("assistant-1", "Completed the task");
+  });
+
+  it("keeps one persistent atomic Copy status without moving the action", () => {
+    const view = renderChatThread({
+      copyFeedback: null,
+      hasConversationContent: true,
+      visibleConversationTimeline: [{
+        type: "message",
+        key: "user-1",
+        role: "user",
+        timestamp: "2026-08-05T12:00:00.000Z",
+        continued: false,
+        entry: {
+          id: "user-1",
+          phase: "final",
+          role: "user",
+          text: "Check this result",
+          timestamp: "2026-08-05T12:00:00.000Z"
+        },
+        activities: [],
+        changeActivities: [],
+        turnStatus: null
+      }],
+      waiting: { kind: "idle" }
+    });
+    const status = screen.getByRole("status");
+
+    expect(status).toHaveAttribute("aria-atomic", "true");
+    expect(status).toBeEmptyDOMElement();
+
+    view.rerender(
+      <ManagedSessionChatThread
+        {...view.props}
+        copyFeedback={{ messageId: "user-1", status: "copied" }}
+      />
+    );
+
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("Copied");
+    expect(screen.getByRole("button", { name: "Copy message" })).toHaveTextContent("Copied");
+  });
+
   it("keeps long-running reply waits neutral instead of showing a timeout warning", () => {
     renderChatThread();
 

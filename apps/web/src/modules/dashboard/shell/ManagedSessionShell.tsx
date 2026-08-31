@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import type {
   AgentTranscriptChangesResponse,
@@ -54,7 +54,7 @@ export type ManagedSessionShellProps = {
   onRetrySessionLoad?: () => Promise<unknown>;
   onChangePreviewPort: (value: string) => void;
   onChangePreviewNetworkMode: (value: PreviewNetworkMode) => boolean | Promise<boolean>;
-  onSetPreview: (event: FormEvent<HTMLFormElement>) => void;
+  onSetPreview: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   onStopPreview: () => boolean | Promise<boolean>;
   onToggleTools?: () => void;
 };
@@ -64,6 +64,7 @@ export function ManagedSessionShell(props: ManagedSessionShellProps) {
     <ManagedSessionPanel
       {...props}
       activityHydrationRepository={agentChatDetailResource}
+      key={props.selectedSessionId}
     />
   );
 }

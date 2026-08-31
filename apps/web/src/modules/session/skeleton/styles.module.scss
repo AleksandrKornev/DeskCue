@@ -1,4 +1,5 @@
 @use "@assets/variables" as vars;
+@use "@assets/mixins" as *;
 
 .sessionOpeningSkeleton {
   --source-chat-toolbar-height: 0px;
@@ -25,9 +26,18 @@
   justify-content: center;
   gap: 10px;
   padding: 24px 18px;
-  border: 1px solid rgba(255, 183, 77, 0.32);
-  border-radius: 16px;
-  background: rgba(43, 30, 16, 0.46);
+  border: 1px solid vars.$color-border-danger;
+  border-radius: vars.$radius-lg;
+  background: vars.$color-surface-danger;
+  box-shadow: vars.$shadow-danger-inset;
+}
+
+.sessionLoadError h1 {
+  margin: 0;
+  color: vars.$color-status-danger;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .sessionLoadError p {
@@ -36,18 +46,58 @@
 }
 
 .sessionLoadError span {
-  color: rgba(255, 255, 255, 0.72);
+  color: vars.$color-text-secondary;
 }
 
-.sessionLoadError button {
-  min-height: 38px;
+.sessionLoadActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.sessionLoadActions button {
+  min-height: 44px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 10px;
-  color: inherit;
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-control;
+  border-radius: vars.$radius-md;
   font: inherit;
+  font-weight: 700;
   cursor: pointer;
+}
+
+.sessionLoadRetry {
+  min-width: 128px;
+  border-color: transparent;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
+}
+
+.sessionLoadExit {
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
+}
+
+.sessionLoadActions button[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.sessionLoadActions button:focus-visible {
+  border-color: vars.$color-focus-ring;
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+  box-shadow: vars.$shadow-focus-ring;
+}
+
+@media (max-width: 620px) {
+  .sessionLoadActions {
+    width: 100%;
+  }
+
+  .sessionLoadActions button {
+    flex: 1 1 128px;
+  }
 }
 
 .skeletonBlock,
@@ -59,8 +109,8 @@
 .sessionOpeningMessage > span {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-shimmer;
+  background: vars.$color-surface-input;
 }
 
 .skeletonBlock::after,
@@ -76,7 +126,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.07),
+    vars.$color-shimmer-strong,
     transparent
   );
   transform: translateX(-100%);
@@ -171,7 +221,7 @@
   gap: 6px;
   padding: 4px;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.04);
+  background: vars.$color-surface-raised;
 }
 
 .sessionOpeningTabs span {
@@ -181,7 +231,7 @@
 }
 
 .sessionOpeningTabs .sessionOpeningTabActive {
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-hover;
 }
 
 .sessionOpeningWorkspace {
@@ -204,8 +254,8 @@
   border: 1px solid vars.$color-border-subtle;
   border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
-    rgba(8, 10, 15, 0.72);
+    linear-gradient(180deg, vars.$color-surface-input, vars.$color-surface-raised-subtle),
+    vars.$color-surface-preview-panel;
   overflow: hidden;
 }
 
@@ -230,15 +280,15 @@
   gap: 10px;
   width: min(720px, 82%);
   padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 20px;
 }
 
 .sessionOpeningMessageUser {
   justify-self: end;
   width: min(520px, 72%);
-  border-color: rgba(82, 115, 217, 0.16);
-  background: rgba(49, 82, 181, 0.08);
+  border-color: vars.$color-border-info;
+  background: vars.$color-surface-info-glow;
 }
 
 .sessionOpeningMessageMeta {
@@ -275,7 +325,7 @@
   width: min(1440px, calc(100vw - 40px));
   max-width: calc(100vw - 40px);
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  background: #131418;
+  background: vars.$color-surface-app;
   transform: translateX(-50%);
 }
 
@@ -287,7 +337,7 @@
 
 .sessionOpeningComposerField {
   min-height: 120px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: vars.$radius-md;
 }
 
@@ -309,7 +359,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@include mobile-or-compact-height {
   .sessionOpeningSkeleton {
     --source-chat-toolbar-min-height: 141px;
     --source-chat-composer-min-height: 110px;
@@ -424,7 +474,7 @@
     width: 100%;
     max-width: 100%;
     padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(180deg, rgba(19, 20, 24, 0), #131418 40%);
+    background: linear-gradient(180deg, transparent, vars.$color-surface-app 40%);
     transform: none;
   }
 
@@ -451,7 +501,7 @@
   .sessionOpeningMessage::after,
   .sessionOpeningMessageMeta::after,
   .sessionOpeningMessage > span::after {
-    animation: none;
+    display: none;
   }
 }
 

@@ -81,6 +81,7 @@ export function useDashboardShellController({
     hasManagedFocus,
     isAgentSessionLoading: agentBrowser.isAgentSessionLoading,
     isBootstrapping: overview.isBootstrapping,
+    initialManagedSessionLoadState,
     isCompactViewport,
     isExitingToDashboard,
     isTakenOverAgentSessionLoading,
@@ -108,7 +109,7 @@ export function useDashboardShellController({
   }, [handleRouteStopAndExitSession]);
 
   const handleStartSessionAndSyncRoute = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
+    async (event: React.SubmitEvent<HTMLFormElement>) => {
       await manualRunnerActions.handleStartSession(event);
     },
     [manualRunnerActions]

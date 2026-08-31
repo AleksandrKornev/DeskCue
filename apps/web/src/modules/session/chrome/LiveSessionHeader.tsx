@@ -138,7 +138,7 @@ export function LiveSessionHeader({
         ariaLabel="Session sections"
         className={styles.liveNav}
         idPrefix={navigationIdPrefix}
-        mobileLayout="fill"
+        mobileLayout="scroll"
         options={getSessionTabsForCapabilities(navigationCapabilities).map((tab) => ({
           key: tab.key,
           label: getSessionTabLabel(tab, navigationCapabilities)

@@ -7,7 +7,7 @@
   gap: 14px;
   padding: 16px;
   background:
-    radial-gradient(circle at 12% 0%, rgba(214, 164, 103, 0.08), transparent 28%),
+    radial-gradient(circle at 12% 0%, vars.$color-surface-accent, transparent 28%),
     vars.$color-surface-app;
   color: vars.$color-text-primary;
 }
@@ -37,7 +37,16 @@
 
 .wordmark {
   width: 112px;
-  color: #fff5e1;
+  color: vars.$color-accent-strong;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .headerMeta {
@@ -63,11 +72,7 @@
 .searchField,
 .chatCard,
 .pageCard,
-.secondaryCard,
-.secondaryButton,
 .line,
-.backLine,
-.previewButton,
 .compactPill,
 .lineWorkspace,
 .actionPill,
@@ -79,8 +84,8 @@
 .sendButton {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-border-muted;
+  background: vars.$color-surface-input;
 }
 
 .metaPill::after,
@@ -90,11 +95,7 @@
 .searchField::after,
 .chatCard::after,
 .pageCard::after,
-.secondaryCard::after,
-.secondaryButton::after,
 .line::after,
-.backLine::after,
-.previewButton::after,
 .compactPill::after,
 .lineWorkspace::after,
 .actionPill::after,
@@ -111,7 +112,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.06) 48%,
+    vars.$color-shimmer-strong 48%,
     transparent 100%
   );
   animation: skeletonShimmer 1.5s ease-in-out infinite;
@@ -124,8 +125,29 @@
 }
 
 .dashboardGrid,
-.previewGrid,
 .pagePanel,
 .sessionPanel {
   min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metaPill::after,
+  .settingsButton::after,
+  .tabPill::after,
+  .listSummary::after,
+  .searchField::after,
+  .chatCard::after,
+  .pageCard::after,
+  .line::after,
+  .compactPill::after,
+  .lineWorkspace::after,
+  .actionPill::after,
+  .iconPill::after,
+  .segment::after,
+  .messageLeft::after,
+  .messageRight::after,
+  .composerSkeleton::after,
+  .sendButton::after {
+    display: none;
+  }
 }

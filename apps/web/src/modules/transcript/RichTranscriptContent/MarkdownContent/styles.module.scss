@@ -1,3 +1,5 @@
+@use "@assets/variables" as vars;
+
 .markdown {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -220,22 +222,24 @@
 }
 
 .localAssetButton {
-  display: inline;
+  display: inline-flex;
+  align-items: center;
+  min-height: vars.$control-height-dense;
   border: 0;
-  padding: 0;
+  padding: 0 2px;
   background: transparent;
-  color: #f6d59c;
+  color: vars.$color-focus-ring;
   cursor: pointer;
   font: inherit;
   text-align: inherit;
   text-decoration: underline;
-  text-decoration-color: rgba(246, 213, 156, 0.45);
+  text-decoration-color: vars.$color-border-accent;
   text-underline-offset: 0.16em;
 }
 
 .localLink {
-  color: #d7c7ad;
-  border-bottom: 1px dashed rgba(215, 199, 173, 0.45);
+  color: vars.$color-text-secondary;
+  border-bottom: 1px dashed vars.$color-border-neutral;
   cursor: default;
 }
 
@@ -249,22 +253,29 @@
   border: 0;
   border-radius: 8px;
   padding: 0 12px;
-  color: #f1ede4;
+  color: vars.$color-text-primary;
   font-size: 0.92rem;
   font-weight: 800;
 }
 
 .localAssetDialogAction {
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-strong;
 }
 
 .localAssetDialogActionPrimary {
-  background: rgba(246, 213, 156, 0.2);
-  color: #f6d59c;
+  background: vars.$color-surface-accent-strong;
+  color: vars.$color-accent-strong;
 }
 
-.localAssetDialogAction:disabled,
-.localAssetDialogActionPrimary:disabled {
+.localAssetDialogAction:focus-visible,
+.localAssetDialogActionPrimary:focus-visible,
+.localAssetButton:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.localAssetDialogAction[aria-disabled="true"],
+.localAssetDialogActionPrimary[aria-disabled="true"] {
   cursor: wait;
   opacity: 0.72;
 }
@@ -274,7 +285,42 @@
   word-break: break-word;
 }
 
+.localAssetDialogFeedback {
+  min-height: 0;
+}
+
+.localAssetDialogFeedback:empty {
+  display: none;
+}
+
+.localAssetDialogFeedback p {
+  margin: 0;
+  color: vars.$color-text-secondary;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.localAssetDialogError {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid vars.$color-border-danger;
+  border-radius: 10px;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.localAssetDialogError span {
+  color: vars.$color-status-danger-detail;
+}
+
 @media (max-width: 720px) {
+  .localAssetButton {
+    min-height: vars.$control-height-touch;
+  }
+
   .markdown img {
     max-height: min(320px, 42vh);
   }

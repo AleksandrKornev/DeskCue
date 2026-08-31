@@ -25,8 +25,11 @@ type AccessSettingsDependencies = {
     kind: "error";
     message: string;
   } | null;
+  resettingDaemonSettings: boolean;
+  savingDaemonSettings: boolean;
   securityStatus: SecurityStatusResponse | null;
   securityStatusMessage: string;
+  settingsMutationPending: boolean;
   onAddPairingHost: () => void;
   onAllowedOriginsTextChange: (value: string) => void;
   onAuthRequiredChange: (value: boolean) => void;
@@ -47,6 +50,7 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
   accessStatusKind: "error" | "success" = "success";
   accessStatusScope: "devices" | "pairing" = "pairing";
   currentAccess: CurrentAccessState | null = null;
+  connectionRevision = 0;
   daemonSettings: DaemonSettingsResponse | null = null;
   daemonSettingsDraft: AccessSettingsDraft | null = null;
   daemonSettingsStatus: AccessSettingsDependencies["daemonSettingsStatus"] = null;
@@ -55,13 +59,17 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
   loadingAccessDevices = false;
   pairingHostsFocusRequest = 0;
   renamingAccessDeviceId: string | null = null;
+  resettingDaemonSettings = false;
   resettingOtherTokens = false;
   revokingAccessDeviceId: string | null = null;
+  savingDaemonSettings = false;
   securityStatus: SecurityStatusResponse | null = null;
   securityStatusMessage = "";
+  settingsMutationPending = false;
   selectSettingsTab: SelectSettingsTab | null = null;
   readonly pairingStore = new AccessPairingStore(this);
   private readonly controller: AccessSettingsController;
+  private pairingHostsHandledFocusRequest = 0;
   private requestGeneration = 0;
   private onAddPairingHost: AccessSettingsDependencies["onAddPairingHost"] = noop;
   onAllowedOriginsTextChange: AccessSettingsDependencies["onAllowedOriginsTextChange"] = noop;
@@ -74,7 +82,10 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
 
   constructor(controller: AccessSettingsController = accessSettingsController) {
     this.controller = controller;
-    makeAutoObservable<this, "controller" | "requestGeneration">(
+    makeAutoObservable<
+      this,
+      "controller" | "pairingHostsHandledFocusRequest" | "requestGeneration"
+    >(
       this,
       {
         accessDevices: observable.ref,
@@ -83,6 +94,7 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
         daemonSettings: observable.ref,
         daemonSettingsDraft: observable.ref,
         daemonSettingsStatus: observable.ref,
+        pairingHostsHandledFocusRequest: false,
         securityStatus: observable.ref,
         pairingStore: false,
         requestGeneration: false,
@@ -114,8 +126,11 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
     this.daemonSettings = dependencies.daemonSettings;
     this.daemonSettingsDraft = dependencies.daemonSettingsDraft;
     this.daemonSettingsStatus = dependencies.daemonSettingsStatus;
+    this.resettingDaemonSettings = dependencies.resettingDaemonSettings;
+    this.savingDaemonSettings = dependencies.savingDaemonSettings;
     this.securityStatus = dependencies.securityStatus;
     this.securityStatusMessage = dependencies.securityStatusMessage;
+    this.settingsMutationPending = dependencies.settingsMutationPending;
     this.onAddPairingHost = dependencies.onAddPairingHost;
     this.onAllowedOriginsTextChange = dependencies.onAllowedOriginsTextChange;
     this.onAuthRequiredChange = dependencies.onAuthRequiredChange;
@@ -140,6 +155,16 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
 
   focusPairingHostsEditor() {
     this.pairingHostsFocusRequest += 1;
+  }
+
+  shouldHandlePairingHostsFocusRequest(request: number) {
+    return request > this.pairingHostsHandledFocusRequest;
+  }
+
+  acknowledgePairingHostsFocusRequest(request: number) {
+    if (request <= this.pairingHostsHandledFocusRequest) return;
+
+    this.pairingHostsHandledFocusRequest = request;
   }
 
   loadAccessDevices() {
@@ -376,6 +401,7 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
     const trimmedLabel = label.trim();
 
     if (!trimmedLabel || trimmedLabel === device.label) return true;
+    if (this.renamingAccessDeviceId) return false;
 
     const generation = this.requestGeneration;
 
@@ -409,6 +435,7 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
 
   resetForConnectionChange() {
     this.requestGeneration += 1;
+    this.connectionRevision += 1;
     this.pairingStore.dispose();
     this.accessDevices = [];
     this.accessStatus = "";
@@ -421,11 +448,16 @@ export class AccessSettingsStore implements AccessPairingStoreHost {
     this.forgettingCurrentBrowser = false;
     this.hasLoadedAccessDevices = false;
     this.loadingAccessDevices = false;
+    this.pairingHostsFocusRequest = 0;
+    this.pairingHostsHandledFocusRequest = 0;
     this.renamingAccessDeviceId = null;
+    this.resettingDaemonSettings = false;
     this.resettingOtherTokens = false;
     this.revokingAccessDeviceId = null;
+    this.savingDaemonSettings = false;
     this.securityStatus = null;
     this.securityStatusMessage = "";
+    this.settingsMutationPending = false;
   }
 
 }

@@ -16,13 +16,14 @@ import { isAgentSessionReviewed } from "./helpers";
 export function useAgentSessionsAttentionState({
   agentSessions,
   cacheScopeKey = "default",
+  enabled = true,
   managedSessions,
   pendingChatPrompt,
   readyForReviewAgentSessionIds
 }: Pick<
   AgentSessionsPanelProps,
   "agentSessions" | "managedSessions" | "pendingChatPrompt" | "readyForReviewAgentSessionIds"
-> & { cacheScopeKey?: string }) {
+> & { cacheScopeKey?: string; enabled?: boolean }) {
   const attentionSessionCacheRef = useRef(
     {
       scopeKey: cacheScopeKey,
@@ -39,6 +40,8 @@ export function useAgentSessionsAttentionState({
 
   const workIndicatorsBySourceSessionId = useMemo(() => {
     const indicators = new Map<string, AgentSessionWorkIndicator>();
+
+    if (!enabled) return indicators;
 
     for (const session of managedSessions) {
       if (!session.sourceSessionId) continue;
@@ -79,21 +82,32 @@ export function useAgentSessionsAttentionState({
     }
 
     return indicators;
-  }, [agentSessions, managedSessions, pendingChatPrompt]);
+  }, [agentSessions, enabled, managedSessions, pendingChatPrompt]);
 
   const approvalRequestedSourceSessionIds = useMemo(
-    () =>
-      new Set(
+    () => enabled
+      ? new Set(
         managedSessions.flatMap((session) =>
           session.actionRequest && session.sourceSessionId ? [session.sourceSessionId] : []
         )
-      ),
-    [managedSessions]
+      )
+      : new Set<string>(),
+    [enabled, managedSessions]
   );
+
+  const agentSessionById = useMemo(
+    () => enabled
+      ? new Map(agentSessions.map((session) => [session.id, session]))
+      : new Map<string, AgentSessionsPanelProps["agentSessions"][number]>(),
+    [agentSessions, enabled]
+  );
+
   const effectiveReadyForReviewAgentSessionIds = useMemo(() => {
+    if (!enabled) return new Set<string>();
+
     const readySessionIds = new Set(
       readyForReviewAgentSessionIds.filter((sessionId) => {
-        const session = agentSessions.find((item) => item.id === sessionId);
+        const session = agentSessionById.get(sessionId);
 
         return !session || !isAgentSessionReviewed(session);
       })
@@ -121,9 +135,11 @@ export function useAgentSessionsAttentionState({
     }
 
     return readySessionIds;
-  }, [agentSessions, managedSessions, readyForReviewAgentSessionIds]);
+  }, [agentSessionById, agentSessions, enabled, managedSessions, readyForReviewAgentSessionIds]);
 
   const attentionSessions = useMemo(() => {
+    if (!enabled) return [];
+
     const cache = attentionSessionCacheRef.current.sessions;
 
     for (const session of agentSessions) {
@@ -154,6 +170,7 @@ export function useAgentSessionsAttentionState({
   }, [
     agentSessions,
     approvalRequestedSourceSessionIds,
+    enabled,
     effectiveReadyForReviewAgentSessionIds,
     workIndicatorsBySourceSessionId
   ]);

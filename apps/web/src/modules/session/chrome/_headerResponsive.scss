@@ -51,17 +51,17 @@
     width: 44px;
     height: 44px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    border: 1px solid vars.$color-border-control-strong;
     border-radius: 13px;
-    background: rgba(255, 255, 255, 0.08);
+    background: vars.$color-surface-control-hover;
     color: vars.$color-text-primary;
     font-size: 1.2rem;
   }
 
   .mobileBackButton:hover,
   .mobileBackButton:focus-visible {
-    border-color: rgba(214, 164, 103, 0.3);
-    background: rgba(214, 164, 103, 0.12);
+    border-color: vars.$color-border-accent;
+    background: vars.$color-surface-accent;
   }
 
   .command {
@@ -124,7 +124,7 @@
     position: absolute;
     inset: 11px 0;
     border-radius: vars.$radius-pill;
-    background: rgba(255, 255, 255, 0.05);
+    background: vars.$color-shimmer;
     content: "";
   }
 
@@ -133,19 +133,19 @@
   }
 
   .liveConnectionLive::before {
-    background: rgba(44, 156, 92, 0.13);
+    background: vars.$color-surface-success;
   }
 
   .liveConnectionConnecting::before {
-    background: rgba(49, 82, 181, 0.14);
+    background: vars.$color-surface-info;
   }
 
   .liveConnectionReconnecting::before {
-    background: rgba(214, 164, 103, 0.14);
+    background: vars.$color-surface-accent;
   }
 
   .liveConnectionOffline::before {
-    background: rgba(206, 73, 73, 0.15);
+    background: vars.$color-surface-danger;
   }
 
   .liveConnectionDetail {
@@ -168,20 +168,20 @@
   }
 
   .liveNav.liveNav :global([role="tablist"]) {
-    border-color: rgba(214, 164, 103, 0.18);
-    background: #1a1b1f;
+    border-color: vars.$color-border-accent-soft;
+    background: vars.$color-surface-toolbar;
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.035),
-      0 10px 24px rgba(0, 0, 0, 0.26);
+      0 0 0 1px vars.$color-surface-input,
+      vars.$shadow-toolbar;
   }
 
   .liveNav :global([role="tab"]) {
-    background: #1a1b1f;
+    background: vars.$color-surface-toolbar;
   }
 
   .liveNav :global([role="tab"][aria-selected="true"]) {
-    border-color: rgba(255, 255, 255, 0.14);
-    background: #3b3c3f;
+    border-color: vars.$color-border-control-strong;
+    background: vars.$color-surface-tab-selected;
   }
 
   .ghostButton,

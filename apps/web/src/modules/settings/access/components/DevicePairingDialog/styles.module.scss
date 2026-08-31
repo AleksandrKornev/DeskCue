@@ -20,21 +20,21 @@
 
 .pairingSummaryLink {
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1rem;
   font-weight: 800;
   text-decoration: underline;
-  text-decoration-color: rgba(214, 164, 103, 0.58);
+  text-decoration-color: vars.$color-status-warning;
   text-underline-offset: 3px;
 }
 
 .pairingSummaryLink:hover {
-  color: #ffe0ad;
-  text-decoration-color: rgba(255, 224, 173, 0.9);
+  color: vars.$color-status-warning;
+  text-decoration-color: vars.$color-status-warning;
 }
 
 .pairingSummary small {
-  color: #d7c2a4;
+  color: vars.$color-status-warning;
   font-size: 0.86rem;
   line-height: 1.35;
 }
@@ -46,7 +46,7 @@
 }
 
 .pairingOriginField span {
-  color: #8f96a6;
+  color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -57,12 +57,12 @@
 .pairingOriginField input {
   width: 100%;
   min-width: 0;
-  min-height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  min-height: vars.$control-height-touch;
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 0 11px;
-  background: rgba(255, 255, 255, 0.055);
-  color: #f3efe8;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-primary;
   font: inherit;
   font-size: 0.9rem;
   font-weight: 700;
@@ -74,23 +74,23 @@
 }
 
 .pairingOriginField option {
-  background: #202126;
-  color: #f3efe8;
+  background: vars.$color-surface-dialog;
+  color: vars.$color-text-primary;
 }
 
 .pairingOriginField input:disabled {
-  color: #b9bdc7;
+  color: vars.$color-text-secondary;
   opacity: 0.72;
 }
 
 .pairingOriginField select:focus,
 .pairingOriginField input:focus {
-  border-color: rgba(214, 164, 103, 0.55);
-  outline: 2px solid rgba(214, 164, 103, 0.22);
+  border-color: vars.$color-border-warning;
+  outline: 2px solid vars.$color-border-warning;
 }
 
 .pairingOriginField small {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.82rem;
   line-height: 1.35;
 }
@@ -99,15 +99,15 @@
   display: grid;
   gap: 10px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.075);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 11px;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-control-subtle;
 }
 
 .pairingRoutePanelWarning {
-  border-color: rgba(214, 164, 103, 0.28);
-  background: rgba(214, 164, 103, 0.08);
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-accent;
 }
 
 .pairingRouteHeader {
@@ -119,14 +119,14 @@
 }
 
 .pairingRouteHeader strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.9rem;
   text-align: right;
 }
 
 .pairingRoutePanel p {
   margin: 0;
-  color: #c7ccd8;
+  color: vars.$color-text-secondary;
   font-size: 0.88rem;
   line-height: 1.4;
 }
@@ -144,7 +144,7 @@
 }
 
 .pairingRouteGrid dt {
-  color: #8f96a6;
+  color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -155,15 +155,15 @@
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.84rem;
   font-weight: 700;
 }
 
 .pairingRouteGrid a {
-  color: #f4d0a0;
+  color: vars.$color-status-warning;
   text-decoration: underline;
-  text-decoration-color: rgba(214, 164, 103, 0.55);
+  text-decoration-color: vars.$color-status-warning;
   text-underline-offset: 3px;
 }
 
@@ -176,7 +176,7 @@
 
 .pairingRouteActions span {
   min-width: 0;
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.8rem;
   line-height: 1.35;
 }
@@ -189,21 +189,21 @@
   display: grid;
   justify-items: center;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.045);
+  background: vars.$color-surface-control;
 }
 
 .qrPanel img {
   width: min(180px, 100%);
   height: auto;
   border-radius: 6px;
-  background: #ffffff;
+  background: vars.$color-surface-panel-strong;
 }
 
 .qrPanel span {
-  color: #d7c2a4;
+  color: vars.$color-status-warning;
   font-size: 0.86rem;
   font-weight: 800;
 }
@@ -213,7 +213,7 @@
   align-items: center;
   min-height: vars.$control-height-touch;
   cursor: pointer;
-  color: #f4d0a0;
+  color: vars.$color-status-warning;
   font-size: 0.88rem;
   font-weight: 800;
 }
@@ -228,7 +228,7 @@
 .pairingCode {
   display: block;
   margin-top: 4px;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1.08rem;
   overflow-wrap: anywhere;
 }
@@ -238,13 +238,13 @@
   align-items: center;
   min-height: vars.$control-height-touch;
   overflow-wrap: anywhere;
-  color: #f4d0a0;
+  color: vars.$color-status-warning;
   font-size: 0.88rem;
   line-height: 1.35;
 }
 
 .pairingWarning {
-  color: #ead3b3;
+  color: vars.$color-status-warning;
   font-size: 0.88rem;
 }
 
@@ -261,5 +261,9 @@
 
   .pairingRouteHeader strong {
       text-align: left;
+    }
+
+  .pairingRouteActions .inlineButton {
+      min-height: vars.$control-height-touch;
     }
 }

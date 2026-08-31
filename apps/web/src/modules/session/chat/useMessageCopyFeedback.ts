@@ -1,47 +1,80 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { copyText } from "@lib/clipboard";
 
 import type { CopyFeedback } from "./types";
 
-export function useMessageCopyFeedback() {
-  const copyFeedbackTimerRef = useRef<number | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null);
+type OwnedCopyFeedback = Exclude<CopyFeedback, null> & {
+  ownerKey: string;
+};
 
-  useEffect(() => () => {
+export function useMessageCopyFeedback(ownerKey: string) {
+  const copyFeedbackTimerRef = useRef<number | null>(null);
+  const copyOperationRef = useRef(0);
+  const [ownedCopyFeedback, setOwnedCopyFeedback] = useState<OwnedCopyFeedback | null>(null);
+  const copyFeedback = ownedCopyFeedback?.ownerKey === ownerKey
+    ? ownedCopyFeedback
+    : null;
+
+  useEffect(() => {
+    copyOperationRef.current += 1;
+
     if (copyFeedbackTimerRef.current !== null) {
       window.clearTimeout(copyFeedbackTimerRef.current);
+      copyFeedbackTimerRef.current = null;
     }
-  }, []);
 
-  const handleCopyMessage = async (messageId: string, text: string) => {
+    setOwnedCopyFeedback(null);
+
+    return () => {
+      copyOperationRef.current += 1;
+
+      if (copyFeedbackTimerRef.current !== null) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+        copyFeedbackTimerRef.current = null;
+      }
+    };
+  }, [ownerKey]);
+
+  const handleCopyMessage = useCallback(async (messageId: string, text: string) => {
     const normalizedText = text.trim();
+
     if (!normalizedText) {
       return;
     }
 
+    const copyOperation = copyOperationRef.current + 1;
+
+    copyOperationRef.current = copyOperation;
+
     if (copyFeedbackTimerRef.current !== null) {
       window.clearTimeout(copyFeedbackTimerRef.current);
+      copyFeedbackTimerRef.current = null;
     }
+
+    setOwnedCopyFeedback(null);
+
+    let status: "copied" | "failed";
 
     try {
       const copied = await copyText(normalizedText);
-      setCopyFeedback({
-        messageId,
-        status: copied ? "copied" : "failed"
-      });
+
+      status = copied ? "copied" : "failed";
     } catch {
-      setCopyFeedback({
-        messageId,
-        status: "failed"
-      });
+      status = "failed";
     }
 
+    if (copyOperationRef.current !== copyOperation) return;
+
+    setOwnedCopyFeedback({ messageId, ownerKey, status });
+
     copyFeedbackTimerRef.current = window.setTimeout(() => {
-      setCopyFeedback((current) => (current?.messageId === messageId ? null : current));
+      if (copyOperationRef.current !== copyOperation) return;
+
+      setOwnedCopyFeedback(null);
       copyFeedbackTimerRef.current = null;
     }, 1800);
-  };
+  }, [ownerKey]);
 
   return {
     copyFeedback,

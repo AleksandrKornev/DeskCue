@@ -32,8 +32,6 @@ export function useDashboardRouteViewModel({
         : null;
 
     const isRouteSessionKnownStopped = routeSession?.status === "stopped";
-    const isRouteSessionMissing =
-      routeState.kind === "session" && initialManagedSessionLoadState.kind === "missing";
 
     const selectedSessionHasManagedFocus =
       selectedSession?.status === "running" || selectedSession?.status === "read_only";
@@ -96,7 +94,7 @@ export function useDashboardRouteViewModel({
       ? attachedManagedSession.id
       : isBrowsingUnattachedAgentSession || isCleanDashboardRoute
         ? ""
-        : routeState.kind === "session" && !isRouteSessionMissing
+        : routeState.kind === "session"
           ? routeState.sessionId ?? ""
           : selectedSessionHasManagedFocus
             ? selectedSessionId
@@ -111,8 +109,7 @@ export function useDashboardRouteViewModel({
         }
       : null;
 
-    const routeHasManagedFocus =
-      routeState.kind === "session" && !isRouteSessionMissing;
+    const routeHasManagedFocus = routeState.kind === "session";
     const dashboardHasManagedFocus =
       (!isCleanDashboardRoute || shouldPromoteAttachedManagedSession) &&
       (!isDashboardPinned || shouldPromoteAttachedManagedSession) &&

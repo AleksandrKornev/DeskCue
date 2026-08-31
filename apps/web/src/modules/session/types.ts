@@ -1,4 +1,4 @@
-import type { FormEvent, PropsWithChildren, ReactNode } from "react";
+import type { PropsWithChildren, ReactNode, SubmitEvent } from "react";
 
 import type {
   AgentTranscriptChangesResponse,
@@ -65,7 +65,7 @@ export interface ManagedSessionPanelProps {
   onRetrySessionLoad?: () => Promise<unknown>;
   onChangePreviewPort: (value: string) => void;
   onChangePreviewNetworkMode: (value: PreviewNetworkMode) => boolean | Promise<boolean>;
-  onSetPreview: (event: FormEvent<HTMLFormElement>) => void;
+  onSetPreview: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   onStopPreview: () => boolean | Promise<boolean>;
   onToggleTools?: () => void;
 }

@@ -1,3 +1,4 @@
+@use "@assets/variables" as vars;
 @use "./previewSetup";
 .previewReview {
   display: grid;
@@ -5,9 +6,9 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 18px;
-  background: #0b0d12;
+  background: vars.$color-surface-canvas;
 }
 
 .previewReviewConnectionOpen {
@@ -22,12 +23,12 @@
   justify-content: center;
   gap: 18px;
   padding: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(214, 164, 103, 0.055);
+  border-bottom: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-accent;
 }
 
-.previewConnectionPanel strong { color: #f3efe8; font-size: 0.88rem; }
-.previewConnectionPanel p { margin: 5px 0 0; color: #969ba6; font-size: 0.78rem; line-height: 1.45; }
+.previewConnectionPanel strong { color: vars.$color-text-primary; font-size: 0.88rem; }
+.previewConnectionPanel p { margin: 5px 0 0; color: vars.$color-text-muted; font-size: 0.78rem; line-height: 1.45; }
 
 .previewReviewToolbar {
   min-width: 0;
@@ -38,8 +39,8 @@
   min-height: 50px;
   box-sizing: border-box;
   padding: 7px 8px 7px 13px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  border-bottom: 1px solid vars.$color-border-subtle;
+  background: linear-gradient(180deg, vars.$color-surface-control, vars.$color-surface-raised-subtle);
 }
 
 .previewReviewStatus,
@@ -50,14 +51,18 @@
 }
 
 .previewStatusGroup {
+  flex: 1 1 auto;
   min-width: 0;
   gap: 10px;
+  overflow: hidden;
 }
 
 .previewReviewStatus {
+  flex: 1 1 auto;
   min-width: 0;
   gap: 8px;
-  color: #b9bcc5;
+  overflow: hidden;
+  color: vars.$color-text-secondary;
   font-size: 0.84rem;
   white-space: nowrap;
 }
@@ -69,16 +74,27 @@
   height: 8px;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: #737782;
-  box-shadow: 0 0 0 4px rgba(115, 119, 130, 0.12);
+  background: vars.$color-text-muted;
+  box-shadow: 0 0 0 4px vars.$color-surface-control-disabled;
 }
 
 .previewStatusDotLive {
-  background: #58df9a;
-  box-shadow: 0 0 0 4px rgba(88, 223, 154, 0.12);
+  background: vars.$color-success;
+  box-shadow: 0 0 0 4px vars.$color-surface-success;
+}
+
+.previewStatusDotBusy {
+  background: vars.$color-status-warning;
+  box-shadow: 0 0 0 4px vars.$color-surface-warning;
+}
+
+.previewStatusDotUnavailable {
+  background: vars.$color-status-danger;
+  box-shadow: 0 0 0 4px vars.$color-surface-danger;
 }
 
 .previewToolbarActions {
+  flex: 0 0 auto;
   min-width: 0;
   justify-content: flex-end;
   gap: 4px;
@@ -95,7 +111,7 @@
   border-radius: 8px;
   padding: 6px 9px;
   background: transparent;
-  color: #c8cbd3;
+  color: vars.$color-text-secondary;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
@@ -110,27 +126,32 @@
 
 .previewToolbarButton:hover,
 .previewToolbarButton:focus-visible {
-  background: rgba(255, 255, 255, 0.07);
-  color: #ffffff;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
 }
 
 .previewToolbarButtonStop {
   min-height: 34px;
-  border-color: rgba(244, 105, 96, 0.5);
-  background: rgba(174, 50, 46, 0.25);
-  color: #ffb0aa;
-  box-shadow: inset 0 0 0 1px rgba(255, 184, 176, 0.035);
+  border-color: vars.$color-border-danger;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
+  box-shadow: vars.$shadow-danger-inset;
 }
 
 .previewToolbarButtonStop:hover,
 .previewToolbarButtonStop:focus-visible {
-  border-color: rgba(255, 132, 122, 0.78);
-  background: rgba(190, 57, 51, 0.38);
-  color: #ffe0dc;
+  border-color: vars.$color-status-danger;
+  background: vars.$color-surface-danger-hover;
+  color: vars.$color-text-primary;
 }
 
 .previewToolbarButtonStop:focus-visible {
-  outline: 2px solid rgba(255, 155, 145, 0.7);
+  outline: 2px solid vars.$color-status-danger;
+  outline-offset: 2px;
+}
+
+.previewFocusHandoff:focus {
+  outline: 2px solid vars.$color-focus-ring;
   outline-offset: 2px;
 }
 
@@ -140,9 +161,9 @@
 }
 
 .previewToolbarButtonActive {
-  border-color: rgba(214, 164, 103, 0.22);
-  background: rgba(214, 164, 103, 0.15);
-  color: #f6e5ca;
+  border-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
 }
 
 .previewCanvas {
@@ -153,16 +174,22 @@
 
 .previewShellCanvas {
   box-sizing: border-box;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-content: start;
+  grid-template-rows: minmax(0, 1fr);
+  align-content: stretch;
   justify-items: center;
   gap: 10px;
   padding: 12px;
   background:
-    radial-gradient(circle at top, rgba(49, 82, 181, 0.1), transparent 48%),
-    #080a0f;
+    radial-gradient(circle at top, vars.$color-surface-info-glow, transparent 48%),
+    vars.$color-surface-canvas;
+}
+
+.previewShellCanvas:has(> .previewSecureContextWarning) {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .previewSecureContextWarning {
@@ -171,18 +198,18 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  border: 1px solid rgba(226, 177, 105, 0.24);
+  border: 1px solid vars.$color-border-warning-subtle;
   border-radius: 10px;
   padding: 9px 11px;
-  background: rgba(143, 94, 33, 0.14);
-  color: #b9bcc5;
+  background: vars.$color-surface-warning-subtle;
+  color: vars.$color-text-secondary;
   font-size: 0.76rem;
   line-height: 1.4;
 }
 
 .previewSecureContextWarning strong {
   flex: 0 0 auto;
-  color: #e9c791;
+  color: vars.$color-status-warning;
   font-size: inherit;
 }
 
@@ -191,21 +218,23 @@
 .previewShellViewport {
   position: relative;
   width: 100%;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 12px;
-  background: #080a0f;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  background: vars.$color-surface-canvas;
+  box-shadow: vars.$shadow-preview;
 }
 
 .previewShellFrame {
   width: 100%;
-  min-height: max(620px, calc(100dvh - 260px));
+  height: 100%;
+  min-height: 0;
   display: block;
   opacity: 0;
   border: 0;
-  background: #080a0f;
+  background: vars.$color-surface-canvas;
   color-scheme: dark;
 }
 
@@ -215,7 +244,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: #0f1218;
+  background: vars.$color-surface-canvas-raised;
 }
 
 .previewFrameLoading::after {
@@ -223,7 +252,7 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  background: linear-gradient(90deg, transparent, vars.$color-shimmer-strong, transparent);
   animation: skeletonShimmer 1.6s infinite;
 }
 
@@ -237,13 +266,13 @@
   padding: 28px;
   overflow: auto;
   text-align: center;
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
 }
 
 .previewEmptyState strong {
   display: block;
   margin-bottom: 8px;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1rem;
 }
 
@@ -260,11 +289,11 @@
   justify-self: center;
   margin: clamp(24px, 5dvh, 64px) auto;
   padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 18px;
   background:
-    radial-gradient(circle at top, rgba(49, 82, 181, 0.1), transparent 72%),
-    rgba(255, 255, 255, 0.018);
+    radial-gradient(circle at top, vars.$color-surface-info-glow, transparent 72%),
+    vars.$color-surface-raised-subtle;
 }
 
 @include previewSetup.responsive;

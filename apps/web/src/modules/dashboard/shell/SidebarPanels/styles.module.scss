@@ -14,18 +14,18 @@
   width: 100%;
   min-height: 58px;
   padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.075);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: vars.$radius-md;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-input;
   color: inherit;
   text-align: left;
 }
 
 .toolRowActive {
-  border-color: rgba(76, 217, 129, 0.28);
+  border-color: vars.$color-border-success;
   background:
-    linear-gradient(90deg, rgba(76, 217, 129, 0.1), rgba(76, 217, 129, 0) 42%),
-    rgba(255, 255, 255, 0.04);
+    linear-gradient(90deg, vars.$color-surface-running-glow, vars.$color-surface-running-transparent 42%),
+    vars.$color-surface-raised;
 }
 
 .toolIcon {
@@ -34,10 +34,10 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(76, 217, 129, 0.18);
+  border: 1px solid vars.$color-border-success;
   border-radius: 10px;
-  background: rgba(76, 217, 129, 0.08);
-  color: #9fe8b5;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
 .toolIconSvg {
@@ -77,7 +77,7 @@
   min-height: 24px;
   padding: 0 7px;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.075);
+  background: vars.$color-surface-control-hover;
   color: vars.$color-text-secondary;
   font-size: 0.76rem;
 }

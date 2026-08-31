@@ -42,6 +42,7 @@ const TEXT_PREVIEW_EXTENSIONS = new Set([
 export function getAttachmentDisplayName(part: AttachmentPart) {
   const candidate = part.path ?? part.url ?? part.label;
   const normalized = candidate.split(/[\\/]/).pop()?.trim() || candidate.trim();
+
   return normalized || part.label;
 }
 
@@ -157,24 +158,40 @@ export function getAttachmentBadgeLabel(part: AttachmentPart) {
   return part.kind === "image" || part.kind === "local-image" ? "IMG" : "FILE";
 }
 
+function stripWindowsSourcePosition(value: string) {
+  return value.replace(/^(.*\.[^\\/:]+):\d+(?::\d+)?$/u, "$1");
+}
+
+function decodeLocalAssetPath(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function normalizeMarkdownLocalAssetPath(value: string) {
   if (!value) {
     return null;
   }
 
   if (/^file:\/\/\/[A-Za-z]:\//.test(value)) {
-    return decodeURIComponent(value.replace(/^file:\/\/\//, ""));
+    return stripWindowsSourcePosition(decodeLocalAssetPath(value.replace(/^file:\/\/\//, "")));
   }
 
   if (/^file:\/\//.test(value)) {
-    return decodeURIComponent(value.replace(/^file:\/\//, ""));
+    return decodeLocalAssetPath(value.replace(/^file:\/\//, ""));
   }
 
   if (/^\/[A-Za-z]:[\\/]/.test(value)) {
-    return value.slice(1);
+    return stripWindowsSourcePosition(value.slice(1));
   }
 
-  if (/^[A-Za-z]:[\\/]/.test(value) || /^\/[^/]/.test(value)) {
+  if (/^[A-Za-z]:[\\/]/.test(value)) {
+    return stripWindowsSourcePosition(value);
+  }
+
+  if (/^\/[^/]/.test(value)) {
     return value;
   }
 

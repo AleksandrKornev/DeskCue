@@ -18,7 +18,7 @@ export function CreateLocalChatButton({
       type="button"
     >
       <span aria-hidden="true" className={styles.triggerIcon}>+</span>
-      <span>New chat</span>
+      <span>New local chat</span>
     </button>
   );
 }
