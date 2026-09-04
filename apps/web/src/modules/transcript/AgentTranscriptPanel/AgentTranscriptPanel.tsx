@@ -1,9 +1,12 @@
 import clsx from "clsx";
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 
+import ModelIcon from "@assets/images/icon-sliders.svg?react";
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
+import { AgentRuntimeIcon } from "@components/AgentRuntimeIcon";
 import { Tooltip } from "@components/Tooltip";
 import { formatDate } from "@lib/format";
+import { formatAgentSessionTitle } from "@models/sessionDisplay";
 import { useAgentSessionConfirmationGuard } from "@modules/agents/useAgentSessionConfirmationGuard";
 import { useCurrentAgentSessionActionGuard } from "@modules/agents/useCurrentAgentSessionActionGuard";
 import { ModelRuntimePanel } from "@modules/modelRuntime";
@@ -12,6 +15,7 @@ import {
   resolveSessionCommandsUnavailableReason
 } from "@runtime";
 
+import { AgentTranscriptLoadError } from "./AgentTranscriptLoadError";
 import { getMarkReviewedSessionId } from "./helpers";
 import styles from "./styles.module.scss";
 import { TranscriptPreviewEntry } from "./TranscriptPreview";
@@ -27,13 +31,18 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attachedManagedSessionInfo,
     attaching,
     isLoading,
+    loadError,
+    parentAgentSessionId,
     previewItems,
     readyForReviewAgentSessionIds,
+    selectedSessionId,
     session,
     sessionSummary,
+    subagentSupplement,
     onAttach,
     onMarkReviewed,
     onOpenManagedSession,
+    onRetryLoad,
   } = props;
 
   const {
@@ -41,6 +50,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attachWaitStage,
     attachedSessionHint,
     displaySession,
+    displayedSessionDetail,
     hiddenPreviewText,
     isActionPending,
     isHydratingSelection,
@@ -60,7 +70,9 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attachedManagedSessionInfo,
     attaching,
     isLoading,
+    loadError,
     previewItems,
+    selectedSessionId,
     session,
     sessionSummary
   });
@@ -78,6 +90,59 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
       : "",
     sessionId: displaySession?.id ?? null
   });
+  const detailFocusRef = useRef<HTMLDivElement>(null);
+  const loadRecoveryFocusOwnerRef = useRef<{
+    element: HTMLButtonElement;
+    sessionId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const focusOwner = loadRecoveryFocusOwnerRef.current;
+
+    if (!focusOwner) return;
+
+    if (focusOwner.sessionId !== selectedSessionId) {
+      loadRecoveryFocusOwnerRef.current = null;
+      return;
+    }
+
+    if (loadError || isLoading) return;
+    if (!displaySession || displaySession.id !== selectedSessionId) return;
+
+    const activeElement = document.activeElement;
+    const focusReturnedToDocument =
+      activeElement === document.body || activeElement === document.documentElement;
+    const focusMovedElsewhere = focusOwner.element.isConnected
+      ? activeElement !== focusOwner.element
+      : !focusReturnedToDocument;
+
+    if (focusMovedElsewhere) {
+      loadRecoveryFocusOwnerRef.current = null;
+      return;
+    }
+
+    detailFocusRef.current?.focus();
+    loadRecoveryFocusOwnerRef.current = null;
+  }, [displaySession, isLoading, loadError, selectedSessionId]);
+
+  const hasBlockingLoadError = Boolean(loadError && !displayedSessionDetail && onRetryLoad);
+
+  if (hasBlockingLoadError && !displaySession && loadError && onRetryLoad) {
+    return (
+      <div className={clsx(styles.detail, styles.detailLoading)}>
+        <AgentTranscriptLoadError
+          errorMessage={loadError}
+          isRetrying={isLoading}
+          onFocusOwnershipChange={(focusOwner) => {
+            loadRecoveryFocusOwnerRef.current = focusOwner
+              ? { element: focusOwner, sessionId: selectedSessionId }
+              : null;
+          }}
+          onRetry={onRetryLoad}
+        />
+      </div>
+    );
+  }
 
   if (isLoading && !displaySession) {
     return (
@@ -129,16 +194,22 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     readyForReviewAgentSessionIds,
     sessionCommandsEnabled
   });
+  const displayTitle = formatAgentSessionTitle(displaySession);
 
   return (
-    <div className={clsx(styles.detail, isHydratingSelection && styles.detailSettling)}>
+    <div
+      aria-label={`${displayTitle} chat details`}
+      className={clsx(styles.detail, isHydratingSelection && styles.detailSettling)}
+      ref={detailFocusRef}
+      tabIndex={-1}
+    >
       <div className={styles.meta}>
         <div>
           <strong>
             <Tooltip
               className={styles.metaTitle}
               placement="below"
-              value={displaySession.title}
+              value={displayTitle}
             />
           </strong>
           <Tooltip
@@ -148,18 +219,32 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
           />
         </div>
         <div className={styles.metaRight}>
-          {isSubagentChat(displaySession) ? <AgentChatBadge /> : null}
-          <span className={styles.sourcePill}>{displaySession.agentLabel}</span>
-          <button
-            className={styles.metaButton}
-            onClick={() => setShowModelContext(true)}
-            type="button"
+          <span
+            className={clsx(
+              styles.capability,
+              sourceCapabilityLabel === "Ready" && styles.capabilityReady
+            )}
           >
-            Model
-          </button>
-          <span className={styles.capability}>
             {sourceCapabilityLabel}
           </span>
+          {isSubagentChat(displaySession) ? <AgentChatBadge /> : null}
+          <span className={styles.sourcePill}>
+            <AgentRuntimeIcon
+              aria-hidden="true"
+              className={styles.sourcePillIcon}
+              runtimeId={displaySession.agentId}
+            />
+            {displaySession.agentLabel}
+          </span>
+          <button
+            aria-label="Model details"
+            className={styles.metaButton}
+            onClick={() => setShowModelContext(true)}
+            title="Model details"
+            type="button"
+          >
+            <ModelIcon aria-hidden="true" className={styles.metaButtonIcon} focusable="false" />
+          </button>
           <span>{formatDate(displaySession.updatedAt)}</span>
         </div>
       </div>
@@ -171,7 +256,18 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
         />
       ) : null}
 
-      {session && textOnlyTranscriptEntries.length > 0 ? (
+      {hasBlockingLoadError && loadError && onRetryLoad ? (
+        <AgentTranscriptLoadError
+          errorMessage={loadError}
+          isRetrying={isLoading}
+          onFocusOwnershipChange={(focusOwner) => {
+            loadRecoveryFocusOwnerRef.current = focusOwner
+              ? { element: focusOwner, sessionId: displaySession.id }
+              : null;
+          }}
+          onRetry={onRetryLoad}
+        />
+      ) : displayedSessionDetail && textOnlyTranscriptEntries.length > 0 ? (
         <div className={styles.transcript} ref={transcriptRef}>
           {visibleTextOnlyTranscriptEntries.map((entry) => (
             <TranscriptPreviewEntry
@@ -200,7 +296,10 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
         </div>
       )}
 
-      <div className={clsx(styles.bottom, styles.bottomAttached)}>
+      {subagentSupplement}
+
+      {hasBlockingLoadError ? null : (
+        <div className={clsx(styles.bottom, styles.bottomAttached)}>
         {!sessionCommandsEnabled ? (
           <p className={styles.nextMessageSubtle}>
             {sessionCommandsUnavailableReason}
@@ -217,7 +316,9 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
               const actionSessionId = displaySession.id;
 
               if (attachedManagedSessionId) {
-                onOpenManagedSession(attachedManagedSessionId);
+                onOpenManagedSession(attachedManagedSessionId, {
+                  subagentParentSessionId: parentAgentSessionId ?? undefined
+                });
                 return;
               }
 
@@ -235,7 +336,9 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
 
               if (currentDisplaySessionIdRef.current !== actionSessionId) return;
 
-              onAttach();
+              onAttach({
+                subagentParentSessionId: parentAgentSessionId ?? undefined
+              });
             }}
             type="button"
           >
@@ -263,7 +366,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
             DeskCue is attaching to the existing local chat. The agent is not being restarted.
           </p>
         ) : !isReviewOnlyRuntime && attachedSessionHint ? (
-          <p className={styles.nextMessageSubtle}>
+          <p className={clsx(styles.nextMessageSubtle, styles.nextMessageConnection)}>
             {attachedSessionHint}
           </p>
         ) : !isReviewOnlyRuntime && !isHydratingSelection && isSharedLiveThread && displaySession.attachModeReason ? (
@@ -271,7 +374,8 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
             {displaySession.attachModeReason}
           </p>
         ) : null}
-      </div>
+        </div>
+      )}
     </div>
   );
 });

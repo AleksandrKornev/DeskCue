@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { AgentSessionDetail, AgentSessionSummary, SessionSummary } from "@deskcue/protocol";
 
 export type AttachedManagedSessionInfo = Pick<
@@ -6,17 +8,25 @@ export type AttachedManagedSessionInfo = Pick<
 >;
 
 export interface AgentTranscriptPanelProps {
+  selectedSessionId: string;
   session: AgentSessionDetail | null;
   sessionSummary?: AgentSessionSummary | null;
   isLoading: boolean;
+  loadError?: string | null;
   attaching: boolean;
   attachedManagedSessionId: string | null;
   attachedManagedSessionInfo: AttachedManagedSessionInfo | null;
   readyForReviewAgentSessionIds: ReadonlySet<string>;
   previewItems?: number;
-  onAttach: () => void;
+  parentAgentSessionId?: string | null;
+  subagentSupplement?: ReactNode;
+  onAttach: (options?: { subagentParentSessionId?: string }) => void;
   onMarkReviewed: (sessionId: string) => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
+  onRetryLoad?: () => void;
 }
 
 export type TranscriptEntry = AgentSessionDetail["transcript"][number];

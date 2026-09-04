@@ -9,6 +9,7 @@ import {
 type ModalFocusLifecycleOptions<TElement extends HTMLElement> = {
   dialogRef: RefObject<TElement | null>;
   isOpen?: boolean;
+  restoreFocusOnClose?: boolean;
   onClose: () => void;
 };
 
@@ -247,15 +248,18 @@ function createTopModalKeyDownHandler(
 export function useModalFocusLifecycle<TElement extends HTMLElement>({
   dialogRef,
   isOpen = true,
+  restoreFocusOnClose = true,
   onClose
 }: ModalFocusLifecycleOptions<TElement>) {
   const onCloseRef = useRef(onClose);
   const modalEntryIdRef = useRef(Symbol("modal-focus-lifecycle"));
+  const restoreFocusOnCloseRef = useRef(restoreFocusOnClose);
   const restoreFocusFrameRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     onCloseRef.current = onClose;
-  }, [onClose]);
+    restoreFocusOnCloseRef.current = restoreFocusOnClose;
+  }, [onClose, restoreFocusOnClose]);
 
   useLayoutEffect(() => {
     if (!isOpen) return;
@@ -304,7 +308,9 @@ export function useModalFocusLifecycle<TElement extends HTMLElement>({
       restoreBackground();
       releaseModalScrollLock();
 
-      if (wasTopModal) restoreFocusFrameRef.current = restoreModalFocus(entry);
+      if (wasTopModal && restoreFocusOnCloseRef.current) {
+        restoreFocusFrameRef.current = restoreModalFocus(entry);
+      }
     };
   }, [dialogRef, isOpen, onCloseRef]);
 

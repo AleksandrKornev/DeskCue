@@ -1,25 +1,137 @@
 import clsx from "clsx";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import styles from "./styles.module.scss";
 
 export type SessionOpeningSkeletonProps = {
   errorMessage?: string | null;
-  onRetry?: () => Promise<unknown>;
+  exitLabel?: string;
+  loadingLabel?: string;
+  onExit?: () => void;
+  onRetry?: (context: SessionOpeningRetryContext) => Promise<unknown>;
 };
+
+export type SessionOpeningRetryContext = {
+  hasFocusOwnership: () => boolean;
+};
+
+function useSessionOpeningRetry(
+  errorMessage: string | null | undefined,
+  onRetry: ((context: SessionOpeningRetryContext) => Promise<unknown>) | undefined
+) {
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const retryFocusOwnerRef = useRef<HTMLButtonElement | null>(null);
+  const retryGenerationRef = useRef(0);
+  const retryPendingRef = useRef(false);
+
+  useEffect(() => () => {
+    retryGenerationRef.current += 1;
+    retryPendingRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    const focusOwner = retryFocusOwnerRef.current;
+
+    if (!errorMessage || isRetrying || !focusOwner) return;
+
+    const activeElement = document.activeElement;
+    const focusReturnedToDocument =
+      activeElement === document.body || activeElement === document.documentElement;
+    const focusMovedElsewhere = focusOwner.isConnected
+      ? activeElement !== focusOwner
+      : !focusReturnedToDocument;
+
+    if (focusMovedElsewhere) {
+      retryFocusOwnerRef.current = null;
+      return;
+    }
+
+    retryButtonRef.current?.focus();
+  }, [errorMessage, isRetrying]);
+
+  const retry = useCallback(async (focusOwner: HTMLButtonElement | null) => {
+    if (!onRetry || retryPendingRef.current) return;
+
+    const generation = retryGenerationRef.current;
+
+    retryPendingRef.current = true;
+    retryFocusOwnerRef.current = focusOwner;
+    setIsRetrying(true);
+
+    try {
+      await onRetry({
+        hasFocusOwnership: () => Boolean(focusOwner) && retryFocusOwnerRef.current === focusOwner
+      });
+    } catch {
+      // The caller owns public error copy; keep the current recovery surface stable.
+    } finally {
+      if (retryGenerationRef.current === generation) {
+        retryPendingRef.current = false;
+        setIsRetrying(false);
+      }
+    }
+  }, [onRetry]);
+
+  return {
+    isRetrying,
+    retry,
+    retryButtonRef,
+    retryFocusOwnerRef
+  };
+}
 
 export function SessionOpeningSkeleton({
   errorMessage,
+  exitLabel = "Back to chats",
+  loadingLabel = "Loading source-agent chat",
+  onExit,
   onRetry
 }: SessionOpeningSkeletonProps) {
+  const {
+    isRetrying,
+    retry,
+    retryButtonRef,
+    retryFocusOwnerRef
+  } = useSessionOpeningRetry(errorMessage, onRetry);
+
   if (errorMessage) {
     return (
-      <div className={styles.sessionLoadError} role="alert">
-        <p>Unable to load the session.</p>
+      <div aria-busy={isRetrying} className={styles.sessionLoadError} role="alert">
+        <h1>Session unavailable</h1>
+        <p>Unable to load the session</p>
         <span>{errorMessage}</span>
-        {onRetry ? (
-          <button type="button" onClick={() => void onRetry()}>
-            Retry
-          </button>
+        {onRetry || onExit ? (
+          <div className={styles.sessionLoadActions}>
+            {onRetry ? (
+              <button
+                aria-disabled={isRetrying}
+                className={styles.sessionLoadRetry}
+                data-session-retry-control
+                ref={retryButtonRef}
+                type="button"
+                onBlur={() => {
+                  retryFocusOwnerRef.current = null;
+                }}
+                onClick={(event) => {
+                  if (isRetrying) return;
+
+                  const focusOwner = document.activeElement === event.currentTarget
+                    ? event.currentTarget
+                    : null;
+
+                  void retry(focusOwner);
+                }}
+              >
+                {isRetrying ? "Retrying…" : "Retry"}
+              </button>
+            ) : null}
+            {onExit ? (
+              <button className={styles.sessionLoadExit} onClick={onExit} type="button">
+                {exitLabel}
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     );
@@ -28,7 +140,7 @@ export function SessionOpeningSkeleton({
   return (
     <div
       aria-busy="true"
-      aria-label="Loading source-agent chat"
+      aria-label={loadingLabel}
       className={styles.sessionOpeningSkeleton}
       role="status"
     >

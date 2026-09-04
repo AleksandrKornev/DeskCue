@@ -27,6 +27,7 @@ export function SessionDiagnosticsDialog({
 
   return (
     <Modal
+      closeOnHistoryBack
       description="Transport and process events for troubleshooting this session"
       isOpen={isOpen}
       size="default"

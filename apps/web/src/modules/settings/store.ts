@@ -4,6 +4,7 @@ import type { IReactionDisposer } from "mobx";
 import { AccessSettingsStore } from "./access/AccessSettingsTab/store";
 import { DaemonSettingsStore } from "./daemonSettings";
 import { NotificationSettingsStore } from "./notifications/NotificationSettingsTab/store";
+import { SettingsMutationCoordinator } from "./settingsMutationCoordinator";
 import { StorageSettingsStore } from "./storage/StorageSettingsTab/store";
 import { SystemSettingsStore } from "./system/SystemSettingsTab/store";
 import type { SettingsTab, WriteTabSearchParam } from "./types";
@@ -11,10 +12,11 @@ import type { SettingsTab, WriteTabSearchParam } from "./types";
 export class SettingsPageStore {
   accessStore = new AccessSettingsStore();
   activeTab: SettingsTab;
-  daemonSettingsStore = new DaemonSettingsStore();
+  settingsMutationCoordinator = new SettingsMutationCoordinator();
+  daemonSettingsStore = new DaemonSettingsStore(undefined, this.settingsMutationCoordinator);
   daemonSettingsDisposer: IReactionDisposer | null = null;
   notificationStore = new NotificationSettingsStore();
-  storageStore = new StorageSettingsStore();
+  storageStore = new StorageSettingsStore(undefined, this.settingsMutationCoordinator);
   systemStore = new SystemSettingsStore();
   writeTabSearchParam: WriteTabSearchParam | null = null;
 
@@ -51,22 +53,35 @@ export class SettingsPageStore {
         daemonSettings: this.daemonSettingsStore.daemonSettings,
         daemonSettingsDraft: this.daemonSettingsStore.daemonSettingsDraft,
         daemonSettingsStatus: this.daemonSettingsStore.daemonSettingsStatus,
+        resettingDaemonSettings: this.daemonSettingsStore.resettingDaemonSettings,
+        savingDaemonSettings: this.daemonSettingsStore.savingDaemonSettings,
         securityStatus: this.daemonSettingsStore.securityStatus,
-        securityStatusMessage: this.daemonSettingsStore.securityStatusMessage
+        securityStatusMessage: this.daemonSettingsStore.securityStatusMessage,
+        settingsConnectionRevision: this.daemonSettingsStore.settingsConnectionRevision,
+        settingsMutationPending: this.daemonSettingsStore.settingsMutationPending,
+        settingsSaveSuccessRevision: this.daemonSettingsStore.settingsSaveSuccessRevision
       }),
       ({
         daemonSettings,
         daemonSettingsDraft,
         daemonSettingsStatus,
+        resettingDaemonSettings,
+        savingDaemonSettings,
         securityStatus,
-        securityStatusMessage
+        securityStatusMessage,
+        settingsConnectionRevision,
+        settingsMutationPending,
+        settingsSaveSuccessRevision
       }) => {
         this.accessStore.updateDependencies({
           daemonSettings,
           daemonSettingsDraft,
           daemonSettingsStatus,
+          resettingDaemonSettings,
+          savingDaemonSettings,
           securityStatus,
           securityStatusMessage,
+          settingsMutationPending,
           onAddPairingHost: this.daemonSettingsStore.onAddPairingHost,
           onAllowedOriginsTextChange: this.daemonSettingsStore.onAllowedOriginsTextChange,
           onAuthRequiredChange: this.daemonSettingsStore.onAuthRequiredChange,
@@ -78,14 +93,19 @@ export class SettingsPageStore {
         });
         this.storageStore.updateDependencies({
           daemonSettings,
-          syncDaemonSettings: this.daemonSettingsStore.syncDaemonSettings
+          syncDaemonSettings: this.daemonSettingsStore.syncDaemonSettingsPreservingDraft
         });
         this.systemStore.updateDependencies({
           daemonSettings,
           daemonSettingsDraft,
           daemonSettingsStatus,
+          resettingDaemonSettings,
+          savingDaemonSettings,
           securityStatus,
           securityStatusMessage,
+          settingsConnectionRevision,
+          settingsMutationPending,
+          settingsSaveSuccessRevision,
           onAgentDataRootChange: this.daemonSettingsStore.onAgentDataRootChange,
           onResetDaemonSettings: this.daemonSettingsStore.onResetDaemonSettings,
           onRuntimeEndpointChange: this.daemonSettingsStore.onRuntimeEndpointChange,

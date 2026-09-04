@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,26 +12,39 @@ import { DeskCueRemoteApp } from "./DeskCueRemoteApp";
 
 vi.mock("@components/ModalDialog", () => ({ ConfirmDialogHost: () => null }));
 vi.mock("@components/AppToaster", () => ({ AppToaster: () => null }));
+vi.mock("@components/AppErrorBoundary/AppErrorBoundary", () => ({
+  AppErrorBoundary: ({ children }: { children: ReactNode }) => children
+}));
+vi.mock("@modules/accessGate/RemoteAccessGate", () => ({
+  RemoteAccessGate: ({ children }: { children: ReactNode }) => children
+}));
 const appModuleRuntimeModes = vi.hoisted(() => [] as string[]);
-vi.mock("@web/App", async () => {
+
+vi.mock("@web/pages/DeskCueRoutes", async () => {
   const { Link, useLocation } = await import("react-router");
   const { getDeskCueRuntime, useDeskCueRuntime } = await import("@runtime");
   const { useDeskCueEmbeddedReady, useDeskCueLayoutMode } = await import("@web/layout");
+
   appModuleRuntimeModes.push(getDeskCueRuntime().mode);
+
   return {
-    DeskCueApp() {
+    DeskCueRoutes() {
       const runtime = useDeskCueRuntime();
       const layoutMode = useDeskCueLayoutMode();
       const onEmbeddedReady = useDeskCueEmbeddedReady();
       const location = useLocation();
       const [imperativeRuntimeMode, setImperativeRuntimeMode] = useState("pending");
+
       useEffect(() => {
         const timer = window.setTimeout(() => {
           setImperativeRuntimeMode(getDeskCueRuntime().mode);
         }, 0);
+
         return () => window.clearTimeout(timer);
       }, []);
+
       useEffect(() => onEmbeddedReady?.(), [onEmbeddedReady]);
+
       return (
         <div>
           <h2>DeskCue fixture</h2>
@@ -68,6 +82,7 @@ const READ_ONLY_FEATURES: DeskCueRuntimeFeatures = {
 
 function runtime(machineId: string): DeskCueRuntime {
   const basename = `/machines/${machineId}/deskcue`;
+
   return {
     buildAppPath: (path) => `${basename}${path === "/" ? "/" : path}`,
     buildHttpUrl: (path) => `/v1/machines/${machineId}/deskcue${path}`,
@@ -92,6 +107,7 @@ describe("DeskCueRemoteApp host routing contract", () => {
   it("activates the host runtime before loading app singletons", async () => {
     const machineRuntime = runtime("machine-1");
     const onReady = vi.fn();
+
     render(
       <StrictMode>
         <MemoryRouter initialEntries={["/machines/machine-1/deskcue/sessions/session-7"]}>
@@ -141,13 +157,32 @@ describe("DeskCueRemoteApp host routing contract", () => {
     expect(screen.getByLabelText("Opening agent singleton")).toHaveTextContent("none");
   });
 
+  it("rejects local-only routes that are intentionally absent from the embed graph", () => {
+    const machineRuntime = runtime("machine-1");
+    const unsupportedRuntime = {
+      ...machineRuntime,
+      features: {
+        ...machineRuntime.features,
+        accessSettings: true
+      }
+    };
+
+    expect(() => render(
+      <MemoryRouter initialEntries={["/machines/machine-1/deskcue/"]}>
+        <DeskCueRemoteApp runtime={unsupportedRuntime} />
+      </MemoryRouter>
+    )).toThrow("does not include local-only access, settings, or logs routes");
+  });
+
   it("unmounts the old projection and resets it before switching machines", async () => {
     const { rerender } = render(
       <MemoryRouter initialEntries={["/machines/machine-1/deskcue/"]}>
         <DeskCueRemoteApp runtime={runtime("machine-1")} />
       </MemoryRouter>
     );
+
     expect(await screen.findByText("DeskCue fixture")).toBeInTheDocument();
+
     dashboardStore.setSelectedSessionId("machine-1-session");
 
     rerender(

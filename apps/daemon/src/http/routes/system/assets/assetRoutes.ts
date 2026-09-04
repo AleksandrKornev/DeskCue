@@ -26,6 +26,10 @@ type InstallAssetRoutesOptions = {
   };
 };
 
+function readOptionalAssetQuery(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 export function installAssetRoutes(
   app: express.Express,
   {
@@ -48,7 +52,8 @@ export function installAssetRoutes(
   app.post("/api/assets/ticket", async (request, response, next) => {
     try {
       const input = parseCreateAssetTicketInput(request.body);
-      const workspaceResolution = input.workspaceId
+      const hasSessionScope = Boolean(input.agentSessionId || input.managedSessionId);
+      const workspaceResolution = input.workspaceId && !hasSessionScope
         ? await accessPolicy.resolveWorkspacePath(input.workspaceId, input.path)
         : null;
       if (workspaceResolution?.error) {
@@ -155,7 +160,8 @@ export function installAssetRoutes(
         authorization.path,
         ticket.download,
         ticket.maxBytes,
-        ticket.fileIdentity
+        ticket.fileIdentity,
+        request.headers.range
       );
     } catch (error) {
       next(error);
@@ -163,26 +169,55 @@ export function installAssetRoutes(
   });
 
   app.get("/api/assets/file", async (request, response, next) => {
-    const normalizedPath = accessPolicy.normalizePath(
-      typeof request.query.path === "string" ? request.query.path.trim() : ""
-    );
-
-    if (!normalizedPath) {
-      response.status(400).json({
-        error: "Only absolute asset paths are supported."
-      });
-      return;
-    }
+    const requestedPath = readOptionalAssetQuery(request.query.path) ?? "";
+    const requestContext = {
+      agentSessionId: readOptionalAssetQuery(request.query.agentSessionId),
+      managedSessionId: readOptionalAssetQuery(request.query.managedSessionId),
+      workspaceId: readOptionalAssetQuery(request.query.workspaceId)
+    };
 
     try {
-      const authorization = await accessPolicy.authorizeFile(normalizedPath);
+      const hasSessionScope = Boolean(
+        requestContext.agentSessionId || requestContext.managedSessionId
+      );
+      const workspaceResolution = requestContext.workspaceId && !hasSessionScope
+        ? await accessPolicy.resolveWorkspacePath(requestContext.workspaceId, requestedPath)
+        : null;
+
+      if (workspaceResolution?.error) {
+        response.status(workspaceResolution.error.statusCode).json({
+          error: workspaceResolution.error.message
+        });
+        return;
+      }
+
+      const normalizedPath = workspaceResolution?.path ?? accessPolicy.normalizePath(requestedPath);
+
+      if (!normalizedPath) {
+        response.status(400).json({
+          error: "Only absolute asset paths are supported."
+        });
+        return;
+      }
+
+      const hasScopedContext = hasSessionScope || Boolean(requestContext.workspaceId);
+      const authorization = hasScopedContext
+        ? await accessPolicy.authorizeTicket("file", normalizedPath, requestContext)
+        : await accessPolicy.authorizeFile(normalizedPath);
 
       if (authorization.error) {
         response.status(authorization.error.statusCode).json({ error: authorization.error.message });
         return;
       }
 
-      await sendLocalAssetFile(response, authorization.path, request.query.download === "1");
+      await sendLocalAssetFile(
+        response,
+        authorization.path,
+        request.query.download === "1",
+        undefined,
+        undefined,
+        request.headers.range
+      );
     } catch (error) {
       next(error);
     }
@@ -208,7 +243,14 @@ export function installAssetRoutes(
         return;
       }
 
-      await sendLocalAssetFile(response, authorization.path, false);
+      await sendLocalAssetFile(
+        response,
+        authorization.path,
+        false,
+        undefined,
+        undefined,
+        request.headers.range
+      );
     } catch (error) {
       next(error);
     }

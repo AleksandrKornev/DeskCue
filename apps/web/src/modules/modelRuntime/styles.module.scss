@@ -61,6 +61,10 @@
   line-height: 1.45;
 }
 
+.headerCopy {
+  min-width: 0;
+}
+
 .headerActions {
   display: flex;
   align-items: center;
@@ -68,6 +72,13 @@
   min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.headerMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .summaryPill {
@@ -84,26 +95,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.closeButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #f2ece1;
-  font-size: 1.15rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.closeButton:hover {
-  background: rgba(255, 255, 255, 0.11);
 }
 
 .grid {
@@ -157,6 +148,7 @@
 
   .header {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     padding-right: 0;
     cursor: grab;
@@ -169,7 +161,19 @@
   }
 
   .headerActions {
-    justify-content: flex-start;
+    display: contents;
+  }
+
+  .headerMeta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .headerClose {
+    grid-column: 2;
+    grid-row: 1;
+    margin: -4px;
   }
 
   .summaryPill {

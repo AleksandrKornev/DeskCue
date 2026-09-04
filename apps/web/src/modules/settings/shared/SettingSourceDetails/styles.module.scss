@@ -9,19 +9,19 @@
 
 .sourceItem {
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 9px 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .sourceItemCurrent {
-  border-color: rgba(91, 122, 207, 0.28);
-  background: rgba(91, 122, 207, 0.06);
+  border-color: vars.$color-border-info;
+  background: vars.$color-surface-info-glow;
 }
 
 .sourceItem dt {
-  color: #8f96a2;
+  color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -35,7 +35,7 @@
   gap: 7px;
   margin: 5px 0 0;
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.86rem;
   line-height: 1.32;
 }
@@ -46,8 +46,8 @@
   min-height: 22px;
   border-radius: 999px;
   padding: 0 8px;
-  background: rgba(214, 164, 103, 0.14);
-  color: #f0c78f;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
   font-size: 0.72rem;
   font-weight: 800;
   white-space: nowrap;
@@ -57,9 +57,9 @@
   .sourceDetails {
       grid-template-columns: 1fr 1fr;
       gap: 0;
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      border: 1px solid vars.$color-border-control;
       border-radius: 8px;
-      background: rgba(255, 255, 255, 0.025);
+      background: vars.$color-surface-control-subtle;
     }
 
   .sourceItem {
@@ -70,12 +70,12 @@
     }
 
   .sourceItem + .sourceItem {
-      border-left: 1px solid rgba(255, 255, 255, 0.06);
+      border-left: 1px solid vars.$color-border-control;
     }
 
   .sourceItemCurrent {
       border-color: transparent;
-      background: rgba(91, 122, 207, 0.08);
+      background: vars.$color-surface-info-glow;
     }
 
   .sourceItem dt {

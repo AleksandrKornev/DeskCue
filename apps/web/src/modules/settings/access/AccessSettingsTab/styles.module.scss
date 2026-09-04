@@ -6,12 +6,12 @@
 @include forms.styles;
 
 .highWarning {
-  border-color: rgba(184, 72, 72, 0.26);
-  background: rgba(184, 72, 72, 0.1);
+  border-color: vars.$color-border-danger;
+  background: vars.$color-surface-danger;
 }
 
 .highWarning p {
-  color: #ffcbc7;
+  color: vars.$color-status-danger;
 }
 
 .accessProtectionCard {
@@ -33,49 +33,49 @@
 .accessExposureNotice {
   display: grid;
   gap: 5px;
-  border: 1px solid rgba(214, 164, 103, 0.22);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(214, 164, 103, 0.08);
+  background: vars.$color-surface-accent;
 }
 
 .accessExposureNotice strong {
-  color: #f7e1bd;
+  color: vars.$color-status-warning;
   font-size: 0.98rem;
   line-height: 1.2;
 }
 
 .accessExposureNotice span {
-  color: #d7c9b2;
+  color: vars.$color-text-secondary;
   font-size: 0.88rem;
   font-weight: 650;
   line-height: 1.4;
 }
 
 .lowExposureNotice {
-  border-color: rgba(64, 162, 104, 0.22);
-  background: rgba(64, 162, 104, 0.08);
+  border-color: vars.$color-border-success;
+  background: vars.$color-surface-success;
 }
 
 .lowExposureNotice strong {
-  color: #b6f4c8;
+  color: vars.$color-status-success;
 }
 
 .lowExposureNotice span {
-  color: #a8d8b8;
+  color: vars.$color-status-success;
 }
 
 .highExposureNotice {
-  border-color: rgba(184, 72, 72, 0.28);
-  background: rgba(184, 72, 72, 0.12);
+  border-color: vars.$color-border-danger;
+  background: vars.$color-surface-danger;
 }
 
 .highExposureNotice strong {
-  color: #ffcbc7;
+  color: vars.$color-status-danger;
 }
 
 .highExposureNotice span {
-  color: #e3b4ae;
+  color: vars.$color-status-danger;
 }
 
 .skeletonLine {
@@ -83,7 +83,7 @@
   width: min(100%, 180px);
   height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
+  background: vars.$color-surface-control-hover;
 }
 
 .skeletonLineTiny {
@@ -118,10 +118,10 @@
   display: grid;
   align-items: center;
   min-height: 48px;
-  border: 1px solid rgba(214, 164, 103, 0.12);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(214, 164, 103, 0.04);
+  background: vars.$color-surface-accent;
 }
 
 .accessSkeletonForm {
@@ -153,7 +153,7 @@
 .hostRowButton,
 .hostAddButton {
   min-height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-control;
 }
 
 .hostAddButton {
@@ -162,10 +162,10 @@
 }
 
 .emptyHostList {
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border: 1px dashed vars.$color-border-control;
   border-radius: 8px;
   padding: 10px 12px;
-  color: #8f96a2;
+  color: vars.$color-text-secondary;
   font-size: 0.84rem;
   font-weight: 600;
 }
@@ -175,10 +175,10 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .pairingActionPanel > div {
@@ -188,13 +188,13 @@
 }
 
 .pairingActionPanel strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1rem;
 }
 
 .pairingActionPanel small {
   overflow-wrap: anywhere;
-  color: #c7ccd8;
+  color: vars.$color-text-secondary;
   font-size: 0.86rem;
   line-height: 1.35;
 }
@@ -205,10 +205,10 @@
   gap: 12px;
   align-items: center;
   margin-top: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .recoveryPanel > div {
@@ -218,13 +218,13 @@
 }
 
 .recoveryPanel strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1rem;
 }
 
 .recoveryPanel small {
   overflow-wrap: anywhere;
-  color: #c7ccd8;
+  color: vars.$color-text-secondary;
   font-size: 0.86rem;
   line-height: 1.35;
 }
@@ -234,16 +234,16 @@
   display: grid;
   gap: 8px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.18);
+  background: vars.$color-surface-panel-strong;
 }
 
 .recoveryCodePanel code {
   display: block;
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 1.02rem;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -252,10 +252,10 @@
 .addressDisclosure {
   display: grid;
   gap: 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: vars.$color-surface-control-subtle;
+  box-shadow: inset 0 1px 0 vars.$color-border-subtle;
 }
 
 .addressDisclosure summary {
@@ -266,7 +266,7 @@
   min-height: 78px;
   padding: 13px 14px;
   cursor: pointer;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-weight: 800;
 }
 
@@ -278,9 +278,13 @@
   display: none;
 }
 
-.addressDisclosure summary:hover,
+.addressDisclosure summary:hover {
+  background: vars.$color-surface-control-subtle;
+}
+
 .addressDisclosure summary:focus-visible {
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-control-subtle;
+  box-shadow: vars.$shadow-focus-ring;
   outline: none;
 }
 
@@ -300,14 +304,14 @@
 }
 
 .addressDisclosure summary strong {
-  color: #f3f7ff;
+  color: vars.$color-text-primary;
   font-size: 1rem;
   line-height: 1.2;
 }
 
 .addressDisclosure summary small {
   overflow-wrap: anywhere;
-  color: #b7c2d6;
+  color: vars.$color-status-info;
   font-size: 0.86rem;
   font-weight: 600;
   line-height: 1.35;
@@ -318,7 +322,7 @@
   align-items: center;
   gap: 8px;
   min-height: 36px;
-  color: #bfd0ff;
+  color: vars.$color-status-info;
   font-size: 0.82rem;
   font-weight: 900;
   line-height: 1;
@@ -351,7 +355,7 @@
 }
 
 .addressDisclosure .settingsForm {
-  border-top: 1px solid rgba(91, 122, 207, 0.14);
+  border-top: 1px solid vars.$color-border-info;
   margin: 0;
   padding: 12px;
 }
@@ -360,32 +364,32 @@
   display: grid;
   gap: 6px;
   margin-top: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .accessHelpPanel strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
 }
 
 .accessHelpPanel small {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.82rem;
   line-height: 1.35;
 }
 
 .accessHelpPanel code {
   overflow-wrap: anywhere;
-  color: #dfe7ff;
+  color: vars.$color-status-info;
   font: inherit;
   font-size: 0.88rem;
   font-weight: 700;
 }
 
 .accessStatus {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 11px 12px;
   font-size: 0.9rem;
@@ -393,18 +397,27 @@
 }
 
 .accessStatusSuccess {
-  border-color: rgba(64, 162, 104, 0.22);
-  background: rgba(64, 162, 104, 0.1);
-  color: #91d9ad;
+  border-color: vars.$color-border-success;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
 .accessStatusError {
-  border-color: rgba(184, 72, 72, 0.28);
-  background: rgba(184, 72, 72, 0.12);
-  color: #ffb7b2;
+  border-color: vars.$color-border-danger;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
 }
 
 @media (max-width: 720px) {
+  .hostRowButton,
+  .hostAddButton {
+    min-height: vars.$control-height-touch;
+  }
+
+  .recoveryCodePanel .inlineButton {
+    min-height: vars.$control-height-touch;
+  }
+
   .accessProtectionCard {
       min-height: 720px;
     }

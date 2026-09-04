@@ -3,4 +3,4 @@ export type RouteLoadingShellProps = {
   search: string;
 };
 
-export type LoadingVariant = "dashboard" | "page" | "preview" | "session";
+export type LoadingVariant = "dashboard" | "page" | "session";

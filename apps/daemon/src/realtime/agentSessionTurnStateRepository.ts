@@ -71,6 +71,7 @@ function normalizeSourceAgentTurnState(input: unknown): SourceAgentTurnState | n
   }
 
   const state = input as Record<string, unknown>;
+
   if (
     state.phase === "idle" &&
     (state.fingerprint === null || typeof state.fingerprint === "string")
@@ -112,6 +113,7 @@ function normalizeSourceAgentTurnState(input: unknown): SourceAgentTurnState | n
           : "terminal_lifecycle",
       fingerprint: state.fingerprint,
       phase: state.phase,
+      startedAt: typeof state.startedAt === "string" ? state.startedAt : null,
       turnStartFingerprint:
         typeof state.turnStartFingerprint === "string"
           ? state.turnStartFingerprint
@@ -128,6 +130,7 @@ function isTrackedOwner(value: unknown): value is TrackedAgentSessionTurnState["
 
 function isExpiredPersistedTurnState(observedAt: string) {
   const observedAtMs = Date.parse(observedAt);
+
   if (!Number.isFinite(observedAtMs)) {
     return true;
   }
@@ -143,6 +146,7 @@ function normalizePersistedAgentSessionTurnStateRecord(
   }
 
   const record = input as Record<string, unknown>;
+
   if (
     typeof record.id !== "string" ||
     typeof record.observedAt !== "string" ||
@@ -151,7 +155,9 @@ function normalizePersistedAgentSessionTurnStateRecord(
   ) {
     return null;
   }
+
   const state = normalizeSourceAgentTurnState(record.state);
+
   if (!state) {
     return null;
   }
@@ -182,6 +188,7 @@ async function readPersistedAgentSessionTurnStates(
   try {
     const raw = await readFile(storagePath, "utf8");
     const parsed = JSON.parse(raw) as PersistedAgentSessionTurnStateFile;
+
     if (!Array.isArray(parsed.sessions)) {
       return [];
     }
@@ -221,6 +228,7 @@ async function writePersistedAgentSessionTurnStates(
     dirname(storagePath),
     `agent-session-turn-states.${randomUUID()}.tmp`
   );
+
   await writeFile(
     tempFilePath,
     JSON.stringify(
@@ -234,6 +242,7 @@ async function writePersistedAgentSessionTurnStates(
     ),
     "utf8"
   );
+
   await rename(tempFilePath, storagePath);
 }
 
@@ -258,10 +267,13 @@ export class AgentSessionTurnStateRepository {
 
   set(sessionId: string, state: TrackedAgentSessionTurnState) {
     const previous = this.states.get(sessionId);
+
     this.states.set(sessionId, state);
+
     if (!previous || serializeTrackedTurnState(previous) !== serializeTrackedTurnState(state)) {
       this.dirty = true;
     }
+
     return previous;
   }
 
@@ -281,8 +293,10 @@ export class AgentSessionTurnStateRepository {
     }
 
     this.loaded = true;
+
     try {
       const records = await readPersistedAgentSessionTurnStates(this.storagePath);
+
       for (const record of records) {
         if (!this.states.has(record.id)) {
           this.states.set(record.id, {

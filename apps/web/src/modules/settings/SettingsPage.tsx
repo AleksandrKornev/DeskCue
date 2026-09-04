@@ -1,5 +1,7 @@
 import clsx from "clsx";
 import { observer } from "mobx-react-lite";
+import type { FocusEvent } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 
 import {
@@ -13,6 +15,10 @@ import { SegmentedTabs } from "@components/SegmentedTabs";
 import { AccessSettingsTab } from "./access/AccessSettingsTab";
 import { DevicePairingDialog } from "./access/components/DevicePairingDialog";
 import { SettingsPageProvider, useSettingsPageContext } from "./context";
+import {
+  observeSettingsActionBarFocusVisibility,
+  scheduleSettingsFocusVisibility
+} from "./focusVisibility";
 import { settingsTabs } from "./helpers";
 import { NotificationSettingsTab } from "./notifications/NotificationSettingsTab";
 import { CustomStorageLimitDialog } from "./storage/components/CustomStorageLimitDialog";
@@ -20,6 +26,17 @@ import { StorageSettingsTab } from "./storage/StorageSettingsTab";
 import styles from "./styles.module.scss";
 import { SystemSettingsTab } from "./system/SystemSettingsTab";
 import { useSettingsPageStore } from "./useSettingsPageStore";
+
+const SETTINGS_ACTION_BAR_SELECTOR = "[data-settings-action-bar]";
+
+function handleSettingsFocusCapture(event: FocusEvent<HTMLElement>) {
+  scheduleSettingsFocusVisibility({
+    actionBarSelector: SETTINGS_ACTION_BAR_SELECTOR,
+    page: event.currentTarget,
+    stickyNavigationSelector: `.${styles.settingsTabs}`,
+    target: event.target
+  });
+}
 
 const SettingsPageContent = observer(function SettingsPageContent() {
   const {
@@ -30,18 +47,34 @@ const SettingsPageContent = observer(function SettingsPageContent() {
   } = useSettingsPageContext();
   const daemonWebOrigin = readCurrentDaemonWebOrigin();
   const daemonPort = readDaemonUrlPort(daemonWebOrigin);
-  const hasSettingsActionBar =
-    activeTab === "access" || activeTab === "notifications" || activeTab === "system";
+  const hasSettingsActionBar = activeTab === "access";
+  const pageRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const page = pageRef.current;
+
+    if (!page) return;
+
+    return observeSettingsActionBarFocusVisibility({
+      actionBarSelector: SETTINGS_ACTION_BAR_SELECTOR,
+      page,
+      stickyNavigationSelector: `.${styles.settingsTabs}`
+    });
+  }, []);
 
   return (
-    <main className={clsx(styles.page, hasSettingsActionBar && styles.pageWithActionBar)}>
+    <main
+      className={clsx(styles.page, hasSettingsActionBar && styles.pageWithActionBar)}
+      onFocusCapture={handleSettingsFocusCapture}
+      ref={pageRef}
+    >
       <header className={styles.header}>
         <div className={styles.headerCopy}>
           <Link className={styles.logoLink} to="/" aria-label="Back to DeskCue dashboard">
             <DeskCueWordmark className={styles.logoWordmark} />
           </Link>
           <h1>Settings</h1>
-          <p>Connections, local data, notifications, and system controls for this browser</p>
+          <p>Connections, local data, notifications, and system controls</p>
           <div className={styles.headerMeta} aria-label="Local service details">
             <span title={`Local service endpoint: ${daemonWebOrigin}`}>
               {daemonPort ? `Port ${daemonPort}` : daemonWebOrigin}
@@ -64,7 +97,7 @@ const SettingsPageContent = observer(function SettingsPageContent() {
           ariaLabel="Settings sections"
           className={styles.settingsTabs}
           idPrefix="settings"
-          mobileLayout="fill"
+          mobileLayout="scroll"
           options={settingsTabs}
           onSelectTab={handleSelectSettingsTab}
         />
@@ -88,12 +121,8 @@ const SettingsPageContent = observer(function SettingsPageContent() {
 
       <CustomStorageLimitDialog
         customStorageMaxMb={storageStore.customStorageMaxMb}
-        disabled={
-          storageStore.savingStorageBudget ||
-          storageStore.daemonSettings?.sources.storageMaxMb.source === "env"
-        }
-
         isOpen={storageStore.isCustomStorageLimitDialogOpen}
+        locked={storageStore.daemonSettings?.sources.storageMaxMb.source === "env"}
         savingStorageBudget={storageStore.savingStorageBudget}
         onClose={storageStore.closeCustomStorageLimitDialog}
         onCustomStorageMaxMbChange={storageStore.setCustomStorageMaxMb}

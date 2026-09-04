@@ -1,6 +1,10 @@
 @use "@assets/mixins" as *;
 @use "@assets/variables" as vars;
 
+.agentBrowserFocusRoot {
+  display: contents;
+}
+
 .panel {
   display: flex;
   flex-direction: column;
@@ -21,9 +25,23 @@
   padding: 16px 18px 0;
 }
 
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .panelHeader h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.12rem;
+}
+
+.panelHeader h2[tabindex="-1"]:focus,
+.emptyState strong[tabindex="-1"]:focus {
+  border-radius: vars.$radius-sm;
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 4px;
 }
 
 .panelHeader p {
@@ -79,8 +97,8 @@
   padding: 0 vars.$control-padding-inline;
   border: 1px solid vars.$color-border-subtle;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.03);
-  color: #d2ccc3;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-dialog-secondary;
 }
 
 .sourceTab span {
@@ -91,21 +109,21 @@
   min-height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #d2ccc3;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-dialog-secondary;
 }
 
 .sourceTabActive {
-  border-color: rgba(214, 164, 103, 0.52);
-  background: rgba(214, 164, 103, 0.11);
-  color: #f2e0c2;
+  border-color: vars.$color-border-accent-hover;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
 
   @include selected-state;
 }
 
 .sourceTabActive span {
-  background: rgba(214, 164, 103, 0.18);
-  color: #f2e0c2;
+  background: vars.$color-surface-accent-hover;
+  color: vars.$color-accent-text;
 }
 
 @media (forced-colors: active) {
@@ -119,7 +137,7 @@
   width: 17px;
   height: 17px;
   flex: 0 0 auto;
-  color: #d8dbe2;
+  color: vars.$color-text-dialog-secondary;
 }
 
 .sourceTabIcon[data-runtime-icon="claude-code"] {
@@ -128,10 +146,10 @@
 
 .field {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control-strong;
   border-radius: vars.$radius-md;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: vars.$color-surface-raised;
   color: inherit;
 }
 
@@ -153,8 +171,8 @@
   width: 16px;
   height: 16px;
   margin-top: -8px;
-  border: 2px solid rgba(163, 178, 203, 0.32);
-  border-top-color: #c8d7f6;
+  border: 2px solid vars.$color-text-disabled;
+  border-top-color: vars.$color-status-info;
   border-radius: 999px;
   animation: searchSpin 0.9s linear infinite;
   pointer-events: none;
@@ -183,7 +201,7 @@
 
 .searchClear:hover {
   color: vars.$color-text-primary;
-  background: rgba(255, 255, 255, 0.06);
+  background: vars.$color-surface-control-hover;
 }
 
 @keyframes searchSpin {

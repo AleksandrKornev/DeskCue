@@ -24,6 +24,7 @@ export function usePreviewTicket(
   const [state, setState] = useState<PreviewTicketState>(createEmptyPreviewTicketState);
   const operationRef = useRef(0);
   const retryStateRef = useRef({ failures: 0, key: "" });
+  const validationKeyRef = useRef("");
   const hasObservedLiveConnectionRef = useRef(connectionStatus === "live");
   const previousConnectionStatusRef = useRef(connectionStatus);
   const owner = resolvePreviewOwner(session);
@@ -61,6 +62,7 @@ export function usePreviewTicket(
     if (!ownerKind || !ownerId) {
       operationRef.current += 1;
       retryStateRef.current = { failures: 0, key: "" };
+      validationKeyRef.current = "";
       setState(createEmptyPreviewTicketState());
       return;
     }
@@ -74,16 +76,29 @@ export function usePreviewTicket(
 
     const operation = ++operationRef.current;
     const controller = new AbortController();
+    const isValidation = validationKeyRef.current === ownerKey;
     let refreshTimer: number | null = null;
+
+    if (isValidation) validationKeyRef.current = "";
 
     setState((current) => {
       const sameOwner = current.key.startsWith(`${ownerIdentity}:`);
 
-      if (current.key === ownerKey || (sameOwner && current.url)) {
+      if (current.key === ownerKey) {
         return {
           ...current,
+          error: isValidation ? "" : current.error,
           key: ownerKey,
-          loading: !current.url && !current.error
+          loading: isValidation || (!current.url && !current.error)
+        };
+      }
+
+      if (sameOwner && current.url) {
+        return {
+          ...current,
+          error: "",
+          key: ownerKey,
+          loading: true
         };
       }
 
@@ -107,7 +122,7 @@ export function usePreviewTicket(
           current.resolvedCredentialRevision !== ticket.credentialRevision;
         return {
           documentRevision:
-            routingChanged || credentialChanged
+            routingChanged || credentialChanged || isValidation
               ? current.documentRevision + 1
               : current.documentRevision,
           error: "",
@@ -138,7 +153,7 @@ export function usePreviewTicket(
       setState((current) => {
         if (operationRef.current !== operation || current.key !== ownerKey) return current;
 
-        if (current.url && current.resolvedKey === ownerKey) {
+        if (!isValidation && current.url && current.resolvedKey === ownerKey) {
           return {
             ...current,
             error: "",
@@ -170,6 +185,18 @@ export function usePreviewTicket(
 
   const retry = useCallback(() => {
     retryStateRef.current = { failures: 0, key: ownerKey };
+    setState((current) => current.key === ownerKey && current.error
+      ? { ...current, error: "", loading: true }
+      : current);
+    setRefreshVersion((current) => current + 1);
+  }, [ownerKey]);
+
+  const validate = useCallback(() => {
+    retryStateRef.current = { failures: 0, key: ownerKey };
+    validationKeyRef.current = ownerKey;
+    setState((current) => current.key === ownerKey
+      ? { ...current, error: "", loading: true }
+      : current);
     setRefreshVersion((current) => current + 1);
   }, [ownerKey]);
   const hasVisibleOwnerState = Boolean(ownerIdentity) &&
@@ -180,6 +207,7 @@ export function usePreviewTicket(
     error: state.key === ownerKey ? state.error : "",
     loading: state.key === ownerKey && state.loading,
     retry,
+    validate,
     url: hasVisibleOwnerState ? state.url : null
   };
 }

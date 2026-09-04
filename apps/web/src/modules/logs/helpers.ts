@@ -13,9 +13,19 @@ export function formatLogTimestamp(timestamp: string | null | undefined) {
   }
 
   const date = new Date(timestamp);
+
   if (Number.isNaN(date.getTime())) {
     return timestamp;
   }
 
   return localTimestampFormatter.format(date);
+}
+
+export function formatLogSourcePath(filePath: string) {
+  const separator = filePath.includes("\\") ? "\\" : "/";
+  const segments = filePath.split(/[\\/]/).filter(Boolean);
+
+  if (segments.length <= 3) return filePath;
+
+  return `…${separator}${segments.slice(-2).join(separator)}`;
 }

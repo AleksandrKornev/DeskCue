@@ -4,6 +4,7 @@ import type {
 } from "@deskcue/protocol";
 
 export type AccessDeviceListProps = {
+  connectionRevision: number;
   currentAccess: CurrentAccessState | null;
   devices: AccessDeviceSummary[];
   forgettingCurrentBrowser: boolean;

@@ -2,32 +2,45 @@
 
 .attentionSections {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 10px;
   margin: 0 0 14px;
 }
 
 .attentionSection {
   display: grid;
+  align-content: start;
   gap: 8px;
   padding: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
+}
+
+.attentionSection:only-child,
+.attentionSection:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.attentionSection:only-child .attentionCards,
+.attentionSection:last-child:nth-child(odd) .attentionCards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .attentionSection_active {
-  border-color: rgba(76, 217, 129, 0.28);
-  background: linear-gradient(90deg, rgba(76, 217, 129, 0.09), rgba(76, 217, 129, 0) 58%);
+  border-color: vars.$color-border-success;
+  background: vars.$color-surface-success;
 }
 
 .attentionSection_waiting {
-  border-color: rgba(214, 164, 103, 0.36);
-  background: linear-gradient(90deg, rgba(214, 164, 103, 0.11), rgba(214, 164, 103, 0) 58%);
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-warning;
 }
 
 .attentionSection_review {
-  border-color: rgba(122, 159, 239, 0.34);
-  background: linear-gradient(90deg, rgba(122, 159, 239, 0.11), rgba(122, 159, 239, 0) 58%);
+  border-color: vars.$color-border-info;
+  background: vars.$color-surface-info;
 }
 
 .attentionSectionHeader {
@@ -35,6 +48,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-height: 34px;
   width: 100%;
   padding: 0;
   border: 0;
@@ -57,7 +71,7 @@
   min-height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
+  background: vars.$color-surface-control-hover;
   color: vars.$color-text-secondary;
   font-size: 0.75rem;
 }
@@ -84,8 +98,48 @@
 }
 
 @media (max-width: 720px) {
+  .attentionSections {
+    grid-template-columns: 1fr;
+  }
+
+  .attentionSection {
+    gap: 4px;
+    padding-block: 0 11px;
+  }
+
+  .attentionSection:has(.attentionSectionHeader[aria-expanded="false"]) {
+    padding-bottom: 0;
+  }
+
   .attentionSectionHeader {
     min-height: 44px;
+  }
+
+  .attentionSection:only-child .attentionCards,
+  .attentionSection:last-child:nth-child(odd) .attentionCards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 380px) {
+  .attentionSections {
+    gap: 6px;
+  }
+
+  .attentionSection {
+    padding: 0 10px 10px;
+  }
+
+  .attentionCardIdentity {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 }
 
@@ -99,30 +153,31 @@
   gap: 4px;
   width: 100%;
   padding: 10px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 12px;
-  background: rgba(8, 11, 16, 0.42);
+  background: vars.$color-surface-preview-panel;
   color: inherit;
   text-align: left;
 }
 
 .attentionCardSelected {
-  border-color: rgba(214, 164, 103, 0.72);
-  box-shadow: inset 0 0 0 1px rgba(214, 164, 103, 0.35);
+  border-color: vars.$color-accent;
+  box-shadow: inset 0 0 0 1px vars.$color-border-accent;
 }
 
-.attentionCard strong {
-  overflow: hidden;
+.attentionCardTitle {
+  display: block;
+  min-width: 0;
   color: vars.$color-text-primary;
   font-size: 0.88rem;
   line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .attentionCardContext {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
 }
@@ -134,11 +189,11 @@
   flex: 0 0 auto;
   min-height: 20px;
   padding: 0 7px;
-  border: 1px solid rgba(174, 184, 201, 0.18);
+  border: 1px solid vars.$color-border-control;
   border-radius: 999px;
-  background: rgba(174, 184, 201, 0.1);
-  color: #d0d6e0;
-  font-size: 0.69rem;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-dialog-secondary;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.01em;
   line-height: 1;
@@ -148,7 +203,7 @@
   width: 13px;
   height: 13px;
   flex: 0 0 auto;
-  color: #d8dde6;
+  color: vars.$color-text-dialog-secondary;
 }
 
 .attentionCardRuntimePill[data-attention-runtime-icon="claude-code"] svg {
@@ -156,9 +211,19 @@
 }
 
 .attentionCardWorkspace {
-  overflow: hidden;
+  min-width: 0;
   color: vars.$color-text-muted;
   font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.attentionCardIdentity {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: vars.$color-text-muted;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 0.7rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -167,16 +232,16 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #d6a467;
-  font-size: 0.74rem;
+  color: vars.$color-status-warning;
+  font-size: 0.75rem;
 }
 
 .attentionSection_active .attentionCardStatus {
-  color: #7ee39d;
+  color: vars.$color-status-success;
 }
 
 .attentionSection_review .attentionCardStatus {
-  color: #9fb7ff;
+  color: vars.$color-status-info;
 }
 
 .attentionCardDot {
@@ -190,4 +255,10 @@
   margin: 0;
   color: vars.$color-text-muted;
   font-size: 0.76rem;
+}
+
+@media (max-height: 520px) and (max-width: 1120px) {
+  .attentionSectionHeader {
+    min-height: 44px;
+  }
 }

@@ -1,9 +1,8 @@
 import clsx from "clsx";
 import { createPortal } from "react-dom";
 
-import CloseIcon from "@assets/images/icon-close.svg?react";
 import { useBottomSheetDrag } from "@components/BottomSheet";
-import { useModalFocusLifecycle } from "@components/Modal";
+import { ModalCloseButton, useModalFocusLifecycle } from "@components/Modal";
 import {
   getDiffLineMarker,
   getDiffLineTone,
@@ -69,19 +68,13 @@ export function TranscriptDiffModal({
           </div>
           <div className={styles.dialogHeaderActions}>
             <span
+              aria-hidden="true"
               className={clsx(styles.diffStatus, diffStatusClassByChangeType[group.changeType])}
             >
               {getDiffStatusLetter(group.changeType)}
             </span>
             <DiffStats group={group} />
-            <button
-              aria-label="Close diff"
-              className={styles.dialogIconClose}
-              onClick={onClose}
-              type="button"
-            >
-              <CloseIcon className={styles.dialogCloseIcon} aria-hidden="true" focusable="false" />
-            </button>
+            <ModalCloseButton label="Close diff" onClick={onClose} />
           </div>
         </div>
 

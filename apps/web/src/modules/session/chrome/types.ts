@@ -29,7 +29,7 @@ export interface LiveSessionActionsProps {
   onStopAndExitSession?: () => void | Promise<void>;
   onToggleModelContext?: () => void;
   onOpenDiagnostics?: () => void;
-  onToggleTools?: () => void;
+  onToggleTools?: (options?: { replace?: boolean }) => void;
 }
 
 export type LiveSessionHeaderProps = {
@@ -39,6 +39,7 @@ export type LiveSessionHeaderProps = {
   agentLabel?: string;
   navigationCapabilities: SessionNavigationCapabilities;
   contextCompactionCount: number;
+  exitLabel?: string;
   isAgentChat: boolean;
   liveUpdatesConnection: LiveUpdatesConnectionState;
   metaItem?: ReactNode;

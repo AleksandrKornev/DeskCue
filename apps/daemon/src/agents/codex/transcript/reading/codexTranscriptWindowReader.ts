@@ -27,8 +27,42 @@ import type { TranscriptSlice } from "./projection/codexTranscriptProjection.ts"
 
 type TranscriptWindowIo = ReturnType<typeof createCodexTranscriptWindowIo>;
 
+async function readCompactTranscriptTailByChatMessageIndex(
+  windowIo: TranscriptWindowIo,
+  filePath: string,
+  fileStat: Stats,
+  requiredChatMessageLines: number,
+  sessionId: string
+) {
+  if (requiredChatMessageLines <= 0) return null;
+
+  const snapshot = await windowIo.readTranscriptLineIndexSnapshot(filePath, fileStat, {
+    requireChatMessageOffsets: true,
+    requireLineHints: true,
+    requireOffsets: true
+  });
+  const chatMessageLineOffsets = snapshot.chatMessageLineOffsets;
+
+  if (!chatMessageLineOffsets?.length) return null;
+
+  const startOffset = chatMessageLineOffsets[Math.max(
+    0,
+    chatMessageLineOffsets.length - requiredChatMessageLines
+  )];
+
+  if (!startOffset) return null;
+
+  return readCompactTranscriptLinesFromIndexedHints(
+    filePath,
+    snapshot,
+    startOffset,
+    sessionId
+  );
+}
+
 export function countTranscriptSliceChatMessageLines(transcriptSlice: TranscriptSlice) {
   if (transcriptSlice.raw !== undefined) return countCodexChatMessageLines(transcriptSlice.raw);
+
   return (transcriptSlice.lines ?? []).filter(({ line }) => isCodexChatMessageLine(line)).length;
 }
 
@@ -38,20 +72,30 @@ function transcriptEntryReferencesSourceLine(
   lineIndex: number
 ) {
   const sourceEntryId = `${windowSessionId}-${lineIndex}`;
+
   if (entry.sourceEntryIds?.includes(sourceEntryId)) return true;
+
   const sourcePrefix = `${windowSessionId}-`;
+
   return [...(entry.sourceEntryRanges ?? []), ...(entry.sourceEntrySpans ?? [])].some((range) =>
     range.prefix === sourcePrefix && range.start <= lineIndex && range.end >= lineIndex
   );
 }
 
-export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) {
-  async function getCodexTranscriptWindowFromByteOffset(
+class CodexTranscriptWindowReader {
+  readonly #windowIo: TranscriptWindowIo;
+
+  constructor(windowIo: TranscriptWindowIo) {
+    this.#windowIo = windowIo;
+  }
+
+  readonly getCodexTranscriptWindowFromByteOffset = async (
     filePath: string,
     windowRef: NonNullable<ReturnType<typeof readCodexTranscriptWindowEntryRef>>,
     options: { maxLineCount?: number; overlapLineCount?: number }
-  ) {
+  ) => {
     const fileStat = await stat(filePath);
+
     if (windowRef.endByteOffset !== undefined && windowRef.endByteOffset > fileStat.size) return null;
     if (windowRef.byteOffset >= fileStat.size) return null;
 
@@ -63,6 +107,7 @@ export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) 
       windowRef.windowSessionId,
       windowRef.endByteOffset
     );
+
     if (
       options.maxLineCount &&
       transcriptSlice.readLineCount &&
@@ -72,6 +117,7 @@ export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) 
     const entries = parseTranscript(transcriptSlice, windowRef.windowSessionId);
     const filteredEntries = entries.filter((entry) => {
       const lineIndex = readTranscriptEntryLineIndex(entry);
+
       return lineIndex === null || lineIndex >= startLineIndex;
     });
 
@@ -79,16 +125,16 @@ export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) 
       entry.id === `${windowRef.windowSessionId}-${windowRef.lineIndex}` ||
       transcriptEntryReferencesSourceLine(entry, windowRef.windowSessionId, windowRef.lineIndex)
     ) ? filteredEntries : null;
-  }
+  };
 
-  async function readCompactTranscriptTail(
+  readonly readCompactTranscriptTail = async (
     filePath: string,
     fileStat: Stats,
     readBytes: number,
     sessionId: string
-  ) {
+  ) => {
     const tailStartByteOffset = Math.max(0, fileStat.size - readBytes);
-    const lineIndexSnapshot = await windowIo.readTranscriptLineIndexSnapshot(filePath, fileStat, {
+    const lineIndexSnapshot = await this.#windowIo.readTranscriptLineIndexSnapshot(filePath, fileStat, {
       requireLineHints: true,
       requireOffsets: true
     });
@@ -96,42 +142,59 @@ export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) 
       lineIndexSnapshot.lineOffsets,
       tailStartByteOffset
     );
+
     return (await readCompactTranscriptLinesFromIndexedHints(
       filePath,
       lineIndexSnapshot,
       tailStartOffset,
       sessionId
     )) ?? readCompactTranscriptLinesFromLineOffset(filePath, tailStartOffset, sessionId);
-  }
+  };
 
-  async function readCompactTranscriptTailWindowForLimits(
+  readonly readCompactTranscriptTailWindowForLimits = async (
     filePath: string,
     fileStat: Stats,
     sessionId: string,
     options: { chatMessageTail?: number }
-  ): Promise<{ transcriptSlice: TranscriptSlice } | null> {
+  ): Promise<{ transcriptSlice: TranscriptSlice } | null> => {
     const requiredLines = options.chatMessageTail && options.chatMessageTail > 0
       ? options.chatMessageTail * CODEX_CHAT_MESSAGE_LINE_READ_MULTIPLIER
       : 0;
+    const indexedTranscriptSlice = await readCompactTranscriptTailByChatMessageIndex(
+      this.#windowIo,
+      filePath,
+      fileStat,
+      requiredLines,
+      sessionId
+    );
+
+    if (indexedTranscriptSlice) return { transcriptSlice: indexedTranscriptSlice };
+
     const maxReadBytes = Math.min(fileStat.size, CODEX_CHAT_MESSAGE_TAIL_MAX_READ_BYTES);
     let readBytes = Math.min(fileStat.size, CODEX_TRANSCRIPT_TAIL_READ_BYTES);
     let lastWindow: { transcriptSlice: TranscriptSlice } | null = null;
 
     while (readBytes <= maxReadBytes) {
-      lastWindow = { transcriptSlice: await readCompactTranscriptTail(filePath, fileStat, readBytes, sessionId) };
+      lastWindow = {
+        transcriptSlice: await this.readCompactTranscriptTail(filePath, fileStat, readBytes, sessionId)
+      };
+
       if (requiredLines <= 0 || countTranscriptSliceChatMessageLines(lastWindow.transcriptSlice) >= requiredLines) {
         return lastWindow;
       }
+
       if (readBytes === maxReadBytes) break;
+
       readBytes = Math.min(
         Math.max(readBytes * 2, CODEX_TRANSCRIPT_EXPANDED_TAIL_READ_BYTES),
         maxReadBytes
       );
     }
-    return lastWindow;
-  }
 
-  async function readCompactTranscriptWindowBeforeByteOffset(
+    return lastWindow;
+  };
+
+  readonly readCompactTranscriptWindowBeforeByteOffset = async (
     filePath: string,
     sessionId: string,
     endByteOffset: number
@@ -139,7 +202,7 @@ export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) 
     transcriptSlice: TranscriptSlice;
     windowSessionId: string;
     windowStartByteOffset: number;
-  } | null> {
+  } | null> => {
     const maxReadBytes = Math.min(endByteOffset, CODEX_CHAT_MESSAGE_TAIL_MAX_READ_BYTES);
     let readBytes = Math.min(endByteOffset, CODEX_TRANSCRIPT_TAIL_READ_BYTES);
     let lastWindow: {
@@ -150,7 +213,7 @@ export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) 
 
     while (readBytes <= maxReadBytes) {
       const targetStartByteOffset = Math.max(0, endByteOffset - readBytes);
-      const windowStartByteOffset = await windowIo.findTranscriptTailWindowStartByteOffset(
+      const windowStartByteOffset = await this.#windowIo.findTranscriptTailWindowStartByteOffset(
         filePath,
         targetStartByteOffset,
         CODEX_TRANSCRIPT_TAIL_WINDOW_BACKTRACK_BYTES
@@ -166,23 +229,24 @@ export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) 
         windowSessionId,
         endByteOffset
       );
+
       lastWindow = { transcriptSlice, windowSessionId, windowStartByteOffset };
       if (countTranscriptSliceChatMessageLines(transcriptSlice) >= 1 || windowStartByteOffset === 0) {
         return lastWindow;
       }
+
       if (readBytes === maxReadBytes) break;
+
       readBytes = Math.min(
         Math.max(readBytes * 2, CODEX_TRANSCRIPT_EXPANDED_TAIL_READ_BYTES),
         maxReadBytes
       );
     }
-    return lastWindow;
-  }
 
-  return {
-    getCodexTranscriptWindowFromByteOffset,
-    readCompactTranscriptTail,
-    readCompactTranscriptTailWindowForLimits,
-    readCompactTranscriptWindowBeforeByteOffset
+    return lastWindow;
   };
+}
+
+export function createCodexTranscriptWindowReader(windowIo: TranscriptWindowIo) {
+  return new CodexTranscriptWindowReader(windowIo);
 }

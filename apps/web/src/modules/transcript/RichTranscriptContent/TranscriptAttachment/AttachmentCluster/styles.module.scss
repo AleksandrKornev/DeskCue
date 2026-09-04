@@ -42,7 +42,9 @@
   gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-inline: contain;
   padding-bottom: 1px;
+  scroll-snap-type: inline proximity;
 }
 
 .attachmentGroupDense .attachmentGroupRail {
@@ -59,6 +61,7 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.035);
   color: inherit;
+  scroll-snap-align: start;
 }
 
 .attachmentGroupDense .attachmentGroupItem {
@@ -110,6 +113,16 @@
   place-items: center;
 }
 
+.attachmentGroupItemBadgeLabel {
+  display: grid;
+  place-items: center;
+  color: rgba(201, 214, 255, 0.78);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .attachmentGroupSpinner {
   width: 18px;
   height: 18px;
@@ -140,7 +153,9 @@
 }
 
 .attachmentGroupItemBadgeLoading::before,
-.attachmentGroupItemBadgeLoading::after {
+.attachmentGroupItemBadgeLoading::after,
+.attachmentGroupItemBadgeLabel::before,
+.attachmentGroupItemBadgeLabel::after {
   content: none;
 }
 

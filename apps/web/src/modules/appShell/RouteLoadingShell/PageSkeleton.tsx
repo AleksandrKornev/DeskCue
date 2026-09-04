@@ -4,7 +4,7 @@ import styles from "./styles.module.scss";
 
 export function PageSkeleton() {
   return (
-    <section className={styles.pagePanel} aria-label="Loading page">
+    <section className={styles.pagePanel} aria-hidden="true">
       <div className={styles.panelIntro}>
         <span className={clsx(styles.line, styles.linePanelTitle)} />
         <span className={clsx(styles.line, styles.linePanelSubtitle)} />

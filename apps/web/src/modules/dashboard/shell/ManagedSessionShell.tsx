@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import type {
   AgentTranscriptChangesResponse,
@@ -22,6 +22,7 @@ export type ManagedSessionShellProps = {
   selectedSession: SessionDetail | null;
   takenOverAgentSession: AgentSessionDetail | null;
   agentTranscriptHasMoreById: Map<string, boolean>;
+  agentTranscriptHistoryIncompleteById: Map<string, boolean>;
   isTakenOverAgentSessionLoading: boolean;
   liveUpdatesConnection: LiveUpdatesConnectionState;
   activeTab: SessionTab;
@@ -33,6 +34,7 @@ export type ManagedSessionShellProps = {
   isInterruptingPrompt: boolean;
   immediateInterruptPrompt: PendingChatPrompt | null;
   showTools?: boolean;
+  onOpenSubagentSession: (parentSessionId: string, childSessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
   onSelectTab: (tab: SessionTab) => void;
   onSendInput: (instruction: string, options?: SendInputOptions) => Promise<boolean>;
@@ -50,13 +52,14 @@ export type ManagedSessionShellProps = {
   onStopSession: () => boolean | Promise<boolean>;
   onStopAndExitSession: () => void | Promise<void>;
   onExitSession: () => void;
+  exitLabel?: string;
   onRefreshGit: () => void;
   onRetrySessionLoad?: () => Promise<unknown>;
   onChangePreviewPort: (value: string) => void;
   onChangePreviewNetworkMode: (value: PreviewNetworkMode) => boolean | Promise<boolean>;
-  onSetPreview: (event: FormEvent<HTMLFormElement>) => void;
+  onSetPreview: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   onStopPreview: () => boolean | Promise<boolean>;
-  onToggleTools?: () => void;
+  onToggleTools?: (options?: { replace?: boolean }) => void;
 };
 
 export function ManagedSessionShell(props: ManagedSessionShellProps) {
@@ -64,6 +67,7 @@ export function ManagedSessionShell(props: ManagedSessionShellProps) {
     <ManagedSessionPanel
       {...props}
       activityHydrationRepository={agentChatDetailResource}
+      key={props.selectedSessionId}
     />
   );
 }

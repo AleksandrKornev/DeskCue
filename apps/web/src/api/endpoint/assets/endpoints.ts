@@ -1,7 +1,7 @@
 import type { CreateAssetTicketResponse } from "@deskcue/protocol";
 import { buildApiUrl } from "@api/connection/config";
 import {
-  getBlob,
+  getRangedBlob,
   getText,
   postApi
 } from "@api/transport/requests";
@@ -14,6 +14,7 @@ import type {
 } from "./types";
 
 export const LOCAL_ASSET_LINK_EXPIRY_LABEL = "15 minutes";
+export const LOCAL_ASSET_TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 
 export const assetsApi = {
   async createLocalAssetLink(
@@ -42,8 +43,8 @@ export const assetsApi = {
     return getText(previewUrl, `Unable to preview ${displayName}.`);
   },
 
-  getImageBlob(previewUrl: string, displayName: string) {
-    return getBlob(previewUrl, `Unable to preview ${displayName}.`);
+  getImageBlob(previewUrl: string, displayName: string, signal?: AbortSignal) {
+    return getRangedBlob(previewUrl, `Unable to preview ${displayName}.`, { signal });
   },
 
   async getTicketBlob(
@@ -51,14 +52,22 @@ export const assetsApi = {
     displayName: string,
     options?: FetchLocalAssetTicketBlobOptions
   ) {
-    const ticket = await assetsApi.createLocalAssetLink(assetPath, {
-      context: options?.context,
-      kind: options?.kind,
-      maxBytes: options?.maxBytes,
+    const hasSessionScope = Boolean(
+      options?.context?.agentSessionId || options?.context?.managedSessionId
+    );
+    const previewUrl = hasSessionScope
+      ? assetsApi.buildFileUrl(assetPath, { context: options?.context })
+      : (await assetsApi.createLocalAssetLink(assetPath, {
+          context: options?.context,
+          kind: options?.kind,
+          maxBytes: options?.maxBytes,
+          signal: options?.signal
+        })).url;
+
+    return getRangedBlob(previewUrl, `Unable to preview ${displayName}.`, {
+      maximumBytes: options?.maxBytes,
       signal: options?.signal
     });
-
-    return getBlob(ticket.url, `Unable to preview ${displayName}.`, { signal: options?.signal });
   },
 
   async getTicketText(
@@ -66,11 +75,23 @@ export const assetsApi = {
     displayName: string,
     options?: FetchLocalAssetTicketTextOptions
   ) {
-    const ticket = await assetsApi.createLocalAssetLink(assetPath, {
-      context: options?.context
+    const hasSessionScope = Boolean(
+      options?.context?.agentSessionId || options?.context?.managedSessionId
+    );
+    const previewUrl = hasSessionScope
+      ? assetsApi.buildFileUrl(assetPath, { context: options?.context })
+      : (await assetsApi.createLocalAssetLink(assetPath, {
+          context: options?.context,
+          maxBytes: options?.maxBytes ?? LOCAL_ASSET_TEXT_PREVIEW_MAX_BYTES,
+          signal: options?.signal
+        })).url;
+
+    const blob = await getRangedBlob(previewUrl, `Unable to preview ${displayName}.`, {
+      maximumBytes: options?.maxBytes ?? LOCAL_ASSET_TEXT_PREVIEW_MAX_BYTES,
+      signal: options?.signal
     });
 
-    return getText(ticket.url, `Unable to preview ${displayName}.`);
+    return blob.text();
   },
 
   buildFileUrl(assetPath: string, options?: BuildLocalAssetUrlOptions) {
@@ -78,6 +99,9 @@ export const assetsApi = {
       path: assetPath
     });
 
+    if (options?.context?.agentSessionId) query.set("agentSessionId", options.context.agentSessionId);
+    if (options?.context?.managedSessionId) query.set("managedSessionId", options.context.managedSessionId);
+    if (options?.context?.workspaceId) query.set("workspaceId", options.context.workspaceId);
     if (options?.download) query.set("download", "1");
 
     return buildApiUrl(`/api/assets/file?${query.toString()}`);

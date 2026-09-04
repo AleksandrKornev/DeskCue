@@ -23,8 +23,8 @@
   margin-top: 14px;
   padding: 14px 16px;
   border-radius: 16px;
-  background: rgba(179, 63, 63, 0.22);
-  color: #ffc3c3;
+  background: vars.$color-surface-danger-strong;
+  color: vars.$color-status-danger;
 }
 
 @media (min-width: 1600px) {
@@ -103,5 +103,11 @@
   .appShell.embedded,
   .appShell.embedded.focusedChat {
     padding: 14px;
+  }
+}
+
+@media (max-height: 520px) and (max-width: 1120px) {
+  .appShell {
+    padding: 8px 10px 12px;
   }
 }

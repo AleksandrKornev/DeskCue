@@ -19,6 +19,7 @@ export type ManagedSessionNativeScrollScheduler = {
 export type ManagedSessionNativeScrollController = {
   dispose: () => void;
   handlers: {
+    onKeyDown: (key: string, shiftKey: boolean) => void;
     onPointerDown: (clientY: number) => void;
     onPointerEnd: () => void;
     onPointerMove: (clientY: number) => void;
@@ -86,339 +87,352 @@ export function shouldReleaseAutoStickForNativeScroll({
   return isScrollingTowardHistoryGate && hasRecentUserScrollIntent;
 }
 
-export function createManagedSessionNativeScrollController(
-  options: ManagedSessionNativeScrollControllerOptions
-): ManagedSessionNativeScrollController {
-  const { scheduler } = options;
-  let disposed = false;
-  let pendingAutoLoadTimeout: number | null = null;
-  let pendingIntentAnimationFrame: number | null = null;
-  let lastScrollTop = options.getChatScrollMetrics()?.scrollTop ?? null;
-  let lastHistoryGateIntentAt = 0;
-  let lastUserScrollIntentAt = 0;
-  let touchStartClientY: number | null = null;
-  let pointerStartClientY: number | null = null;
+export function isChatAtBottom(metrics: ChatScrollMetrics) {
+  return metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight <= 1;
+}
 
-  const clearPendingAutoLoad = () => {
-    if (pendingAutoLoadTimeout === null) {
-      return;
-    }
+class ManagedSessionNativeScrollControllerImpl implements ManagedSessionNativeScrollController {
+  private disposed = false;
+  private pendingAutoLoadTimeout: number | null = null;
+  private pendingIntentAnimationFrame: number | null = null;
+  private lastScrollTop: number | null;
+  private lastHistoryGateIntentAt = 0;
+  private lastUserScrollIntentAt = 0;
+  private touchStartClientY: number | null = null;
+  private pointerStartClientY: number | null = null;
 
-    scheduler.clearTimeout(pendingAutoLoadTimeout);
-    pendingAutoLoadTimeout = null;
-    options.updateHistoryAutoLoadPending(false);
+  readonly handlers = {
+    onKeyDown: (key: string, shiftKey: boolean) => this.handleKeyDown(key, shiftKey),
+    onPointerDown: (clientY: number) => this.handlePointerDown(clientY),
+    onPointerEnd: () => this.handlePointerEnd(),
+    onPointerMove: (clientY: number) => this.handlePointerMove(clientY),
+    onScroll: () => this.handleNativeScroll(),
+    onTouchEnd: () => this.handleTouchEnd(),
+    onTouchMove: (clientY: number | undefined) => this.handleTouchMove(clientY),
+    onTouchStart: (clientY: number | null) => this.handleTouchStart(clientY),
+    onWheel: (deltaY: number) => this.handleWheel(deltaY)
   };
 
-  const clearPendingIntentAnimationFrame = () => {
-    if (pendingIntentAnimationFrame === null) {
-      return;
-    }
+  constructor(private readonly options: ManagedSessionNativeScrollControllerOptions) {
+    this.lastScrollTop = options.getChatScrollMetrics()?.scrollTop ?? null;
+  }
 
-    scheduler.cancelAnimationFrame(pendingIntentAnimationFrame);
-    pendingIntentAnimationFrame = null;
-  };
+  dispose() {
+    if (this.disposed) return;
 
-  const hasRecentUserScrollIntent = () =>
-    hasRecentChatUserScrollIntent({
-      lastIntentAt: lastUserScrollIntentAt,
-      now: scheduler.now()
-    });
+    this.disposed = true;
+    this.clearPendingAutoLoad();
+    this.clearPendingIntentAnimationFrame();
+  }
 
-  const syncStateFromMetrics = (metrics: ChatScrollMetrics) => {
+  private clearPendingAutoLoad() {
+    if (this.pendingAutoLoadTimeout === null) return;
+
+    this.options.scheduler.clearTimeout(this.pendingAutoLoadTimeout);
+    this.pendingAutoLoadTimeout = null;
+    this.options.updateHistoryAutoLoadPending(false);
+  }
+
+  private clearPendingIntentAnimationFrame() {
+    if (this.pendingIntentAnimationFrame === null) return;
+
+    this.options.scheduler.cancelAnimationFrame(this.pendingIntentAnimationFrame);
+    this.pendingIntentAnimationFrame = null;
+  }
+
+  private hasRecentUserScrollIntent() {
+    return (
+      hasRecentChatUserScrollIntent({
+        lastIntentAt: this.lastUserScrollIntentAt,
+        now: this.options.scheduler.now()
+      })
+    );
+  }
+
+  private syncStateFromMetrics(metrics: ChatScrollMetrics) {
     const nextShowScrollToLatest = shouldShowScrollToLatest(metrics);
 
     if (!nextShowScrollToLatest) {
-      options.setShouldStickToBottom(true);
-      options.updateShowScrollToLatest(false);
+      if (isChatAtBottom(metrics)) this.options.setShouldStickToBottom(true);
+
+      this.options.updateShowScrollToLatest(false);
       return;
     }
 
     if (
       shouldKeepAutoStickForNativeScroll({
-        allowAutoStickRelease: options.getAllowAutoStickRelease(),
-        hasRecentUserScrollIntent: hasRecentUserScrollIntent(),
+        allowAutoStickRelease: this.options.getAllowAutoStickRelease(),
+        hasRecentUserScrollIntent: this.hasRecentUserScrollIntent(),
         isAwayFromBottom: nextShowScrollToLatest,
-        shouldStickToBottom: options.getShouldStickToBottom()
+        shouldStickToBottom: this.options.getShouldStickToBottom()
       })
     ) {
-      options.setShouldStickToBottom(true);
-      options.updateShowScrollToLatest(false);
+      this.options.setShouldStickToBottom(true);
+      this.options.updateShowScrollToLatest(false);
       return;
     }
 
-    options.setShouldStickToBottom(!nextShowScrollToLatest);
-    options.updateShowScrollToLatest(nextShowScrollToLatest);
-  };
+    this.options.setShouldStickToBottom(!nextShowScrollToLatest);
+    this.options.updateShowScrollToLatest(nextShowScrollToLatest);
+  }
 
-  const scheduleAutoLoadEarlier = (scheduledMetrics: ChatScrollMetrics) => {
+  private scheduleAutoLoadEarlier(scheduledMetrics: ChatScrollMetrics) {
     const scheduledScrollTop = scheduledMetrics.scrollTop;
-    clearPendingAutoLoad();
-    options.updateHistoryAutoLoadPending(true);
 
-    pendingAutoLoadTimeout = scheduler.setTimeout(() => {
-      pendingAutoLoadTimeout = null;
-      if (disposed) {
-        return;
-      }
+    this.clearPendingAutoLoad();
 
-      const metrics = options.getFreshChatScrollMetrics();
+    this.options.updateHistoryAutoLoadPending(true);
+
+    this.pendingAutoLoadTimeout = this.options.scheduler.setTimeout(() => {
+      this.pendingAutoLoadTimeout = null;
+      if (this.disposed) return;
+
+      const metrics = this.options.getFreshChatScrollMetrics();
+
       if (
         !metrics ||
         metrics.scrollTop > CHAT_HISTORY_LOAD_THRESHOLD_PX ||
         Math.abs(metrics.scrollTop - scheduledScrollTop) > 2 ||
-        !options.getHistoryAutoLoadArmed() ||
-        options.getPendingHistoryExpansion()
+        !this.options.getHistoryAutoLoadArmed() ||
+        this.options.getPendingHistoryExpansion()
       ) {
-        options.updateHistoryAutoLoadPending(false);
+        this.options.updateHistoryAutoLoadPending(false);
         return;
       }
 
-      options.loadEarlierHistoryFromMetrics(metrics);
-      options.updateHistoryAutoLoadPending(false);
+      this.options.loadEarlierHistoryFromMetrics(metrics);
+      this.options.updateHistoryAutoLoadPending(false);
     }, CHAT_HISTORY_AUTO_LOAD_IDLE_DELAY_MS);
-  };
+  }
 
-  const hasRecentHistoryGateIntent = () =>
-    scheduler.now() - lastHistoryGateIntentAt <=
-    CHAT_HISTORY_AUTO_LOAD_INTENT_WINDOW_MS;
+  private hasRecentHistoryGateIntent() {
+    return this.options.scheduler.now() - this.lastHistoryGateIntentAt <=
+      CHAT_HISTORY_AUTO_LOAD_INTENT_WINDOW_MS;
+  }
 
-  const rearmHistoryAutoLoadFromIntent = (metrics: ChatScrollMetrics) => {
+  private rearmHistoryAutoLoadFromIntent(metrics: ChatScrollMetrics) {
     if (
-      options.getHistoryAutoLoadArmed() ||
-      options.getPendingHistoryExpansion() ||
+      this.options.getHistoryAutoLoadArmed() ||
+      this.options.getPendingHistoryExpansion() ||
       metrics.scrollTop > CHAT_HISTORY_LOAD_THRESHOLD_PX ||
-      scheduler.now() < options.getHistoryAutoLoadRearmBlockedUntil() ||
-      !hasRecentHistoryGateIntent()
+      this.options.scheduler.now() < this.options.getHistoryAutoLoadRearmBlockedUntil() ||
+      !this.hasRecentHistoryGateIntent()
     ) {
       return false;
     }
 
-    options.setHistoryAutoLoadArmed(true);
+    this.options.setHistoryAutoLoadArmed(true);
     return true;
-  };
+  }
 
-  const scheduleHistoryAutoLoadFromIntent = () => {
-    if (!options.canRevealEarlierHistory) {
-      clearPendingAutoLoad();
+  private scheduleHistoryAutoLoadFromIntent() {
+    if (!this.options.canRevealEarlierHistory) {
+      this.clearPendingAutoLoad();
       return;
     }
 
-    const metrics = options.getFreshChatScrollMetrics();
-    if (!metrics || metrics.scrollTop > CHAT_HISTORY_LOAD_THRESHOLD_PX) {
-      return;
-    }
+    const metrics = this.options.getFreshChatScrollMetrics();
+
+    if (!metrics || metrics.scrollTop > CHAT_HISTORY_LOAD_THRESHOLD_PX) return;
 
     const blockedForMs =
-      options.getHistoryAutoLoadRearmBlockedUntil() - scheduler.now();
+      this.options.getHistoryAutoLoadRearmBlockedUntil() - this.options.scheduler.now();
     if (
       blockedForMs > 0 &&
-      !options.getHistoryAutoLoadArmed() &&
-      !options.getPendingHistoryExpansion()
+      !this.options.getHistoryAutoLoadArmed() &&
+      !this.options.getPendingHistoryExpansion()
     ) {
-      clearPendingAutoLoad();
-      options.updateHistoryAutoLoadPending(true);
-      pendingAutoLoadTimeout = scheduler.setTimeout(() => {
-        pendingAutoLoadTimeout = null;
-        if (disposed) {
-          return;
-        }
+      this.clearPendingAutoLoad();
+      this.options.updateHistoryAutoLoadPending(true);
+      this.pendingAutoLoadTimeout = this.options.scheduler.setTimeout(() => {
+        this.pendingAutoLoadTimeout = null;
+        if (this.disposed) return;
 
-        const nextMetrics = options.getFreshChatScrollMetrics();
+        const nextMetrics = this.options.getFreshChatScrollMetrics();
+
         if (
           !nextMetrics ||
           nextMetrics.scrollTop > CHAT_HISTORY_LOAD_THRESHOLD_PX ||
-          !hasRecentHistoryGateIntent() ||
-          options.getPendingHistoryExpansion()
+          !this.hasRecentHistoryGateIntent() ||
+          this.options.getPendingHistoryExpansion()
         ) {
-          options.updateHistoryAutoLoadPending(false);
+          this.options.updateHistoryAutoLoadPending(false);
           return;
         }
 
-        options.setHistoryAutoLoadArmed(true);
-        scheduleAutoLoadEarlier(nextMetrics);
+        this.options.setHistoryAutoLoadArmed(true);
+        this.scheduleAutoLoadEarlier(nextMetrics);
       }, blockedForMs);
       return;
     }
 
-    rearmHistoryAutoLoadFromIntent(metrics);
+    this.rearmHistoryAutoLoadFromIntent(metrics);
 
-    if (options.getHistoryAutoLoadArmed() && !options.getPendingHistoryExpansion()) {
-      scheduleAutoLoadEarlier(metrics);
+    if (this.options.getHistoryAutoLoadArmed() && !this.options.getPendingHistoryExpansion()) {
+      this.scheduleAutoLoadEarlier(metrics);
     }
-  };
+  }
 
-  const scheduleHistoryAutoLoadAfterNativeIntent = () => {
-    clearPendingIntentAnimationFrame();
-    pendingIntentAnimationFrame = scheduler.requestAnimationFrame(() => {
-      pendingIntentAnimationFrame = null;
-      if (!disposed) {
-        scheduleHistoryAutoLoadFromIntent();
-      }
+  private scheduleHistoryAutoLoadAfterNativeIntent() {
+    this.clearPendingIntentAnimationFrame();
+    this.pendingIntentAnimationFrame = this.options.scheduler.requestAnimationFrame(() => {
+      this.pendingIntentAnimationFrame = null;
+      if (!this.disposed) this.scheduleHistoryAutoLoadFromIntent();
     });
-  };
+  }
 
-  const markHistoryGateIntent = () => {
-    lastHistoryGateIntentAt = scheduler.now();
-  };
+  private markHistoryGateIntent() {
+    this.lastHistoryGateIntentAt = this.options.scheduler.now();
+  }
 
-  const markUserScrollIntent = () => {
-    lastUserScrollIntentAt = scheduler.now();
-  };
+  private markUserScrollIntent() {
+    this.lastUserScrollIntentAt = this.options.scheduler.now();
+  }
 
-  const releaseAutoStickForHistoryIntent = () => {
-    options.setAllowAutoStickRelease(true);
-    options.setShouldStickToBottom(false);
+  private releaseAutoStickForHistoryIntent() {
+    this.options.setAllowAutoStickRelease(true);
+    this.options.setShouldStickToBottom(false);
 
     const metrics =
-      options.getFreshChatScrollMetrics() ?? options.getChatScrollMetrics();
+      this.options.getFreshChatScrollMetrics() ?? this.options.getChatScrollMetrics();
     if (metrics) {
-      options.updateShowScrollToLatest(shouldShowScrollToLatest(metrics));
+      this.options.updateShowScrollToLatest(shouldShowScrollToLatest(metrics));
     }
-  };
+  }
 
-  const handleNativeScroll = () => {
-    if (disposed) {
-      return;
-    }
+  private handleNativeScroll() {
+    if (this.disposed) return;
 
     const metrics =
-      options.getFreshChatScrollMetrics() ?? options.getChatScrollMetrics();
-    if (!metrics) {
-      return;
-    }
-    const previousScrollTop = lastScrollTop;
-    lastScrollTop = metrics.scrollTop;
+      this.options.getFreshChatScrollMetrics() ?? this.options.getChatScrollMetrics();
+
+    if (!metrics) return;
+
+    const previousScrollTop = this.lastScrollTop;
+
+    this.lastScrollTop = metrics.scrollTop;
     const isScrollingTowardHistoryGate =
       previousScrollTop !== null && metrics.scrollTop < previousScrollTop - 1;
     const isScrollingAwayFromHistoryGate =
       previousScrollTop !== null && metrics.scrollTop > previousScrollTop + 1;
 
+    this.syncStateFromMetrics(metrics);
+
     if (
       shouldReleaseAutoStickForNativeScroll({
-        hasRecentUserScrollIntent: hasRecentUserScrollIntent(),
+        hasRecentUserScrollIntent: this.hasRecentUserScrollIntent(),
         isScrollingTowardHistoryGate
       })
     ) {
-      releaseAutoStickForHistoryIntent();
+      this.releaseAutoStickForHistoryIntent();
     }
-
-    syncStateFromMetrics(metrics);
 
     if (
       isScrollingTowardHistoryGate &&
       metrics.scrollTop <= CHAT_HISTORY_LOAD_THRESHOLD_PX * 2
     ) {
-      markHistoryGateIntent();
+      this.markHistoryGateIntent();
     }
 
     if (
       metrics.scrollTop > CHAT_HISTORY_LOAD_THRESHOLD_PX * 2 &&
       isScrollingAwayFromHistoryGate &&
-      scheduler.now() >= options.getHistoryAutoLoadRearmBlockedUntil()
+      this.options.scheduler.now() >= this.options.getHistoryAutoLoadRearmBlockedUntil()
     ) {
-      options.setHistoryAutoLoadArmed(true);
-      clearPendingAutoLoad();
+      this.options.setHistoryAutoLoadArmed(true);
+      this.clearPendingAutoLoad();
     }
 
     if (metrics.scrollTop > CHAT_HISTORY_LOAD_THRESHOLD_PX) {
-      clearPendingAutoLoad();
+      this.clearPendingAutoLoad();
       return;
     }
 
-    scheduleHistoryAutoLoadFromIntent();
-  };
+    this.scheduleHistoryAutoLoadFromIntent();
+  }
 
-  const handleHistoryGesture = () => {
-    markUserScrollIntent();
-    releaseAutoStickForHistoryIntent();
-    markHistoryGateIntent();
-    scheduleHistoryAutoLoadFromIntent();
-    scheduleHistoryAutoLoadAfterNativeIntent();
-  };
+  private handleHistoryGesture() {
+    this.markUserScrollIntent();
+    this.releaseAutoStickForHistoryIntent();
+    this.markHistoryGateIntent();
+    this.scheduleHistoryAutoLoadFromIntent();
+    this.scheduleHistoryAutoLoadAfterNativeIntent();
+  }
 
-  const handlePointerDown = (clientY: number) => {
-    if (disposed) {
-      return;
-    }
-    options.setAllowAutoStickRelease(true);
-    pointerStartClientY = clientY;
-  };
+  private handlePointerDown(clientY: number) {
+    if (this.disposed) return;
 
-  const handlePointerMove = (clientY: number) => {
-    if (disposed) {
-      return;
-    }
+    this.options.setAllowAutoStickRelease(true);
+    this.markUserScrollIntent();
+    this.pointerStartClientY = clientY;
+  }
+
+  private handleKeyDown(key: string, shiftKey: boolean) {
+    if (this.disposed) return;
+
+    const isHistoryNavigationKey =
+      key === "ArrowUp" ||
+      key === "Home" ||
+      key === "PageUp" ||
+      (key === " " && shiftKey);
+
+    if (isHistoryNavigationKey) this.handleHistoryGesture();
+  }
+
+  private handlePointerMove(clientY: number) {
+    if (this.disposed) return;
+
     if (
-      pointerStartClientY === null ||
-      clientY <= pointerStartClientY + 8
+      this.pointerStartClientY === null ||
+      clientY <= this.pointerStartClientY + 8
     ) {
       return;
     }
 
-    handleHistoryGesture();
-  };
+    this.handleHistoryGesture();
+  }
 
-  const handlePointerEnd = () => {
-    pointerStartClientY = null;
-  };
+  private handlePointerEnd() {
+    this.pointerStartClientY = null;
+  }
 
-  const handleTouchStart = (clientY: number | null) => {
-    if (disposed) {
-      return;
-    }
-    options.setAllowAutoStickRelease(true);
-    touchStartClientY = clientY;
-  };
+  private handleTouchStart(clientY: number | null) {
+    if (this.disposed) return;
 
-  const handleTouchMove = (clientY: number | undefined) => {
-    if (disposed) {
-      return;
-    }
+    this.options.setAllowAutoStickRelease(true);
+    this.touchStartClientY = clientY;
+  }
+
+  private handleTouchMove(clientY: number | undefined) {
+    if (this.disposed) return;
+
     if (
-      touchStartClientY === null ||
+      this.touchStartClientY === null ||
       clientY === undefined ||
-      clientY <= touchStartClientY + 8
+      clientY <= this.touchStartClientY + 8
     ) {
       return;
     }
 
-    handleHistoryGesture();
-  };
+    this.handleHistoryGesture();
+  }
 
-  const handleTouchEnd = () => {
-    touchStartClientY = null;
-  };
+  private handleTouchEnd() {
+    this.touchStartClientY = null;
+  }
 
-  const handleWheel = (deltaY: number) => {
-    if (disposed) {
-      return;
-    }
-    options.setAllowAutoStickRelease(true);
-    if (deltaY >= 0) {
-      return;
-    }
+  private handleWheel(deltaY: number) {
+    if (this.disposed) return;
 
-    handleHistoryGesture();
-  };
+    this.options.setAllowAutoStickRelease(true);
+    if (deltaY >= 0) return;
 
-  return {
-    dispose() {
-      if (disposed) {
-        return;
-      }
-      disposed = true;
-      clearPendingAutoLoad();
-      clearPendingIntentAnimationFrame();
-    },
-    handlers: {
-      onPointerDown: handlePointerDown,
-      onPointerEnd: handlePointerEnd,
-      onPointerMove: handlePointerMove,
-      onScroll: handleNativeScroll,
-      onTouchEnd: handleTouchEnd,
-      onTouchMove: handleTouchMove,
-      onTouchStart: handleTouchStart,
-      onWheel: handleWheel
-    }
-  };
+    this.handleHistoryGesture();
+  }
+}
+
+export function createManagedSessionNativeScrollController(
+  options: ManagedSessionNativeScrollControllerOptions
+): ManagedSessionNativeScrollController {
+  return new ManagedSessionNativeScrollControllerImpl(options);
 }

@@ -96,6 +96,7 @@ describe("useSelectedManagedSessionController", () => {
       setSelectedWorkspaceId: vi.fn(),
       suppressManagedSessionAutoSelect: false
     };
+
     const { rerender } = renderHook(
       ({ activeTab }: { activeTab: SessionTab }) =>
         useSelectedManagedSessionController({
@@ -108,6 +109,7 @@ describe("useSelectedManagedSessionController", () => {
     await act(async () => {
       await Promise.resolve();
     });
+
     expect(loadSession).toHaveBeenCalledTimes(1);
     expect(loadSession).toHaveBeenLastCalledWith(selectedSession.id, {
       debugLogTail: 80,
@@ -119,6 +121,7 @@ describe("useSelectedManagedSessionController", () => {
     await act(async () => {
       await Promise.resolve();
     });
+
     rerender({ activeTab: "logs" });
     await act(async () => {
       await Promise.resolve();
@@ -134,6 +137,7 @@ describe("useSelectedManagedSessionController", () => {
 
   it("hydrates the diff view when Changes opens after a cached chat view", async () => {
     const loadSession = vi.fn(() => Promise.resolve(selectedSession));
+
     vi.spyOn(sessionsApi, "refreshGitWithMeta").mockResolvedValue({
       data: selectedSession,
       etag: null,
@@ -154,6 +158,7 @@ describe("useSelectedManagedSessionController", () => {
       setSelectedWorkspaceId: vi.fn(),
       suppressManagedSessionAutoSelect: false
     };
+
     const { rerender } = renderHook(
       ({ activeTab }: { activeTab: SessionTab }) => useSelectedManagedSessionController({
         ...stableProps,
@@ -165,6 +170,7 @@ describe("useSelectedManagedSessionController", () => {
     await act(async () => {
       await Promise.resolve();
     });
+
     rerender({ activeTab: "diff" });
     await act(async () => {
       await Promise.resolve();
@@ -209,6 +215,7 @@ describe("useSelectedManagedSessionController", () => {
       setSelectedWorkspaceId: vi.fn(),
       suppressManagedSessionAutoSelect: false
     };
+
     const initialProps: { session: SessionDetail } = { session: selectedSession };
     const { rerender } = renderHook(
       ({ session }: { session: SessionDetail }) => useSelectedManagedSessionController({
@@ -226,6 +233,7 @@ describe("useSelectedManagedSessionController", () => {
     expect(refreshGitWithMeta).toHaveBeenCalledWith(selectedSession.id, {
       view: "diff"
     });
+
     expect(setSelectedSession).toHaveBeenCalledWith(refreshedSession);
 
     rerender({ session: { ...refreshedSession } });
@@ -263,4 +271,40 @@ describe("useSelectedManagedSessionController", () => {
 
     expect(refreshGitWithMeta).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { kind: "error", message: "Safe recovery message" },
+    { kind: "missing" },
+    { kind: "retrying", message: "Safe recovery message" }
+  ] as const)(
+    "preserves the explicit route session during $kind recovery",
+    async (loadState) => {
+      const loadSession = vi.fn(() => Promise.resolve(null));
+      const setSelectedSessionId = vi.fn();
+
+      renderHook(() => useSelectedManagedSessionController({
+        activeTab: "overview",
+        initialManagedSessionLoadState: loadState,
+        isBootstrapping: false,
+        loadSession,
+        overview,
+        selectedAgentSessionId: "",
+        selectedSession: null,
+        selectedSessionId: "route-session",
+        selectedSessionIdRef: { current: "route-session" },
+        selectedWorkspaceId: selectedSession.workspaceId,
+        setSelectedSession: vi.fn(),
+        setSelectedSessionId,
+        setSelectedWorkspaceId: vi.fn(),
+        suppressManagedSessionAutoSelect: false
+      }));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(setSelectedSessionId).not.toHaveBeenCalled();
+      expect(loadSession).not.toHaveBeenCalled();
+    }
+  );
 });

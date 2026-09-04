@@ -12,7 +12,12 @@ export function ManagedSessionSurface({
     : "This is a manual command fallback. Keep it secondary unless no adapter exists yet";
 
   return (
-    <section className={isLiveChat ? styles.liveChatPanel : styles.panel}>
+    <section
+      aria-label="Session loaded"
+      className={isLiveChat ? styles.liveChatPanel : styles.panel}
+      id={`managed-session-recovered-${sessionShell.id}`}
+      tabIndex={-1}
+    >
       {!isLiveChat ? (
         <header className={styles.panelHeader}>
           <div>

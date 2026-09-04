@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { observer } from "mobx-react-lite";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isSubagentChat } from "@components/AgentChatBadge";
 import {
@@ -30,7 +30,9 @@ import {
 import { useExternalClaudeBackgroundStopCapability } from "./model/capabilities/useExternalClaudeBackgroundStopCapability";
 import { useManagedSessionPanelViewModel } from "./model/useManagedSessionPanelViewModel";
 import { SessionOpeningSkeleton } from "./skeleton";
+import type { SessionOpeningRetryContext } from "./skeleton";
 import styles from "./styles.module.scss";
+import { SubagentSessionsSupplement } from "./subagents";
 import {
   DiffTabPanel,
   FilesTabPanel,
@@ -38,6 +40,43 @@ import {
   PreviewTabPanel
 } from "./tabs";
 import type { ManagedSessionPanelProps } from "./types";
+
+type ArtifactReviewState = {
+  ownerSessionId: string | null;
+  path: string;
+};
+
+const RECOVERY_FOCUS_MAX_FRAMES = 8;
+
+function focusRecoveredManagedSession(
+  targetId: string,
+  retryContext: SessionOpeningRetryContext,
+  mountedRef: { current: boolean },
+  attempt = 0
+) {
+  window.requestAnimationFrame(() => {
+    if (!mountedRef.current || !retryContext.hasFocusOwnership()) return;
+
+    const activeElement = document.activeElement;
+    const focusReturnedToDocument =
+      activeElement === document.body || activeElement === document.documentElement;
+    const retryStillOwnsFocus = activeElement instanceof HTMLElement &&
+      activeElement.hasAttribute("data-session-retry-control");
+
+    if (!focusReturnedToDocument && !retryStillOwnsFocus) return;
+
+    const target = document.getElementById(targetId);
+
+    if (target) {
+      target.focus();
+      return;
+    }
+
+    if (attempt < RECOVERY_FOCUS_MAX_FRAMES) {
+      focusRecoveredManagedSession(targetId, retryContext, mountedRef, attempt + 1);
+    }
+  });
+}
 
 export const ManagedSessionPanel = observer(function ManagedSessionPanel(
   props: ManagedSessionPanelProps
@@ -51,6 +90,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     isBootstrapping,
     liveUpdatesConnection,
     showTools = false,
+    onOpenSubagentSession,
     onSelectSession,
     onSelectTab,
     onSendInput,
@@ -58,6 +98,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     onStopSession,
     onStopAndExitSession,
     onExitSession,
+    exitLabel,
     onRefreshGit,
     onRetrySessionLoad,
     onChangePreviewPort,
@@ -66,13 +107,26 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     onStopPreview,
     onToggleTools,
   } = props;
+  const mountedRef = useRef(true);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [artifactReviewPath, setArtifactReviewPath] = useState("");
+  const [artifactReviewState, setArtifactReviewState] = useState<ArtifactReviewState>({
+    ownerSessionId: selectedSessionId,
+    path: ""
+  });
   const runtime = useDeskCueRuntime();
   const layoutMode = useDeskCueLayoutMode();
+  const artifactReviewPath = artifactReviewState.ownerSessionId === selectedSessionId
+    ? artifactReviewState.path
+    : "";
 
   useEffect(() => {
-    setArtifactReviewPath("");
+    if (artifactReviewState.ownerSessionId === selectedSessionId) return;
+
+    setArtifactReviewState({ ownerSessionId: selectedSessionId, path: "" });
+  }, [artifactReviewState.ownerSessionId, selectedSessionId]);
+
+  const selectArtifactReviewPath = useCallback((path: string) => {
+    setArtifactReviewState({ ownerSessionId: selectedSessionId, path });
   }, [selectedSessionId]);
 
   const {
@@ -105,12 +159,14 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     previewError,
     previewLoading,
     previewRetry,
+    previewValidate,
     previewUrl,
     selectedSessionDetail,
     sessionShell,
     sharedSessionHint,
     sharedViewerCount,
     showModelContext,
+    sourceDiffDetailsUnavailable,
     sourceDiffParts,
     switchableManagedSessions,
     setShowModelContext
@@ -119,22 +175,25 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
   const baseNavigationCapabilities = sessionShell?.sourceSessionId
     ? sourceChatNavigationCapabilities
     : manualCommandNavigationCapabilities;
-  const navigationCapabilities = restrictSessionNavigationToRuntime({
-    ...baseNavigationCapabilities,
-    files: props.hasWorkspaceFiles ?? Boolean(sessionShell?.workspaceId),
-    preview:
-      props.hasPreview ??
-      Boolean(
-        sessionShell?.preview.active ||
-        (sessionShell?.workspaceId && !sessionShell.workspaceId.startsWith("local-runtime:"))
-      )
-  }, runtime.features);
+  const navigationCapabilities = restrictSessionNavigationToRuntime(
+    baseNavigationCapabilities,
+    runtime.features
+  );
   const canRefreshGit = runtime.features.gitRefresh === true;
   const launchSessionPreview = runtime.launchSessionPreview;
   const availableSessionTabs = getSessionTabsForCapabilities(navigationCapabilities);
   const hasPreviewTab = availableSessionTabs.some((tab) => tab.key === "preview");
   const effectiveActiveTab = resolveAvailableSessionTab(activeTab, availableSessionTabs);
   const navigationIdPrefix = `managed-session-${sessionShell?.id ?? selectedSessionId}`;
+  const recoveryFocusTargetId = `managed-session-recovered-${selectedSessionId}`;
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     setShowDiagnostics(false);
@@ -143,6 +202,18 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
   useEffect(() => {
     if (sessionShell && effectiveActiveTab !== activeTab) onSelectTab(effectiveActiveTab);
   }, [activeTab, effectiveActiveTab, onSelectTab, sessionShell]);
+
+  const retrySessionLoad = useCallback(async (retryContext: SessionOpeningRetryContext) => {
+    if (!onRetrySessionLoad) return null;
+
+    const result = await onRetrySessionLoad();
+
+    if (mountedRef.current && retryContext.hasFocusOwnership()) {
+      focusRecoveredManagedSession(recoveryFocusTargetId, retryContext, mountedRef);
+    }
+
+    return result;
+  }, [onRetrySessionLoad, recoveryFocusTargetId]);
 
   if (isBootstrapping && !selectedSessionId) return null;
 
@@ -159,8 +230,10 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
 
       {!sessionShell && selectedSessionId ? (
         <SessionOpeningSkeleton
+          key={selectedSessionId}
           errorMessage={props.sessionLoadError}
-          onRetry={onRetrySessionLoad}
+          onExit={onExitSession}
+          onRetry={onRetrySessionLoad ? retrySessionLoad : undefined}
         />
       ) : null}
 
@@ -202,6 +275,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                 status={liveHeaderStatus}
                 statusLabel={liveHeaderStatusLabel}
                 liveUpdatesConnection={liveUpdatesConnection}
+                exitLabel={exitLabel}
                 subtitle={liveSessionSubtitle}
                 title={liveSessionTitle}
                 toolbarRef={chatToolbarRef}
@@ -263,6 +337,16 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                   liveUpdatesConnection={liveUpdatesConnection}
                   sessionShell={sessionShell}
                   sharedViewerCount={sharedViewerCount}
+                  subagentSupplement={
+                    onOpenSubagentSession ? (
+                      <SubagentSessionsSupplement
+                        knownSessions={agentSessions}
+                        parentSessionId={takenOverAgentSession?.id ?? null}
+                        onOpenSubagentSession={onOpenSubagentSession}
+                      />
+                    ) : null
+                  }
+
                   threadProps={liveChatThreadProps}
                 />
               </div>
@@ -316,15 +400,17 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
               >
                 <DiffTabPanel
                   git={selectedSessionDetail?.git ?? null}
+                  key={sessionShell.id}
                   preferredFilePath={artifactReviewPath}
                   showWorkspaceGit
+                  sourceDiffDetailsUnavailable={sourceDiffDetailsUnavailable}
                   sourceDiffParts={sourceDiffParts}
                   onOpenFile={navigationCapabilities.files ? (path) => {
-                    setArtifactReviewPath(path);
+                    setArtifactReviewState({ ownerSessionId: selectedSessionId, path });
                     onSelectTab("files");
                   } : undefined}
                   onRefreshGit={canRefreshGit ? onRefreshGit : undefined}
-                  onSelectFile={setArtifactReviewPath}
+                  onSelectFile={selectArtifactReviewPath}
                 />
               </div>
             ) : null}
@@ -338,16 +424,17 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
               >
                 <FilesTabPanel
                   changedFiles={selectedSessionDetail?.git.changedFiles ?? []}
+                  key={sessionShell.id}
                   requestedPath={artifactReviewPath}
                   workspaceId={sessionShell.workspaceId?.startsWith("local-runtime:")
                     ? null
                     : sessionShell.workspaceId}
                   workspaceName={sessionShell.workspaceName}
                   onOpenChanges={(path) => {
-                    setArtifactReviewPath(path);
+                    setArtifactReviewState({ ownerSessionId: selectedSessionId, path });
                     onSelectTab("diff");
                   }}
-                  onSelectFile={setArtifactReviewPath}
+                  onSelectFile={selectArtifactReviewPath}
                 />
               </div>
             ) : null}
@@ -364,11 +451,10 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                 configuredPreviewPort={sessionShell.preview.port}
                 configuredPreviewNetworkMode={sessionShell.preview.networkMode}
                 hasSelectedSession={Boolean(selectedSessionDetail)}
+                key={sessionShell.id}
                 onChangePreviewPort={onChangePreviewPort}
                 onChangePreviewNetworkMode={onChangePreviewNetworkMode}
-                onReloadPreview={() => {
-                  previewReview.reload();
-                }}
+                onReloadPreview={previewValidate}
                 onLaunchPreview={launchSessionPreview && selectedSessionDetail
                   ? () => launchSessionPreview(selectedSessionDetail.id)
                   : undefined}

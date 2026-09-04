@@ -33,6 +33,7 @@ import {
   readCodexSessionDetailReadMode
 } from "./codex/codexFacade.ts";
 import { markSourceAgentDetailMetadata } from "./sourceAgentDetailMetadata.ts";
+import { readSpawnedSubagent } from "./sourceAgentSubagents.ts";
 
 export interface SourceAgentListContext {
   force: boolean;
@@ -145,7 +146,7 @@ function toAgentSessionObservedTurnState(turnState: SourceAgentTurnState) {
     evidence: turnState.evidence,
     fingerprint: turnState.fingerprint,
     phase: turnState.phase,
-    startedAt: null,
+    startedAt: turnState.startedAt,
     turnStartFingerprint: turnState.turnStartFingerprint
   };
 }
@@ -162,8 +163,13 @@ export function toCodexAgentSessionSummary(
     }
   }
 ): AgentSessionSummary {
+  const id = buildAgentSessionId(codexAdapter.id, session.id);
+  const parsedSubagent = readSpawnedSubagent("codex", session.source);
+  const subagent = parsedSubagent?.parentSessionId === id ? null : parsedSubagent;
+  const source = typeof session.source === "string" ? session.source : null;
+
   return {
-    id: buildAgentSessionId(codexAdapter.id, session.id),
+    id,
     agentId: "codex",
     agentLabel: getAgentLabel(codexAdapter.id),
     sourceSessionId: session.id,
@@ -174,7 +180,7 @@ export function toCodexAgentSessionSummary(
     model: session.model,
     originator: session.originator,
     cliVersion: session.cliVersion,
-    source: session.source,
+    source,
     filePath: session.filePath,
     contextCompactionCount: session.contextCompactionCount,
     approvalPolicy: session.approvalPolicy,
@@ -182,7 +188,8 @@ export function toCodexAgentSessionSummary(
     attachMode: attachState.mode,
     attachModeReason: attachState.reason,
     workState: toAgentSessionWorkState(attachState.turnState),
-    turnState: toAgentSessionObservedTurnState(attachState.turnState)
+    turnState: toAgentSessionObservedTurnState(attachState.turnState),
+    ...(subagent ? { subagent } : {})
   };
 }
 

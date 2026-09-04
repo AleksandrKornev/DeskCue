@@ -1,4 +1,4 @@
-import type { FormEvent, PropsWithChildren, ReactNode } from "react";
+import type { PropsWithChildren, ReactNode, SubmitEvent } from "react";
 
 import type {
   PreviewCandidate,
@@ -46,9 +46,10 @@ export type DiffTabPanelProps = {
   git: SessionDetail["git"] | null;
   preferredFilePath?: string;
   showWorkspaceGit?: boolean;
+  sourceDiffDetailsUnavailable?: boolean;
   sourceDiffParts: DiffPart[];
   onOpenFile?: (path: string) => void;
-  onRefreshGit?: () => void;
+  onRefreshGit?: () => void | Promise<void>;
   onSelectFile?: (path: string) => void;
 };
 
@@ -76,6 +77,6 @@ export type PreviewTabPanelProps = {
   onReloadPreview: () => void;
   onLaunchPreview?: () => Promise<void>;
   onRetryPreview: () => void;
-  onSetPreview: (event: FormEvent<HTMLFormElement>) => void;
+  onSetPreview: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   onStopPreview: () => boolean | Promise<boolean>;
 };

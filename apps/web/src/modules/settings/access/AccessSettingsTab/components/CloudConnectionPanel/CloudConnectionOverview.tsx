@@ -9,39 +9,9 @@ import {
 } from "./cloudConnectionPresentation";
 import styles from "./styles.module.scss";
 
-export function CloudConnectionOverview(props: {
-  connected: boolean;
-  enrollmentAttempt: CloudEnrollmentAttempt | null;
-  hasCloudProfile: boolean;
-  loading: boolean;
-  pendingEventCount: number;
-  statusAvailable: boolean;
-  state: CloudConnectorState | undefined;
-}) {
-  const dotClass = !props.statusAvailable || !props.hasCloudProfile
-    ? styles.buildDot
-    : props.connected
-      ? styles.buildDotConnected
-      : props.state === "revoked"
-        ? styles.buildDotRevoked
-        : styles.buildDotReconnecting;
-
+function CloudConnectionArchitecture() {
   return (
     <>
-      <div className={styles.buildNotice}>
-        <span className={dotClass} aria-hidden="true" />
-        <div>
-          <strong>{connectionHeading(
-            props.connected,
-            props.hasCloudProfile,
-            props.loading,
-            props.statusAvailable,
-            props.state
-          )}</strong>
-          <span>{connectionDescription(props)}</span>
-        </div>
-      </div>
-
       <section className={styles.modalSection}>
         <div className={styles.sectionHeading}>
           <span>Connection path</span>
@@ -96,6 +66,63 @@ export function CloudConnectionOverview(props: {
           </li>
         </ul>
       </div>
+    </>
+  );
+}
+
+export function CloudConnectionOverview(props: {
+  connected: boolean;
+  enrollmentAttempt: CloudEnrollmentAttempt | null;
+  hasCloudProfile: boolean;
+  loading: boolean;
+  pendingEventCount: number;
+  statusKnown: boolean;
+  statusAvailable: boolean;
+  state: CloudConnectorState | undefined;
+}) {
+  const dotClass = !props.statusAvailable || !props.hasCloudProfile
+    ? styles.buildDot
+    : props.connected
+      ? styles.buildDotConnected
+      : props.state === "revoked"
+        ? styles.buildDotRevoked
+        : styles.buildDotReconnecting;
+
+  return (
+    <>
+      <div className={styles.buildNotice}>
+        <span className={dotClass} aria-hidden="true" />
+        <div>
+          <strong>{connectionHeading(
+            props.connected,
+            props.hasCloudProfile,
+            props.loading,
+            props.statusAvailable,
+            props.state
+          )}</strong>
+          <span>{connectionDescription(props)}</span>
+        </div>
+      </div>
+
+      {!props.statusKnown ? null : props.hasCloudProfile ? (
+        <details className={styles.connectionExplainer}>
+          <summary>
+            <span className={styles.connectionExplainerEyebrow}>
+              Connection and data boundaries
+            </span>
+            <strong>How DeskCue Cloud connects and what stays local</strong>
+            <span
+              aria-hidden="true"
+              className={styles.connectionExplainerIndicator}
+            />
+          </summary>
+          <div className={styles.connectionExplainerContent}>
+            <CloudConnectionArchitecture />
+          </div>
+        </details>
+      ) : (
+        <CloudConnectionArchitecture />
+      )}
     </>
   );
 }

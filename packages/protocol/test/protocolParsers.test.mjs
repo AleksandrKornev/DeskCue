@@ -433,6 +433,52 @@ test("realtime server parser accepts a clean managed-session git snapshot", () =
   );
 });
 
+test("realtime server parser validates typed subagent session summaries", () => {
+  const event = {
+    cursor: "cursor-1",
+    type: "agent.session.updated",
+    payload: {
+      agentId: "codex",
+      agentLabel: "Codex",
+      attachMode: "read_only",
+      cliVersion: null,
+      filePath: "child.jsonl",
+      id: "codex:child",
+      model: null,
+      originator: null,
+      source: null,
+      sourceSessionId: "child",
+      subagent: {
+        depth: 1,
+        nickname: "Scout",
+        parentSessionId: "codex:parent",
+        role: "functional reviewer"
+      },
+      title: "Child task",
+      updatedAt: "2026-09-04T10:00:00.000Z",
+      workspaceName: "DeskCue",
+      workspacePath: "D:\\work\\DeskCue",
+      workState: "running"
+    }
+  };
+
+  assert.deepEqual(parseServerEvent(event), event);
+
+  for (const subagent of [
+    { ...event.payload.subagent, depth: -1 },
+    { ...event.payload.subagent, depth: 1.5 },
+    { ...event.payload.subagent, parentSessionId: null }
+  ]) {
+    assert.throws(
+      () => parseServerEvent({
+        ...event,
+        payload: { ...event.payload, subagent }
+      }),
+      (error) => error instanceof ProtocolSchemaError
+    );
+  }
+});
+
 test("realtime server parser validates optional turn start fingerprints", () => {
   const createEvent = (turnStartFingerprint) => ({
     type: "agent.session.transcript.updated",

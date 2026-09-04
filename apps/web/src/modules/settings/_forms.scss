@@ -1,13 +1,14 @@
 @use "@assets/variables" as vars;
 
 $settings-action-bar-reserve: 132px;
+$settings-action-bar-compact-reserve: 88px;
 
 @mixin styles {
 
 .settingsForm {
   display: grid;
   gap: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid vars.$color-border-subtle;
   padding-top: 16px;
 }
 
@@ -23,7 +24,7 @@ $settings-action-bar-reserve: 132px;
 
 .filePath {
   overflow-wrap: anywhere;
-  color: #8f96a2;
+  color: vars.$color-text-muted;
   font-size: 0.78rem;
   line-height: 1.35;
 }
@@ -32,10 +33,16 @@ $settings-action-bar-reserve: 132px;
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
+  cursor: pointer;
+}
+
+.toggleRow:has(input:focus-visible) {
+  outline: 0;
+  box-shadow: vars.$shadow-focus-ring;
 }
 
 .toggleRow input {
@@ -50,24 +57,24 @@ $settings-action-bar-reserve: 132px;
 
 .toggleRow small,
 .fieldLabel small {
-  color: #8f96a2;
+  color: vars.$color-text-muted;
   font-size: 0.82rem;
   line-height: 1.35;
 }
 
 .fieldLabel {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-weight: 700;
 }
 
 .field {
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 11px 12px;
-  background: rgba(255, 255, 255, 0.045);
-  color: #f3efe8;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-primary;
   font: inherit;
   font-weight: 500;
 }
@@ -90,8 +97,8 @@ $settings-action-bar-reserve: 132px;
   border: 0;
   border-radius: 8px;
   padding: 9px 14px;
-  background: #3152b5;
-  color: #ffffff;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
   font-weight: 700;
   text-align: center;
   text-decoration: none;
@@ -103,28 +110,33 @@ $settings-action-bar-reserve: 132px;
 }
 
 .ghostButton {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f3efe8;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
 }
 
 .dangerButton {
-  background: rgba(161, 67, 67, 0.92);
+  background: vars.$color-danger;
 }
 
 .saveStatus {
   display: inline-flex;
+  flex: 1 1 320px;
   align-items: center;
+  min-width: 0;
   min-height: 34px;
+  max-height: 48px;
+  overflow: auto;
+  overflow-wrap: anywhere;
   border-radius: 8px;
   padding: 0 10px;
-  color: #c7ccd8;
+  color: vars.$color-text-dialog-secondary;
   font-size: 0.88rem;
   font-weight: 700;
 }
 
 .saveStatusError {
-  background: rgba(184, 72, 72, 0.15);
-  color: #ffb7b2;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
 }
 
 .inlineButton,
@@ -136,7 +148,7 @@ $settings-action-bar-reserve: 132px;
   border: 0;
   border-radius: 7px;
   padding: 0 10px;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.82rem;
   font-weight: 800;
   line-height: 1.1;
@@ -144,7 +156,7 @@ $settings-action-bar-reserve: 132px;
 }
 
 .inlineButton {
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-hover;
 }
 
 .inlineButton:disabled {
@@ -153,7 +165,7 @@ $settings-action-bar-reserve: 132px;
 }
 
 .inlineDangerButton {
-  background: rgba(161, 67, 67, 0.76);
+  background: vars.$color-danger;
 }
 
 .inlineDangerButton:disabled {
@@ -168,18 +180,24 @@ $settings-action-bar-reserve: 132px;
 }
 
 .status {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.9rem;
 }
 
 @media (max-width: 720px) {
   .page {
+    gap: 12px;
     padding: 14px;
   }
 
   .page:has(.settingsForm > .actions),
-  .page:has(.notificationSettingsForm > .actions) {
+  .page:has(.notificationSettingsForm > .actions),
+  .page:has([data-settings-action-bar]) {
     padding-bottom: calc(14px + $settings-action-bar-reserve);
+  }
+
+  .page:has([data-settings-action-bar="compact"]) {
+    padding-bottom: 82px;
   }
 
   .pageWithActionBar {
@@ -194,18 +212,22 @@ $settings-action-bar-reserve: 132px;
   .header {
     position: relative;
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-    padding: 14px 16px;
+    gap: 6px;
+    padding: 12px 14px;
+  }
+
+  .headerCopy {
+    padding-right: 58px;
   }
 
   .header h1 {
-    margin-top: 8px;
-    font-size: 1.35rem;
+    margin-top: 0;
+    font-size: 1.28rem;
     line-height: 1.08;
   }
 
   .logoLink {
-    min-height: 28px;
+    display: none;
   }
 
   .logoWordmark {
@@ -213,24 +235,52 @@ $settings-action-bar-reserve: 132px;
   }
 
   .header p {
+    display: -webkit-box;
+    overflow: hidden;
     max-width: 100%;
-    font-size: 0.9rem;
+    padding-top: 4px;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .headerMeta {
+    margin-top: 8px;
+  }
+
+  .headerMeta span {
+    min-height: 28px;
+    padding-inline: 10px;
+    font-size: 0.76rem;
   }
 
   .settingsTabs {
-    padding: 8px 6px 0;
+    position: sticky;
+    z-index: 4;
+    top: 0;
+    padding: 8px 6px;
+    border-bottom: 1px solid vars.$color-border-muted;
+    border-radius: vars.$radius-sm;
+    background: vars.$color-surface-toolbar;
+    box-shadow: vars.$shadow-toolbar;
+  }
+
+  .settingsTabs [role="tab"] {
+    padding-inline: 6px;
   }
 
   .button {
     width: 100%;
   }
 
-  .headerAction {
+  .header > .headerAction {
     position: absolute;
-    top: 14px;
-    right: 16px;
+    top: 12px;
+    right: 14px;
+    display: inline-flex;
     width: vars.$control-height-touch;
-    min-height: 40px;
+    min-height: vars.$control-height-touch;
     padding: 0;
     white-space: nowrap;
   }
@@ -262,7 +312,7 @@ $settings-action-bar-reserve: 132px;
 
   .settingsForm .dangerButton {
     min-height: vars.$control-height-touch;
-    background: rgba(161, 67, 67, 0.72);
+    background: vars.$color-danger;
   }
 
   .settingsForm .actions .dangerButton {
@@ -280,6 +330,83 @@ $settings-action-bar-reserve: 132px;
   .card > .actions {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1120px) and (max-height: 520px) {
+  .page {
+    gap: 10px;
+    padding: 10px 14px;
+  }
+
+  .page:has(.settingsForm > .actions),
+  .page:has(.notificationSettingsForm > .actions),
+  .page:has([data-settings-action-bar]),
+  .pageWithActionBar {
+    padding-bottom: calc(10px + $settings-action-bar-compact-reserve);
+  }
+
+  .page:has([data-settings-action-bar="compact"]) {
+    padding-bottom: 68px;
+  }
+
+  .header {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 10px 14px;
+  }
+
+  .headerCopy {
+    padding-right: 58px;
+  }
+
+  .logoLink {
+    display: none;
+  }
+
+  .header h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    line-height: 1.08;
+  }
+
+  .header p {
+    overflow: hidden;
+    font-size: 0.82rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .headerMeta {
+    margin-top: 4px;
+  }
+
+  .headerMeta span {
+    min-height: 28px;
+    padding: 0 10px;
+    font-size: 0.76rem;
+  }
+
+  .header > .headerAction {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    display: inline-flex;
+  }
+
+  .settingsTabs {
+    padding: 6px 8px 0;
+  }
+
+  .card {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .settingsForm > .actions,
+  .notificationSettingsForm > .actions {
+    padding: 6px 14px calc(6px + env(safe-area-inset-bottom));
   }
 }
 }

@@ -61,7 +61,8 @@ export function getAttachmentImagePreviewCacheKey({
 }) {
   const contextKey = [
     assetContext?.managedSessionId ?? "",
-    assetContext?.agentSessionId ?? ""
+    assetContext?.agentSessionId ?? "",
+    assetContext?.workspaceId ?? ""
   ].join(":");
 
   if (part.path) {
@@ -93,6 +94,7 @@ function trimIdleImagePreviewCache() {
 
   while (idleEntries.length > LOCAL_IMAGE_PREVIEW_MAX_IDLE_ENTRIES) {
     const oldest = idleEntries.shift();
+
     if (!oldest) {
       return;
     }
@@ -106,6 +108,7 @@ function getOrCreateImagePreviewEntry(
   loadBlob: () => Promise<Blob>
 ) {
   const existing = localImagePreviewCache.get(cacheKey);
+
   if (existing) {
     return existing;
   }
@@ -121,12 +124,15 @@ function getOrCreateImagePreviewEntry(
   entry.promise = loadBlob()
     .then((blob) => {
       const current = localImagePreviewCache.get(cacheKey);
+
       if (!current) {
         throw new Error("Image preview cache entry was released.");
       }
 
       const objectUrl = URL.createObjectURL(blob);
+
       current.promise = null;
+
       current.url = objectUrl;
       current.lastUsedAt = Date.now();
       trimIdleImagePreviewCache();
@@ -144,6 +150,7 @@ function getOrCreateImagePreviewEntry(
 
 function releaseAttachmentImagePreview(cacheKey: string) {
   const entry = localImagePreviewCache.get(cacheKey);
+
   if (!entry) {
     return;
   }
@@ -157,6 +164,7 @@ function releaseAttachmentImagePreview(cacheKey: string) {
 
   entry.idleTimer = setTimeout(() => {
     const current = localImagePreviewCache.get(cacheKey);
+
     if (!current || current.refCount > 0) {
       return;
     }
@@ -182,6 +190,7 @@ export async function acquireAttachmentImagePreview(
   }
 
   const url = entry.url ?? (entry.promise ? await entry.promise : null);
+
   if (!url) {
     throw new Error("Image preview cache entry is not available.");
   }

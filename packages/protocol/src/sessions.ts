@@ -15,6 +15,7 @@ export type {
   AgentKind,
   AgentSessionInterruptLifecycle,
   AgentSessionObservedTurnState,
+  AgentSessionSubagent,
   AgentSessionSummary,
   CodexApprovalPolicy,
   CodexSandboxMode,

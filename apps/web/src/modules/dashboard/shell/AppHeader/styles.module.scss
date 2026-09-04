@@ -21,7 +21,7 @@
       "metrics metrics";
     gap: 10px;
     align-items: start;
-    padding: 14px 16px;
+    padding: 10px 12px;
   }
 }
 
@@ -57,30 +57,34 @@
   min-width: 0;
 
   @media (max-width: vars.$breakpoint-mobile) {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   h1 {
     margin: 0 0 6px;
-    font-size: clamp(1.7rem, 3.4vw, 2.6rem);
-    line-height: 0.98;
+    font-size: clamp(1.35rem, 2vw, 1.55rem);
+    line-height: 1.08;
     letter-spacing: 0;
-
-    @media (max-width: vars.$breakpoint-mobile) {
-      display: none;
-    }
 
     @media (min-width: 721px) and (max-width: 900px) {
       margin: 10px 0 5px;
       max-width: 560px;
-      font-size: 1.65rem;
+      font-size: 1.35rem;
       line-height: 1.05;
     }
   }
 
   .compact & h1 {
     margin: 6px 0 0;
-    font-size: clamp(1.5rem, 2.7vw, 2.15rem);
+    font-size: clamp(1.3rem, 2vw, 1.5rem);
   }
 }
 
@@ -129,8 +133,8 @@
     min-height: vars.$control-height-dense;
     padding: 0 12px;
     border-radius: vars.$radius-pill;
-    background: rgba(255, 255, 255, 0.05);
-    color: #d7c7ad;
+    background: vars.$color-shimmer;
+    color: vars.$color-accent-text;
     font-size: 0.84rem;
     letter-spacing: 0.04em;
     width: fit-content;
@@ -180,8 +184,8 @@
   justify-content: center;
   gap: 5px;
   padding: 0 14px 0 10px;
-  color: #e7dbc9;
-  background: rgba(255, 255, 255, 0.065);
+  color: vars.$color-accent-text;
+  background: vars.$color-surface-control-hover;
 }
 
 .meta .metricGroup > .iconMetricPill .metricLabel {
@@ -195,7 +199,7 @@
 
 .meta .metricGroup > .iconMetricPill strong {
   margin-left: 3px;
-  color: #fff4df;
+  color: vars.$color-accent-strong;
   font-size: 0.84rem;
   font-weight: 800;
 }
@@ -205,21 +209,25 @@
 }
 
 .meta .metricGroup > .threadsMetricPill {
-  color: #9fb8ff;
-  background: rgba(89, 123, 210, 0.16);
+  color: vars.$color-status-info;
+  background: vars.$color-surface-info;
 }
 
 .meta .metricGroup > .managedMetricPill {
-  color: #e3bf7e;
-  background: rgba(196, 139, 58, 0.15);
+  color: vars.$color-status-warning;
+  background: vars.$color-surface-warning;
 }
 
 .meta .metricGroup > .runtimeMetricPill {
-  color: #94d7ac;
-  background: rgba(75, 155, 102, 0.15);
+  color: vars.$color-status-success;
+  background: vars.$color-surface-success;
 }
 
 @media (max-width: vars.$breakpoint-mobile) {
+  .topbar:not(.compact) .meta {
+    display: none;
+  }
+
   .metricGroup {
     width: 100%;
     gap: 7px;
@@ -243,6 +251,10 @@
 }
 
 @media (max-width: 380px) {
+  .topbar .brandWordmark {
+    width: 82px;
+  }
+
   .metricGroup {
     gap: 5px;
   }
@@ -257,6 +269,61 @@
   }
 }
 
+@media (min-width: 721px) and (max-width: 1120px) and (max-height: 520px) {
+  .topbar,
+  .topbar.compact {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "brand metrics settings";
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+  }
+
+  .copy {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .subtitle {
+    display: none;
+  }
+
+  .meta,
+  .topbar:not(.compact) .meta {
+    grid-column: auto;
+    display: flex;
+    align-self: auto;
+    justify-content: center;
+  }
+
+  .metricGroup {
+    width: auto;
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
+
+  .meta .metricGroup > .iconMetricPill {
+    min-height: 30px;
+  }
+
+  .brandWordmark {
+    width: 96px;
+  }
+
+  .brandButton,
+  .iconButton {
+    min-height: 44px;
+    height: 44px;
+  }
+}
+
 .iconButton {
   display: inline-flex;
   align-items: center;
@@ -264,15 +331,15 @@
   width: vars.$control-height-touch;
   height: vars.$control-height-touch;
   flex: 0 0 auto;
-  border: 1px solid rgba(214, 164, 103, 0.34);
+  border: 1px solid vars.$color-border-accent;
   border-radius: vars.$radius-md;
   background:
-    linear-gradient(180deg, rgba(214, 164, 103, 0.16), rgba(214, 164, 103, 0.07)),
-    rgba(255, 255, 255, 0.055);
-  color: #fff2d6;
+    linear-gradient(180deg, vars.$color-surface-accent-hover, vars.$color-surface-accent),
+    vars.$color-border-muted;
+  color: vars.$color-accent-strong;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(214, 164, 103, 0.06);
+    inset 0 1px 0 vars.$color-border-subtle,
+    0 0 0 1px vars.$color-border-accent-soft;
   text-decoration: none;
   transition:
     border-color 0.16s ease,
@@ -300,15 +367,15 @@
 }
 
 .iconButton:hover {
-  border-color: rgba(214, 164, 103, 0.58);
+  border-color: vars.$color-border-accent-hover;
   background:
-    linear-gradient(180deg, rgba(214, 164, 103, 0.24), rgba(214, 164, 103, 0.11)),
-    rgba(255, 255, 255, 0.075);
+    linear-gradient(180deg, vars.$color-surface-accent-strong, vars.$color-surface-accent),
+    vars.$color-surface-control-hover;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 0 1px rgba(214, 164, 103, 0.12),
-    0 10px 24px rgba(0, 0, 0, 0.24);
-  color: #ffffff;
+    inset 0 1px 0 vars.$color-border-control,
+    0 0 0 1px vars.$color-surface-accent,
+    vars.$shadow-toolbar;
+  color: vars.$color-on-action-primary;
   transform: translateY(-1px);
 }
 
@@ -320,7 +387,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #fff5e1;
+  color: vars.$color-accent-strong;
   font-size: 1.05rem;
   letter-spacing: 0;
   font-weight: 850;
@@ -336,8 +403,15 @@
   }
 }
 
+.brandHome {
+  display: inline-flex;
+  align-items: center;
+  min-height: vars.$control-height-touch;
+  color: vars.$color-accent-strong;
+}
+
 .brandButton:hover {
-  color: #ffffff;
+  color: vars.$color-on-action-primary;
 }
 
 .brandButton:active {
@@ -355,8 +429,8 @@
 .skeletonPill {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-border-hairline;
+  background: vars.$color-surface-input;
 }
 
 .meta .metricGroup > .skeletonPill {
@@ -381,8 +455,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 22px 50%, rgba(255, 255, 255, 0.13) 0, rgba(255, 255, 255, 0.13) 8px, transparent 9px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06)) 42px 50% / 46px 9px no-repeat;
+    radial-gradient(circle at 22px 50%, vars.$color-border-control 0, vars.$color-border-control 8px, transparent 9px),
+    linear-gradient(90deg, vars.$color-border-control, vars.$color-border-muted) 42px 50% / 46px 9px no-repeat;
 }
 
 .skeletonPill::after {
@@ -393,9 +467,9 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.07) 45%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.07) 55%,
+    vars.$color-shimmer-strong 45%,
+    vars.$color-border-control-strong 50%,
+    vars.$color-shimmer-strong 55%,
     transparent 100%
   );
   animation: skeleton-shimmer 1.4s ease-in-out infinite;

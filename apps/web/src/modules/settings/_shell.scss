@@ -13,8 +13,13 @@ $settings-action-bar-reserve: 132px;
 }
 
 .page:has(.settingsForm > .actions),
-.page:has(.notificationSettingsForm > .actions) {
+.page:has(.notificationSettingsForm > .actions),
+.page:has([data-settings-action-bar]) {
   padding-bottom: calc(24px + $settings-action-bar-reserve);
+}
+
+.page:has([data-settings-action-bar="compact"]) {
+  padding-bottom: 88px;
 }
 
 .pageWithActionBar {
@@ -47,7 +52,7 @@ $settings-action-bar-reserve: 132px;
 .card p,
 .status {
   margin: 0;
-  color: #c7ccd8;
+  color: vars.$color-text-dialog-secondary;
   line-height: 1.45;
 }
 
@@ -65,8 +70,8 @@ $settings-action-bar-reserve: 132px;
   width: fit-content;
   border-radius: vars.$radius-pill;
   padding: 0 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #d7c7ad;
+  background: vars.$color-surface-raised;
+  color: vars.$color-accent-text;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -79,7 +84,7 @@ $settings-action-bar-reserve: 132px;
   padding: 0;
   border: 0;
   border-radius: 6px;
-  color: #fff5e1;
+  color: vars.$color-accent-strong;
   text-decoration: none;
 }
 
@@ -87,7 +92,8 @@ $settings-action-bar-reserve: 132px;
   width: 112px;
 }
 
-.headerAction {
+.header > .headerAction {
+  display: none;
   align-self: start;
 }
 
@@ -98,17 +104,17 @@ $settings-action-bar-reserve: 132px;
   width: vars.$control-height-touch;
   min-width: vars.$control-height-touch;
   height: vars.$control-height-touch;
-  border: 1px solid rgba(214, 164, 103, 0.34);
+  border: 1px solid vars.$color-border-accent;
   border-radius: vars.$radius-md;
   padding: 0;
   background:
-    linear-gradient(180deg, rgba(214, 164, 103, 0.16), rgba(214, 164, 103, 0.07)),
-    rgba(255, 255, 255, 0.055);
-  color: #fff2d6;
+    linear-gradient(180deg, vars.$color-surface-warning, vars.$color-surface-accent),
+    vars.$color-surface-control;
+  color: vars.$color-accent-strong;
   text-decoration: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(214, 164, 103, 0.06);
+    inset 0 1px 0 vars.$color-border-subtle,
+    0 0 0 1px vars.$color-surface-accent;
   transition:
     border-color 0.16s ease,
     background 0.16s ease,
@@ -118,15 +124,15 @@ $settings-action-bar-reserve: 132px;
 }
 
 .iconButton:hover {
-  border-color: rgba(214, 164, 103, 0.58);
+  border-color: vars.$color-accent;
   background:
-    linear-gradient(180deg, rgba(214, 164, 103, 0.24), rgba(214, 164, 103, 0.11)),
-    rgba(255, 255, 255, 0.075);
+    linear-gradient(180deg, vars.$color-border-warning-subtle, vars.$color-surface-warning),
+    vars.$color-surface-control-hover;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 0 1px rgba(214, 164, 103, 0.12),
-    0 10px 24px rgba(0, 0, 0, 0.24);
-  color: #ffffff;
+    inset 0 1px 0 vars.$color-border-control,
+    0 0 0 1px vars.$color-surface-warning,
+    vars.$shadow-preview-panel;
+  color: vars.$color-on-action-primary;
   transform: translateY(-1px);
 }
 
@@ -144,7 +150,8 @@ $settings-action-bar-reserve: 132px;
 }
 
 .page:has(.settingsForm > .actions) .tabShell,
-.page:has(.notificationSettingsForm > .actions) .tabShell {
+.page:has(.notificationSettingsForm > .actions) .tabShell,
+.page:has([data-settings-action-bar]) .tabShell {
   overflow: visible;
 }
 

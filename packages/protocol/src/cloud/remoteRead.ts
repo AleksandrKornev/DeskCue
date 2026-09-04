@@ -162,6 +162,20 @@ export function parseCloudRemoteReadOperationInput(
   }
 
   // Workspace and Preview resources.
+  if (operation === "assets.file.read") {
+    requireOnlyKeys(input, [
+      "agentSessionId", "download", "managedSessionId", "path", "range", "workspaceId"
+    ]);
+    if ((input.agentSessionId !== undefined && !isStringBetween(input.agentSessionId, 1, 512)) ||
+        (input.managedSessionId !== undefined && !isStringBetween(input.managedSessionId, 1, 512)) ||
+        (input.workspaceId !== undefined && !isStringBetween(input.workspaceId, 1, 512)) ||
+        (input.download !== undefined && typeof input.download !== "boolean") ||
+        (input.range !== undefined &&
+          (!isStringBetween(input.range, 8, 128) || !/^bytes=\d*-\d*$/iu.test(input.range))) ||
+        !isStringBetween(input.path, 1, 4096) || input.path.includes("\0")) invalidReadInput();
+    return input as CloudRemoteReadOperationInputMap["assets.file.read"];
+  }
+
   if (operation === "assets.ticket.create") {
     requireOnlyKeys(input, [
       "agentSessionId", "download", "kind", "managedSessionId", "maxBytes", "path", "workspaceId"
@@ -178,9 +192,11 @@ export function parseCloudRemoteReadOperationInput(
   }
 
   if (operation === "assets.ticket.read") {
-    requireOnlyKeys(input, ["ticket"]);
+    requireOnlyKeys(input, ["range", "ticket"]);
     if (!isStringBetween(input.ticket, 8, 128) ||
-        !/^[A-Za-z0-9_-]+$/u.test(input.ticket)) invalidReadInput();
+        !/^[A-Za-z0-9_-]+$/u.test(input.ticket) ||
+        (input.range !== undefined &&
+          (!isStringBetween(input.range, 8, 128) || !/^bytes=\d*-\d*$/iu.test(input.range)))) invalidReadInput();
     return input as CloudRemoteReadOperationInputMap["assets.ticket.read"];
   }
 

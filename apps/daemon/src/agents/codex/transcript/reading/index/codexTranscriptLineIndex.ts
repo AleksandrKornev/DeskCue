@@ -12,8 +12,6 @@ export type * from "./codexTranscriptLineIndex.types.ts";
 type SnapshotRequest = { promise: Promise<TranscriptLineIndexSnapshot> };
 
 const MAX_CACHED_SNAPSHOTS = 16;
-const MAX_EXACT_HINT_OFFSETS = 64;
-const MAX_COMPACT_HINT_SPANS = 64;
 
 export function snapshotLineCount(
   snapshot: Pick<TranscriptLineIndexSnapshot, "endsWithLineBreak" | "lineBreakCount">
@@ -53,24 +51,6 @@ export function findNearestTranscriptByteOffset(
   }
 
   return nearestOffset;
-}
-
-function shouldRetainLineHints(snapshot: TranscriptLineIndexSnapshot) {
-  if (snapshot.lineHintsComplete !== true) return true;
-
-  return (
-    (snapshot.compactLineSpans?.length ?? 0) <= MAX_COMPACT_HINT_SPANS &&
-    (snapshot.exactLineOffsets?.length ?? 0) <= MAX_EXACT_HINT_OFFSETS
-  );
-}
-
-function stripLineHints(snapshot: TranscriptLineIndexSnapshot): TranscriptLineIndexSnapshot {
-  return {
-    ...snapshot,
-    compactLineSpans: undefined,
-    exactLineOffsets: undefined,
-    lineHintsComplete: false
-  };
 }
 
 function hasCompleteLineHints(snapshot: TranscriptLineIndexSnapshot) {
@@ -237,7 +217,7 @@ export class CodexTranscriptLineIndex {
     }
 
     // A truncation/rewrite invalidates the prior snapshot. The caller will run
-    // a complete scan and atomically replace the durable v6 record.
+    // a complete scan and atomically replace the durable v13 record.
     return null;
   }
 
@@ -259,12 +239,9 @@ export class CodexTranscriptLineIndex {
   }
 
   #setSnapshot(filePath: string, snapshot: TranscriptLineIndexSnapshot) {
-    const retained = shouldRetainLineHints(snapshot)
-      ? snapshot
-      : stripLineHints(snapshot);
     this.#snapshots.delete(filePath);
 
-    this.#snapshots.set(filePath, retained);
+    this.#snapshots.set(filePath, snapshot);
     while (this.#snapshots.size > MAX_CACHED_SNAPSHOTS) {
       const oldest = this.#snapshots.keys().next().value;
 

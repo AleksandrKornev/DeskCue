@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from "react";
 
 import type { CloudEnrollmentAttempt } from "@deskcue/protocol";
 import { Modal } from "@components/Modal";
@@ -23,6 +28,9 @@ import { ConnectedCloudSettings } from "./ConnectedCloudSettings";
 import styles from "./styles.module.scss";
 import { usePermissionDraft } from "./usePermissionDraft";
 
+const CLOUD_ACTION_FOCUS_SELECTOR =
+  "a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary";
+
 export function CloudConnectionPanel() {
   const { error: loadError, loading, refresh, setStatus, status } = useCloudConnectionStatus();
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -35,7 +43,18 @@ export function CloudConnectionPanel() {
   const [permissionsFeedback, setPermissionsFeedback] = useState<PermissionFeedback | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const actionSurfaceRef = useRef<HTMLDivElement>(null);
+  const actionSurfaceOwnedFocusRef = useRef(false);
+  const statusKnown = status !== null;
   const hasCloudProfile = status?.enabled === true;
+  const actionSurfaceKind = !statusKnown
+    ? `unknown-${loading ? "loading" : "ready"}`
+    : hasCloudProfile
+      ? "connected"
+      : enrollmentAttempt
+        ? "enrollment-pending"
+        : "enrollment";
+  const previousActionSurfaceKindRef = useRef(actionSurfaceKind);
   const statusAvailable = status !== null && loadError === null;
   const isConnected = statusAvailable && status.connected;
   const permissionDraft = usePermissionDraft(
@@ -62,6 +81,29 @@ export function CloudConnectionPanel() {
   useEffect(() => {
     if (!hasCloudProfile) setPermissionsFeedback(null);
   }, [hasCloudProfile]);
+
+  useLayoutEffect(() => {
+    const previousKind = previousActionSurfaceKindRef.current;
+
+    previousActionSurfaceKindRef.current = actionSurfaceKind;
+    if (previousKind === actionSurfaceKind || !actionSurfaceOwnedFocusRef.current) return;
+
+    const actionSurface = actionSurfaceRef.current;
+    const activeElement = document.activeElement;
+
+    if (
+      !actionSurface ||
+      (activeElement !== document.body && !actionSurface.contains(activeElement))
+    ) {
+      actionSurfaceOwnedFocusRef.current = false;
+      return;
+    }
+
+    const target = actionSurface?.querySelector<HTMLElement>(CLOUD_ACTION_FOCUS_SELECTOR)
+      ?? actionSurface;
+
+    target?.focus({ preventScroll: true });
+  }, [actionSurfaceKind]);
 
   useEffect(() => {
     if (!detailsOpen || hasCloudProfile) return;
@@ -100,7 +142,10 @@ export function CloudConnectionPanel() {
         eyebrow="Connections"
         isOpen={detailsOpen}
         title="DeskCue Cloud"
-        onClose={() => setDetailsOpen(false)}
+        onClose={() => {
+          actionSurfaceOwnedFocusRef.current = false;
+          setDetailsOpen(false);
+        }}
       >
         <CloudConnectionOverview
           connected={isConnected}
@@ -110,49 +155,87 @@ export function CloudConnectionPanel() {
           pendingEventCount={status?.pendingEventCount ?? 0}
           state={status?.state}
           statusAvailable={statusAvailable}
+          statusKnown={statusKnown}
         />
 
-        {hasCloudProfile && status ? (
-          <ConnectedCloudSettings
-            actionError={actionError}
-            loadError={loadError}
-            onDisconnect={() => void disconnect(actionContext)}
-            onPermissionChange={permissionDraft.update}
-            onSavePermissions={(event) => void savePermissions(event, actionContext)}
-            onSessionLabelDisclosureChange={(enabled) => void updateSessionLabelDisclosure(
-              enabled,
-              actionContext
-            )}
-            permissionFeedback={permissionsFeedback}
-            permissions={permissionDraft.permissions}
-            permissionsDirty={permissionDraft.dirty}
-            permissionsSubmitting={permissionsSubmitting}
-            status={status}
-            statusAvailable={statusAvailable}
-            submitting={submitting}
-          />
-        ) : (
-          <CloudEnrollmentForm
-            actionError={actionError}
-            advancedOpen={advancedOpen}
-            cloudOrigin={cloudOrigin}
-            displayName={displayName}
-            enrollmentAttempt={enrollmentAttempt}
-            enrollmentTicket={enrollmentTicket}
-            loadError={loadError}
-            loading={loading}
-            onAdvancedOpenChange={setAdvancedOpen}
-            onCancelEnrollment={() => void cancelEnrollmentAttempt(actionContext)}
-            onCloudOriginChange={setCloudOrigin}
-            onConnectCustom={(event) => void submitConnection(event, actionContext)}
-            onDisplayNameChange={setDisplayName}
-            onEnrollmentTicketChange={setEnrollmentTicket}
-            onPermissionChange={permissionDraft.update}
-            onStartEnrollment={(event) => void startEnrollmentAttempt(event, actionContext)}
-            permissions={permissionDraft.permissions}
-            submitting={submitting}
-          />
-        )}
+        <div
+          className={styles.cloudActionSurface}
+          ref={actionSurfaceRef}
+          tabIndex={-1}
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              actionSurfaceOwnedFocusRef.current = false;
+            }
+          }}
+          onFocusCapture={() => {
+            actionSurfaceOwnedFocusRef.current = true;
+          }}
+        >
+          {!statusKnown ? (
+            <div
+              className={styles.cloudStatusGate}
+              role={loadError ? "alert" : "status"}
+            >
+              <div>
+                <strong>
+                  {loading ? "Checking Cloud connection" : "Cloud connection status unavailable"}
+                </strong>
+                <span>
+                  Actions stay unavailable until DeskCue confirms the local connector state.
+                </span>
+              </div>
+              {!loading ? (
+                <button
+                  className={styles.inlineButton}
+                  onClick={() => void refresh()}
+                  type="button"
+                >
+                  Retry Cloud status
+                </button>
+              ) : null}
+            </div>
+          ) : hasCloudProfile ? (
+            <ConnectedCloudSettings
+              actionError={actionError}
+              loadError={loadError}
+              onDisconnect={() => void disconnect(actionContext)}
+              onPermissionChange={permissionDraft.update}
+              onSavePermissions={(event) => void savePermissions(event, actionContext)}
+              onSessionLabelDisclosureChange={(enabled) => void updateSessionLabelDisclosure(
+                enabled,
+                actionContext
+              )}
+              permissionFeedback={permissionsFeedback}
+              permissions={permissionDraft.permissions}
+              permissionsDirty={permissionDraft.dirty}
+              permissionsSubmitting={permissionsSubmitting}
+              status={status}
+              statusAvailable={statusAvailable}
+              submitting={submitting}
+            />
+          ) : (
+            <CloudEnrollmentForm
+              actionError={actionError}
+              advancedOpen={advancedOpen}
+              cloudOrigin={cloudOrigin}
+              displayName={displayName}
+              enrollmentAttempt={enrollmentAttempt}
+              enrollmentTicket={enrollmentTicket}
+              loadError={loadError}
+              loading={loading}
+              onAdvancedOpenChange={setAdvancedOpen}
+              onCancelEnrollment={() => void cancelEnrollmentAttempt(actionContext)}
+              onCloudOriginChange={setCloudOrigin}
+              onConnectCustom={(event) => void submitConnection(event, actionContext)}
+              onDisplayNameChange={setDisplayName}
+              onEnrollmentTicketChange={setEnrollmentTicket}
+              onPermissionChange={permissionDraft.update}
+              onStartEnrollment={(event) => void startEnrollmentAttempt(event, actionContext)}
+              permissions={permissionDraft.permissions}
+              submitting={submitting}
+            />
+          )}
+        </div>
       </Modal>
     </>
   );

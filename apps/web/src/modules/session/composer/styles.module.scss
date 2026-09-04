@@ -27,7 +27,7 @@
   border: 1px solid vars.$color-border-subtle;
   border-radius: vars.$radius-md;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: vars.$color-surface-raised;
   color: inherit;
   outline: none;
   transition:
@@ -61,12 +61,12 @@
 
 .fieldTextarea:hover,
 .fieldTextarea:focus {
-  scrollbar-color: rgba(214, 164, 103, 0.42) transparent;
+  scrollbar-color: vars.$color-border-accent transparent;
 }
 
 .fieldTextarea:hover::-webkit-scrollbar-thumb,
 .fieldTextarea:focus::-webkit-scrollbar-thumb {
-  background-color: rgba(214, 164, 103, 0.42);
+  background-color: vars.$color-border-accent;
 }
 
 .transcriptComposerWithButton {
@@ -84,7 +84,7 @@
   border-radius: vars.$radius-md;
   padding: 12px 16px;
   background: vars.$color-action-primary;
-  color: #ffffff;
+  color: vars.$color-on-action-primary;
   font-weight: 600;
 }
 
@@ -106,9 +106,9 @@
   align-items: center;
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(229, 184, 119, 0.34);
+  border: 1px solid vars.$color-border-warning;
   border-radius: vars.$radius-md;
-  background: rgba(229, 184, 119, 0.08);
+  background: vars.$color-surface-warning;
 }
 
 .actionDecisionText {
@@ -123,7 +123,7 @@
 }
 
 .actionDecisionText strong {
-  color: #ffe0ad;
+  color: vars.$color-status-warning;
   font-size: 0.78rem;
   text-transform: uppercase;
 }
@@ -157,11 +157,11 @@
 
 .approveButton {
   background: vars.$color-action-primary;
-  color: #ffffff;
+  color: vars.$color-on-action-primary;
 }
 
 .rejectButton {
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-hover;
 }
 
 .approveButton:disabled,
@@ -204,17 +204,13 @@
 }
 
 .chatComposerInputWrap:focus-within .transcriptComposerWithButton {
-  border-color: rgba(229, 184, 119, 0.92);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.026)),
-    rgba(29, 30, 35, 0.96);
-  box-shadow:
-    0 0 0 2px rgba(229, 184, 119, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  border-color: vars.$color-focus-ring;
+  background: vars.$color-surface-input;
+  box-shadow: vars.$shadow-focus-ring;
 }
 
 .chatComposerInputWrap:focus-within .transcriptComposerWithButton::placeholder {
-  color: #9aa1ad;
+  color: vars.$color-text-secondary;
 }
 
 .chatComposerMinimal:not(.chatComposerFieldFocused) {
@@ -229,7 +225,7 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  color: #aeb4c0;
+  color: vars.$color-text-secondary;
   font-size: 0.74rem;
   line-height: 1.28;
 }
@@ -251,7 +247,42 @@
   padding-top: 15px;
   padding-bottom: 18px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.028);
+  background: vars.$color-surface-control-subtle;
+}
+
+.chatComposerReviewOnly.chatComposerMinimal .reviewOnlyField {
+  min-height: 76px;
+  padding-right: 76px;
+  padding-block: 15px;
+  border-radius: 16px;
+  background: vars.$color-surface-control-subtle;
+}
+
+.chatComposerReviewOnly .chatComposerInputWrap > span {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  width: auto;
+}
+
+.reviewOnlyDisclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: vars.$control-height-touch;
+  min-width: vars.$control-height-touch;
+  height: vars.$control-height-touch;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: 12px;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-secondary;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.reviewOnlyDisclosure:focus-visible {
+  border-color: vars.$color-focus-ring;
+  box-shadow: vars.$shadow-focus-ring;
 }
 
 .chatComposerMinimal:not(.chatComposerFieldFocused) .sendButtonInside {
@@ -261,7 +292,7 @@
   min-width: vars.$control-height-touch;
   height: vars.$control-height-touch;
   border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: none;
 }
 
 .chatComposerCompactViewport.chatComposerFieldFocused {
@@ -315,17 +346,15 @@
   min-width: 44px;
   height: 44px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid vars.$color-action-primary;
   border-radius: vars.$radius-md;
   display: inline-grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fffaf2;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
   font-size: 1.2rem;
   line-height: 1;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 12px 24px rgba(0, 0, 0, 0.22);
+  box-shadow: none;
 }
 
 .interruptButtonInside {
@@ -348,13 +377,13 @@
 }
 
 .sendButtonInside:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.24);
+  filter: brightness(1.08);
 }
 
 .sendButtonInside:disabled {
-  background: rgba(255, 255, 255, 0.05);
-  color: #7f838d;
-  border-color: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-disabled;
+  color: vars.$color-text-disabled;
+  border-color: vars.$color-border-subtle;
 }
 
 @include mobile-or-compact-height {
@@ -373,6 +402,11 @@
   .actionDecisionButtons {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .approveButton,
+  .rejectButton {
+    min-height: vars.$control-height-touch;
   }
 }
 

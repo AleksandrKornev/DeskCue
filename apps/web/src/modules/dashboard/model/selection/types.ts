@@ -7,12 +7,14 @@ import type {
   SessionDetail
 } from "@deskcue/protocol";
 import type { SessionTab } from "@models/sessionTabs";
+import type { InitialManagedSessionLoadState } from "@modules/dashboard/model/data";
 import type { LoadOptions } from "@modules/dashboard/model/data/dashboardLoad";
 
 export type UseSelectedManagedSessionControllerArgs = {
   suppressManagedSessionAutoSelect?: boolean;
   overview: OverviewResponse;
   isBootstrapping: boolean;
+  initialManagedSessionLoadState?: InitialManagedSessionLoadState;
   activeTab: SessionTab;
   selectedWorkspaceId: string;
   selectedAgentSessionId: string;

@@ -3,8 +3,10 @@ import type { AttachmentPreviewKind } from "@modules/transcript/RichTranscriptCo
 import styles from "./styles.module.scss";
 
 export const lightboxBodyClassByKind: Record<AttachmentPreviewKind, string> = {
+  audio: styles.lightboxBodyMedia,
   image: "",
   none: "",
   pdf: styles.lightboxBodyPdf,
-  text: styles.lightboxBodyText
+  text: styles.lightboxBodyText,
+  video: styles.lightboxBodyMedia
 };

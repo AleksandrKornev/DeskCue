@@ -10,6 +10,10 @@ export type AttachmentClusterProps = {
 export type AttachmentClusterItemProps = {
   assetContext?: LocalAssetLinkContext;
   isActive: boolean;
-  part: AttachmentPart;
+  onBlur: () => void;
+  onFocus: () => void;
   onSelect: () => void;
+  part: AttachmentPart;
+  position: number;
+  total: number;
 };

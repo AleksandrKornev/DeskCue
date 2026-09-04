@@ -13,6 +13,26 @@ import type {
   WorkspaceFileHistoryTarget
 } from "./types";
 
+function readWorkspaceFileBrowserError(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+
+  return error.message.trim() || fallback;
+}
+
+function replaceWorkspaceFileHistoryTarget(target: WorkspaceFileHistoryTarget) {
+  window.history.replaceState({
+    ...window.history.state,
+    [WORKSPACE_FILE_HISTORY_KEY]: target
+  }, "", window.location.href);
+}
+
+function workspaceFileHistoryTargetsMatch(
+  left: WorkspaceFileHistoryTarget | null,
+  right: WorkspaceFileHistoryTarget
+) {
+  return left?.workspaceId === right.workspaceId && left.kind === right.kind && left.path === right.path;
+}
+
 export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFileBrowserState {
   const [currentPath, setCurrentPath] = useState("");
   const [entries, setEntries] = useState<WorkspaceFileEntry[]>([]);
@@ -28,6 +48,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
   const directoryOperationRef = useRef(0);
   const fileAbortRef = useRef<AbortController | null>(null);
   const fileOperationRef = useRef(0);
+  const currentPathRef = useRef("");
   const entriesRef = useRef<WorkspaceFileEntry[]>([]);
   const historyTargetRef = useRef<WorkspaceFileHistoryTarget | null>(null);
   const targetOperationRef = useRef(0);
@@ -64,6 +85,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
       const boundedEntries = unique.slice(0, MAX_WORKSPACE_BROWSER_ENTRIES);
 
       entriesRef.current = boundedEntries;
+      currentPathRef.current = result.path;
 
       setEntries(boundedEntries);
       setCurrentPath(result.path);
@@ -74,7 +96,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     } catch (loadError) {
       if (controller.signal.aborted || directoryOperationRef.current !== operation) return;
 
-      setError(loadError instanceof Error ? loadError.message : "Failed to load workspace files");
+      setError(readWorkspaceFileBrowserError(loadError, "Failed to load workspace files"));
       return undefined;
     } finally {
       if (directoryOperationRef.current === operation) {
@@ -108,7 +130,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
       if (controller.signal.aborted || fileOperationRef.current !== operation) return;
 
       setFile(null);
-      setError(loadError instanceof Error ? loadError.message : "Failed to load workspace file");
+      setError(readWorkspaceFileBrowserError(loadError, "Failed to load workspace file"));
     } finally {
       if (fileOperationRef.current === operation) {
         fileAbortRef.current = null;
@@ -118,11 +140,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
   }, [workspaceId]);
 
   const pushHistoryTarget = useCallback((target: WorkspaceFileHistoryTarget) => {
-    if (
-      historyTargetRef.current?.workspaceId === target.workspaceId &&
-      historyTargetRef.current.kind === target.kind &&
-      historyTargetRef.current.path === target.path
-    ) return;
+    if (workspaceFileHistoryTargetsMatch(historyTargetRef.current, target)) return;
 
     window.history.pushState({
       ...window.history.state,
@@ -135,28 +153,64 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     if (!workspaceId) return;
 
     const target = { kind: "directory", path, workspaceId } satisfies WorkspaceFileHistoryTarget;
+    const preserveCurrentEntries = path === currentPathRef.current && entriesRef.current.length > 0;
 
     if (recordHistory) pushHistoryTarget(target);
 
     historyTargetRef.current = target;
     fileAbortRef.current?.abort();
     fileOperationRef.current += 1;
+    currentPathRef.current = path;
     setFile(null);
-    entriesRef.current = [];
-    setEntries([]);
     setCurrentPath(path);
-    setHasMore(false);
-    setLimited(false);
-    setNextCursor(null);
     setLoadingFile(false);
     setSelectedPath("");
+
+    if (!preserveCurrentEntries) {
+      entriesRef.current = [];
+      setEntries([]);
+      setHasMore(false);
+      setLimited(false);
+      setNextCursor(null);
+    }
+
     void loadDirectory(path);
   }, [loadDirectory, pushHistoryTarget, workspaceId]);
 
   const showFile = useCallback(async (path: string, recordHistory: boolean) => {
     if (!workspaceId) return;
 
-    const target = { kind: "file", path, workspaceId } satisfies WorkspaceFileHistoryTarget;
+    let previousTarget = historyTargetRef.current;
+    const openingCurrentFile = previousTarget?.kind === "file" &&
+      previousTarget.path === path &&
+      previousTarget.workspaceId === workspaceId;
+
+    if (recordHistory && previousTarget?.kind === "file" && !openingCurrentFile && !previousTarget.returnDepth) {
+      previousTarget = {
+        kind: "directory",
+        path: currentPathRef.current,
+        workspaceId
+      };
+
+      replaceWorkspaceFileHistoryTarget(previousTarget);
+      historyTargetRef.current = previousTarget;
+    }
+
+    const returnDepth = recordHistory
+      ? previousTarget?.kind === "file"
+        ? openingCurrentFile
+          ? previousTarget.returnDepth
+          : (previousTarget.returnDepth ?? 1) + 1
+        : 1
+      : previousTarget?.kind === "file"
+        ? previousTarget.returnDepth
+        : undefined;
+    const target = {
+      kind: "file",
+      path,
+      ...(returnDepth ? { returnDepth } : {}),
+      workspaceId
+    } satisfies WorkspaceFileHistoryTarget;
 
     if (recordHistory) pushHistoryTarget(target);
 
@@ -176,12 +230,23 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
 
     const parentPath = target.path.split("/").slice(0, -1).join("/");
 
+    fileAbortRef.current?.abort();
+    fileOperationRef.current += 1;
+    currentPathRef.current = parentPath;
     entriesRef.current = [];
 
     setEntries([]);
     setCurrentPath(parentPath);
-    await loadDirectory(parentPath);
+    setFile(null);
+    setHasMore(false);
+    setLimited(false);
+    setLoadingFile(false);
+    setNextCursor(null);
+    setSelectedPath("");
+    const directoryEntries = await loadDirectory(parentPath);
+
     if (targetOperationRef.current !== targetOperation) return;
+    if (!directoryEntries) return;
 
     await showFile(target.path, false);
   }, [loadDirectory, showDirectory, showFile]);
@@ -192,6 +257,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     directoryOperationRef.current += 1;
     fileOperationRef.current += 1;
     targetOperationRef.current += 1;
+    currentPathRef.current = "";
     setCurrentPath("");
     entriesRef.current = [];
     setEntries([]);
@@ -212,7 +278,11 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
         : null;
     historyTargetRef.current = initialTarget;
 
-    if (initialTarget) void restoreTarget(initialTarget);
+    if (initialTarget) {
+      if (initialTarget !== stateTarget) replaceWorkspaceFileHistoryTarget(initialTarget);
+
+      void restoreTarget(initialTarget);
+    }
 
     return () => {
       directoryOperationRef.current += 1;
@@ -229,6 +299,8 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     const stateTarget = readWorkspaceFileHistoryTarget(event.state);
 
     if (stateTarget?.workspaceId === workspaceId) {
+      if (workspaceFileHistoryTargetsMatch(historyTargetRef.current, stateTarget)) return;
+
       void restoreTarget(stateTarget);
       return;
     }
@@ -255,6 +327,35 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     void showFile(path, true);
   }, [showFile]);
 
+  const returnToDirectory = useCallback(() => {
+    if (!workspaceId) return;
+
+    const currentTarget = historyTargetRef.current;
+
+    if (currentTarget?.kind === "file" && currentTarget.returnDepth) {
+      const directoryTarget = {
+        kind: "directory",
+        path: currentPathRef.current,
+        workspaceId
+      } satisfies WorkspaceFileHistoryTarget;
+
+      targetOperationRef.current += 1;
+      showDirectory(directoryTarget.path, false);
+      window.history.go(-currentTarget.returnDepth);
+      return;
+    }
+
+    const target = {
+      kind: "directory",
+      path: currentPathRef.current,
+      workspaceId
+    } satisfies WorkspaceFileHistoryTarget;
+
+    targetOperationRef.current += 1;
+    replaceWorkspaceFileHistoryTarget(target);
+    showDirectory(target.path, false);
+  }, [showDirectory, workspaceId]);
+
   const loadMore = useCallback(() => {
     if (!loadingDirectory && nextCursor) void loadDirectory(currentPath, nextCursor);
   }, [currentPath, loadDirectory, loadingDirectory, nextCursor]);
@@ -269,22 +370,40 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
       .replace(/\/+$/, "");
     const directoryPath = normalizedPath.split("/").slice(0, -1).join("/");
 
+    fileAbortRef.current?.abort();
+    fileOperationRef.current += 1;
+    currentPathRef.current = directoryPath;
     entriesRef.current = [];
 
     setEntries([]);
     setCurrentPath(directoryPath);
+    setFile(null);
     setHasMore(false);
     setLimited(false);
+    setLoadingFile(false);
     setNextCursor(null);
+    setSelectedPath("");
     const directoryEntries = await loadDirectory(directoryPath);
 
     if (targetOperationRef.current !== targetOperation) return null;
+    if (!directoryEntries) return null;
 
-    const targetEntry = directoryEntries?.find((entry) => entry.path === normalizedPath);
+    const targetEntry = directoryEntries.find((entry) => entry.path === normalizedPath);
 
     if (targetEntry?.kind === "directory") {
       showDirectory(normalizedPath, true);
       return "directory";
+    }
+
+    const directoryTarget = { kind: "directory", path: directoryPath, workspaceId } satisfies WorkspaceFileHistoryTarget;
+
+    if (
+      historyTargetRef.current?.kind !== "directory" ||
+      historyTargetRef.current.path !== directoryPath ||
+      historyTargetRef.current.workspaceId !== workspaceId
+    ) {
+      replaceWorkspaceFileHistoryTarget(directoryTarget);
+      historyTargetRef.current = directoryTarget;
     }
 
     await showFile(normalizedPath, true);
@@ -306,6 +425,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     loadMore,
     openDirectory,
     openFile,
-    openPath
+    openPath,
+    returnToDirectory
   };
 }

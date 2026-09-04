@@ -14,6 +14,13 @@ export type CodexSandboxMode =
   | "workspace-write"
   | "danger-full-access";
 
+export interface AgentSessionSubagent {
+  depth: number | null;
+  nickname: string | null;
+  parentSessionId: string;
+  role: string | null;
+}
+
 export interface AgentSessionObservedTurnState {
   activityAt: string | null;
   completedAt: string | null;
@@ -102,4 +109,5 @@ export interface AgentSessionSummary {
   workState: "idle" | "running";
   turnState?: AgentSessionObservedTurnState;
   interruptLifecycle?: AgentSessionInterruptLifecycle;
+  subagent?: AgentSessionSubagent | null;
 }

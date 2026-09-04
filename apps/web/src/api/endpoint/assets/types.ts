@@ -5,6 +5,7 @@ export type LocalAssetLinkContext = {
 };
 
 export type BuildLocalAssetUrlOptions = {
+  context?: LocalAssetLinkContext;
   download?: boolean;
 };
 
@@ -25,4 +26,6 @@ export type FetchLocalAssetTicketBlobOptions = {
 
 export type FetchLocalAssetTicketTextOptions = {
   context?: LocalAssetLinkContext;
+  maxBytes?: number;
+  signal?: AbortSignal;
 };

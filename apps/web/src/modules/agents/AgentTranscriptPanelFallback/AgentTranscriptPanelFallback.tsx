@@ -1,6 +1,7 @@
 import clsx from "clsx";
 
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
+import { AgentRuntimeIcon } from "@components/AgentRuntimeIcon";
 import { formatDate } from "@lib/format";
 import {
   canContinueAgentSession,
@@ -18,8 +19,11 @@ export type AgentTranscriptPanelFallbackProps = {
   attaching: boolean;
   isLoading: boolean;
   session: AgentSessionsPanelProps["selectedAgentSession"] | AgentSessionsPanelProps["agentSessions"][number] | null;
-  onAttach: () => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onAttach: (options?: { subagentParentSessionId?: string }) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
 };
 
 export function AgentTranscriptPanelFallback({
@@ -59,14 +63,14 @@ export function AgentTranscriptPanelFallback({
   const capabilityLabel = isLoading
     ? "Loading chat"
     : canContinueSourceChat
-      ? "Ready to continue"
+      ? "Ready"
       : unavailableChatPresentation.capabilityLabel;
   const attachedSessionHint = attachedManagedSessionInfo
     ? attachedManagedSessionInfo.status === "running"
       ? attachedViewerCount > 0
-        ? `Already open in ${attachedViewerCount === 1 ? "1 DeskCue client" : `${attachedViewerCount} DeskCue clients`}`
-        : "A live DeskCue chat is already running"
-      : "A DeskCue chat is available"
+        ? `${attachedViewerCount === 1 ? "1 connected DeskCue client" : `${attachedViewerCount} connected DeskCue clients`}`
+        : "Live chat connected"
+      : "Live chat available"
     : null;
   const actionLabel = attachedManagedSessionId
     ? "Open live chat"
@@ -84,10 +88,19 @@ export function AgentTranscriptPanelFallback({
       </div>
 
       <div className={styles.quickDetailMetaRow}>
+        <span
+          className={clsx(
+            styles.capability,
+            capabilityLabel === "Ready" && styles.capabilityReady
+          )}
+        >
+          {capabilityLabel}
+        </span>
         {isSubagentChat(session) ? <AgentChatBadge /> : null}
-        <span className={styles.sourcePill}>{session.agentLabel}</span>
-        <span className={styles.capability}>{capabilityLabel}</span>
-        {attachedManagedSessionInfo ? <span className={styles.capability}>DeskCue attached</span> : null}
+        <span className={styles.sourcePill}>
+          <AgentRuntimeIcon className={styles.sourcePillIcon} runtimeId={session.agentId} />
+          {session.agentLabel}
+        </span>
         <span className={styles.quickDetailDate}>{formatDate(session.updatedAt)}</span>
       </div>
 
@@ -99,7 +112,9 @@ export function AgentTranscriptPanelFallback({
             const actionSessionId = session.id;
 
             if (attachedManagedSessionId) {
-              onOpenManagedSession(attachedManagedSessionId);
+              onOpenManagedSession(attachedManagedSessionId, {
+                subagentParentSessionId: session.subagent?.parentSessionId
+              });
               return;
             }
 
@@ -115,13 +130,15 @@ export function AgentTranscriptPanelFallback({
 
             if (currentSessionIdRef.current !== actionSessionId) return;
 
-            onAttach();
+            onAttach({
+              subagentParentSessionId: session.subagent?.parentSessionId
+            });
           }}
           type="button"
         >
           {attaching ? "Opening..." : actionLabel}
         </button>
-        <p>
+        <p className={attachedSessionHint ? styles.connectionHint : undefined}>
           {attaching
             ? "DeskCue is preparing the local thread"
             : attachedSessionHint ??

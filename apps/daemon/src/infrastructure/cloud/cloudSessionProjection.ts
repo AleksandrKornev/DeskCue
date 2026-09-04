@@ -40,37 +40,49 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object");
 }
 
-function isSubagentSession(session: Pick<AgentSessionSummary, "source">) {
+function isSubagentSession(session: Pick<AgentSessionSummary, "source" | "subagent">) {
+  if (session.subagent) return true;
   if (!isRecord(session.source)) return false;
+
   const subagent = session.source.subagent;
+
   return isRecord(subagent) && isRecord(subagent.thread_spawn);
 }
 
 function sanitizeCloudLabel(value: string | null | undefined, maxChars: number) {
   if (!value) return undefined;
+
   const normalized = value
     .normalize("NFKC")
     .replace(CLOUD_LABEL_UNSAFE_CHARACTERS, " ")
     .replace(/\s+/gu, " ")
     .trim();
   if (!normalized) return undefined;
+
   return [...normalized].slice(0, maxChars).join("");
 }
 
 function sanitizeCloudDisplayLabel(value: string | null | undefined) {
   const label = sanitizeCloudLabel(value, CLOUD_SESSION_DISPLAY_LABEL_MAX_CHARS);
+
   if (!label) return undefined;
   if (CLOUD_SYNTHETIC_SESSION_LABEL.test(label)) return undefined;
   if (!/^(?:[a-z]:[\\/]|[\\/]{1,2})/iu.test(label)) return label;
+
   const basename = label.split(/[\\/]/u).filter(Boolean).at(-1);
+
   return sanitizeCloudLabel(basename, CLOUD_SESSION_DISPLAY_LABEL_MAX_CHARS);
 }
 
 function sanitizeCloudWorkspaceLabel(value: string | null | undefined) {
   const label = sanitizeCloudLabel(value, CLOUD_SESSION_WORKSPACE_LABEL_MAX_CHARS);
+
   if (!label) return undefined;
+
   const basename = label.split(/[\\/]/u).filter(Boolean).at(-1);
+
   if (!basename || /^[a-z]:$/iu.test(basename)) return undefined;
+
   return sanitizeCloudLabel(basename, CLOUD_SESSION_WORKSPACE_LABEL_MAX_CHARS);
 }
 
@@ -80,6 +92,7 @@ function disclosureFields(
   workspaceLabel?: string
 ): Pick<CloudRelaySessionSummary, "disclosureScope" | "displayLabel" | "workspaceLabel"> {
   if (!disclosure.includeLabels) return { disclosureScope: "metadata_only" };
+
   return {
     disclosureScope: "user_opt_in",
     ...(displayLabel ? { displayLabel } : {}),
@@ -89,6 +102,7 @@ function disclosureFields(
 
 function normalizeCloudTimestamp(value: string) {
   const timestamp = Date.parse(value);
+
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
 }
 
@@ -97,6 +111,7 @@ function mapRuntime(adapterId: string): CloudRelaySessionSummary["runtime"] {
   if (adapterId === "claude-code") return "claude_code";
   if (adapterId === "ollama") return "ollama";
   if (adapterId === "lm-studio") return "lm_studio";
+
   return "generic_cli";
 }
 
@@ -115,6 +130,7 @@ function projectManagedReplyState(
 ): CloudRelaySessionSummary["replyState"] {
   if (session.actionRequest) return "waiting_for_user";
   if (session.replyState.phase === "idle") return "idle";
+
   return "waiting_for_agent";
 }
 
@@ -125,7 +141,9 @@ function projectManagedSession(
   labels: CloudProjectionLabels = {}
 ): CloudRelaySessionSummary | null {
   const updatedAt = normalizeCloudTimestamp(session.lastActivityAt);
+
   if (!updatedAt) return null;
+
   return {
     sessionId: session.sourceSessionId
       ? opaqueSessionId(
@@ -153,7 +171,9 @@ function projectSourceSession(
   disclosure: CloudProjectionDisclosure
 ): CloudRelaySessionSummary | null {
   const updatedAt = normalizeCloudTimestamp(session.updatedAt);
+
   if (!updatedAt) return null;
+
   return {
     sessionId: opaqueSessionId(
       installationId,
@@ -179,7 +199,9 @@ function projectLocalChat(
   disclosure: CloudProjectionDisclosure
 ): CloudRelaySessionSummary | null {
   const updatedAt = normalizeCloudTimestamp(chat.updatedAt);
+
   if (!updatedAt) return null;
+
   return {
     sessionId: opaqueSessionId(installationId, "local", chat.id),
     runtime: chat.runtimeId === "lm-studio" ? "lm_studio" : "ollama",
@@ -218,11 +240,13 @@ async function readCloudSessionProjectionEntries(
     }
   ]));
   const entries = new Map<string, CloudSessionProjectionEntry>();
+
   for (const session of source.listManagedSessions()) {
     const labels = session.sourceSessionId
       ? sourceLabels.get(`${session.adapterId}:${session.sourceSessionId}`)
       : undefined;
     const projection = projectManagedSession(installationId, session, disclosure, labels);
+
     if (projection) {
       entries.set(projection.sessionId, {
         route: { kind: "managed", sessionId: session.id },
@@ -230,8 +254,10 @@ async function readCloudSessionProjectionEntries(
       });
     }
   }
+
   for (const session of sourceSessions) {
     const projection = projectSourceSession(installationId, session, disclosure);
+
     if (projection && !entries.has(projection.sessionId)) {
       entries.set(projection.sessionId, {
         route: { kind: "agent", sessionId: session.id },
@@ -239,8 +265,10 @@ async function readCloudSessionProjectionEntries(
       });
     }
   }
+
   for (const chat of localChats) {
     const projection = projectLocalChat(installationId, chat, disclosure);
+
     if (projection) {
       entries.set(projection.sessionId, {
         route: { kind: "local_llm", sessionId: chat.id },
@@ -248,6 +276,7 @@ async function readCloudSessionProjectionEntries(
       });
     }
   }
+
   return [...entries.values()].slice(0, CLOUD_SESSION_PROJECTION_LIMIT);
 }
 

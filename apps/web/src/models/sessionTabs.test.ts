@@ -11,7 +11,7 @@ import {
 } from "./sessionTabs";
 
 describe("session navigation", () => {
-  it("keeps source chat navigation focused on review outcomes", () => {
+  it("keeps all four source chat sections available", () => {
     const tabs = getSessionTabsForCapabilities(sourceChatNavigationCapabilities);
 
     assert.deepEqual(
@@ -68,6 +68,7 @@ describe("session navigation", () => {
       getSessionTabsForCapabilities(remoteCapabilities).map((tab) => tab.key),
       ["overview", "diff"]
     );
+
     assert.deepEqual(
       getSessionTabsForCapabilities(localCapabilities).map((tab) => tab.key),
       ["overview", "diff", "files", "preview"]

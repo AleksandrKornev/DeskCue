@@ -21,8 +21,8 @@
   min-height: 24px;
   padding: 0 8px;
   border-radius: vars.$radius-pill;
-  background: rgba(49, 82, 181, 0.16);
-  color: #b8cbff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -32,17 +32,26 @@
 .sourcePillMuted {
   min-height: 22px;
   padding: 0 7px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.66rem;
   letter-spacing: 0.07em;
+}
+
+.desktopSourcePill {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .skeletonPill {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-border-hairline;
+  background: vars.$color-surface-input;
 }
 
 .skeletonPill::after {
@@ -53,7 +62,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.05) 48%,
+    vars.$color-shimmer 48%,
     transparent 100%
   );
   animation: skeletonShimmer 1.6s infinite;
@@ -81,16 +90,61 @@
 }
 
 .mobileBackButton {
+  position: relative;
   display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: vars.$color-text-secondary;
+}
+
+.mobileBackButton::before {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: vars.$color-surface-control-subtle;
+  content: "";
+}
+
+.mobileBackButton > * { position: relative; }
+
+.mobileBackIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.mobileBackButton:hover,
+.mobileBackButton:focus-visible { color: vars.$color-text-primary; }
+
+.mobileBackButton:hover::before { background: vars.$color-surface-control-hover; }
+
+.mobileBackButton:focus-visible::before {
+  box-shadow: inset 0 0 0 2px vars.$color-focus-ring;
+}
+
+@media (min-width: 721px) and (max-width: 900px) and (min-height: 641px) {
+  .mobileBackButton { display: inline-grid; }
 }
 
 .chatMain {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   flex: 1 1 auto;
   gap: 8px;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.chatMain > .actions {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
 }
 
 .sourcePillMultiplier {
@@ -101,6 +155,30 @@
 
 .contextCompactionPill {
   display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: vars.$color-status-info;
+}
+
+.contextCompactionLow {
+  color: vars.$color-status-info;
+}
+
+.contextCompactionElevated {
+  color: vars.$color-status-warning;
+}
+
+.contextCompactionHigh {
+  color: vars.$color-status-danger;
+}
+
+.compactionSlot {
+  display: inline-flex;
+}
+
+.mobileSessionContext,
+.mobileSessionContextSlot {
+  display: none;
 }
 
 .desktopMetaItem,
@@ -118,6 +196,48 @@
   height: 11px;
 }
 
+.mobileSessionContextDetails {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.mobileSessionContextDetails > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mobileSessionContextDetails dt {
+  color: vars.$color-text-muted;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mobileSessionContextDetails dd {
+  min-width: 0;
+  margin: 0;
+  color: vars.$color-text-primary;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.runtimePill {
+  gap: 5px;
+  border: 1px solid vars.$color-border-info;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
+}
+
+.runtimePillIcon,
+.mobileAgentSourceIcon {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+}
+
 .modelPill {
   display: inline-flex;
   flex: 0 0 auto;
@@ -127,8 +247,8 @@
   min-height: 22px;
   padding: 0 7px;
   border-radius: vars.$radius-pill;
-  background: rgba(132, 161, 255, 0.12);
-  color: #cbd8ff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
   font-size: 0.68rem;
   letter-spacing: 0;
   overflow: hidden;
@@ -137,6 +257,8 @@
 }
 
 .titleRow {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -163,12 +285,27 @@
   white-space: nowrap;
 }
 
+.commandText {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .metaRow {
+  grid-column: 1;
+  grid-row: 2;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
   flex-wrap: wrap;
+}
+
+.sessionMetaCluster {
+  display: contents;
 }
 
 .headerStatus {
@@ -177,11 +314,21 @@
   min-width: 0;
 }
 
+.headerStatusDisclosure {
+  display: inline-flex;
+  align-items: center;
+}
+
+.desktopAgentChatBadgeSlot {
+  display: inline-flex;
+  min-width: 0;
+}
+
 .headerStatusBadge {
   min-height: 22px;
   padding: 0 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.66rem;
   letter-spacing: 0.07em;
 }
@@ -191,8 +338,8 @@
   min-height: 22px;
   padding: 0 7px;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.66rem;
   line-height: 1;
   letter-spacing: 0.07em;
@@ -200,27 +347,30 @@
   white-space: nowrap;
 }
 
-.headerStatusBadgeRunning {
-  background: rgba(44, 156, 92, 0.16);
-  color: #8ac79d;
+.headerStatusBadgePositive {
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
-.headerStatusBadgeRunning[class] {
-  background: rgba(44, 156, 92, 0.16);
-  color: #8ac79d;
+.headerStatusBadgePositive[class] {
+  border: 1px solid vars.$color-border-success;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-success;
 }
 
 .headerStatusBadgeActionable[class] {
-  background: rgba(214, 164, 103, 0.16);
-  color: #f2dfbf;
+  background: vars.$color-surface-accent-hover;
+  color: vars.$color-accent-text;
 }
 
 .headerStatusBadgeDanger[class] {
-  background: rgba(179, 63, 63, 0.22);
-  color: #ffaaaa;
+  background: vars.$color-surface-danger-strong;
+  color: vars.$color-status-danger;
 }
 
 .path {
+  grid-column: 1;
+  grid-row: 3;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -246,8 +396,8 @@
   min-height: 24px;
   padding: 0 9px;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.05);
-  color: #b9b0a2;
+  background: vars.$color-shimmer;
+  color: vars.$color-text-secondary;
   font-size: 0.7rem;
   line-height: 1;
   white-space: nowrap;
@@ -259,7 +409,7 @@
   height: 7px;
   border-radius: vars.$radius-pill;
   background: currentColor;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.035);
+  box-shadow: 0 0 0 2px vars.$color-surface-input;
 }
 
 .liveConnectionLabel {
@@ -287,61 +437,61 @@
 }
 
 .liveConnectionLive {
-  background: rgba(44, 156, 92, 0.13);
-  color: #51d486;
+  background: vars.$color-surface-success;
+  color: vars.$color-status-running-strong;
 }
 
 .liveConnectionLive .liveConnectionDetail,
 .liveConnectionLive .liveConnectionCompactDetail {
-  color: #c8f6da;
+  color: vars.$color-status-success-detail;
 }
 
 .liveConnectionLive .liveConnectionLabel {
-  color: #51d486;
+  color: vars.$color-status-running-strong;
 }
 
 .liveConnectionLive .liveConnectionDot {
-  background: #51d486;
+  background: vars.$color-status-running-strong;
 }
 
 .liveConnectionConnecting {
-  background: rgba(49, 82, 181, 0.14);
-  color: #8fb6ff;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-connecting;
 }
 
 .liveConnectionReconnecting {
-  background: rgba(214, 164, 103, 0.14);
-  color: #ffb15e;
+  background: vars.$color-surface-accent;
+  color: vars.$color-status-reconnecting;
 }
 
 .liveConnectionReconnecting .liveConnectionLabel,
 .liveConnectionReconnecting .liveConnectionDot {
-  color: #ffb15e;
+  color: vars.$color-status-reconnecting;
 }
 
 .liveConnectionReconnecting .liveConnectionDot {
-  background: #ffb15e;
-  box-shadow: 0 0 0 2px rgba(255, 177, 94, 0.14);
+  background: vars.$color-status-reconnecting;
+  box-shadow: vars.$shadow-status-warning;
 }
 
 .liveConnectionOffline {
-  background: rgba(194, 69, 69, 0.16);
-  color: #ff6d7a;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-offline;
 }
 
 .liveConnectionOffline .liveConnectionLabel,
 .liveConnectionOffline .liveConnectionDot {
-  color: #ff6d7a;
+  color: vars.$color-status-offline;
 }
 
 .liveConnectionOffline .liveConnectionDot {
-  background: #ff6d7a;
-  box-shadow: 0 0 0 2px rgba(255, 109, 122, 0.14);
+  background: vars.$color-status-offline;
+  box-shadow: vars.$shadow-status-offline;
 }
 
 .liveConnectionOffline .liveConnectionDetail,
 .liveConnectionReconnecting .liveConnectionDetail {
-  color: #f3c9b3;
+  color: vars.$color-status-danger-detail;
 }
 
 .liveNav {

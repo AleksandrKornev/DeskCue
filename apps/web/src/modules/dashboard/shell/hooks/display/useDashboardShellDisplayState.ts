@@ -1,5 +1,6 @@
 import type { RouteViewState } from "@models/dashboardRoute";
 import type { SessionTab } from "@models/sessionTabs";
+import type { InitialManagedSessionLoadState } from "@modules/dashboard/model/data";
 import type { DashboardState } from "@modules/dashboard/shell/hooks/types";
 import { getDeskCueRuntime } from "@runtime";
 
@@ -10,6 +11,7 @@ export function useDashboardShellDisplayState({
   hasManagedFocus,
   isAgentSessionLoading,
   isBootstrapping,
+  initialManagedSessionLoadState,
   isCompactViewport,
   isExitingToDashboard,
   isTakenOverAgentSessionLoading,
@@ -25,6 +27,7 @@ export function useDashboardShellDisplayState({
   hasManagedFocus: boolean;
   isAgentSessionLoading: boolean;
   isBootstrapping: boolean;
+  initialManagedSessionLoadState: InitialManagedSessionLoadState;
   isCompactViewport: boolean;
   isExitingToDashboard: boolean;
   isTakenOverAgentSessionLoading: boolean;
@@ -60,13 +63,20 @@ export function useDashboardShellDisplayState({
     Boolean(routeState.agentSessionId) &&
     !takenOverAgentSessionForPanel &&
     isTakenOverAgentSessionLoading;
+  const isInitialSessionRecoveryVisible =
+    routeState.kind === "session" &&
+    (initialManagedSessionLoadState.kind === "error" ||
+      initialManagedSessionLoadState.kind === "missing" ||
+      initialManagedSessionLoadState.kind === "retrying");
   const shouldShowFocusedSessionHydrationShell =
     !isExitingToDashboard &&
     routeState.kind === "session" &&
+    !isInitialSessionRecoveryVisible &&
     (isFocusedSessionDetailHydrating || isFocusedSourceTranscriptHydrating);
   const shouldShowRouteBootstrapShell =
     routeState.kind === "session" &&
     showBootstrapShell &&
+    !isInitialSessionRecoveryVisible &&
     displaySelectedSessionId !== routeState.sessionId &&
     displaySelectedSession?.id !== displaySelectedSessionId &&
     !isCleanDashboardRoute &&

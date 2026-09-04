@@ -3,11 +3,13 @@ import { useLocation } from "react-router";
 
 import { prepareConnectionConfig } from "@api/connection/pairing";
 import { RouteLoadingShell } from "@modules/appShell";
+import { useDeskCueRuntime } from "@runtime";
 
 import App from "./App";
 
 export function ConnectionConfigBootstrap() {
   const location = useLocation();
+  const runtime = useDeskCueRuntime();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export function ConnectionConfigBootstrap() {
   if (!isReady) {
     return (
       <RouteLoadingShell
-        pathname={location.pathname}
+        pathname={runtime.readAppPath(location.pathname)}
         search={location.search}
       />
     );

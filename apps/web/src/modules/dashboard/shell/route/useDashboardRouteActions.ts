@@ -8,7 +8,11 @@ import {
 import type { SendInputOptions } from "@models/promptDelivery";
 import { dashboardNavigationStore } from "@modules/dashboard/shell/store/dashboardNavigationStore";
 
-import { resetDashboardScroll } from "./helpers";
+import {
+  createManagedSessionNavigation,
+  readSubagentParentSessionId,
+  resetDashboardScroll
+} from "./helpers";
 import type { UseDashboardRouteActionsArgs } from "./types";
 import { useDashboardNavigateToRoute } from "./useDashboardNavigateToRoute";
 import { useDashboardRouteSelectionActions } from "./useDashboardRouteSelectionActions";
@@ -53,15 +57,17 @@ export function useDashboardRouteActions({
     });
   }, [navigateToRoute]);
 
-  const toggleLiveTools = useCallback(() => {
+  const toggleLiveTools = useCallback((options?: { replace?: boolean }) => {
     navigateToRoute({
       overlay: activeLiveOverlay === "tools" ? null : "tools"
-    });
+    }, options);
   }, [activeLiveOverlay, navigateToRoute]);
 
   const {
+    handleBackToParentAgentSession,
     handleClearAgentSessionSelection,
     handleOpenManagedSession,
+    handleOpenSubagentSession,
     handleSelectAgentSession,
     handleSelectManagedSession,
     handleSelectSessionTab,
@@ -134,16 +140,47 @@ export function useDashboardRouteActions({
     });
   }, [navigate]);
 
-  const handleStopAndExitSession = useCallback(async () => {
+  const handleStopAndExitSession = useCallback(async (options?: {
+    subagentParentSessionId?: string;
+    subagentSessionId?: string;
+  }) => {
     const stopped = await handleStopSession();
 
     if (!stopped) return;
 
-    handleExitSession();
-  }, [handleExitSession, handleStopSession]);
+    const subagentSessionId = options?.subagentSessionId ?? effectiveSelectedAgentSessionId;
+    const subagentParentSessionId = options?.subagentParentSessionId ??
+      readSubagentParentSessionId(window.history.state, subagentSessionId);
 
-  const handleAttachSelectedAgentSession = useCallback(async () => {
+    if (subagentParentSessionId && subagentSessionId) {
+      handleBackToParentAgentSession(
+        subagentParentSessionId,
+        subagentSessionId
+      );
+
+      return;
+    }
+
+    handleExitSession();
+  }, [
+    effectiveSelectedAgentSessionId,
+    handleBackToParentAgentSession,
+    handleExitSession,
+    handleStopSession
+  ]);
+
+  const handleAttachSelectedAgentSession = useCallback(async (
+    options?: { subagentParentSessionId?: string }
+  ) => {
     const agentSessionId = effectiveSelectedAgentSessionId;
+    const subagentParentSessionId = options?.subagentParentSessionId ??
+      readSubagentParentSessionId(window.history.state, agentSessionId) ??
+      undefined;
+    const navigation = createManagedSessionNavigation(
+      window.history.state,
+      subagentParentSessionId,
+      agentSessionId
+    );
 
     flushSync(() => {
       dashboardNavigationStore.setIsAgentBrowserListMode(false);
@@ -159,15 +196,21 @@ export function useDashboardRouteActions({
       dashboardNavigationStore.setIsDashboardPinned(false);
       setSelectedSessionId(session.id);
       keepOpeningStateUntilRouteSync = true;
-      navigate({
-        pathname: buildSessionPath(session.id, "overview"),
-        search: buildRouteSearch({
-          sourceId: selectedSourceId,
-          agentSessionId,
-          overlay: null,
-          includeOverlay: true
-        })
-      });
+      navigate(
+        {
+          pathname: buildSessionPath(session.id, "overview"),
+          search: buildRouteSearch({
+            sourceId: selectedSourceId,
+            agentSessionId,
+            overlay: null,
+            includeOverlay: true
+          })
+        },
+        {
+          replace: navigation.replace,
+          state: navigation.state
+        }
+      );
     } finally {
       if (!keepOpeningStateUntilRouteSync) dashboardNavigationStore.setOpeningAgentSessionId("");
     }
@@ -213,12 +256,14 @@ export function useDashboardRouteActions({
     navigateToRoute,
     closeLiveOverlays,
     toggleLiveTools,
+    handleBackToParentAgentSession,
     handleSelectManagedSession,
     handleSelectSessionTab,
     handleSelectSource,
     handleSelectAgentSession,
     handleClearAgentSessionSelection,
     handleOpenManagedSession,
+    handleOpenSubagentSession,
     handleOpenLocalLlmChat,
     handleGoHome,
     handleExitSession,

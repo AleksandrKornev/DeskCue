@@ -6,13 +6,29 @@
   align-content: start;
   gap: 12px;
   min-height: 0;
-  overflow: auto;
+  overflow-x: clip;
+  overflow-y: auto;
   overflow-anchor: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
+  scrollbar-color: rgba(143, 150, 162, 0.42) transparent;
   padding-block: 18px;
   padding-inline: max(18px, calc((100% - vars.$chat-content-max-width) / 2));
+}
+
+.chatThread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chatThread::-webkit-scrollbar-thumb {
+  background: rgba(143, 150, 162, 0.34);
+  border-color: transparent;
+}
+
+.chatThread:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: -2px;
 }
 
 .chatThreadLoading {
@@ -38,13 +54,12 @@
   width: min(520px, 100%);
   padding: 20px 22px;
   border-radius: vars.$radius-lg;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-control-subtle;
 }
 
 .chatEmptyStateCard strong {
-  color: #f1ede4;
+  color: vars.$color-text-primary;
 }
 
 .chatEmptyStateCard span {
@@ -72,8 +87,8 @@
   max-width: min(820px, 92%);
   padding: 14px 16px;
   border-radius: vars.$radius-lg;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid vars.$color-border-muted;
+  background: vars.$color-surface-control-subtle;
 }
 
 .chatLoadingMessageAssistant {
@@ -83,8 +98,8 @@
 .chatLoadingMessageUser {
   align-self: flex-end;
   width: min(560px, 78%);
-  background: rgba(49, 82, 181, 0.08);
-  border-color: rgba(82, 115, 217, 0.16);
+  background: vars.$color-surface-info-glow;
+  border-color: vars.$color-border-info;
 }
 
 .chatLoadingMeta {
@@ -146,7 +161,7 @@
   content: "";
   height: 1px;
   flex: 1 1 auto;
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-border-subtle;
 }
 
 .chatDaySeparator span {

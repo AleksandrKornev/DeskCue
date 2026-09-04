@@ -23,10 +23,12 @@ export type WorkspaceFileBrowserState = {
   openDirectory: (path: string) => void;
   openFile: (path: string) => void;
   openPath: (path: string) => Promise<"directory" | "file" | null>;
+  returnToDirectory: () => void;
 };
 
 export type WorkspaceFileHistoryTarget = {
   kind: "directory" | "file";
   path: string;
+  returnDepth?: number;
   workspaceId: string;
 };

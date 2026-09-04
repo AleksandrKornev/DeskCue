@@ -1,6 +1,12 @@
+import { useId } from "react";
+
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
 import { useBottomSheetDrag } from "@components/BottomSheet";
-import { useModalFocusLifecycle } from "@components/Modal";
+import {
+  ModalCloseButton,
+  useModalFocusLifecycle,
+  useModalHistoryLifecycle
+} from "@components/Modal";
 
 import {
   buildModelRuntimeDetailItems,
@@ -13,6 +19,7 @@ import styles from "./styles.module.scss";
 import type { ModelRuntimePanelProps } from "./types";
 
 export function ModelRuntimePanel({ agentSession, onClose, session }: ModelRuntimePanelProps) {
+  const historyId = useId();
   const {
     dragHandleProps,
     sheetGestureProps,
@@ -31,7 +38,14 @@ export function ModelRuntimePanel({ agentSession, onClose, session }: ModelRunti
     session
   });
 
-  useModalFocusLifecycle({ dialogRef: sheetRef, onClose });
+  const { modalEntryId, onCloseRef } = useModalFocusLifecycle({ dialogRef: sheetRef, onClose });
+
+  useModalHistoryLifecycle({
+    enabled: true,
+    historyId,
+    modalEntryId,
+    onCloseRef
+  });
 
   return (
     <div className={styles.backdrop}>
@@ -54,24 +68,22 @@ export function ModelRuntimePanel({ agentSession, onClose, session }: ModelRunti
       >
         <div aria-hidden="true" className={styles.dragHandle} {...dragHandleProps} />
         <div className={styles.header} {...dragHandleProps}>
-          <div>
+          <div className={styles.headerCopy}>
             <h3>Model & runtime</h3>
             <p>
               Read-only context for this chat. Model is shown only when local metadata exposes it
             </p>
           </div>
           <div className={styles.headerActions}>
-            {isAgentChat ? <AgentChatBadge /> : null}
-            <span className={styles.summaryPill}>{model.name ?? adapterDetails.label}</span>
-            <button
-              aria-label="Close model and runtime context"
-              className={styles.closeButton}
+            <div className={styles.headerMeta}>
+              {isAgentChat ? <AgentChatBadge /> : null}
+              <span className={styles.summaryPill}>{model.name ?? adapterDetails.label}</span>
+            </div>
+            <ModalCloseButton
+              className={styles.headerClose}
+              label="Close model and runtime context"
               onClick={onClose}
-              title="Close"
-              type="button"
-            >
-              ×
-            </button>
+            />
           </div>
         </div>
 

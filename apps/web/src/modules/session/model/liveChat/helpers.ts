@@ -54,6 +54,27 @@ function readTurnStateTimestamp(session: SourceLiveStateWithAttach) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function selectEqualTimestampTurnState(
+  detail: SourceLiveStateWithAttach,
+  summary: SourceLiveStateWithAttach
+) {
+  const detailTurn = detail.turnState;
+  const summaryTurn = summary.turnState;
+  const detailIsActive = detailTurn?.phase === "active";
+  const summaryIsActive = summaryTurn?.phase === "active";
+
+  if (detailIsActive === summaryIsActive) return null;
+
+  const activeTurn = detailIsActive ? detailTurn : summaryTurn;
+  const terminalTurn = detailIsActive ? summaryTurn : detailTurn;
+  const activeSource = detailIsActive ? "detail" : "summary";
+  const terminalSource = detailIsActive ? "summary" : "detail";
+
+  return terminalTurn?.turnStartFingerprint === activeTurn?.fingerprint
+    ? terminalSource
+    : activeSource;
+}
+
 export function resolveLiveSourceState(
   detail: SourceLiveStateWithAttach | null,
   summary: SourceLiveStateWithAttach | null
@@ -66,6 +87,13 @@ export function resolveLiveSourceState(
 
   if (summaryTurnTimestamp === null) return detail;
   if (detailTurnTimestamp !== null && summaryTurnTimestamp < detailTurnTimestamp) return detail;
+
+  if (detailTurnTimestamp === summaryTurnTimestamp) {
+    const selectedSource = selectEqualTimestampTurnState(detail, summary);
+
+    if (selectedSource === "detail") return detail;
+    if (selectedSource === "summary") return { ...detail, ...summary };
+  }
 
   return {
     ...detail,
@@ -166,11 +194,6 @@ export function resolveLiveHeaderStatusLabel({
   }
 
   if (isPromptInFlight) return undefined;
-
-  if (
-    takenOverAgentSession?.workState === "running" &&
-    takenOverAgentSession.attachMode === "read_only"
-  ) return "observing";
   if (takenOverAgentSession?.workState === "running") return undefined;
   if (takenOverAgentSession?.attachMode === "resume") return "ready";
   if (takenOverAgentSession?.attachMode === "read_only") return "view only";

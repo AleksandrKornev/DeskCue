@@ -2,9 +2,17 @@ import type { AgentTranscriptEntry } from "@deskcue/protocol";
 
 import {
   CODEX_CHAT_MESSAGE_LINE_DETECTION_MAX_BYTES,
-  CODEX_TRANSCRIPT_INDEXED_LINE_HINT_BYTES
+  CODEX_TRANSCRIPT_INDEXED_LINE_HINT_BYTES,
+  CODEX_TRANSCRIPT_LINE_RETENTION_MAX_BYTES
 } from "../codexTranscriptReadLimits.ts";
 import { createCompactIndexedTranscriptEntry } from "./codexTranscriptCompactIndexProjection.ts";
+import {
+  appendCodexTranscriptJsonObjectBytes,
+  createCodexTranscriptJsonObjectScan,
+  isCompleteCodexTranscriptJsonObject,
+  isValidCodexTranscriptJsonObjectText
+} from "./codexTranscriptJsonObjectScan.ts";
+import type { CodexTranscriptJsonObjectScan } from "./codexTranscriptJsonObjectScan.ts";
 import {
   classifyIndexedTranscriptActivityLine,
   readCodexTranscriptLineTypeHint,
@@ -20,10 +28,12 @@ type CompactTranscriptLineAccumulator = {
   compactKind: IndexedTranscriptActivityKind | null;
   fullChunks: Buffer[];
   fullBytes: number;
+  fullTruncated: boolean;
+  jsonObjectScan: CodexTranscriptJsonObjectScan;
+  lastResolvedPrefixBytes: number;
   prefixChunks: Buffer[];
   prefixBytes: number;
   retention: CompactTranscriptLineRetention;
-  typeHint: CodexTranscriptLineTypeHint | null;
 };
 
 type CompactTranscriptLineResult = {
@@ -37,10 +47,12 @@ export function createCompactTranscriptLineAccumulator(): CompactTranscriptLineA
     compactKind: null,
     fullChunks: [],
     fullBytes: 0,
+    fullTruncated: false,
+    jsonObjectScan: createCodexTranscriptJsonObjectScan(),
+    lastResolvedPrefixBytes: -1,
     prefixChunks: [],
     prefixBytes: 0,
-    retention: "undecided",
-    typeHint: null
+    retention: "undecided"
   };
 }
 
@@ -72,6 +84,8 @@ export function resolveKnownCompactTranscriptLineDecision(
         retention: "keep"
       };
     }
+
+    if (typeHint.payloadType === "item_completed" && !typeHint.payloadItemType) return null;
 
     return {
       compactKind: classifyIndexedTranscriptActivityLine(typeHint),
@@ -132,20 +146,17 @@ function readCompactTranscriptLinePrefix(line: CompactTranscriptLineAccumulator)
 }
 
 function resolveCompactTranscriptLinePrefix(line: CompactTranscriptLineAccumulator) {
+  line.lastResolvedPrefixBytes = line.prefixBytes;
+
   const typeHint = readCodexTranscriptLineTypeHint(readCompactTranscriptLinePrefix(line));
   const decision = resolveKnownCompactTranscriptLineDecision(typeHint);
+
   if (!decision) {
     return;
   }
 
-  line.typeHint = typeHint;
   line.retention = decision.retention;
   line.compactKind = decision.compactKind;
-
-  if (line.retention === "compact") {
-    line.fullChunks = [];
-    line.fullBytes = 0;
-  }
 }
 
 export function appendCompactTranscriptLineBytes(
@@ -156,9 +167,20 @@ export function appendCompactTranscriptLineBytes(
     return;
   }
 
-  if (line.retention !== "compact") {
-    line.fullChunks.push(chunk);
-    line.fullBytes += chunk.length;
+  appendCodexTranscriptJsonObjectBytes(line.jsonObjectScan, chunk);
+
+  if (!line.fullTruncated) {
+    const remainingBytes = CODEX_TRANSCRIPT_LINE_RETENTION_MAX_BYTES - line.fullBytes;
+    const retainedChunk = chunk.length > remainingBytes
+      ? chunk.subarray(0, remainingBytes)
+      : chunk;
+
+    if (retainedChunk.length > 0) {
+      line.fullChunks.push(retainedChunk);
+      line.fullBytes += retainedChunk.length;
+    }
+
+    if (retainedChunk.length < chunk.length) line.fullTruncated = true;
   }
 
   if (line.prefixBytes < CODEX_TRANSCRIPT_INDEXED_LINE_HINT_BYTES) {
@@ -166,11 +188,15 @@ export function appendCompactTranscriptLineBytes(
       chunk.length,
       CODEX_TRANSCRIPT_INDEXED_LINE_HINT_BYTES - line.prefixBytes
     );
+
     line.prefixChunks.push(chunk.subarray(0, retainedLength));
     line.prefixBytes += retainedLength;
   }
 
-  if (line.retention === "undecided") {
+  if (
+    line.retention === "undecided" &&
+    line.prefixBytes !== line.lastResolvedPrefixBytes
+  ) {
     resolveCompactTranscriptLinePrefix(line);
   }
 
@@ -184,8 +210,6 @@ export function appendCompactTranscriptLineBytes(
     line.fullBytes > CODEX_CHAT_MESSAGE_LINE_DETECTION_MAX_BYTES
   ) {
     line.retention = "compact";
-    line.fullChunks = [];
-    line.fullBytes = 0;
   }
 }
 
@@ -202,26 +226,24 @@ export function finishCompactTranscriptLine(
   sessionId: string,
   lineIndex: number
 ): CompactTranscriptLineResult {
-  const typeHint = line.typeHint ?? readCodexTranscriptLineTypeHint(
-    readCompactTranscriptLinePrefix(line)
-  );
-
-  if (line.retention === "compact") {
+  if (!isCompleteCodexTranscriptJsonObject(line.jsonObjectScan)) {
     return {
-      compactEntry: line.compactKind
-        ? createCompactIndexedTranscriptEntry({
-            kind: line.compactKind,
-            lineIndex,
-            sessionId,
-            timestamp: typeHint.timestamp
-          })
-        : null,
+      compactEntry: null,
+      containsTurnContextLine: false,
+      selectedLine: null
+    };
+  }
+
+  if (line.fullTruncated) {
+    return {
+      compactEntry: null,
       containsTurnContextLine: false,
       selectedLine: null
     };
   }
 
   const trimmedLine = readCompactTranscriptLineFullText(line).trim();
+
   if (!trimmedLine) {
     return {
       compactEntry: null,
@@ -230,7 +252,29 @@ export function finishCompactTranscriptLine(
     };
   }
 
+  if (!isValidCodexTranscriptJsonObjectText(trimmedLine)) {
+    return {
+      compactEntry: null,
+      containsTurnContextLine: false,
+      selectedLine: null
+    };
+  }
+
   const fullTypeHint = readCodexTranscriptLineTypeHint(trimmedLine);
+
+  if (line.retention === "compact" && line.compactKind) {
+    return {
+      compactEntry: createCompactIndexedTranscriptEntry({
+        kind: line.compactKind,
+        lineIndex,
+        sessionId,
+        timestamp: fullTypeHint.timestamp
+      }),
+      containsTurnContextLine: false,
+      selectedLine: null
+    };
+  }
+
   if (shouldKeepIndexedTranscriptLineExact(trimmedLine, fullTypeHint)) {
     return {
       compactEntry: null,
@@ -243,6 +287,7 @@ export function finishCompactTranscriptLine(
   }
 
   const activityKind = classifyIndexedTranscriptActivityLine(fullTypeHint);
+
   return {
     compactEntry: activityKind
       ? createCompactIndexedTranscriptEntry({

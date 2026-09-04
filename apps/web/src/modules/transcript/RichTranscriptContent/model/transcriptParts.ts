@@ -4,28 +4,73 @@ import type {
   RichTranscriptContentEntry
 } from "@modules/transcript/RichTranscriptContent/types";
 
+import {
+  normalizeMarkdownLocalAssetPath
+} from "./attachments";
+import { isCompactActivityStatusPart } from "./compactActivityStatus";
 import { groupDiffPartsByFile } from "./diffParts";
-
-function isCompactActivityStatusPart(part: Extract<TranscriptPart, { type: "status" }>) {
-  return part.detail?.endsWith("entries load when this activity is opened") ?? false;
-}
+import { getMarkdownAssetSources } from "./markdown";
 
 function isPatchApplyStatusLabel(label: string) {
   return label === "Applied patch" || label === "Patch failed";
 }
 
+function getComparableAssetReference(value: string | null) {
+  if (!value) return null;
+
+  const localPath = normalizeMarkdownLocalAssetPath(value);
+
+  if (!localPath) {
+    if (!/^https?:\/\//iu.test(value)) return null;
+
+    try {
+      return new URL(value).href;
+    } catch {
+      return value;
+    }
+  }
+
+  const normalizedPath = localPath.replaceAll("\\", "/");
+
+  return /^[A-Za-z]:\//u.test(normalizedPath)
+    ? normalizedPath.toLowerCase()
+    : normalizedPath;
+}
+
+function removeAttachmentsRepresentedInMarkdown(parts: TranscriptPart[]) {
+  const localAssetPaths = new Set(
+    parts
+      .filter((part): part is Extract<TranscriptPart, { type: "markdown" }> => part.type === "markdown")
+      .flatMap((part) => getMarkdownAssetSources(part.text))
+      .map(getComparableAssetReference)
+      .filter((path): path is string => path !== null)
+  );
+
+  if (localAssetPaths.size === 0) return parts;
+
+  return parts.filter((part) => {
+    if (part.type !== "attachment") return true;
+
+    const attachmentPath = getComparableAssetReference(part.path ?? part.url);
+
+    return !attachmentPath || !localAssetPaths.has(attachmentPath);
+  });
+}
+
 export function getRenderableTranscriptParts(parts: TranscriptPart[]) {
   const partsWithoutCompactSummaries = parts.filter(
-    (part) => part.type !== "status" || !isCompactActivityStatusPart(part)
+    (part) => !isCompactActivityStatusPart(part)
   );
   const diffCount = partsWithoutCompactSummaries.filter((part) => part.type === "diff").length;
 
-  if (diffCount === 0) return partsWithoutCompactSummaries;
+  if (diffCount === 0) return removeAttachmentsRepresentedInMarkdown(partsWithoutCompactSummaries);
 
-  return partsWithoutCompactSummaries.filter(
-    (part) =>
-      part.type !== "status" ||
-      !isPatchApplyStatusLabel(part.label)
+  return removeAttachmentsRepresentedInMarkdown(
+    partsWithoutCompactSummaries.filter(
+      (part) =>
+        part.type !== "status" ||
+        !isPatchApplyStatusLabel(part.label)
+    )
   );
 }
 
@@ -62,36 +107,43 @@ export function shouldOrderAttachmentsBeforeMarkdown(entry: RichTranscriptConten
   return "role" in entry && entry.role === "user";
 }
 
-function flushPrimaryTranscriptPartRun(
-  orderedParts: TranscriptPart[],
-  primaryRun: TranscriptPart[]
-) {
-  if (primaryRun.length === 0) return primaryRun;
-
-  orderedParts.push(
-    ...primaryRun.filter((part) => part.type === "attachment"),
-    ...primaryRun.filter((part) => part.type !== "attachment")
+export function orderAttachmentsBeforeMarkdown(parts: TranscriptPart[]) {
+  const firstPrimaryIndex = parts.findIndex(
+    (part) => part.type === "markdown" || part.type === "attachment"
   );
 
-  return [];
-}
+  if (firstPrimaryIndex < 0) return parts;
 
-export function orderAttachmentsBeforeMarkdown(parts: TranscriptPart[]) {
-  const orderedParts: TranscriptPart[] = [];
-  let primaryRun: TranscriptPart[] = [];
+  let lastPrimaryIndex = firstPrimaryIndex;
 
-  for (const part of parts) {
+  for (let index = firstPrimaryIndex + 1; index < parts.length; index += 1) {
+    const part = parts[index];
+
     if (part.type === "markdown" || part.type === "attachment") {
-      primaryRun.push(part);
-      continue;
+      lastPrimaryIndex = index;
     }
-
-    primaryRun = flushPrimaryTranscriptPartRun(orderedParts, primaryRun);
-    orderedParts.push(part);
   }
 
-  flushPrimaryTranscriptPartRun(orderedParts, primaryRun);
-  return orderedParts;
+  const primaryRun = parts.slice(firstPrimaryIndex, lastPrimaryIndex + 1);
+  const hasSecondaryPartInsideRun = primaryRun.some(
+    (part) => part.type !== "markdown" && part.type !== "attachment"
+  );
+
+  if (hasSecondaryPartInsideRun) return parts;
+
+  const firstAttachmentIndex = primaryRun.findIndex((part) => part.type === "attachment");
+  const hasMarkdownAfterAttachment = firstAttachmentIndex >= 0 && primaryRun
+    .slice(firstAttachmentIndex + 1)
+    .some((part) => part.type === "markdown");
+
+  if (hasMarkdownAfterAttachment) return parts;
+
+  return [
+    ...parts.slice(0, firstPrimaryIndex),
+    ...primaryRun.filter((part) => part.type === "attachment"),
+    ...primaryRun.filter((part) => part.type === "markdown"),
+    ...parts.slice(lastPrimaryIndex + 1)
+  ];
 }
 
 export function buildSecondaryPartsLabel(parts: TranscriptPart[]) {

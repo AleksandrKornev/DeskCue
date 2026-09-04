@@ -15,6 +15,7 @@ import {
 } from "./cloudRemoteAssetEnvelope.ts";
 
 const DEFAULT_TIMEOUT_MS = 12_000;
+const CLOUD_REMOTE_ASSET_MAX_RANGE_BYTES = BigInt(CLOUD_REMOTE_ASSET_MAX_BODY_BYTES);
 
 export type CloudRemoteReadResult = {
   status: number;
@@ -47,6 +48,34 @@ function setJson(query: URLSearchParams, key: string, value: unknown[] | undefin
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+export function clampCloudRemoteAssetRange(range: string | undefined) {
+  if (!range) return undefined;
+
+  const match = range.match(/^bytes=(\d*)-(\d*)$/iu);
+
+  if (!match) return range;
+
+  const startText = match[1] ?? "";
+  const endText = match[2] ?? "";
+
+  if (!startText) {
+    const suffixLength = BigInt(endText);
+
+    return `bytes=-${suffixLength > CLOUD_REMOTE_ASSET_MAX_RANGE_BYTES
+      ? CLOUD_REMOTE_ASSET_MAX_RANGE_BYTES
+      : suffixLength}`;
+  }
+
+  const start = BigInt(startText);
+  const maximumEnd = start + CLOUD_REMOTE_ASSET_MAX_RANGE_BYTES - 1n;
+
+  if (!endText) return `bytes=${start}-${maximumEnd}`;
+
+  const requestedEnd = BigInt(endText);
+
+  return `bytes=${start}-${requestedEnd > maximumEnd ? maximumEnd : requestedEnd}`;
 }
 
 function normalizeWorkspacePath(value: string) {
@@ -89,6 +118,18 @@ function buildRequest(
     const input = parseCloudRemoteReadOperationInput(operation, value);
 
     return { method: "POST", path: "/api/assets/ticket", body: input };
+  }
+
+  if (operation === "assets.file.read") {
+    const input = parseCloudRemoteReadOperationInput(operation, value);
+    const query = new URLSearchParams({ path: input.path });
+
+    setString(query, "agentSessionId", input.agentSessionId);
+    setString(query, "managedSessionId", input.managedSessionId);
+    setString(query, "workspaceId", input.workspaceId);
+    if (input.download) query.set("download", "1");
+
+    return { method: "GET", path: `/api/assets/file?${query}` };
   }
 
   if (operation === "assets.ticket.read") {
@@ -344,11 +385,15 @@ export class CloudRemoteReadExecutor {
     timeout.unref?.();
 
     try {
+      const assetRange = operation === "assets.file.read" || operation === "assets.ticket.read"
+        ? clampCloudRemoteAssetRange(parseCloudRemoteReadOperationInput(operation, value).range)
+        : undefined;
       const response = await this.fetchImplementation(`${this.daemonOrigin}${request.path}`, {
         method: request.method,
         headers: {
           accept: "application/json",
           authorization: createCloudProcessLocalAuthorization(),
+          ...(assetRange ? { range: assetRange } : {}),
           ...(request.body ? { "content-type": "application/json" } : {})
         },
         ...(request.body ? { body: JSON.stringify(request.body) } : {}),
@@ -357,8 +402,9 @@ export class CloudRemoteReadExecutor {
       });
 
       shutdownSignal?.throwIfAborted();
-      const isSuccessfulAssetRead = operation === "assets.ticket.read" && response.ok;
-      const responseLimit = isSuccessfulAssetRead
+      const isAssetRead = operation === "assets.ticket.read" || operation === "assets.file.read";
+      const isBinaryAssetRead = isAssetRead && (response.ok || response.status === 416);
+      const responseLimit = isBinaryAssetRead
         ? CLOUD_REMOTE_ASSET_MAX_BODY_BYTES
         : CLOUD_REMOTE_READ_MAX_RESPONSE_BYTES;
       const bytes = await readBoundedCloudResponse(response, responseLimit);
@@ -367,7 +413,7 @@ export class CloudRemoteReadExecutor {
 
       if (!bytes) return { status: 502, body: { error: "remote_response_too_large" } };
 
-      if (isSuccessfulAssetRead) {
+      if (isBinaryAssetRead) {
         return {
           status: response.status,
           body: encodeCloudRemoteAssetEnvelope(response, bytes),

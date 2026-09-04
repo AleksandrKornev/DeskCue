@@ -106,6 +106,11 @@ const remoteReadInputs = {
     sourceEntryRanges: [{ prefix: "entry-contract", start: 1, end: 3 }],
     sourceEntrySpans: [{ prefix: "entry-contract", start: 5, end: 8 }]
   },
+  "assets.file.read": {
+    agentSessionId: "agent-session:contract-v1",
+    path: "C:\\Temp\\deskcue-contract.mp4",
+    range: "bytes=0-1023"
+  },
   "assets.ticket.create": {
     agentSessionId: "agent-session:contract-v1",
     kind: "local_image",

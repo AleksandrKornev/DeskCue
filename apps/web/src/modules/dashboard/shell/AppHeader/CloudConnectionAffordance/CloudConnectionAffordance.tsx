@@ -15,21 +15,29 @@ function cloudAffordancePresentation(
   loading: boolean,
   status: CloudConnectionStatusResponse | null
 ): CloudAffordancePresentation {
-  if (!status && loading) return { compactLabel: "Checking", label: "Checking Cloud", tone: "checking" };
+  if (!status && loading) {
+    return { compactLabel: "Checking", label: "Checking Cloud", tone: "checking" };
+  }
 
   if (!status) {
     return {
-      compactLabel: "Unknown",
+      compactLabel: "Unavailable",
       label: "Cloud status unavailable",
       tone: "unavailable"
     };
   }
 
   if (!status.enabled) return { compactLabel: "Local only", label: "Local only", tone: "local" };
-  if (status.connected) return { compactLabel: "Connected", label: "Cloud connected", tone: "connected" };
-  if (status.state === "revoked") return { compactLabel: "Revoked", label: "Cloud access revoked", tone: "revoked" };
 
-  return { compactLabel: "Retrying", label: "Cloud reconnecting", tone: "reconnecting" };
+  if (status.connected) {
+    return { compactLabel: "Connected", label: "Cloud connected", tone: "connected" };
+  }
+
+  if (status.state === "revoked") {
+    return { compactLabel: "Revoked", label: "Cloud access revoked", tone: "revoked" };
+  }
+
+  return { compactLabel: "Reconnecting", label: "Cloud reconnecting", tone: "reconnecting" };
 }
 
 function statusDotClass(tone: CloudAffordancePresentation["tone"]) {
@@ -46,7 +54,7 @@ export function CloudConnectionAffordance() {
 
   return (
     <Link
-      aria-label={`DeskCue ${presentation.label.toLowerCase()}; open Connections settings`}
+      aria-label={`${presentation.label}; open Connections settings`}
       className={styles.statusLink}
       to="/settings?tab=access"
     >
@@ -54,8 +62,12 @@ export function CloudConnectionAffordance() {
         className={statusDotClass(presentation.tone)}
         aria-hidden="true"
       />
-      <span className={styles.statusLabel}>{presentation.label}</span>
-      <span className={styles.compactStatusLabel}>{presentation.compactLabel}</span>
+      <span className={styles.statusLabel}>
+        <span className={styles.fullLabel}>{presentation.label}</span>
+        <span aria-hidden="true" className={styles.compactLabel}>
+          {presentation.compactLabel}
+        </span>
+      </span>
     </Link>
   );
 }

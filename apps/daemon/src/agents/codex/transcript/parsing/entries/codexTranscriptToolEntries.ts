@@ -13,11 +13,30 @@ import {
 
 function readToolCallArguments(payload: Record<string, unknown>) {
   const value = payload.arguments ?? payload.input;
+
   if (typeof value !== "string" || !value.trim()) {
     return null;
   }
 
   return redactTranscriptToolPreview(value.trim(), 320);
+}
+
+function readPatchEventPayload(
+  itemType: string,
+  payload: Record<string, unknown> | null
+) {
+  if (itemType !== "event_msg" || !payload) return null;
+  if (payload.type === "patch_apply_end") return payload;
+  if (payload.type !== "item_completed") return null;
+
+  const item = isRecord(payload.item) ? payload.item : null;
+
+  if (item?.type !== "FileChange") return null;
+
+  return {
+    ...item,
+    success: item.status !== "failed"
+  };
 }
 
 export function toCodexToolTranscriptEntry(
@@ -27,6 +46,23 @@ export function toCodexToolTranscriptEntry(
   index: number,
   timestamp: string
 ) {
+  const patchPayload = readPatchEventPayload(itemType, payload);
+
+  if (patchPayload) {
+    const parts = buildPatchApplyParts(patchPayload);
+    const summary = buildPatchApplySummary(patchPayload, parts);
+
+    return createCodexTranscriptEntry(
+      sessionId,
+      index,
+      timestamp,
+      "tool",
+      summary,
+      null,
+      parts
+    );
+  }
+
   if (
     itemType === "response_item" &&
     (payload?.type === "function_call" || payload?.type === "custom_tool_call")
@@ -181,21 +217,6 @@ export function toCodexToolTranscriptEntry(
           text: resultText || (server && tool ? `${server}.${tool}` : "Tool completed")
         }
       ]
-    );
-  }
-
-  if (itemType === "event_msg" && payload?.type === "patch_apply_end") {
-    const parts = buildPatchApplyParts(payload);
-    const summary = buildPatchApplySummary(payload, parts);
-
-    return createCodexTranscriptEntry(
-      sessionId,
-      index,
-      timestamp,
-      "tool",
-      summary,
-      null,
-      parts
     );
   }
 

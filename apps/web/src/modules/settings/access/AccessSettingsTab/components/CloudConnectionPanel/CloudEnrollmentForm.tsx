@@ -1,4 +1,4 @@
-import type { FormEvent, SyntheticEvent } from "react";
+import type { SubmitEvent, SyntheticEvent } from "react";
 
 import type {
   CloudEnrollmentAttempt,
@@ -25,7 +25,7 @@ interface CloudEnrollmentFormProps {
   onDisplayNameChange(value: string): void;
   onEnrollmentTicketChange(value: string): void;
   onPermissionChange(patch: Partial<UpdateCloudPermissionsInput>): void;
-  onStartEnrollment(event: FormEvent): void;
+  onStartEnrollment(event: SubmitEvent<HTMLFormElement>): void;
   permissions: PermissionDraft;
   submitting: boolean;
 }

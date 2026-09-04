@@ -16,6 +16,7 @@ import { bindManagedSessionNativeScrollEvents } from "./nativeScrollEventBinding
 export {
   CHAT_USER_SCROLL_INTENT_WINDOW_MS,
   hasRecentChatUserScrollIntent,
+  isChatAtBottom,
   shouldKeepAutoStickForNativeScroll,
   shouldReleaseAutoStickForNativeScroll
 } from "./managedSessionNativeScrollController";
@@ -92,6 +93,11 @@ export function useManagedSessionNativeScrollListener({
     });
     const unbindNativeScrollEvents = bindManagedSessionNativeScrollEvents({
       handlers: {
+        onKeyDown: (event) => {
+          const keyboardEvent = event as KeyboardEvent;
+
+          controller.handlers.onKeyDown(keyboardEvent.key, keyboardEvent.shiftKey);
+        },
         onPointerDown: (event) => {
           controller.handlers.onPointerDown((event as PointerEvent).clientY);
         },
@@ -115,9 +121,8 @@ export function useManagedSessionNativeScrollListener({
           controller.handlers.onWheel((event as WheelEvent).deltaY);
         }
       },
-      // Window keeps tracking a drag after the pointer leaves the contained
-      // chat, and remains the only intent target so bubbling cannot deliver
-      // the same gesture twice.
+      // Window keeps tracking an active drag after the pointer leaves the
+      // contained chat. Gesture starts remain scoped to the scroll target.
       intentTarget: window,
       scrollTarget
     });

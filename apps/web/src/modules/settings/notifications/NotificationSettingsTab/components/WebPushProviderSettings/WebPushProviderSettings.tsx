@@ -44,68 +44,101 @@ export function WebPushProviderSettings({
 }: WebPushProviderSettingsProps) {
   const [sessionsDialogOpen, setSessionsDialogOpen] = useState(false);
   const [subscriptionToRemove, setSubscriptionToRemove] = useState<PushSubscriptionSummary | null>(null);
-  const disabled =
+  const notificationPermissionDenied = pushPermission === "denied";
+  const operationPending =
     enablingPush ||
     disablingPush ||
-    reenablingPush ||
+    reenablingPush;
+  const enablingUnavailable =
+    notificationPermissionDenied ||
     pushPermission === "unsupported" ||
     !effectivePushSupport.supported;
+  const primaryActionDisabled = operationPending || (!currentPushSubscribed && enablingUnavailable);
   const isInsecureContext =
     !effectivePushSupport.supported && effectivePushSupport.code === "insecure_context";
+  const browserCapabilityUnavailable = !effectivePushSupport.supported && !isInsecureContext;
+  const permissionRequirement = notificationPermissionDenied && effectivePushSupport.supported;
+  const pushRequirement = isInsecureContext
+    ? {
+        badge: "Needs secure connection",
+        detail: "Open DeskCue on HTTPS or localhost on this device to enable browser push.",
+        explanation: "Browsers allow push subscriptions only from a secure context to protect notification permissions.",
+        summary: "Why is this required?",
+        title: "Browser push is unavailable on this HTTP address"
+      }
+    : browserCapabilityUnavailable
+      ? {
+          badge: "Browser unsupported",
+          detail: `${effectivePushSupport.reason}. Use a browser with Notifications, service workers, and PushManager support.`,
+          explanation: "DeskCue needs all three browser capabilities to create and maintain a push subscription on this device.",
+          summary: "What does DeskCue need?",
+          title: "Browser push is unavailable"
+        }
+      : permissionRequirement
+        ? {
+            badge: "Permission blocked",
+            detail: "Allow Notifications for this DeskCue address in your browser site permissions, then reload this page.",
+            explanation: "Use your browser's site-permission controls to allow Notifications for the current address.",
+            summary: "How do I unblock it?",
+            title: "Browser notifications are blocked"
+          }
+        : null;
 
   return (
     <>
-      {isInsecureContext ? (
-        <section aria-label="Browser push requirements" className={styles.pushInsecureContext}>
-          <div className={styles.pushInsecureRail} aria-hidden="true" />
-          <div className={styles.pushInsecureContent}>
-            <span className={styles.pushInsecureBadge}>Needs secure connection</span>
-            <strong>Browser push is unavailable on this HTTP address</strong>
-            <p>Open DeskCue on HTTPS or localhost on this device to enable browser push.</p>
-            <details className={styles.pushAccessOptions}>
-              <summary>Why is this required?</summary>
-              <p>Browsers allow push subscriptions only from a secure context to protect notification permissions.</p>
-            </details>
-          </div>
-        </section>
-      ) : (
-        <p className={styles.pushSummary}>{pushSummary}</p>
-      )}
-      <div className={styles.providerActions}>
-        <button
-          className={clsx(
-            styles.inlineButton,
-            currentPushSubscribed && styles.inlineDangerButton
-          )}
-          disabled={disabled}
-          onClick={currentPushSubscribed ? onDisablePush : onEnablePush}
-          type="button"
-        >
-          {currentPushSubscribed
-            ? disablingPush ? "Disabling..." : "Disable browser push"
-            : enablingPush ? "Enabling..." : "Enable browser push"}
-        </button>
-        {currentPushSubscribed ? (
+      <div aria-live="polite" className={styles.pushProviderSettings}>
+        {pushRequirement ? (
+          <section aria-label="Browser push requirements" className={styles.pushRequirementNotice}>
+            <div className={styles.pushRequirementRail} aria-hidden="true" />
+            <div className={styles.pushRequirementContent}>
+              <span className={styles.pushRequirementBadge}>{pushRequirement.badge}</span>
+              <strong>{pushRequirement.title}</strong>
+              <p>{pushRequirement.detail}</p>
+              <details className={styles.pushRequirementOptions}>
+                <summary>{pushRequirement.summary}</summary>
+                <p>{pushRequirement.explanation}</p>
+              </details>
+            </div>
+          </section>
+        ) : (
+          <p className={styles.pushSummary}>{pushSummary}</p>
+        )}
+        <div className={styles.providerActions}>
           <button
-            className={styles.inlineButton}
-            disabled={disabled}
-            onClick={onReenablePush}
+            className={clsx(
+              styles.inlineButton,
+              currentPushSubscribed && styles.inlineDangerButton
+            )}
+            disabled={primaryActionDisabled}
+            onClick={currentPushSubscribed ? onDisablePush : onEnablePush}
             type="button"
           >
-            {reenablingPush ? "Re-enabling..." : "Re-enable"}
+            {currentPushSubscribed
+              ? disablingPush ? "Disabling..." : "Disable browser push"
+              : enablingPush ? "Enabling..." : "Enable browser push"}
           </button>
-        ) : null}
-        {otherPushSubscriptions.length > 0 ? (
-          <button
-            className={styles.inlineButton}
-            onClick={() => setSessionsDialogOpen(true)}
-            type="button"
-          >
-            Manage push sessions ({otherPushSubscriptions.length})
-          </button>
-        ) : null}
+          {currentPushSubscribed ? (
+            <button
+              className={styles.inlineButton}
+              disabled={operationPending || enablingUnavailable}
+              onClick={onReenablePush}
+              type="button"
+            >
+              {reenablingPush ? "Re-enabling..." : "Re-enable"}
+            </button>
+          ) : null}
+          {otherPushSubscriptions.length > 0 ? (
+            <button
+              className={styles.inlineButton}
+              onClick={() => setSessionsDialogOpen(true)}
+              type="button"
+            >
+              Manage push sessions ({otherPushSubscriptions.length})
+            </button>
+          ) : null}
+        </div>
+        {pushStatus ? <p className={styles.status}>{pushStatus}</p> : null}
       </div>
-      {pushStatus ? <p className={styles.status}>{pushStatus}</p> : null}
       <Modal
         bodyClassName={styles.pushSessionsModalBody}
         closeLabel="Close push sessions"

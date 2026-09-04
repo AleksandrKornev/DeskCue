@@ -1,5 +1,46 @@
 @use "@modules/settings/cards";
 @use "@modules/settings/forms";
+@use "@assets/variables" as vars;
 
 @include cards.styles;
 @include forms.styles;
+
+.systemActionBar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.systemActionBar .button,
+.systemActionBar .saveStatus {
+  grid-column: 1 / -1;
+}
+
+.systemSaveStatus {
+  @extend .saveStatus;
+
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid vars.$color-border-control;
+  text-align: center;
+}
+
+.systemSaveStatus:focus {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+  box-shadow: vars.$shadow-focus-ring;
+}
+
+.systemUtilities {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .systemActionBar.actionsClean {
+    padding: 6px 14px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .actionsClean .systemSaveStatus {
+    min-height: 36px;
+    border-color: transparent;
+  }
+}

@@ -5,7 +5,13 @@ import {
   buildSessionPath
 } from "@models/dashboardRoute";
 
-import { resolveNavigateAgentSessionId } from "./helpers";
+import {
+  canReturnToSubagentParent,
+  createSubagentNavigationState,
+  readSubagentParentHistoryIndex,
+  readSubagentParentSessionId,
+  resolveNavigateAgentSessionId
+} from "./helpers";
 import type {
   NavigateToRoute,
   UseDashboardNavigateToRouteArgs
@@ -65,13 +71,38 @@ export function useDashboardNavigateToRoute({
         return;
       }
 
+      const subagentParentSessionId = readSubagentParentSessionId(
+        window.history.state,
+        nextAgentSessionId
+      );
+      const subagentReturnMode = subagentParentSessionId &&
+        canReturnToSubagentParent(
+          window.history.state,
+          subagentParentSessionId,
+          nextAgentSessionId
+        )
+        ? "history"
+        : "replace";
+      const subagentParentHistoryIndex = readSubagentParentHistoryIndex(
+        window.history.state,
+        nextAgentSessionId
+      );
+
       navigate(
         {
           pathname: targetPathname,
           search: targetSearch
         },
         {
-          replace: options?.replace ?? false
+          replace: options?.replace ?? false,
+          state: subagentParentSessionId
+            ? createSubagentNavigationState(
+                subagentParentSessionId,
+                nextAgentSessionId,
+                subagentReturnMode,
+                subagentParentHistoryIndex
+              )
+            : undefined
         }
       );
     },

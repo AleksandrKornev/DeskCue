@@ -48,6 +48,7 @@ export const CLOUD_REMOTE_READ_OPERATIONS = [
   "changes.post",
 
   // Workspace and Preview resources.
+  "assets.file.read",
   "assets.ticket.create",
   "assets.ticket.read",
   "workspace.files.list",
@@ -122,6 +123,15 @@ export type CloudRemoteReadOperationInputMap = {
   "changes.post": CloudChangesReadInput;
 
   // Workspace and Preview resources.
+  "assets.file.read": {
+    agentSessionId?: string;
+    download?: boolean;
+    managedSessionId?: string;
+    path: string;
+    range?: string;
+    workspaceId?: string;
+  };
+
   "assets.ticket.create": {
     agentSessionId?: string;
     download?: boolean;
@@ -132,7 +142,7 @@ export type CloudRemoteReadOperationInputMap = {
     workspaceId?: string;
   };
 
-  "assets.ticket.read": { ticket: string };
+  "assets.ticket.read": { range?: string; ticket: string };
   "workspace.files.list": {
     workspaceId: string;
     path?: string;

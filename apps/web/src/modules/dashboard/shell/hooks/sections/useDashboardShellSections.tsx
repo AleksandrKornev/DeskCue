@@ -32,87 +32,36 @@ export function useDashboardShellSections({
   route,
   routeActions
 }: UseDashboardShellSectionsArgs) {
-  const sectionProps = {
-    agentSessions: agentBrowser.agentSessions,
-    agentSessionsHasMore: agentBrowser.agentSessionsHasMore,
-    agentSessionsLoadState: agentBrowser.agentSessionsLoadState,
-    agentSessionsQuery: agentBrowser.agentSessionsQuery,
-    agentSessionsTotalCountLabel: agentBrowser.agentSessionsTotalCountLabel,
-    filteredAgentSessions: agentBrowser.filteredAgentSessions,
-    readyForReviewAgentSessionIds: agentBrowser.readyForReviewAgentSessionIds,
-    sourceCards: overview.sourceCards,
-    effectiveSelectedSourceId: route.effectiveSelectedSourceId,
-    initialManagedSessionLoadState: route.initialManagedSessionLoadState,
-    effectiveSelectedAgentSessionId: route.effectiveSelectedAgentSessionId,
-    selectedAgentSession: agentBrowser.selectedAgentSession,
-    isAgentSessionLoading: agentBrowser.isAgentSessionLoading,
-    isOpeningSelectedAgentSession: route.isOpeningSelectedAgentSession,
-    attachedManagedSessionId: route.attachedManagedSessionId,
-    attachedManagedSessionInfo: route.attachedManagedSessionInfo,
-    isBootstrapping: overview.isBootstrapping,
-    managedSessions: managedSession.managedSessions,
-    effectiveSelectedSessionId: route.effectiveSelectedSessionId,
-    selectedSession: managedSession.selectedSession,
-    takenOverAgentSession: route.takenOverAgentSession,
-    agentTranscriptHasMoreById: agentBrowser.agentTranscriptHasMoreById,
-    isTakenOverAgentSessionLoading: route.isTakenOverAgentSessionLoading,
-    liveUpdatesConnection: managedSession.liveUpdatesConnection,
-    activeTab: managedSession.activeTab,
-    previewPort: managedSession.previewPort,
-    pendingChatPrompt: prompt.pendingChatPrompt,
-    isWaitingForChatReply: prompt.isWaitingForChatReply,
-    isInterruptingPrompt: prompt.isInterruptingPrompt,
-    immediateInterruptPrompt: prompt.immediateInterruptPrompt,
-    showLiveTools: route.showLiveTools,
-    workspacePath: manualRunner.workspacePath,
-    loading: manualRunner.loading,
-    pickingWorkspace: manualRunner.pickingWorkspace,
-    canOpenNativeDialogs: overview.canOpenNativeDialogs,
-    selectedWorkspaceId: manualRunner.selectedWorkspaceId,
-    workspaces: overview.overview.workspaces,
-    command: manualRunner.command,
-    runtimes: overview.visibleRuntimes,
-    hasManagedFocus: route.hasManagedFocus,
-    isDashboardPinned: route.isDashboardPinned,
-    activeLiveOverlay: route.activeLiveOverlay,
-    onSelectSource: routeActions.onSelectSource,
-    onLoadMoreAgentSessions: agentBrowserLoaders.loadMoreAgentSessions,
-    onReloadAgentSessions: agentBrowserLoaders.loadAgentSessions,
-    onSearchAgentSessions: agentBrowserLoaders.searchAgentSessions,
-    onMarkAgentSessionReviewed: agentBrowserActions.markAgentSessionReviewed,
-    onSelectAgentSession: routeActions.onSelectAgentSession,
-    onClearAgentSessionSelection: routeActions.onClearAgentSessionSelection,
-    onAttachSelectedAgentSession: routeActions.onAttachSelectedAgentSession,
-    onOpenManagedSession: routeActions.onOpenManagedSession,
-    onOpenLocalLlmChat: routeActions.onOpenLocalLlmChat,
-    onSelectManagedSession: routeActions.onSelectManagedSession,
-    onSelectSessionTab: routeActions.onSelectSessionTab,
-    onSendInput: routeActions.onSendInput,
-    onHydrateAgentSessionChanges: agentBrowserActions.hydrateAgentSessionChanges,
-    onHydrateAgentSessionTranscriptEntries: agentBrowserActions.hydrateAgentSessionTranscriptEntries,
-    onLoadMoreAgentSessionTranscript: agentBrowserActions.loadMoreAgentSessionTranscript,
-    onInterruptPrompt: routeActions.onInterruptPrompt,
-    onStopSession: routeActions.onStopSession,
-    onStopAndExitSession: routeActions.onStopAndExitSession,
-    onExitSession: routeActions.onExitSession,
-    onRefreshGit: managedSessionActions.handleRefreshGit,
-    onRetryInitialManagedSessionLoad: managedSessionActions.retryInitialManagedSessionLoad,
-    onChangePreviewPort: managedSessionActions.setPreviewPort,
-    onChangePreviewNetworkMode: managedSessionActions.handleChangePreviewNetworkMode,
-    onSetPreview: managedSessionActions.handleSetPreview,
-    onStopPreview: managedSessionActions.handleStopPreview,
-    onToggleLiveTools: routeActions.onToggleLiveTools,
-    onChangeWorkspacePath: manualRunnerActions.setWorkspacePath,
-    onPickWorkspace: manualRunnerActions.handlePickWorkspace,
-    onAddWorkspace: manualRunnerActions.handleAddWorkspace,
-    onSelectWorkspace: manualRunnerActions.setSelectedWorkspaceId,
-    onChangeCommand: manualRunnerActions.setCommand,
-    onStartSession: manualRunnerActions.handleStartSession,
-    onCloseLiveOverlays: routeActions.onCloseLiveOverlays
-  };
-  const agentBrowserShellProps = buildAgentBrowserShellProps(sectionProps);
-  const managedSessionShellProps = buildManagedSessionShellProps(sectionProps);
-  const secondaryToolsShellProps = buildSecondaryToolsShellProps(sectionProps);
+  const agentBrowserShellProps = buildAgentBrowserShellProps({
+    overview,
+    agentBrowser,
+    managedSession,
+    manualRunner,
+    prompt,
+    agentBrowserActions,
+    manualRunnerActions,
+    agentBrowserLoaders,
+    route,
+    routeActions
+  });
+
+  const managedSessionShellProps = buildManagedSessionShellProps({
+    overview,
+    agentBrowser,
+    managedSession,
+    prompt,
+    agentBrowserActions,
+    managedSessionActions,
+    route,
+    routeActions
+  });
+
+  const secondaryToolsShellProps = buildSecondaryToolsShellProps({
+    overview,
+    agentBrowser,
+    manualRunner,
+    manualRunnerActions
+  });
 
   const shouldRenderAgentBrowser = !route.hasManagedFocus;
   const shouldRenderTools =
@@ -167,6 +116,7 @@ export function useDashboardShellSections({
               <LazyAgentBrowserShell {...agentBrowserShellProps} />
             </Suspense>
           }
+
           toolsContent={secondaryToolsPanel}
         />
       )

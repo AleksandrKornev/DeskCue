@@ -1,5 +1,6 @@
 import clsx from "clsx";
 
+import { Tooltip } from "@components/Tooltip";
 import {
   getDeskCueRuntime,
   resolveSessionCommandsUnavailableReason
@@ -52,6 +53,7 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
   } = useSessionMessageComposerController(props);
   const composerNotice = canSendInput ? connectionNotice : disabledInputLabel;
   const unavailableInputLabel = canSendInput ? "Waiting for connection" : "Input unavailable";
+  const chatUnavailableInputLabel = canSendInput ? unavailableInputLabel : disabledInputLabel;
 
   if (!sessionCommandsEnabled) {
     if (mode === "inline") {
@@ -63,21 +65,36 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
     }
 
     return (
-      <div className={clsx(styles.chatComposer, compactViewport && styles.chatComposerMinimal)}>
+      <div
+        className={clsx(
+          styles.chatComposer,
+          styles.chatComposerReviewOnly,
+          compactViewport && styles.chatComposerMinimal
+        )}
+      >
         <div className={styles.chatComposerInputWrap}>
           <textarea
             aria-describedby={`${composerInputId}-control-unavailable`}
             aria-label="Review-only chat"
-            className={clsx(styles.field, styles.fieldTextarea)}
+            className={clsx(styles.field, styles.fieldTextarea, styles.reviewOnlyField)}
             disabled
             id={composerInputId}
             name="session-message"
             placeholder="Review only"
             title={sessionCommandsUnavailableReason}
           />
+          <Tooltip
+            ariaLabel="Why input is unavailable"
+            className={styles.reviewOnlyDisclosure}
+            placement="above"
+            tapToOpen
+            value={sessionCommandsUnavailableReason}
+          >
+            <span aria-hidden="true">Why?</span>
+          </Tooltip>
         </div>
         <p
-          className={styles.nextMessageSubtle}
+          className={styles.srOnly}
           id={`${composerInputId}-control-unavailable`}
         >
           {sessionCommandsUnavailableReason}
@@ -169,9 +186,9 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
             placeholder={
               canUseInput
                 ? compactViewport
-                  ? "continue, explain, or unblock the agent"
-                  : "continue with the next change, explain the diff, or unblock the agent"
-                : unavailableInputLabel
+                  ? "Continue the task or give a new instruction…"
+                  : "Continue the task, explain a change, or give a new instruction…"
+                : chatUnavailableInputLabel
             }
 
             ref={textAreaRef}
@@ -222,7 +239,11 @@ export function SessionMessageComposer(props: SessionMessageComposerProps) {
         </div>
       )}
       {composerNotice ? (
-        <p aria-live="polite" className={styles.nextMessageSubtle} id={`${composerInputId}-unavailable`}>
+        <p
+          aria-live="polite"
+          className={clsx(styles.nextMessageSubtle, !canSendInput && styles.srOnly)}
+          id={`${composerInputId}-unavailable`}
+        >
           {composerNotice}
         </p>
       ) : null}

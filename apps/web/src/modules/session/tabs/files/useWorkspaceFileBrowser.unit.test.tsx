@@ -204,6 +204,194 @@ describe("useWorkspaceFileBrowser", () => {
     expect(listFiles.mock.calls.filter(([, options]) => (options?.path ?? "") === "")).toHaveLength(rootRequestCount);
   });
 
+  it("returns across the file history entry without leaving a same-URL ghost step", async () => {
+    listFiles.mockResolvedValue(directoryResponse([fileEntry("alpha.txt")], false, null));
+    readFile.mockResolvedValue(fileResponse("alpha.txt", "alpha"));
+    const pushState = vi.spyOn(window.history, "pushState");
+    const historyGo = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(1));
+    expect((window.history.state as Record<string, unknown>).deskCueWorkspaceFileBrowser).toMatchObject({
+      kind: "directory",
+      path: "",
+      workspaceId: "workspace-1"
+    });
+
+    act(() => result.current.openFile("alpha.txt"));
+    await waitFor(() => expect(result.current.file?.path).toBe("alpha.txt"));
+
+    expect(pushState).toHaveBeenCalledTimes(1);
+    expect((window.history.state as Record<string, unknown>).deskCueWorkspaceFileBrowser).toMatchObject({
+      kind: "file",
+      path: "alpha.txt",
+      returnDepth: 1,
+      workspaceId: "workspace-1"
+    });
+
+    act(() => result.current.returnToDirectory());
+
+    expect(pushState).toHaveBeenCalledTimes(1);
+    expect(historyGo).toHaveBeenCalledWith(-1);
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {
+        deskCueWorkspaceFileBrowser: {
+          kind: "directory",
+          path: "",
+          workspaceId: "workspace-1"
+        }
+      } }));
+    });
+
+    await waitFor(() => expect(result.current.selectedPath).toBe(""));
+    expect(result.current.file).toBeNull();
+
+    historyGo.mockRestore();
+  });
+
+  it("returns across consecutive file selections to the owning directory", async () => {
+    listFiles.mockResolvedValue(directoryResponse([
+      fileEntry("alpha.txt"),
+      fileEntry("beta.txt")
+    ], false, null));
+    readFile
+      .mockResolvedValueOnce(fileResponse("alpha.txt", "alpha"))
+      .mockResolvedValueOnce(fileResponse("beta.txt", "beta"));
+    const historyGo = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(2));
+
+    act(() => result.current.openFile("alpha.txt"));
+    await waitFor(() => expect(result.current.file?.path).toBe("alpha.txt"));
+    act(() => result.current.openFile("beta.txt"));
+    await waitFor(() => expect(result.current.file?.path).toBe("beta.txt"));
+
+    expect((window.history.state as Record<string, unknown>).deskCueWorkspaceFileBrowser).toMatchObject({
+      kind: "file",
+      path: "beta.txt",
+      returnDepth: 2,
+      workspaceId: "workspace-1"
+    });
+
+    act(() => result.current.returnToDirectory());
+
+    expect(historyGo).toHaveBeenCalledWith(-2);
+    historyGo.mockRestore();
+  });
+
+  it("does not increase the return depth when the current file is selected again", async () => {
+    listFiles.mockResolvedValue(directoryResponse([fileEntry("alpha.txt")], false, null));
+    readFile.mockResolvedValue(fileResponse("alpha.txt", "alpha"));
+    const pushState = vi.spyOn(window.history, "pushState");
+    const historyGo = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(1));
+
+    act(() => result.current.openFile("alpha.txt"));
+    await waitFor(() => expect(result.current.file?.path).toBe("alpha.txt"));
+    act(() => result.current.openFile("alpha.txt"));
+    await waitFor(() => expect(readFile).toHaveBeenCalledTimes(2));
+
+    expect(pushState).toHaveBeenCalledTimes(1);
+    expect((window.history.state as Record<string, unknown>).deskCueWorkspaceFileBrowser).toMatchObject({
+      kind: "file",
+      path: "alpha.txt",
+      returnDepth: 1,
+      workspaceId: "workspace-1"
+    });
+
+    act(() => result.current.returnToDirectory());
+
+    expect(historyGo).toHaveBeenCalledWith(-1);
+    historyGo.mockRestore();
+  });
+
+  it("keeps the safe directory fallback for a restored file without return depth", async () => {
+    window.history.replaceState({
+      deskCueWorkspaceFileBrowser: {
+        kind: "file",
+        path: "alpha.txt",
+        workspaceId: "workspace-1"
+      }
+    }, "", window.location.href);
+    listFiles.mockResolvedValue(directoryResponse([fileEntry("alpha.txt")], false, null));
+    readFile.mockResolvedValue(fileResponse("alpha.txt", "alpha"));
+    const pushState = vi.spyOn(window.history, "pushState");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    const historyGo = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.file?.path).toBe("alpha.txt"));
+
+    act(() => result.current.openFile("alpha.txt"));
+    await waitFor(() => expect(readFile).toHaveBeenCalledTimes(2));
+
+    expect(pushState).not.toHaveBeenCalled();
+
+    act(() => result.current.returnToDirectory());
+
+    expect(historyGo).not.toHaveBeenCalled();
+    expect(replaceState).toHaveBeenLastCalledWith(expect.objectContaining({
+      deskCueWorkspaceFileBrowser: {
+        kind: "directory",
+        path: "",
+        workspaceId: "workspace-1"
+      }
+    }), "", expect.any(String));
+    await waitFor(() => expect(result.current.selectedPath).toBe(""));
+
+    historyGo.mockRestore();
+  });
+
+  it("repairs a restored legacy file target before selecting a different file", async () => {
+    window.history.replaceState({
+      deskCueWorkspaceFileBrowser: {
+        kind: "file",
+        path: "alpha.txt",
+        workspaceId: "workspace-1"
+      }
+    }, "", window.location.href);
+    listFiles.mockResolvedValue(directoryResponse([
+      fileEntry("alpha.txt"),
+      fileEntry("beta.txt")
+    ], false, null));
+    readFile
+      .mockResolvedValueOnce(fileResponse("alpha.txt", "alpha"))
+      .mockResolvedValueOnce(fileResponse("beta.txt", "beta"));
+    const pushState = vi.spyOn(window.history, "pushState");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    const historyGo = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.file?.path).toBe("alpha.txt"));
+
+    act(() => result.current.openFile("beta.txt"));
+    await waitFor(() => expect(result.current.file?.path).toBe("beta.txt"));
+
+    expect(replaceState).toHaveBeenLastCalledWith(expect.objectContaining({
+      deskCueWorkspaceFileBrowser: {
+        kind: "directory",
+        path: "",
+        workspaceId: "workspace-1"
+      }
+    }), "", expect.any(String));
+    expect(pushState).toHaveBeenCalledTimes(1);
+    expect((window.history.state as Record<string, unknown>).deskCueWorkspaceFileBrowser).toMatchObject({
+      kind: "file",
+      path: "beta.txt",
+      returnDepth: 1,
+      workspaceId: "workspace-1"
+    });
+
+    act(() => result.current.returnToDirectory());
+
+    expect(historyGo).toHaveBeenCalledWith(-1);
+    historyGo.mockRestore();
+  });
+
   it("does not restore a stale file after Forward is immediately followed by Back", async () => {
     let resolveForwardDirectory: (value: WorkspaceDirectoryResponse) => void = () => undefined;
 
@@ -281,5 +469,167 @@ describe("useWorkspaceFileBrowser", () => {
     expect(readFile).toHaveBeenCalledTimes(1);
     expect(readFile.mock.calls[0]?.slice(0, 2)).toEqual(["workspace-1", "beta.txt"]);
     expect(readFile.mock.calls[0]?.[2]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("clears a visible file before restoring another file from history", async () => {
+    let resolveBetaDirectory: (value: WorkspaceDirectoryResponse) => void = () => undefined;
+
+    listFiles
+      .mockResolvedValueOnce(directoryResponse([
+        fileEntry("alpha.txt"),
+        fileEntry("beta.txt")
+      ], false, null))
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveBetaDirectory = resolve;
+      }));
+    readFile
+      .mockResolvedValueOnce(fileResponse("alpha.txt", "alpha"))
+      .mockResolvedValueOnce(fileResponse("beta.txt", "beta"));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(2));
+
+    act(() => result.current.openFile("alpha.txt"));
+    await waitFor(() => expect(result.current.file?.path).toBe("alpha.txt"));
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {
+        deskCueWorkspaceFileBrowser: {
+          kind: "file",
+          path: "beta.txt",
+          workspaceId: "workspace-1"
+        }
+      } }));
+    });
+
+    expect(result.current.file).toBeNull();
+    expect(result.current.selectedPath).toBe("");
+
+    await act(async () => {
+      resolveBetaDirectory(directoryResponse([fileEntry("beta.txt")], false, null));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.file?.path).toBe("beta.txt"));
+  });
+
+  it("clears and aborts the previous file before resolving another requested path", async () => {
+    let resolveAlphaFile: (value: WorkspaceFileResponse) => void = () => undefined;
+    let resolveBetaDirectory: (value: WorkspaceDirectoryResponse) => void = () => undefined;
+
+    listFiles
+      .mockResolvedValueOnce(directoryResponse([
+        fileEntry("alpha.txt"),
+        fileEntry("beta.txt")
+      ], false, null))
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveBetaDirectory = resolve;
+      }));
+    readFile
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveAlphaFile = resolve;
+      }))
+      .mockResolvedValueOnce(fileResponse("beta.txt", "beta"));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(2));
+
+    act(() => result.current.openFile("alpha.txt"));
+    await waitFor(() => expect(result.current.selectedPath).toBe("alpha.txt"));
+    const alphaSignal = readFile.mock.calls[0]?.[2]?.signal;
+    let betaRequest: Promise<"directory" | "file" | null> = Promise.resolve(null);
+
+    act(() => {
+      betaRequest = result.current.openPath("beta.txt");
+    });
+
+    expect(alphaSignal?.aborted).toBe(true);
+    expect(result.current.file).toBeNull();
+    expect(result.current.selectedPath).toBe("");
+
+    await act(async () => {
+      resolveAlphaFile(fileResponse("alpha.txt", "alpha"));
+      resolveBetaDirectory(directoryResponse([fileEntry("beta.txt")], false, null));
+      await betaRequest;
+    });
+
+    expect(result.current.file?.path).toBe("beta.txt");
+    expect(result.current.selectedPath).toBe("beta.txt");
+  });
+
+  it("does not hide a requested file parent failure behind direct file hydration", async () => {
+    listFiles
+      .mockResolvedValueOnce(directoryResponse([fileEntry("alpha.txt")], true, "page-2"))
+      .mockRejectedValueOnce(new Error("Parent folder unavailable"));
+    readFile.mockResolvedValueOnce(fileResponse("alpha.txt", "alpha"));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+
+    let openResult: "directory" | "file" | null = "file";
+
+    await act(async () => {
+      openResult = await result.current.openPath("nested/alpha.txt");
+    });
+
+    expect(openResult).toBeNull();
+    expect(result.current.error).toBe("Parent folder unavailable");
+    expect(result.current.entries).toEqual([]);
+    expect(result.current.file).toBeNull();
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.limited).toBe(false);
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps a history file parent failure visible and resets old pagination truth", async () => {
+    listFiles
+      .mockResolvedValueOnce(directoryResponse([fileEntry("alpha.txt")], true, "page-2"))
+      .mockRejectedValueOnce(new Error("History parent unavailable"));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: {
+        deskCueWorkspaceFileBrowser: {
+          kind: "file",
+          path: "nested/alpha.txt",
+          workspaceId: "workspace-1"
+        }
+      } }));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.error).toBe("History parent unavailable"));
+    expect(result.current.entries).toEqual([]);
+    expect(result.current.file).toBeNull();
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.limited).toBe(false);
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("uses a visible fallback when a directory failure has an empty message", async () => {
+    listFiles.mockRejectedValueOnce(new Error(""));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.error).toBe("Failed to load workspace files"));
+
+    expect(result.current.entries).toEqual([]);
+    expect(result.current.loadingDirectory).toBe(false);
+  });
+
+  it("uses a visible fallback when a file failure has only whitespace", async () => {
+    listFiles.mockResolvedValueOnce(directoryResponse([fileEntry("alpha.txt")], false, null));
+    readFile.mockRejectedValueOnce(new Error("   "));
+    const { result } = renderHook(() => useWorkspaceFileBrowser("workspace-1"));
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(1));
+
+    act(() => result.current.openFile("alpha.txt"));
+
+    await waitFor(() => expect(result.current.error).toBe("Failed to load workspace file"));
+
+    expect(result.current.file).toBeNull();
+    expect(result.current.loadingFile).toBe(false);
   });
 });

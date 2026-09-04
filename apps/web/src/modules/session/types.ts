@@ -1,4 +1,4 @@
-import type { FormEvent, PropsWithChildren, ReactNode } from "react";
+import type { PropsWithChildren, ReactNode, SubmitEvent } from "react";
 
 import type {
   AgentTranscriptChangesResponse,
@@ -21,6 +21,7 @@ export interface ManagedSessionPanelProps {
   selectedSession: SessionDetail | null;
   takenOverAgentSession: AgentSessionDetail | null;
   agentTranscriptHasMoreById: Map<string, boolean>;
+  agentTranscriptHistoryIncompleteById: Map<string, boolean>;
   isTakenOverAgentSessionLoading: boolean;
   liveUpdatesConnection: LiveUpdatesConnectionState;
   activeTab: SessionTab;
@@ -45,6 +46,7 @@ export interface ManagedSessionPanelProps {
   hasPreview?: boolean;
   showTools?: boolean;
   onSelectSession: (sessionId: string) => void;
+  onOpenSubagentSession?: (parentSessionId: string, childSessionId: string) => void;
   onSelectTab: (tab: SessionTab) => void;
   onSendInput: (instruction: string, options?: SendInputOptions) => Promise<boolean>;
   onHydrateAgentSessionTranscriptEntries: (
@@ -61,13 +63,14 @@ export interface ManagedSessionPanelProps {
   onStopSession: () => boolean | Promise<boolean>;
   onStopAndExitSession: () => void | Promise<void>;
   onExitSession: () => void;
+  exitLabel?: string;
   onRefreshGit: () => void;
   onRetrySessionLoad?: () => Promise<unknown>;
   onChangePreviewPort: (value: string) => void;
   onChangePreviewNetworkMode: (value: PreviewNetworkMode) => boolean | Promise<boolean>;
-  onSetPreview: (event: FormEvent<HTMLFormElement>) => void;
+  onSetPreview: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   onStopPreview: () => boolean | Promise<boolean>;
-  onToggleTools?: () => void;
+  onToggleTools?: (options?: { replace?: boolean }) => void;
 }
 
 export type ManagedSessionSurfaceProps = PropsWithChildren<{

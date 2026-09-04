@@ -99,6 +99,7 @@ test("source agent turn state reports completed terminal lifecycle entry", () =>
     evidence: "terminal_lifecycle",
     fingerprint: "done-1",
     phase: "completed",
+    startedAt: "2026-07-09T08:00:00.000Z",
     turnStartFingerprint: "start-1"
   });
 });
@@ -236,6 +237,7 @@ test("source agent turn state reports interrupted terminal lifecycle entry", () 
     evidence: "terminal_lifecycle",
     fingerprint: "stop-1",
     phase: "interrupted",
+    startedAt: "2026-07-09T08:00:00.000Z",
     turnStartFingerprint: "start-1"
   });
 });
@@ -253,6 +255,7 @@ test("source agent turn state reports failed terminal lifecycle entry", () => {
     evidence: "terminal_lifecycle",
     fingerprint: "failed-1",
     phase: "failed",
+    startedAt: "2026-07-09T08:00:00.000Z",
     turnStartFingerprint: "start-1"
   });
 });

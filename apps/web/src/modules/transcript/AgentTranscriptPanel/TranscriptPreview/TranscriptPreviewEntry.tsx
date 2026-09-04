@@ -1,5 +1,7 @@
 import clsx from "clsx";
+import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { LocalAssetLinkContext } from "@api/endpoint/assets/types";
@@ -18,12 +20,76 @@ import { transcriptEntryClassByRole } from "./constants";
 import { flattenPreviewMarkdownCodeChildren } from "./helpers";
 import styles from "./styles.module.scss";
 
+function createPreviewAssetContext(
+  agentSessionId: string | undefined,
+  managedSessionId: string | undefined,
+  workspaceId: string | undefined
+): LocalAssetLinkContext | undefined {
+  if (!agentSessionId && !managedSessionId && !workspaceId) return undefined;
+
+  return { agentSessionId, managedSessionId, workspaceId };
+}
+
+function createTranscriptPreviewMarkdownComponents(
+  assetContext: LocalAssetLinkContext | undefined
+): Components {
+  return {
+    img: () => null,
+    a: ({ children, href }) => {
+      if (!href) return <span>{children}</span>;
+
+      const localAssetPath = normalizeMarkdownLocalAssetPath(href);
+
+      if (!localAssetPath) return <span>{children}</span>;
+
+      const displayName = flattenMarkdownCodeChildren(children).trim() || localAssetPath;
+
+      return (
+        <LocalMarkdownAssetLink
+          assetContext={assetContext}
+          assetPath={localAssetPath}
+          displayName={displayName}
+        >
+          {children}
+        </LocalMarkdownAssetLink>
+      );
+    },
+    pre: ({ children }) => <pre>{children}</pre>,
+    code: ({ children, className }) => {
+      const codeText = flattenPreviewMarkdownCodeChildren(children);
+      const isBlock = Boolean(className) || codeText.includes("\n");
+
+      return isBlock ? (
+        <code className={className}>{codeText}</code>
+      ) : (
+        <code>{codeText.trim() || "``"}</code>
+      );
+    }
+  };
+}
+
 export function TranscriptPreviewEntry(props: {
   assetContext?: LocalAssetLinkContext;
   entry: TextOnlyTranscriptEntry;
 }) {
   const { assetContext, entry } = props;
-  const markdownText = normalizeTranscriptMarkdown(entry.text);
+  const agentSessionId = assetContext?.agentSessionId;
+  const managedSessionId = assetContext?.managedSessionId;
+  const workspaceId = assetContext?.workspaceId;
+
+  const markdownText = useMemo(
+    () => normalizeTranscriptMarkdown(entry.text),
+    [entry.text]
+  );
+
+  const markdownComponents = useMemo(
+    () => createTranscriptPreviewMarkdownComponents(createPreviewAssetContext(
+      agentSessionId,
+      managedSessionId,
+      workspaceId
+    )),
+    [agentSessionId, managedSessionId, workspaceId]
+  );
 
   return (
     <article
@@ -40,39 +106,7 @@ export function TranscriptPreviewEntry(props: {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             urlTransform={transformTranscriptUrl}
-            components={{
-              img: () => null,
-              a: ({ children, href }) => {
-                if (!href) return <span>{children}</span>;
-
-                const localAssetPath = normalizeMarkdownLocalAssetPath(href);
-
-                if (!localAssetPath) return <span>{children}</span>;
-
-                const displayName = flattenMarkdownCodeChildren(children).trim() || localAssetPath;
-
-                return (
-                  <LocalMarkdownAssetLink
-                    assetContext={assetContext}
-                    assetPath={localAssetPath}
-                    displayName={displayName}
-                  >
-                    {children}
-                  </LocalMarkdownAssetLink>
-                );
-              },
-              pre: ({ children }) => <pre>{children}</pre>,
-              code: ({ children, className }) => {
-                const codeText = flattenPreviewMarkdownCodeChildren(children);
-                const isBlock = Boolean(className) || codeText.includes("\n");
-
-                return isBlock ? (
-                  <code className={className}>{codeText}</code>
-                ) : (
-                  <code>{codeText.trim() || "``"}</code>
-                );
-              }
-            }}
+            components={markdownComponents}
           >
             {markdownText}
           </ReactMarkdown>

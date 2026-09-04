@@ -30,6 +30,7 @@ export interface AgentSessionsPanelProps {
   selectedSourceId: AgentKind | "all";
   selectedAgentSessionId: string;
   selectedAgentSession: AgentSessionDetail | null;
+  selectedAgentSessionLoadError: string | null;
   readyForReviewAgentSessionIds: string[];
   isAgentSessionLoading: boolean;
   attaching: boolean;
@@ -37,21 +38,28 @@ export interface AgentSessionsPanelProps {
   attachedManagedSessionInfo: AttachedManagedSessionInfo | null;
   defaultCollapsed?: boolean;
   isBootstrapping: boolean;
+  secondaryAction?: ReactNode;
   onSelectSource: (sourceId: AgentKind | "all") => void;
   onLoadMoreAgentSessions: (
     query?: string,
     options?: { sourceId?: AgentKind | "all" }
   ) => Promise<AgentSessionSummary[]>;
   onReloadAgentSessions: (options?: { sourceId?: AgentKind | "all" }) => Promise<AgentSessionSummary[]>;
+  onRetrySelectedAgentSession: () => void;
   onSearchAgentSessions: (
     query: string,
     options?: { silent?: boolean; sourceId?: AgentKind | "all" }
   ) => Promise<AgentSessionSummary[]>;
   onMarkAgentSessionReviewed: (sessionId: string) => void;
+  onBackToParentAgentSession: (parentSessionId: string, childSessionId: string) => void;
+  onOpenSubagentSession: (parentSessionId: string, childSessionId: string) => void;
   onSelectAgentSession: (sessionId: string) => void;
   onClearAgentSessionSelection: () => void;
-  onAttachAgentSession: () => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onAttachAgentSession: (options?: { subagentParentSessionId?: string }) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
   onOpenLocalLlmChat: (chatId: string) => void;
 }
 
@@ -65,6 +73,7 @@ export interface AgentSessionsToolbarProps {
   query: string;
   selectedLocalRuntime: LocalLlmChatSummary["runtimeId"] | null;
   selectedSourceId: AgentKind | "all";
+  sourceCountsUnavailable?: boolean;
   sourceCards: SourceCard[];
   totalAgentSessionsCount: string;
   onQueryChange: (query: string) => void;
@@ -83,13 +92,14 @@ export interface AgentSessionsListProps {
   totalSessionsCountLabel: string;
   attachedSourceSessionKeys: ReadonlySet<string>;
   readyForReviewAgentSessionIds: ReadonlySet<string>;
-  workIndicatorsBySourceSessionId: ReadonlyMap<string, AgentSessionWorkIndicator>;
+  workIndicatorsBySourceSessionKey: ReadonlyMap<string, AgentSessionWorkIndicator>;
   query: string;
   selectedAgentSessionId: string;
   selectedLocalLlmChatId?: string | null;
   sessions: AgentSessionSummary[];
   localLlmChats: LocalLlmChatSummary[];
   showAllLocalLlmChats?: boolean;
+  title?: string;
   onSelectAgentSession: (sessionId: string) => void;
   onOpenLocalLlmChat: (chat: LocalLlmChatSummary) => void;
   onShowFewerSessions: () => void;
@@ -118,8 +128,10 @@ export interface AgentSessionsEmptyStateProps {
 export interface MobileAgentSessionDetailProps {
   agentSessionId: string;
   agentSessionLabel: string;
+  parentSessionId?: string | null;
   transcriptPanel: ReactNode;
-  onBackToChats: () => void;
+  onBackToParent?: () => void;
+  onBackToChats: (focusOrigin: HTMLElement) => void;
 }
 
 export interface AgentSessionsDesktopLayoutProps {
@@ -130,8 +142,10 @@ export interface AgentSessionsDesktopLayoutProps {
 export interface AgentSessionsMobileLayoutProps {
   agentSessionId: string;
   agentSessionLabel: string;
+  parentSessionId?: string | null;
   sessionsList: ReactNode;
   showFocusedDetail: boolean;
   transcriptPanel: ReactNode;
+  onBackToParent?: () => void;
   onBackToChats: () => void;
 }

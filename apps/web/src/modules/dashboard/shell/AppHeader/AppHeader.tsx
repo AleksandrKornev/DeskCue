@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import SettingsIcon from "@assets/images/icon-settings.svg?react";
 import { DeskCueWordmark } from "@components/DeskCueWordmark";
@@ -20,20 +20,33 @@ export function AppHeader({
   onGoHome
 }: AppHeaderProps) {
   const isCompact = isFocusedChat || isBootShell;
-  const { features, mode } = useDeskCueRuntime();
+  const location = useLocation();
+  const runtime = useDeskCueRuntime();
+  const { features, mode } = runtime;
   const isRemote = mode !== "local";
+  const canGoHome = Boolean(onGoHome) && (
+    runtime.readAppPath(location.pathname) !== "/" ||
+    Boolean(location.search) ||
+    Boolean(location.hash)
+  );
 
   return (
     <header className={clsx(styles.topbar, isCompact ? styles.compact : null)}>
       <div className={styles.brandSlot}>
-        <button
-          className={styles.brandButton}
-          aria-label="Back to DeskCue dashboard"
-          onClick={onGoHome}
-          type="button"
-        >
-          <DeskCueWordmark className={styles.brandWordmark} />
-        </button>
+        {canGoHome ? (
+          <button
+            className={styles.brandButton}
+            aria-label="Back to DeskCue dashboard"
+            onClick={onGoHome}
+            type="button"
+          >
+            <DeskCueWordmark className={styles.brandWordmark} />
+          </button>
+        ) : (
+          <span className={styles.brandHome} aria-hidden="true">
+            <DeskCueWordmark className={styles.brandWordmark} />
+          </span>
+        )}
       </div>
       <div className={styles.meta}>
         {isBootstrapping ? (
@@ -46,8 +59,8 @@ export function AppHeader({
           <div className={styles.metricGroup}>
             <HeaderMetric
               icon="threads"
-              label="Chats"
-              title={`${discoveredCount} discovered chats`}
+              label="Agent chats"
+              title={`${discoveredCount} source-agent chats`}
               value={discoveredCount}
             />
             <HeaderMetric
@@ -58,7 +71,7 @@ export function AppHeader({
             />
             <HeaderMetric
               icon="runtime"
-              label="Run"
+              label="Running"
               title={`${runningChatCount} chats running`}
               value={runningChatCount}
             />
@@ -80,11 +93,11 @@ export function AppHeader({
       </div>
       {!isCompact ? (
         <div className={styles.copy}>
-          <h1>{isRemote ? "Review your remote agent chats" : "Take over local agent chats"}</h1>
+          <h1>{isRemote ? "Remote agent review" : "Local agent control"}</h1>
           <p className={styles.subtitle}>
             {isRemote
-              ? "Inspect synced sessions, transcripts, tools, and changes in read-only mode"
-              : "Pick a local thread, inspect it, then take it over when you want DeskCue to drive it"}
+              ? "Inspect synced sessions, transcripts, tools, and changes in read-only mode."
+              : "Review, approve, and redirect work running on this machine."}
           </p>
         </div>
       ) : null}

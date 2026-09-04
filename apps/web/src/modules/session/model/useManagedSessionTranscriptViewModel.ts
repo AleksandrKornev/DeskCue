@@ -2,12 +2,11 @@ import { useMemo } from "react";
 
 import type { AgentSessionDetail } from "@deskcue/protocol";
 import type { SessionTab } from "@models/sessionTabs";
-import { filterHumanVisibleTranscriptEntries } from "@models/transcriptEntries";
 import { buildConversationTimelineFromView } from "@modules/session/chat/timeline/ManagedSessionPanel.timeline";
-import type { DiffPart } from "@modules/transcript";
 
 import { emptyTranscriptEntries } from "./transcript/constants";
 import {
+  readAgentReportedDiffProjection,
   readManagedSessionActivityGroups,
   readTranscriptViewChatEntries
 } from "./transcript/helpers";
@@ -15,10 +14,12 @@ import {
 export function useManagedSessionTranscriptViewModel({
   activeTab,
   isTakenOverAgentSessionLoading,
+  sourceTranscriptHistoryIncomplete,
   takenOverAgentSession
 }: {
   activeTab: SessionTab;
   isTakenOverAgentSessionLoading: boolean;
+  sourceTranscriptHistoryIncomplete: boolean;
   takenOverAgentSession: AgentSessionDetail | null;
 }) {
   const shouldDeferCachedTranscript = isTakenOverAgentSessionLoading;
@@ -46,14 +47,15 @@ export function useManagedSessionTranscriptViewModel({
     [activeTab, transcriptEntries, transcriptView]
   );
 
-  const sourceDiffParts = useMemo(
+  const sourceDiffProjection = useMemo(
     () =>
       activeTab === "diff"
-        ? filterHumanVisibleTranscriptEntries(transcriptEntries).flatMap(
-            (entry) => entry.parts?.filter((part): part is DiffPart => part.type === "diff") ?? []
+        ? readAgentReportedDiffProjection(
+            transcriptEntries,
+            sourceTranscriptHistoryIncomplete
           )
-        : [],
-    [activeTab, transcriptEntries]
+        : { detailsUnavailable: false, parts: [] },
+    [activeTab, sourceTranscriptHistoryIncomplete, transcriptEntries]
   );
 
   const isTranscriptLoading = isTakenOverAgentSessionLoading;
@@ -75,6 +77,7 @@ export function useManagedSessionTranscriptViewModel({
     hasConversationContent,
     isTranscriptLoading,
     latestWaitingDetailEntry: transcriptView?.latestWaitingDetailEntry ?? null,
-    sourceDiffParts
+    sourceDiffDetailsUnavailable: sourceDiffProjection.detailsUnavailable,
+    sourceDiffParts: sourceDiffProjection.parts
   };
 }

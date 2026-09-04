@@ -4,11 +4,13 @@ import type {
   DaemonSettingsResponse,
   SecurityStatusResponse
 } from "@deskcue/protocol";
+import { SettingsMutationCoordinator } from "@modules/settings/settingsMutationCoordinator";
 
 import { daemonSettingsController } from "./controller";
 import type { DaemonSettingsController } from "./controller";
 import {
   createSettingsDraft,
+  mergeSettingsDraftWithBaseline,
   normalizeAgentDataRootsDraft,
   normalizeRuntimeEndpointsDraft,
   parseAllowedOriginsText,
@@ -24,14 +26,21 @@ export class DaemonSettingsStore {
   loadingDaemonSettings = false;
   resettingDaemonSettings = false;
   savingDaemonSettings = false;
+  settingsConnectionRevision = 0;
+  settingsSaveSuccessRevision = 0;
   securityStatus: SecurityStatusResponse | null = null;
   securityStatusMessage = "";
   private readonly controller: DaemonSettingsController;
+  private readonly settingsMutationCoordinator: SettingsMutationCoordinator;
   private requestGeneration = 0;
 
-  constructor(controller: DaemonSettingsController = daemonSettingsController) {
+  constructor(
+    controller: DaemonSettingsController = daemonSettingsController,
+    settingsMutationCoordinator = new SettingsMutationCoordinator()
+  ) {
     this.controller = controller;
-    makeAutoObservable<this, "controller" | "requestGeneration">(
+    this.settingsMutationCoordinator = settingsMutationCoordinator;
+    makeAutoObservable<this, "controller" | "requestGeneration" | "settingsMutationCoordinator">(
       this,
       {
         daemonSettings: observable.ref,
@@ -39,12 +48,17 @@ export class DaemonSettingsStore {
         daemonSettingsStatus: observable.ref,
         controller: false,
         requestGeneration: false,
-        securityStatus: observable.ref
+        securityStatus: observable.ref,
+        settingsMutationCoordinator: false
       },
       {
         autoBind: true
       }
     );
+  }
+
+  get settingsMutationPending() {
+    return this.settingsMutationCoordinator.pendingMutation !== null;
   }
 
   loadDaemonSettings() {
@@ -57,6 +71,7 @@ export class DaemonSettingsStore {
 
   async refreshDaemonSettings() {
     const generation = this.requestGeneration;
+
     this.loadingDaemonSettings = true;
 
     try {
@@ -64,7 +79,9 @@ export class DaemonSettingsStore {
         this.controller.fetchSecurityStatus(),
         this.controller.getDaemonSettings()
       ]);
+
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.securityStatus = status;
         this.syncDaemonSettings(settings);
@@ -72,6 +89,7 @@ export class DaemonSettingsStore {
       });
     } catch (error: unknown) {
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.securityStatusMessage =
           error instanceof Error ? error.message : "Failed to load security status";
@@ -88,14 +106,18 @@ export class DaemonSettingsStore {
 
   async refreshSecurityStatus() {
     const generation = this.requestGeneration;
+
     try {
       const securityStatus = await this.controller.fetchSecurityStatus();
+
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.securityStatus = securityStatus;
       });
     } catch (error) {
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.securityStatusMessage =
           error instanceof Error ? error.message : "Failed to load security status";
@@ -106,6 +128,16 @@ export class DaemonSettingsStore {
   syncDaemonSettings(settings: DaemonSettingsResponse) {
     this.daemonSettings = settings;
     this.daemonSettingsDraft = createSettingsDraft(settings);
+  }
+
+  syncDaemonSettingsPreservingDraft(settings: DaemonSettingsResponse) {
+    const previousSettings = this.daemonSettings;
+    const currentDraft = this.daemonSettingsDraft;
+
+    this.daemonSettings = settings;
+    this.daemonSettingsDraft = previousSettings && currentDraft
+      ? mergeSettingsDraftWithBaseline(createSettingsDraft(previousSettings), currentDraft, settings)
+      : createSettingsDraft(settings);
   }
 
   updateSettingsDraft(updater: (current: SettingsDraft) => SettingsDraft) {
@@ -199,26 +231,46 @@ export class DaemonSettingsStore {
       return;
     }
 
+    const mutationToken = this.settingsMutationCoordinator.tryStart("daemon");
+
+    if (mutationToken === null) return;
+
     const generation = this.requestGeneration;
+    const submittedDraft = this.daemonSettingsDraft;
+
     this.savingDaemonSettings = true;
+
     this.daemonSettingsStatus = null;
 
     try {
       const result = await this.controller.updateDaemonSettings({
-        authRequired: this.daemonSettingsDraft.authRequired,
-        publicHost: this.daemonSettingsDraft.publicHost.trim() || null,
-        pairingHosts: parseListRows(this.daemonSettingsDraft.pairingHosts),
-        allowedOrigins: parseAllowedOriginsText(this.daemonSettingsDraft.allowedOriginsText),
-        storageMaxMb: this.daemonSettingsDraft.storageMaxMb,
-        agentDataRoots: normalizeAgentDataRootsDraft(this.daemonSettingsDraft.agentDataRoots),
-        runtimeEndpoints: normalizeRuntimeEndpointsDraft(this.daemonSettingsDraft.runtimeEndpoints)
+        authRequired: submittedDraft.authRequired,
+        publicHost: submittedDraft.publicHost.trim() || null,
+        pairingHosts: parseListRows(submittedDraft.pairingHosts),
+        allowedOrigins: parseAllowedOriginsText(submittedDraft.allowedOriginsText),
+        storageMaxMb: submittedDraft.storageMaxMb,
+        agentDataRoots: normalizeAgentDataRootsDraft(submittedDraft.agentDataRoots),
+        runtimeEndpoints: normalizeRuntimeEndpointsDraft(submittedDraft.runtimeEndpoints)
       });
+
       if (generation !== this.requestGeneration) return;
 
       if (result.ok) {
         runInAction(() => {
-          this.syncDaemonSettings(result.data);
+          this.daemonSettings = result.data;
+          if (this.daemonSettingsDraft === submittedDraft) {
+            this.daemonSettingsDraft = createSettingsDraft(result.data);
+          } else if (this.daemonSettingsDraft) {
+            this.daemonSettingsDraft = mergeSettingsDraftWithBaseline(
+              submittedDraft,
+              this.daemonSettingsDraft,
+              result.data
+            );
+          }
+
+          this.settingsSaveSuccessRevision += 1;
         });
+
         this.controller.notifySaved();
         await this.refreshSecurityStatus();
         return;
@@ -232,6 +284,7 @@ export class DaemonSettingsStore {
       });
     } catch (error) {
       if (generation !== this.requestGeneration) return;
+
       runInAction(() => {
         this.daemonSettingsStatus = {
           kind: "error",
@@ -239,6 +292,8 @@ export class DaemonSettingsStore {
         };
       });
     } finally {
+      this.settingsMutationCoordinator.finish(mutationToken);
+
       if (generation === this.requestGeneration) {
         runInAction(() => {
           this.savingDaemonSettings = false;
@@ -259,17 +314,34 @@ export class DaemonSettingsStore {
       return;
     }
 
+    const mutationToken = this.settingsMutationCoordinator.tryStart("daemon");
+
+    if (mutationToken === null) return;
+
+    const resetDraft = this.daemonSettingsDraft;
+
     this.resettingDaemonSettings = true;
     this.daemonSettingsStatus = null;
 
     try {
       const result = await this.controller.resetDaemonSettings();
+
       if (generation !== this.requestGeneration) return;
 
       if (result.ok) {
         runInAction(() => {
-          this.syncDaemonSettings(result.data);
+          if (this.daemonSettingsDraft === resetDraft) {
+            this.syncDaemonSettings(result.data);
+          } else if (this.daemonSettingsDraft && resetDraft) {
+            this.daemonSettings = result.data;
+            this.daemonSettingsDraft = mergeSettingsDraftWithBaseline(
+              resetDraft,
+              this.daemonSettingsDraft,
+              result.data
+            );
+          }
         });
+
         this.controller.notifyReset();
         await this.refreshSecurityStatus();
         return;
@@ -282,6 +354,8 @@ export class DaemonSettingsStore {
         };
       });
     } finally {
+      this.settingsMutationCoordinator.finish(mutationToken);
+
       if (generation === this.requestGeneration) {
         runInAction(() => {
           this.resettingDaemonSettings = false;
@@ -291,7 +365,9 @@ export class DaemonSettingsStore {
   }
 
   resetForConnectionChange() {
+    this.settingsMutationCoordinator.reset();
     this.requestGeneration += 1;
+    this.settingsConnectionRevision += 1;
     this.daemonSettings = null;
     this.daemonSettingsDraft = null;
     this.daemonSettingsStatus = null;

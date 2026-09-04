@@ -35,13 +35,12 @@ export function readTranscriptViewRouteRequest(
   const requestedChatMessageTail = readPositiveIntegerQuery(query.chatMessageTail);
   const requestedFullTranscript = readBooleanQuery(query.fullTranscript);
   const transcriptTail = requestedTranscriptTail === null
-    ? requestedFullTranscript
-      ? MAX_AGENT_SESSION_TRANSCRIPT_TAIL
-      : null
+    ? null
     : Math.min(requestedTranscriptTail, MAX_AGENT_SESSION_TRANSCRIPT_TAIL);
   // `fullTranscript=1` is retained as a compatibility hint, but it no longer
-  // permits an unbounded full-file hydration. Older clients transparently get
-  // the largest bounded tail and can continue backwards through transcript-page.
+  // permits an unbounded full-file hydration. A chat-message boundary keeps a
+  // dense turn intact; a raw-entry cap can begin midway through the turn and
+  // separate its Details, Tools and Changes from the terminal assistant reply.
   const fullTranscript = false;
   const transcriptDetail = readTranscriptDetailQuery(query.transcriptDetail);
   const includeSessionSummary = readBooleanQuery(query.includeSessionSummary);
@@ -49,7 +48,9 @@ export function readTranscriptViewRouteRequest(
   const chatMessageTail =
     requestedChatMessageTail === null &&
     transcriptTail === null
-      ? DEFAULT_AGENT_SESSION_CHAT_MESSAGE_TAIL
+      ? requestedFullTranscript
+        ? MAX_AGENT_SESSION_CHAT_MESSAGE_TAIL
+        : DEFAULT_AGENT_SESSION_CHAT_MESSAGE_TAIL
       : requestedChatMessageTail === null
         ? null
         : Math.min(

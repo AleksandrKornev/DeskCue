@@ -43,9 +43,9 @@
 }
 
 .cardCompact .attachmentAction {
-  width: 30px;
-  min-width: 30px;
-  min-height: 30px;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding-inline: 0;
   border-radius: 10px;
   font-size: 0.76rem;
@@ -120,8 +120,8 @@
 }
 
 .cardDense .attachmentAction {
-  width: 30px;
-  min-width: 30px;
+  width: 44px;
+  min-width: 44px;
   padding-inline: 0;
 }
 
@@ -356,10 +356,40 @@
   }
 
   .attachmentAction {
-    min-height: 30px;
+    min-height: 44px;
     padding: 0 9px;
     border-radius: 10px;
     font-size: 0.78rem;
     line-height: 1;
+  }
+}
+
+@media (max-width: 410px) {
+  .cardDense {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .cardDense .attachmentPreview {
+    grid-row: 1 / span 2;
+    height: 72px;
+    min-height: 72px;
+  }
+
+  .cardDense .attachmentPreview img {
+    height: 72px;
+    max-height: 72px;
+  }
+
+  .cardDense .attachmentActions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 280px) {
+  .cardDense .attachmentActions {
+    flex-wrap: wrap;
+    justify-content: center;
   }
 }

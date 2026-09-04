@@ -45,8 +45,10 @@ export function mergeCodexDetailSummary(
 
 export function extractRuntimeContextFromLines(lines: Array<{ line: string }>) {
   let latestContext: CodexSessionRuntimeContext | null = null;
+
   for (const { line } of lines) {
     const context = extractCodexRuntimeContextLine(line);
+
     if (context) {
       latestContext = context;
     }
@@ -61,16 +63,19 @@ export function readTranscriptEntryLineIndex(entry: AgentTranscriptEntry | undef
   }
 
   const sourceRange = entry.sourceEntryRanges?.[0] ?? entry.sourceEntrySpans?.[0];
+
   if (sourceRange) {
     return sourceRange.start;
   }
 
   const separatorIndex = entry.id.lastIndexOf("-");
+
   if (separatorIndex < 0) {
     return null;
   }
 
   const parsed = Number(entry.id.slice(separatorIndex + 1));
+
   return Number.isInteger(parsed) ? parsed : null;
 }
 
@@ -82,8 +87,10 @@ export function extractCodexRuntimeContextFromTranscriptSlice(
   }
 
   let latestContext: CodexSessionRuntimeContext | null = null;
+
   for (const { line } of transcriptSlice.lines ?? []) {
     const context = extractCodexRuntimeContextLine(line.trim());
+
     if (context) {
       latestContext = context;
     }
@@ -94,11 +101,13 @@ export function extractCodexRuntimeContextFromTranscriptSlice(
 
 export function readCodexSourceEntryLineIndex(sessionId: string, sourceEntryId: string) {
   const idPrefix = `${sessionId}-`;
+
   if (!sourceEntryId.startsWith(idPrefix)) {
     return null;
   }
 
   const parsed = Number(sourceEntryId.slice(idPrefix.length));
+
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
@@ -114,11 +123,13 @@ export function buildCodexTranscriptWindowSessionId(
 
 export function readCodexTranscriptWindowEntryRef(sessionId: string, sourceEntryId: string) {
   const idPrefix = `${sessionId}@`;
+
   if (!sourceEntryId.startsWith(idPrefix)) {
     return null;
   }
 
   const separatorIndex = sourceEntryId.lastIndexOf("-");
+
   if (separatorIndex <= idPrefix.length || separatorIndex === sourceEntryId.length - 1) {
     return null;
   }
@@ -128,6 +139,7 @@ export function readCodexTranscriptWindowEntryRef(sessionId: string, sourceEntry
   const byteOffset = Number(byteOffsetText);
   const endByteOffset = endByteOffsetText === undefined ? undefined : Number(endByteOffsetText);
   const lineIndex = Number(sourceEntryId.slice(separatorIndex + 1));
+
   if (
     !Number.isSafeInteger(byteOffset) ||
     (endByteOffset !== undefined && (!Number.isSafeInteger(endByteOffset) || endByteOffset <= byteOffset)) ||
@@ -153,9 +165,12 @@ export function readCodexTranscriptEntryRefs(sessionId: string, entryIds: string
 
   for (const entryId of entryIds) {
     const windowRef = readCodexTranscriptWindowEntryRef(sessionId, entryId);
+
     if (windowRef) {
       const lineIndexes = windowLineIndexesByByteOffset.get(windowRef.byteOffset) ?? new Set<number>();
+
       lineIndexes.add(windowRef.lineIndex);
+
       windowLineIndexesByByteOffset.set(windowRef.byteOffset, lineIndexes);
       continue;
     }
@@ -165,6 +180,7 @@ export function readCodexTranscriptEntryRefs(sessionId: string, entryIds: string
     }
 
     const parsed = Number(entryId.slice(idPrefix.length));
+
     if (Number.isInteger(parsed) && parsed >= 0) {
       exactLineIndexes.add(parsed);
     }
@@ -178,18 +194,21 @@ function trimTranscriptToChatMessageTail(
   chatMessageTail: number
 ) {
   const chatEntries = transcript.filter((entry) => entry.role === "user" || entry.role === "assistant");
+
   if (chatEntries.length <= chatMessageTail) {
     return transcript;
   }
 
   const firstVisibleChatEntry = chatEntries[chatEntries.length - chatMessageTail];
   const firstVisibleLineIndex = readTranscriptEntryLineIndex(firstVisibleChatEntry);
+
   if (firstVisibleLineIndex === null) {
     return transcript.slice(Math.max(0, transcript.length - chatMessageTail));
   }
 
   return transcript.filter((entry) => {
     const lineIndex = readTranscriptEntryLineIndex(entry);
+
     return lineIndex === null || lineIndex >= firstVisibleLineIndex;
   });
 }
@@ -221,6 +240,7 @@ function parseTranscriptSliceLines(
     if (transcriptSlice.lines) {
       return parseCodexTranscriptChatMessageLines(transcriptSlice.lines, sessionId, options.chatMessageTail);
     }
+
     return parseCodexTranscriptChatMessageTail(
       transcriptSlice.raw ?? "",
       sessionId,
@@ -241,6 +261,7 @@ function parseTranscriptSliceLines(
   if (transcriptSlice.lines) {
     return parseCodexTranscriptSelectedLines(transcriptSlice.lines, sessionId);
   }
+
   return parseCodexTranscript(transcriptSlice.raw ?? "", sessionId);
 }
 
@@ -249,33 +270,50 @@ function readFirstVisibleChatTranscriptLineIndex(entries: AgentTranscriptEntry[]
     if (entry.role !== "user" && entry.role !== "assistant") {
       continue;
     }
+
     const lineIndex = readTranscriptEntryLineIndex(entry);
+
     if (lineIndex !== null) {
       return lineIndex;
     }
   }
+
   return null;
 }
 
-function readFirstVisibleTranscriptLineIndex(entries: AgentTranscriptEntry[]) {
-  for (const entry of entries) {
-    const lineIndex = readTranscriptEntryLineIndex(entry);
-    if (lineIndex !== null) {
-      return lineIndex;
-    }
-  }
-  return null;
+function readTranscriptEntryLastLineIndex(entry: AgentTranscriptEntry) {
+  const rangeEnds = [
+    ...(entry.sourceEntryRanges ?? []),
+    ...(entry.sourceEntrySpans ?? [])
+  ].map((range) => range.end);
+  const exactLineIndexes = (entry.sourceEntryIds ?? [])
+    .map((entryId) => {
+      const separatorIndex = entryId.lastIndexOf("-");
+
+      if (separatorIndex < 0 || separatorIndex === entryId.length - 1) return null;
+
+      const lineIndex = Number(entryId.slice(separatorIndex + 1));
+
+      return Number.isInteger(lineIndex) && lineIndex >= 0 ? lineIndex : null;
+    })
+    .filter((lineIndex): lineIndex is number => lineIndex !== null);
+  const lineIndexes = [...rangeEnds, ...exactLineIndexes];
+
+  return lineIndexes.length > 0
+    ? Math.max(...lineIndexes)
+    : readTranscriptEntryLineIndex(entry);
 }
 
 function filterIndexedTranscriptEntriesToVisibleWindow(
   entries: AgentTranscriptEntry[],
   parsedTranscript: AgentTranscriptEntry[],
+  transcriptSlice: TranscriptSlice,
   options: { chatMessageTail?: number; transcriptTail?: number }
 ) {
   const firstVisibleLineIndex = options.chatMessageTail && options.chatMessageTail > 0
     ? readFirstVisibleChatTranscriptLineIndex(parsedTranscript)
     : options.transcriptTail && options.transcriptTail > 0
-      ? readFirstVisibleTranscriptLineIndex(parsedTranscript)
+      ? transcriptSlice.lineIndexOffset
       : null;
 
   if (firstVisibleLineIndex === null) {
@@ -283,7 +321,8 @@ function filterIndexedTranscriptEntriesToVisibleWindow(
   }
 
   return entries.filter((entry) => {
-    const lineIndex = readTranscriptEntryLineIndex(entry);
+    const lineIndex = readTranscriptEntryLastLineIndex(entry);
+
     return lineIndex === null || lineIndex >= firstVisibleLineIndex;
   });
 }
@@ -291,21 +330,26 @@ function filterIndexedTranscriptEntriesToVisibleWindow(
 function compareTranscriptEntriesBySourceLine(left: AgentTranscriptEntry, right: AgentTranscriptEntry) {
   const leftLineIndex = readTranscriptEntryLineIndex(left);
   const rightLineIndex = readTranscriptEntryLineIndex(right);
+
   if (leftLineIndex !== null && rightLineIndex !== null && leftLineIndex !== rightLineIndex) {
     return leftLineIndex - rightLineIndex;
   }
+
   if (leftLineIndex !== null && rightLineIndex === null) {
     return -1;
   }
+
   if (leftLineIndex === null && rightLineIndex !== null) {
     return 1;
   }
+
   return left.id.localeCompare(right.id);
 }
 
 function mergeTranscriptSliceEntries(
   parsedTranscript: AgentTranscriptEntry[],
   indexedEntries: AgentTranscriptEntry[] | undefined,
+  transcriptSlice: TranscriptSlice,
   options: { chatMessageTail?: number; transcriptTail?: number }
 ) {
   if (!indexedEntries?.length) {
@@ -315,8 +359,10 @@ function mergeTranscriptSliceEntries(
   const visibleIndexedEntries = filterIndexedTranscriptEntriesToVisibleWindow(
     indexedEntries,
     parsedTranscript,
+    transcriptSlice,
     options
   );
+
   if (visibleIndexedEntries.length === 0) {
     return parsedTranscript;
   }
@@ -335,5 +381,11 @@ export function parseTranscript(
   } = {}
 ) {
   const parsedTranscript = parseTranscriptSliceLines(transcriptSlice, sessionId, options);
-  return mergeTranscriptSliceEntries(parsedTranscript, transcriptSlice.entries, options);
+
+  return mergeTranscriptSliceEntries(
+    parsedTranscript,
+    transcriptSlice.entries,
+    transcriptSlice,
+    options
+  );
 }

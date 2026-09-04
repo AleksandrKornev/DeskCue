@@ -1,0 +1,267 @@
+@use "@assets/variables" as vars;
+
+.panel {
+  width: min(680px, calc(100% - 32px));
+  margin: 0 auto 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(20, 21, 23, 0.98);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.24);
+}
+
+.summary,
+.row {
+  width: 100%;
+  border: 0;
+  color: vars.$color-text-primary;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 10px;
+  background: transparent;
+}
+
+.summary:hover,
+.summary:focus-visible,
+.row:hover,
+.row:focus-visible {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.summary:focus-visible,
+.row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(114, 177, 239, 0.88);
+}
+
+.summaryIdentity,
+.summaryMeta,
+.rowText,
+.status {
+  display: inline-flex;
+  align-items: center;
+}
+
+.summaryIdentity {
+  gap: 8px;
+  min-width: 0;
+}
+
+.summaryIcon {
+  width: 18px;
+  height: 18px;
+  color: #73d59f;
+}
+
+.summaryIdentity strong,
+.rowText strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summaryMeta {
+  flex: 0 0 auto;
+  gap: 8px;
+  color: vars.$color-text-secondary;
+  font-size: 12px;
+}
+
+.runningCount {
+  color: #8ee6b5;
+}
+
+.chevron {
+  width: 16px;
+  height: 16px;
+  transition: transform 160ms ease;
+}
+
+.chevronExpanded {
+  transform: rotate(180deg);
+}
+
+.list {
+  position: relative;
+  max-height: min(280px, 42dvh);
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  overscroll-behavior: contain;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 52px;
+  padding: 7px 10px;
+  background: rgba(5, 14, 12, 0.52);
+}
+
+.row + .row {
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.runtimeIcon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: vars.$color-text-secondary;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.runtimeIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rowText {
+  align-items: flex-start;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.rowText strong {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rowText > span {
+  width: 100%;
+  overflow: hidden;
+  color: vars.$color-text-secondary;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  gap: 5px;
+  color: vars.$color-text-secondary;
+  font-size: 12px;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status_running {
+  color: #8ee6b5;
+}
+
+.status_failed {
+  color: #f0a0a0;
+}
+
+.status_stopped {
+  color: #e5bd7a;
+}
+
+.limitNote,
+.refreshing {
+  display: block;
+  margin: 0;
+  padding: 8px 10px;
+  color: vars.$color-text-secondary;
+  font-size: 12px;
+}
+
+.loadError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 10px;
+  color: vars.$color-text-secondary;
+  font-size: 12px;
+}
+
+.retryButton {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  color: vars.$color-text-primary;
+  background: rgba(255, 255, 255, 0.055);
+  font: inherit;
+  cursor: pointer;
+}
+
+.retryButton:hover,
+.retryButton:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.retryButton:focus-visible {
+  outline: 2px solid rgba(114, 177, 239, 0.88);
+  outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+  .panel {
+    width: calc(100% - 20px);
+  }
+
+  .summaryMeta {
+    gap: 6px;
+  }
+
+  .row {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .status {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 280px) {
+  .panel {
+    width: calc(100% - 8px);
+  }
+
+  .summary {
+    position: relative;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 28px;
+  }
+
+  .summaryMeta {
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    padding-left: 26px;
+  }
+
+  .chevron {
+    position: absolute;
+    top: 14px;
+    right: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}

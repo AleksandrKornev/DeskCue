@@ -16,6 +16,20 @@ const WORKSPACE_RASTER_IMAGE_EXTENSIONS = new Set([
   ".webp"
 ]);
 const MIN_FILE_LINE_NUMBER_WIDTH_CH = 3.5;
+const FILE_VIEWER_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])"
+].join(",");
+
+function isVisibleFileViewerControl(element: HTMLElement) {
+  const style = window.getComputedStyle(element);
+
+  return style.display !== "none" && style.visibility !== "hidden";
+}
 
 export function buildWorkspaceFileLineNumberWidth(lineCount: number) {
   const digitCount = String(Math.max(1, lineCount)).length;
@@ -24,10 +38,65 @@ export function buildWorkspaceFileLineNumberWidth(lineCount: number) {
 }
 
 export function createFileViewerKeyDownHandler(
+  viewer: HTMLElement,
   setFileViewerExpanded: (expanded: boolean) => void
 ) {
   return (event: KeyboardEvent) => {
-    if (event.key === "Escape") setFileViewerExpanded(false);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setFileViewerExpanded(false);
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    const focusableControls = [...viewer.querySelectorAll<HTMLElement>(FILE_VIEWER_FOCUSABLE_SELECTOR)]
+      .filter(isVisibleFileViewerControl);
+    const firstControl = focusableControls[0];
+    const lastControl = focusableControls.at(-1);
+
+    if (!firstControl || !lastControl) {
+      event.preventDefault();
+      viewer.focus();
+      return;
+    }
+
+    if (!viewer.contains(document.activeElement)) {
+      event.preventDefault();
+      firstControl.focus();
+      return;
+    }
+
+    if (event.shiftKey && document.activeElement === firstControl) {
+      event.preventDefault();
+      lastControl.focus();
+    } else if (!event.shiftKey && document.activeElement === lastControl) {
+      event.preventDefault();
+      firstControl.focus();
+    }
+  };
+}
+
+export function inertOutsideFileViewer(viewer: HTMLElement) {
+  const changedElements: Array<{ element: HTMLElement; inert: boolean }> = [];
+  let activeBranch: HTMLElement = viewer;
+
+  while (activeBranch.parentElement) {
+    const parent = activeBranch.parentElement;
+
+    for (const sibling of parent.children) {
+      if (!(sibling instanceof HTMLElement) || sibling === activeBranch) continue;
+
+      changedElements.push({ element: sibling, inert: sibling.inert });
+      sibling.inert = true;
+    }
+
+    activeBranch = parent;
+    if (activeBranch === document.body) break;
+  }
+
+  return () => {
+    for (const { element, inert } of changedElements) element.inert = inert;
   };
 }
 
@@ -86,6 +155,11 @@ export function readWorkspaceFileHistoryTarget(state: unknown) {
   if (
     (value.kind !== "directory" && value.kind !== "file") ||
     typeof value.path !== "string" ||
+    (value.returnDepth !== undefined && (
+      typeof value.returnDepth !== "number" ||
+      !Number.isInteger(value.returnDepth) ||
+      value.returnDepth < 1
+    )) ||
     typeof value.workspaceId !== "string"
   ) return null;
   return value as WorkspaceFileHistoryTarget;

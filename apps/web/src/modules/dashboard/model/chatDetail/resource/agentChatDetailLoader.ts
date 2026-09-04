@@ -23,14 +23,22 @@ type InFlightDetailRequest = {
   request: Promise<AgentChatDetailFetchResult>;
 };
 
+function abortController(controller: AbortController) {
+  controller.abort();
+}
+
 function linkAbortSignal(externalSignal: AbortSignal | undefined, controller: AbortController) {
   if (!externalSignal) return () => undefined;
+
   if (externalSignal.aborted) {
     controller.abort();
     return () => undefined;
   }
-  const abort = () => controller.abort();
+
+  const abort = abortController.bind(undefined, controller);
+
   externalSignal.addEventListener("abort", abort, { once: true });
+
   return () => externalSignal.removeEventListener("abort", abort);
 }
 
@@ -70,10 +78,12 @@ export class AgentChatDetailLoader {
     }
 
     const existing = options.bypassDedupe ? null : this.inFlight.get(requestKey);
+
     if (existing && !existing.controller.signal.aborted) return existing.request;
 
     const state = this.dependencies.state.ensure(agentSessionId);
     const throttled = this.readThrottledResult(agentSessionId, requestKey, options, state);
+
     if (throttled) return throttled;
 
     if (getLiveDetailNetworkThrottleIntervalMs(options) > 0) {
@@ -84,6 +94,7 @@ export class AgentChatDetailLoader {
     const requestEpoch = this.epoch;
     const controller = new AbortController();
     const unlinkExternalSignal = linkAbortSignal(options.signal, controller);
+
     state.abortController = controller;
     const request = this.dependencies.transport.fetchDetail(agentSessionId, {
       ...options,
@@ -105,6 +116,7 @@ export class AgentChatDetailLoader {
           this.dependencies.state.emit(agentSessionId);
           if (options.retry !== false) this.scheduleRetry(agentSessionId, options);
         }
+
         this.dependencies.cache.set(requestKey, result);
         return result;
       })
@@ -116,6 +128,7 @@ export class AgentChatDetailLoader {
             this.scheduleRetry(agentSessionId, options, error);
           }
         }
+
         throw error;
       })
       .finally(() => {
@@ -134,6 +147,7 @@ export class AgentChatDetailLoader {
     for (const request of this.inFlight.values()) {
       request.controller.abort();
     }
+
     this.inFlight.clear();
   }
 
@@ -141,7 +155,6 @@ export class AgentChatDetailLoader {
     state.generation += 1;
     state.abortController?.abort();
     this.clearRetryTimer(state);
-    state.error = null;
     state.isStale = Boolean(reason && state.detail);
     state.staleReason = reason ?? null;
     state.status = state.detail ? "refreshing" : "loading";
@@ -158,6 +171,7 @@ export class AgentChatDetailLoader {
     const now = this.dependencies.now();
     const nextSourceVersion = result.etag ?? state.sourceVersion;
     const nextUpdatedAt = result.detail?.updatedAt ?? state.updatedAt;
+
     if (
       !result.notModified &&
       ((nextSourceVersion !== null && nextSourceVersion !== state.sourceVersion) ||
@@ -165,6 +179,7 @@ export class AgentChatDetailLoader {
     ) {
       this.dependencies.hydration.onDetailChanged(state, result.detail);
     }
+
     state.detail = result.detail;
     state.error = null;
     state.etag = result.etag ?? state.etag;
@@ -185,11 +200,13 @@ export class AgentChatDetailLoader {
       state.staleReason = options.reason ?? "live-event";
       state.status = "stale";
     }
+
     this.dependencies.state.emit(sessionId);
   }
 
   private applyError(sessionId: string, error: unknown, state: MutableAgentChatDetailState) {
     if (isApiRequestCanceled(error)) return;
+
     state.error = error instanceof Error ? error : new Error("Failed to load agent chat");
     state.isStale = Boolean(state.detail);
     state.status = state.detail ? "stale" : "error";
@@ -203,8 +220,11 @@ export class AgentChatDetailLoader {
     state: MutableAgentChatDetailState
   ): AgentChatDetailFetchResult | null {
     const interval = getLiveDetailNetworkThrottleIntervalMs(options);
+
     if (interval === 0) return null;
+
     const lastStartedAt = this.dependencies.cache.readLastRequestStartedAt(requestKey);
+
     if (
       lastStartedAt === undefined ||
       this.dependencies.now() - lastStartedAt >= interval ||
@@ -212,24 +232,29 @@ export class AgentChatDetailLoader {
     ) {
       return null;
     }
+
     if (!hasDetailAtLeastAsFreshAs(state.detail, sessionId, options.minimumUpdatedAt)) {
       state.isStale = true;
       state.staleReason = options.reason ?? "live-event";
       state.status = "stale";
       this.dependencies.state.emit(sessionId);
     }
+
     return { detail: state.detail, etag: state.etag, notModified: true, status: 304 };
   }
 
   private scheduleRetry(sessionId: string, options: AgentChatDetailLoadOptions, error?: unknown) {
     const state = this.dependencies.state.ensure(sessionId);
+
     if (!this.dependencies.refreshPolicy.canRetry(state.retryAttempt, error)) return;
+
     this.clearRetryTimer(state);
     const attempt = state.retryAttempt + 1;
     const delayMs = this.dependencies.refreshPolicy.resolveRetryDelay(
       attempt,
       getLiveDetailRetryDelayFloorMs(options)
     );
+
     state.retryAttempt = attempt;
     state.retryAfterAt = this.dependencies.now() + delayMs;
     state.retryTimer = this.dependencies.setTimeout(() => {
@@ -247,6 +272,7 @@ export class AgentChatDetailLoader {
 
   private clearRetryTimer(state: MutableAgentChatDetailState) {
     if (!state.retryTimer) return;
+
     this.dependencies.clearTimeout(state.retryTimer);
     state.retryTimer = null;
     state.retryAfterAt = null;

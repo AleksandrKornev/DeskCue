@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
+import type { MutableRefObject } from "react";
 
+import type { AgentSessionSummary } from "@deskcue/protocol";
 import {
   API_UNAUTHORIZED_EVENT,
   CONNECTION_CONFIG_CHANGED_EVENT
@@ -23,6 +25,92 @@ import type {
   UseDashboardLoadersArgs
 } from "./types";
 
+type AgentSessionsRefreshScope = {
+  query: string | null;
+  sourceId: NonNullable<AgentSessionsLoadOptions["sourceId"]>;
+};
+
+type DashboardLoaderRequestInvalidatorArgs = {
+  agentSessionsAbortControllerRef: MutableRefObject<AbortController | null>;
+  agentSessionsRequestIdRef: MutableRefObject<number>;
+  overviewRequestIdRef: MutableRefObject<number>;
+  runtimesRequestIdRef: MutableRefObject<number>;
+  selectedSessionRequestGenerationRef: MutableRefObject<number>;
+  selectedSessionRequestIdsByViewRef: MutableRefObject<Map<string, number>>;
+};
+
+class DashboardLoaderRequestInvalidator {
+  constructor(private readonly args: DashboardLoaderRequestInvalidatorArgs) {}
+
+  readonly invalidate = () => {
+    this.args.overviewRequestIdRef.current += 1;
+    this.args.runtimesRequestIdRef.current += 1;
+    this.args.selectedSessionRequestGenerationRef.current += 1;
+    this.args.selectedSessionRequestIdsByViewRef.current.clear();
+    this.args.agentSessionsRequestIdRef.current += 1;
+    this.args.agentSessionsAbortControllerRef.current?.abort();
+    this.args.agentSessionsAbortControllerRef.current = null;
+  };
+
+  start() {
+    window.addEventListener(API_UNAUTHORIZED_EVENT, this.invalidate);
+    window.addEventListener(CONNECTION_CONFIG_CHANGED_EVENT, this.invalidate);
+  }
+
+  readonly stop = () => {
+    this.invalidate();
+    window.removeEventListener(API_UNAUTHORIZED_EVENT, this.invalidate);
+    window.removeEventListener(CONNECTION_CONFIG_CHANGED_EVENT, this.invalidate);
+  };
+}
+
+class AgentSessionsRefreshSubscription {
+  private refreshTimer: number | null = null;
+
+  constructor(
+    private readonly scopeRef: MutableRefObject<AgentSessionsRefreshScope>,
+    private readonly loadAgentSessions: (
+      options?: AgentSessionsLoadOptions
+    ) => Promise<AgentSessionSummary[]>,
+    private readonly searchAgentSessions: (
+      query: string,
+      options?: AgentSessionsLoadOptions
+    ) => Promise<AgentSessionSummary[]>
+  ) {}
+
+  private readonly refresh = () => {
+    this.refreshTimer = null;
+    const scope = this.scopeRef.current;
+
+    if (scope.query) {
+      void this.searchAgentSessions(scope.query, {
+        silent: true,
+        sourceId: scope.sourceId
+      });
+      return;
+    }
+
+    void this.loadAgentSessions({
+      silent: true,
+      sourceId: scope.sourceId
+    });
+  };
+
+  readonly schedule = () => {
+    if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
+    this.refreshTimer = window.setTimeout(this.refresh, 150);
+  };
+
+  start() {
+    window.addEventListener(AGENT_SESSIONS_INVALIDATED_EVENT, this.schedule);
+  }
+
+  readonly stop = () => {
+    window.removeEventListener(AGENT_SESSIONS_INVALIDATED_EVENT, this.schedule);
+    if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
+  };
+}
+
 export function useDashboardLoaders({
   captureOverviewRevision,
   overviewRef,
@@ -42,45 +130,43 @@ export function useDashboardLoaders({
 }: UseDashboardLoadersArgs) {
   const agentSessionsRequestIdRef = useRef(0);
   const agentSessionsAbortControllerRef = useRef<AbortController | null>(null);
-  const agentSessionsScopeRef = useRef<{
-    query: string | null;
-    sourceId: NonNullable<AgentSessionsLoadOptions["sourceId"]>;
-  }>({ query: null, sourceId: "all" });
+  const agentSessionsScopeRef = useRef<AgentSessionsRefreshScope>({
+    query: null,
+    sourceId: "all"
+  });
   const overviewRequestIdRef = useRef(0);
   const runtimesRequestIdRef = useRef(0);
   const selectedSessionRequestGenerationRef = useRef(0);
   const selectedSessionRequestIdsByViewRef = useRef(new Map<string, number>());
 
   useEffect(() => {
-    const invalidateRequests = () => {
-      overviewRequestIdRef.current += 1;
-      runtimesRequestIdRef.current += 1;
-      selectedSessionRequestGenerationRef.current += 1;
-      selectedSessionRequestIdsByViewRef.current.clear();
-      agentSessionsRequestIdRef.current += 1;
-      agentSessionsAbortControllerRef.current?.abort();
-      agentSessionsAbortControllerRef.current = null;
-    };
+    const invalidator = new DashboardLoaderRequestInvalidator({
+      agentSessionsAbortControllerRef,
+      agentSessionsRequestIdRef,
+      overviewRequestIdRef,
+      runtimesRequestIdRef,
+      selectedSessionRequestGenerationRef,
+      selectedSessionRequestIdsByViewRef
+    });
 
-    window.addEventListener(API_UNAUTHORIZED_EVENT, invalidateRequests);
-    window.addEventListener(CONNECTION_CONFIG_CHANGED_EVENT, invalidateRequests);
-    return () => {
-      invalidateRequests();
-      window.removeEventListener(API_UNAUTHORIZED_EVENT, invalidateRequests);
-      window.removeEventListener(CONNECTION_CONFIG_CHANGED_EVENT, invalidateRequests);
-    };
+    invalidator.start();
+    return invalidator.stop;
   }, []);
 
   const loadOverview = useCallback(async (options?: LoadOptions) => {
     const requestRevision = captureOverviewRevision();
     const requestId = overviewRequestIdRef.current + 1;
+
     overviewRequestIdRef.current = requestId;
+
     try {
       const nextOverview = await dashboardApi.getOverview();
+
       if (overviewRequestIdRef.current === requestId) {
         setOverview(nextOverview, requestRevision);
         return nextOverview;
       }
+
       return overviewRef.current;
     } catch (caughtError) {
       if (overviewRequestIdRef.current === requestId && !options?.silent) setErrorIfEmpty(toMessage(caughtError));
@@ -94,11 +180,16 @@ export function useDashboardLoaders({
       query: null,
       sourceId: options?.sourceId ?? "all"
     };
+
     const requestId = agentSessionsRequestIdRef.current + 1;
+
     agentSessionsRequestIdRef.current = requestId;
+
     agentSessionsAbortControllerRef.current?.abort();
     const abortController = new AbortController();
+
     agentSessionsAbortControllerRef.current = abortController;
+
     if (!options?.silent || agentSessionsRef.current.length === 0) setAgentSessionsLoadState("loading");
 
     try {
@@ -108,6 +199,7 @@ export function useDashboardLoaders({
         signal: abortController.signal,
         sourceId: options?.sourceId
       });
+
       if (agentSessionsRequestIdRef.current === requestId) setAgentSessionsPage(page);
       return page.sessions;
     } catch (caughtError) {
@@ -126,14 +218,19 @@ export function useDashboardLoaders({
       query: query?.trim() || null,
       sourceId: options?.sourceId ?? "all"
     };
+
     const requestId = agentSessionsRequestIdRef.current + 1;
+
     agentSessionsRequestIdRef.current = requestId;
+
     agentSessionsAbortControllerRef.current?.abort();
     const abortController = new AbortController();
+
     agentSessionsAbortControllerRef.current = abortController;
 
     try {
       const page = await agentSessionsApi.getList({
+        includeSubagents: Boolean(query?.trim()),
         includeLiveMetadata: true,
         limit: AGENT_SESSIONS_PAGE_LIMIT,
         offset: agentSessionsRef.current.length,
@@ -141,6 +238,7 @@ export function useDashboardLoaders({
         signal: abortController.signal,
         sourceId: options?.sourceId
       });
+
       if (agentSessionsRequestIdRef.current === requestId) appendAgentSessionsPage(page);
       return page.sessions;
     } catch (caughtError) {
@@ -161,20 +259,26 @@ export function useDashboardLoaders({
       query: query.trim() || null,
       sourceId: options?.sourceId ?? "all"
     };
+
     const requestId = agentSessionsRequestIdRef.current + 1;
+
     agentSessionsRequestIdRef.current = requestId;
+
     agentSessionsAbortControllerRef.current?.abort();
     const abortController = new AbortController();
+
     agentSessionsAbortControllerRef.current = abortController;
 
     try {
       const page = await agentSessionsApi.getList({
+        includeSubagents: Boolean(query.trim()),
         includeLiveMetadata: true,
         limit: INITIAL_AGENT_SESSIONS_LIMIT,
         query,
         signal: abortController.signal,
         sourceId: options?.sourceId
       });
+
       if (agentSessionsRequestIdRef.current === requestId) setAgentSessionsPage(page);
       return page.sessions;
     } catch (caughtError) {
@@ -189,32 +293,14 @@ export function useDashboardLoaders({
   }, [agentSessionsRef, setAgentSessionsPage, setErrorIfEmpty]);
 
   useEffect(() => {
-    let refreshTimer: number | null = null;
-    const scheduleExactCountRefresh = () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => {
-        refreshTimer = null;
-        const scope = agentSessionsScopeRef.current;
-        if (scope.query) {
-          void searchAgentSessions(scope.query, {
-            silent: true,
-            sourceId: scope.sourceId
-          });
-          return;
-        }
+    const subscription = new AgentSessionsRefreshSubscription(
+      agentSessionsScopeRef,
+      loadAgentSessions,
+      searchAgentSessions
+    );
 
-        void loadAgentSessions({
-          silent: true,
-          sourceId: scope.sourceId
-        });
-      }, 150);
-    };
-
-    window.addEventListener(AGENT_SESSIONS_INVALIDATED_EVENT, scheduleExactCountRefresh);
-    return () => {
-      window.removeEventListener(AGENT_SESSIONS_INVALIDATED_EVENT, scheduleExactCountRefresh);
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-    };
+    subscription.start();
+    return subscription.stop;
   }, [loadAgentSessions, searchAgentSessions]);
 
   const loadRuntimes = useCallback(async (options?: LoadOptions) => {
@@ -222,14 +308,19 @@ export function useDashboardLoaders({
       setRuntimes([]);
       return [];
     }
+
     const requestId = runtimesRequestIdRef.current + 1;
+
     runtimesRequestIdRef.current = requestId;
+
     try {
       const nextRuntimes = await dashboardApi.getRuntimes();
+
       if (runtimesRequestIdRef.current === requestId) {
         setRuntimes(nextRuntimes);
         return nextRuntimes;
       }
+
       return runtimesRef.current;
     } catch (caughtError) {
       if (runtimesRequestIdRef.current === requestId && !options?.silent) setErrorIfEmpty(toMessage(caughtError));
@@ -239,17 +330,20 @@ export function useDashboardLoaders({
   }, [runtimesRef, setErrorIfEmpty, setRuntimes]);
 
   const loadSession = useCallback(async (sessionId: string, options?: LoadOptions) => {
-    const requestKey = options?.sessionView ?? "full";
+    const requestKey = `${options?.sessionView ?? "full"}:${options?.requestScope ?? "default"}`;
     const requestId = (selectedSessionRequestIdsByViewRef.current.get(requestKey) ?? 0) + 1;
+
     selectedSessionRequestIdsByViewRef.current.set(requestKey, requestId);
     const requestGeneration = selectedSessionRequestGenerationRef.current;
     const selectionEpoch = selectedSessionSelectionEpochRef.current;
+
     try {
       const session = await fetchManagedSessionDetail(sessionId, {
         debugLogTail: options?.debugLogTail,
         force: options?.force,
         sessionView: options?.sessionView
       });
+
       if (
         selectedSessionRequestGenerationRef.current !== requestGeneration ||
         selectedSessionRequestIdsByViewRef.current.get(requestKey) !== requestId ||
@@ -264,6 +358,7 @@ export function useDashboardLoaders({
       } else {
         setSelectedSession(session ?? null);
       }
+
       return session;
     } catch (caughtError) {
       const ownsRequest =
@@ -287,11 +382,13 @@ export function useDashboardLoaders({
     sessionId: string,
     options?: LoadOptions
   ): Promise<ManagedSessionLoadOutcome> => {
-    const requestKey = options?.sessionView ?? "full";
+    const requestKey = `${options?.sessionView ?? "full"}:${options?.requestScope ?? "default"}`;
     const requestId = (selectedSessionRequestIdsByViewRef.current.get(requestKey) ?? 0) + 1;
+
     selectedSessionRequestIdsByViewRef.current.set(requestKey, requestId);
     const requestGeneration = selectedSessionRequestGenerationRef.current;
     const selectionEpoch = selectedSessionSelectionEpochRef.current;
+
     try {
       const result = await fetchManagedSessionDetailWithMeta(sessionId, {
         debugLogTail: options?.debugLogTail,
@@ -299,6 +396,7 @@ export function useDashboardLoaders({
         sessionView: options?.sessionView
       });
       const session = result.data;
+
       if (
         selectedSessionRequestGenerationRef.current !== requestGeneration ||
         selectedSessionRequestIdsByViewRef.current.get(requestKey) !== requestId ||
@@ -306,6 +404,7 @@ export function useDashboardLoaders({
       ) {
         return { kind: "superseded" };
       }
+
       if (!session) return { kind: "missing" };
 
       if (selectedSessionIdRef.current === sessionId) {
@@ -315,9 +414,11 @@ export function useDashboardLoaders({
           setSelectedSession(session);
         }
       }
+
       return { kind: "loaded", session };
     } catch (caughtError) {
       const message = toMessage(caughtError);
+
       if (
         selectedSessionRequestGenerationRef.current !== requestGeneration ||
         selectedSessionRequestIdsByViewRef.current.get(requestKey) !== requestId ||
@@ -325,6 +426,7 @@ export function useDashboardLoaders({
       ) {
         return { kind: "superseded" };
       }
+
       if (!options?.silent) setErrorIfEmpty(message);
       return { kind: "error", message };
     }

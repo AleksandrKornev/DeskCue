@@ -20,8 +20,8 @@ $tab-bottom-reserve-mobile: 72px;
   width: 100%;
   max-width: 100%;
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(13, 14, 18, 0.88);
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-panel;
   overflow: hidden;
 }
 
@@ -40,7 +40,7 @@ $tab-bottom-reserve-mobile: 72px;
 
 .panelHeader p {
   margin: 6px 0 0;
-  color: #999da8;
+  color: vars.$color-text-muted;
   font-size: 0.92rem;
   line-height: 1.45;
 }
@@ -60,8 +60,8 @@ $tab-bottom-reserve-mobile: 72px;
   min-height: vars.$control-height-touch;
   border-radius: vars.$radius-sm;
   padding: 9px 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f3efe8;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
   font-size: 0.88rem;
   font-weight: 600;
 }
@@ -77,10 +77,10 @@ $tab-bottom-reserve-mobile: 72px;
 .field {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control;
   border-radius: 14px;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: vars.$color-surface-raised;
   color: inherit;
 }
 
@@ -89,9 +89,15 @@ $tab-bottom-reserve-mobile: 72px;
   min-height: vars.$control-height-touch;
   border-radius: vars.$radius-md;
   padding: 12px 16px;
-  background: #3152b5;
-  color: #ffffff;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
   font-weight: 600;
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-disabled;
 }
 
 .smallGhostButton {
@@ -99,8 +105,8 @@ $tab-bottom-reserve-mobile: 72px;
   min-height: vars.$control-height-touch;
   border-radius: vars.$radius-sm;
   padding: 9px 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f3efe8;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
   font-size: 0.88rem;
   font-weight: 600;
   text-decoration: none;
@@ -112,16 +118,16 @@ $tab-bottom-reserve-mobile: 72px;
 }
 
 .activeButton {
-  border: 1px solid rgba(214, 164, 103, 0.24);
-  background: rgba(214, 164, 103, 0.14);
-  color: #f5e6cf;
+  border: 1px solid vars.$color-border-dialog;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
 }
 
 .skeletonBlock {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-border-muted;
+  background: vars.$color-surface-input;
 }
 
 .skeletonBlock::after {
@@ -132,7 +138,7 @@ $tab-bottom-reserve-mobile: 72px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.05) 48%,
+    vars.$color-shimmer 48%,
     transparent 100%
   );
   animation: skeletonShimmer 1.6s infinite;
@@ -149,7 +155,7 @@ $tab-bottom-reserve-mobile: 72px;
 }
 
 .muted {
-  color: #9da1ad;
+  color: vars.$color-text-muted;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -176,12 +182,11 @@ $tab-bottom-reserve-mobile: 72px;
   padding: 16px 16px $tab-bottom-reserve;
   border-radius: 16px;
   overflow: auto;
-  background: #090b0f;
-  color: #d7f0d0;
+  background: vars.$color-surface-terminal;
+  color: vars.$color-text-terminal;
   font-family: "Cascadia Code", "Consolas", monospace;
   font-size: 0.85rem;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
 }
-

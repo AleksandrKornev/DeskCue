@@ -60,6 +60,30 @@ test("parses user and assistant messages", () => {
   assert.equal(transcript[1]?.parts?.[0]?.type, "markdown");
 });
 
+test("preserves assistant-authored asset presentation without synthetic attachments", () => {
+  const text = [
+    "![Inline image](D:/evidence/screenshot.png)",
+    "[Video link](D:/evidence/demo.mp4)",
+    "[Report file](D:/evidence/report.pdf)"
+  ].join("\n\n");
+  const transcript = parseCodexTranscript(
+    jsonl([
+      {
+        type: "response_item",
+        timestamp: "2026-09-02T10:00:00.000Z",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text }]
+        }
+      }
+    ]),
+    "session-authored-assets"
+  );
+
+  assert.deepEqual(transcript[0]?.parts, [{ type: "markdown", text }]);
+});
+
 test("preserves fenced code blocks in assistant messages", () => {
   const transcript = parseCodexTranscript(
     jsonl([
@@ -277,8 +301,407 @@ test("strips recommended plugins and injected workspace context from user messag
   assert.equal(transcript[0]?.text, "Real prompt");
 });
 
+test("renders response annotations without the Codex transport instructions", () => {
+  const transcript = parseCodexTranscript(
+    jsonl([
+      {
+        type: "response_item",
+        timestamp: "2026-09-03T10:00:00.000Z",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: [
+                "# Response annotations:",
+                "Each item contains text selected from an earlier Codex response.",
+                "Use every selection as context and address every comment.",
+                "<response-annotations>",
+                JSON.stringify([
+                  { text: "Selected first line\nand second line", annotation: "Please revisit this" },
+                  { text: "Another selection", annotation: "" }
+                ]),
+                "</response-annotations>",
+                "",
+                "## My request:",
+                "Fix the actions"
+              ].join("\n")
+            }
+          ]
+        }
+      }
+    ]),
+    "session-response-annotations"
+  );
+
+  const expectedText = [
+    "Fix the actions",
+    "",
+    "### Response annotations",
+    "",
+    "**Annotation 1**",
+    "",
+    "> Selected first line",
+    "> and second line",
+    "",
+    "**Comment:** Please revisit this",
+    "",
+    "**Annotation 2**",
+    "",
+    "> Another selection"
+  ].join("\n");
+
+  assert.equal(transcript[0]?.text, expectedText);
+  assert.equal(transcript[0]?.parts?.[0]?.type, "markdown");
+  assert.equal(
+    transcript[0]?.parts?.[0]?.type === "markdown" ? transcript[0].parts[0].text : "",
+    expectedText
+  );
+});
+
+test("leaves a malformed response annotation envelope visible", () => {
+  const rawText = [
+    "# Response annotations:",
+    "Each item contains text selected from an earlier Codex response.",
+    "Use every selection as context and address every comment.",
+    "<response-annotations>",
+    "[{malformed]",
+    "</response-annotations>",
+    "## My request:",
+    "Keep this visible"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([
+      {
+        type: "response_item",
+        timestamp: "2026-09-03T10:00:00.000Z",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: rawText }]
+        }
+      }
+    ]),
+    "session-malformed-response-annotations"
+  );
+
+  assert.equal(transcript[0]?.text, rawText);
+});
+
+test("removes response annotation placement directives from assistant messages", () => {
+  const transcript = parseCodexTranscript(
+    jsonl([
+      {
+        type: "response_item",
+        timestamp: "2026-09-03T10:00:00.000Z",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [{
+            type: "output_text",
+            text: "Handled the first item. :codex-annotation{index=\"1\"}"
+          }]
+        }
+      }
+    ]),
+    "session-response-annotation-directive"
+  );
+
+  assert.equal(transcript[0]?.text, "Handled the first item.");
+});
+
+test("preserves response annotation syntax inside assistant code", () => {
+  const text = [
+    "Literal `:codex-annotation{index=1}` token",
+    "",
+    "```text",
+    ":codex-annotation{index=\"2\"}",
+    "```",
+    "",
+    "Handled. :codex-annotation{index=\"3\"}"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "response_item",
+      timestamp: "2026-09-03T10:00:00.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text }]
+      }
+    }]),
+    "session-response-annotation-code"
+  );
+
+  assert.equal(transcript[0]?.text, [
+    "Literal `:codex-annotation{index=1}` token",
+    "",
+    "```text",
+    ":codex-annotation{index=\"2\"}",
+    "```",
+    "",
+    "Handled."
+  ].join("\n"));
+});
+
+test("preserves response annotation syntax in nested and indented code", () => {
+  const text = [
+    "Code examples:",
+    "",
+    "    :codex-annotation{index=1}",
+    "",
+    "> ```text",
+    "> Example :codex-annotation{index=2}",
+    "> ```not-a-closer",
+    "> :codex-annotation{index=3}",
+    "> ```",
+    "",
+    "Handled. :codex-annotation{index=4}"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "response_item",
+      timestamp: "2026-09-03T10:00:00.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text }]
+      }
+    }]),
+    "session-response-annotation-nested-code"
+  );
+
+  assert.equal(transcript[0]?.text, text.replace(
+    "Handled. :codex-annotation{index=4}",
+    "Handled."
+  ));
+});
+
+test("removes standalone response annotation directives outside code", () => {
+  const text = [
+    "Handled",
+    ":codex-annotation{index=1}",
+    "Done"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "response_item",
+      timestamp: "2026-09-03T10:00:00.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text }]
+      }
+    }]),
+    "session-response-annotation-standalone"
+  );
+
+  assert.equal(transcript[0]?.text, "Handled\n\nDone");
+});
+
+test("removes response annotation directives with empty Markdown containers", () => {
+  const text = [
+    "Before",
+    "- :codex-annotation{index=1}",
+    "> :codex-annotation{index=2}",
+    "# :codex-annotation{index=3}",
+    "1. :codex-annotation{index=4}",
+    "After"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "response_item",
+      timestamp: "2026-09-03T10:00:00.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text }]
+      }
+    }]),
+    "session-response-annotation-empty-containers"
+  );
+
+  assert.equal(transcript[0]?.text, "Before\n\nAfter");
+});
+
+test("preserves response annotation syntax in a list-item code fence", () => {
+  const text = [
+    "- ```text",
+    "  inside :codex-annotation{index=1}",
+    "  ```",
+    "",
+    "Handled :codex-annotation{index=2}"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "response_item",
+      timestamp: "2026-09-03T10:00:00.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text }]
+      }
+    }]),
+    "session-response-annotation-list-fence"
+  );
+
+  assert.equal(transcript[0]?.text, text.replace(
+    "Handled :codex-annotation{index=2}",
+    "Handled"
+  ));
+});
+
+test("removes directives after an implicitly closed blockquote fence", () => {
+  const text = [
+    "> ```text",
+    "> inside :codex-annotation{index=1}",
+    "",
+    "Handled :codex-annotation{index=2}"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "response_item",
+      timestamp: "2026-09-03T10:00:00.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text }]
+      }
+    }]),
+    "session-response-annotation-implicit-close"
+  );
+
+  assert.equal(transcript[0]?.text, text.replace(
+    "Handled :codex-annotation{index=2}",
+    "Handled"
+  ));
+});
+
+test("escapes Markdown authored inside response annotations", () => {
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "response_item",
+      timestamp: "2026-09-03T10:00:00.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{
+          type: "input_text",
+          text: [
+            "# Response annotations:",
+            "Each item contains text selected from an earlier Codex response.",
+            "Use every selection as context and address every comment.",
+            "<response-annotations>",
+            JSON.stringify([{
+              text: "# Heading\n![asset](javascript:alert(1))",
+              annotation: "Use **literal** syntax"
+            }]),
+            "</response-annotations>",
+            "## My request:",
+            "Review this"
+          ].join("\n")
+        }]
+      }
+    }]),
+    "session-response-annotation-markdown"
+  );
+
+  assert.equal(transcript[0]?.text, [
+    "Review this",
+    "",
+    "### Response annotations",
+    "",
+    "**Annotation 1**",
+    "",
+    "> \\# Heading",
+    "> \\!\\[asset\\]\\(javascript:alert\\(1\\)\\)",
+    "",
+    "**Comment:** Use \\*\\*literal\\*\\* syntax"
+  ].join("\n"));
+});
+
+test("keeps mixed-invalid and literal response annotation documents visible", () => {
+  const preamble = [
+    "# Response annotations:",
+    "Each item contains text selected from an earlier Codex response.",
+    "Use every selection as context and address every comment."
+  ];
+  const mixedInvalid = [
+    ...preamble,
+    "<response-annotations>",
+    JSON.stringify([{ text: "Valid", annotation: "Comment" }, { text: 42 }]),
+    "</response-annotations>",
+    "## My request:",
+    "Keep everything"
+  ].join("\n");
+  const literalDocument = [
+    "# Response annotations:",
+    "This is a literal format example.",
+    "<response-annotations>",
+    JSON.stringify([{ text: "Example", annotation: "Example" }]),
+    "</response-annotations>",
+    "## My request:",
+    "Example request"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([mixedInvalid, literalDocument].map((text, index) => ({
+      type: "response_item",
+      timestamp: `2026-09-03T10:00:0${index}.000Z`,
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text }]
+      }
+    }))),
+    "session-response-annotation-fail-closed"
+  );
+
+  assert.equal(transcript[0]?.text, mixedInvalid);
+  assert.equal(transcript[1]?.text, literalDocument);
+});
+
+test("applies response annotation bounds before trimming or parsing nested JSON", () => {
+  const preamble = [
+    "# Response annotations:",
+    "Each item contains text selected from an earlier Codex response.",
+    "Use every selection as context and address every comment."
+  ];
+  const whitespaceHeavy = [
+    ...preamble,
+    "<response-annotations>",
+    JSON.stringify([{ text: `Visible${" ".repeat(50_000)}`, annotation: "Comment" }]),
+    "</response-annotations>",
+    "## My request:",
+    "Keep the bounded payload visible"
+  ].join("\n");
+  const oversizedJson = [
+    ...preamble,
+    "<response-annotations>",
+    ` ${" ".repeat(1_500_000)}[]`,
+    "</response-annotations>",
+    "## My request:",
+    "Do not parse the oversized nested payload"
+  ].join("\n");
+  const transcript = parseCodexTranscript(
+    jsonl([whitespaceHeavy, oversizedJson].map((text, index) => ({
+      type: "response_item",
+      timestamp: `2026-09-03T10:00:1${index}.000Z`,
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text }]
+      }
+    }))),
+    "session-response-annotation-admission-bounds"
+  );
+
+  assert.equal(transcript[0]?.text, whitespaceHeavy);
+  assert.equal(transcript[1]?.text, oversizedJson);
+});
+
 test("unwraps the current Codex Desktop attachment envelope", () => {
-  const attachmentPath = "C:\\Users\\Admin\\AppData\\Local\\Temp\\desktop-capture.png";
+  const attachmentPath = "C:\\Users\\person\\AppData\\Local\\Temp\\desktop-capture.png";
   const transcript = parseCodexTranscript(
     jsonl([
       {
@@ -355,6 +778,171 @@ test("parses patch apply events into diff parts", () => {
   assert.equal(transcript[0]?.text, "Applied changes to 1 file");
   assert.equal(transcript[0]?.parts?.[0]?.type, "status");
   assert.equal(transcript[0]?.parts?.[1]?.type, "diff");
+});
+
+test("parses completed FileChange items into diff parts", () => {
+  const transcript = parseCodexTranscript(
+    jsonl([
+      {
+        type: "event_msg",
+        timestamp: "2026-09-02T10:00:00.000Z",
+        payload: {
+          type: "item_completed",
+          item: {
+            type: "FileChange",
+            status: "completed",
+            changes: {
+              "src/app.ts": {
+                type: "update",
+                unified_diff: "--- a/src/app.ts\n+++ b/src/app.ts\n-old\n+new"
+              },
+              "src/new.ts": {
+                type: "add",
+                content: "export const ready = true;\n"
+              }
+            },
+            stdout: "Done!",
+            stderr: ""
+          }
+        }
+      }
+    ]),
+    "session-file-change"
+  );
+
+  assert.equal(transcript.length, 1);
+  assert.equal(transcript[0]?.text, "Applied changes to 2 files");
+  assert.deepEqual(
+    transcript[0]?.parts?.map((part) => part.type),
+    ["status", "diff", "diff"]
+  );
+});
+
+test("maps failed FileChange items to failed patch status", () => {
+  const transcript = parseCodexTranscript(
+    jsonl([
+      {
+        type: "event_msg",
+        timestamp: "2026-09-02T10:00:00.000Z",
+        payload: {
+          type: "item_completed",
+          item: {
+            type: "FileChange",
+            status: "failed",
+            changes: {
+              "src/app.ts": {
+                type: "update",
+                unified_diff: "--- a/src/app.ts\n+++ b/src/app.ts\n-old\n+new"
+              }
+            },
+            stderr: "Patch rejected"
+          }
+        }
+      }
+    ]),
+    "session-file-change-failed"
+  );
+
+  const status = transcript[0]?.parts?.[0];
+
+  assert.equal(transcript.length, 1);
+  assert.equal(transcript[0]?.text, "Patch failed after editing 1 file");
+  assert.equal(status?.type, "status");
+  assert.equal(status?.type === "status" ? status.label : null, "Patch failed");
+});
+
+test("treats missing FileChange status as non-failed completion", () => {
+  const transcript = parseCodexTranscript(
+    jsonl([{
+      type: "event_msg",
+      timestamp: "2026-09-02T10:00:00.000Z",
+      payload: {
+        type: "item_completed",
+        item: {
+          type: "FileChange",
+          changes: {
+            "src/app.ts": {
+              type: "update",
+              unified_diff: "--- a/src/app.ts\n+++ b/src/app.ts\n-old\n+new"
+            }
+          }
+        }
+      }
+    }]),
+    "session-file-change-missing-status"
+  );
+
+  assert.equal(transcript[0]?.text, "Applied changes to 1 file");
+});
+
+test("preserves adjacent equivalent legacy and FileChange patch events", () => {
+  const changes = {
+    "src/app.ts": {
+      type: "update",
+      unified_diff: "--- a/src/app.ts\n+++ b/src/app.ts\n-old\n+new"
+    }
+  };
+
+  const transcript = parseCodexTranscript(
+    jsonl([
+      {
+        type: "event_msg",
+        timestamp: "2026-09-02T10:00:00.000Z",
+        payload: {
+          type: "patch_apply_end",
+          success: true,
+          changes
+        }
+      },
+      {
+        type: "event_msg",
+        timestamp: "2026-09-02T10:00:01.000Z",
+        payload: {
+          type: "item_completed",
+          item: {
+            type: "FileChange",
+            status: "completed",
+            changes
+          }
+        }
+      }
+    ]),
+    "session-dual-patch-events"
+  );
+
+  assert.equal(transcript.length, 2);
+  assert.equal(
+    transcript.flatMap((entry) => entry.parts ?? []).filter((part) => part.type === "diff").length,
+    2
+  );
+});
+
+test("preserves two identical modern FileChange events as distinct source entries", () => {
+  const event = {
+    type: "event_msg",
+    timestamp: "2026-09-02T10:00:00.000Z",
+    payload: {
+      type: "item_completed",
+      item: {
+        type: "FileChange",
+        status: "completed",
+        changes: {
+          "src/app.ts": {
+            type: "update",
+            unified_diff: "--- a/src/app.ts\n+++ b/src/app.ts\n-old\n+new"
+          }
+        }
+      }
+    }
+  };
+
+  const transcript = parseCodexTranscript(
+    jsonl([event, { ...event, timestamp: "2026-09-02T10:00:01.000Z" }]),
+    "session-two-modern-file-changes"
+  );
+
+  assert.equal(transcript.length, 2);
+  assert.notEqual(transcript[0]?.id, transcript[1]?.id);
 });
 
 test("keeps tool call arguments out of summary text and redacts secrets", () => {

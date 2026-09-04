@@ -163,7 +163,9 @@ test("cloud session projection is metadata-only, stable, opaque, deduplicated, a
       "updatedAt"
     ]);
   }
+
   const serialized = JSON.stringify(first);
+
   for (const privateValue of [
     "private-managed-id",
     "shared-source-id",
@@ -197,6 +199,7 @@ test("cloud session route resolution preserves projection precedence without exp
     ),
     { kind: "managed", sessionId: "managed-route" }
   );
+
   assert.deepEqual(
     await resolveCloudSessionRoute(
       INSTALLATION_ID,
@@ -205,6 +208,7 @@ test("cloud session route resolution preserves projection precedence without exp
     ),
     { kind: "agent", sessionId: "claude-code:source-route" }
   );
+
   assert.deepEqual(
     await resolveCloudSessionRoute(
       INSTALLATION_ID,
@@ -213,6 +217,7 @@ test("cloud session route resolution preserves projection precedence without exp
     ),
     { kind: "local_llm", sessionId: "local-route" }
   );
+
   assert.equal(
     await resolveCloudSessionRoute(INSTALLATION_ID, input, `sess_${"f".repeat(64)}`),
     null
@@ -251,6 +256,7 @@ test("cloud session projection shares only bounded labels after explicit opt-in"
 
   const managed = projections.find((projection) => projection.runtime === "codex");
   const local = projections.find((projection) => projection.runtime === "ollama");
+
   assert.deepEqual(managed, {
     sessionId: opaqueId(INSTALLATION_ID, "source", "codex:source-label"),
     runtime: "codex",
@@ -261,14 +267,19 @@ test("cloud session projection shares only bounded labels after explicit opt-in"
     displayLabel: "Fix mobile layout",
     workspaceLabel: "DeskCue"
   });
+
   assert.equal(local?.disclosureScope, "user_opt_in");
   assert.equal(local?.displayLabel?.length, 160);
   assert.equal(local?.workspaceLabel, "Local project");
   const fallback = projections.find((projection) => projection.runtime === "claude_code");
+
   assert.equal(fallback?.displayLabel, undefined);
+
   assert.equal(fallback?.disclosureScope, "user_opt_in");
   const serialized = JSON.stringify(projections);
+
   assert.equal(serialized.includes("D:\\private"), false);
+
   assert.equal(serialized.includes("/private/"), false);
   assert.equal(serialized.includes("private prompt"), false);
 });
@@ -276,11 +287,13 @@ test("cloud session projection shares only bounded labels after explicit opt-in"
 test("cloud session projection preserves the safe subagent role without label disclosure", async () => {
   const subagentSource = sourceSession({
     sourceSessionId: "subagent-source",
-    source: {
-      subagent: {
-        thread_spawn: { parent_thread_id: "private-parent-id" }
-      }
-    } as unknown as string
+    source: "codex",
+    subagent: {
+      depth: 1,
+      nickname: "private nickname",
+      parentSessionId: "codex:private-parent-id",
+      role: "private role"
+    }
   });
   const projections = await readCloudSessionProjection(INSTALLATION_ID, projectionSource({
     managed: [managedSession({ sourceSessionId: "subagent-source" })],
@@ -298,6 +311,8 @@ test("cloud session projection preserves the safe subagent role without label di
   assert.equal(managed?.disclosureScope, "metadata_only");
   assert.equal(primary?.isSubagent, undefined);
   assert.equal(JSON.stringify(projections).includes("private-parent-id"), false);
+  assert.equal(JSON.stringify(projections).includes("private nickname"), false);
+  assert.equal(JSON.stringify(projections).includes("private role"), false);
 });
 
 test("cloud session projection maps managed, source, and local runtime and state metadata", async () => {
@@ -344,9 +359,12 @@ test("cloud session projection maps managed, source, and local runtime and state
     ]
   }));
   const stateById = new Map(projections.map((projection) => [projection.sessionId, projection]));
+
   const readState = (kind: string, localId: string) => {
     const projection = stateById.get(opaqueId(INSTALLATION_ID, kind, localId));
+
     assert.ok(projection);
+
     return {
       runtime: projection.runtime,
       status: projection.status,

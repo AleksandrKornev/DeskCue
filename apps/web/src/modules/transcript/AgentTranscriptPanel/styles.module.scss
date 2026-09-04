@@ -18,6 +18,100 @@
   min-height: 420px;
 }
 
+.detail:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 3px;
+}
+
+.loadError {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  min-height: 220px;
+  padding: 24px;
+  border: 1px solid vars.$color-border-danger;
+  border-radius: vars.$radius-lg;
+  background: vars.$color-surface-danger;
+  box-shadow: vars.$shadow-danger-inset;
+}
+
+.loadErrorLabel {
+  margin-bottom: 10px;
+  color: vars.$color-status-danger;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.loadError strong {
+  color: vars.$color-text-primary;
+  font-size: 1.05rem;
+}
+
+.loadError p {
+  max-width: 56ch;
+  margin: 8px 0 18px;
+  color: vars.$color-text-secondary;
+  line-height: 1.5;
+}
+
+.retryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 112px;
+  min-height: vars.$control-height-touch;
+  padding: 10px 16px;
+  border: 1px solid vars.$color-border-control;
+  border-radius: vars.$radius-md;
+  background: vars.$color-surface-raised;
+  color: vars.$color-text-primary;
+  font-weight: 700;
+}
+
+.retryButton:hover:not([aria-disabled="true"]) {
+  border-color: vars.$color-accent;
+  background: vars.$color-surface-control-hover;
+}
+
+.retryButton:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.retryButton[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+  .loadError {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-content: start;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .loadErrorLabel,
+  .loadError strong,
+  .loadError p {
+    grid-column: 1;
+  }
+
+  .loadError p {
+    margin-bottom: 0;
+  }
+
+  .retryButton {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+}
+
 .meta {
   display: flex;
   justify-content: space-between;
@@ -64,6 +158,7 @@
 
 .metaRight {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -78,35 +173,73 @@
   padding: 0 10px;
   border-radius: vars.$radius-pill;
   font-size: 0.76rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .sourcePill {
-  background: rgba(49, 82, 181, 0.16);
-  color: #b8cbff;
+  gap: 6px;
+  padding-inline: 2px;
+  background: transparent;
+  color: vars.$color-text-secondary;
+}
+
+.sourcePillIcon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  color: vars.$color-status-info;
 }
 
 .capability {
-  background: rgba(214, 164, 103, 0.14);
-  color: #f2dfbf;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
+}
+
+.capability.capabilityReady {
+  gap: 5px;
+  border: 1px solid vars.$color-border-success;
+  border-radius: vars.$radius-pill;
+  color: vars.$color-status-success;
+  background: vars.$color-surface-success;
+}
+
+.capability.capabilityReady::before,
+.nextMessageConnection::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 999px;
+  background: vars.$color-status-running-strong;
+  box-shadow: vars.$shadow-status-running;
+  content: "";
 }
 
 .metaButton {
+  display: inline-grid;
+  place-items: center;
+  width: vars.$control-height-touch;
+  min-width: vars.$control-height-touch;
   min-height: vars.$control-height-touch;
-  padding: 0 10px;
-  border: 1px solid rgba(214, 164, 103, 0.28);
+  padding: 0;
+  border: 1px solid vars.$color-border-accent;
   border-radius: vars.$radius-md;
-  background: rgba(214, 164, 103, 0.08);
+  background: vars.$color-surface-accent;
   color: vars.$color-text-primary;
   font-size: 0.76rem;
   font-weight: 600;
 }
 
+.metaButtonIcon {
+  width: 16px;
+  height: 16px;
+}
+
 .metaButton:hover,
 .metaButton:focus-visible {
-  border-color: rgba(214, 164, 103, 0.52);
-  background: rgba(214, 164, 103, 0.16);
+  border-color: vars.$color-accent;
+  background: vars.$color-surface-control-hover;
 }
 
 .transcript {
@@ -122,10 +255,10 @@
 
 .emptyState {
   padding: 28px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed vars.$color-border-control;
   border-radius: 18px;
   color: vars.$color-text-secondary;
-  background: rgba(255, 255, 255, 0.02);
+  background: vars.$color-surface-raised-subtle;
 }
 
 .emptyStateSoft {
@@ -174,28 +307,28 @@
   min-height: vars.$control-height-touch;
   border-radius: vars.$radius-md;
   padding: 12px 16px;
-  background: linear-gradient(120deg, #d86f34, #cb5643);
-  color: #ffffff;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
   font-weight: 600;
 }
 
 .accentButtonLoading {
-  background: linear-gradient(120deg, rgba(216, 111, 52, 0.86), rgba(203, 86, 67, 0.86));
+  opacity: 0.72;
 }
 
 .reviewedButton {
   min-height: vars.$control-height-touch;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid vars.$color-border-control;
   border-radius: vars.$radius-md;
   padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: vars.$color-surface-raised;
   color: vars.$color-text-primary;
   font-weight: 600;
 }
 
 .reviewedButton:hover {
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.09);
+  border-color: vars.$color-text-disabled;
+  background: vars.$color-surface-control-hover;
 }
 
 .reviewedButton:focus-visible {
@@ -207,8 +340,8 @@
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
-  border: 2px solid rgba(255, 255, 255, 0.32);
-  border-top-color: #ffffff;
+  border: 2px solid vars.$color-text-disabled;
+  border-top-color: vars.$color-on-action-primary;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -219,11 +352,25 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
 .nextMessageSubtle {
   margin: 0;
-  color: #9fa4af;
+  color: vars.$color-text-muted;
   font-size: 0.8rem;
   line-height: 1.45;
+}
+
+.nextMessageConnection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: vars.$color-text-secondary;
+  font-weight: 600;
 }
 
 @media (max-width: 720px) {
@@ -233,16 +380,20 @@
     padding-inline: 9px;
     border-radius: 10px;
     font-size: 0.68rem;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
+  }
+
+  .sourcePill {
+    padding-inline: 2px;
+    border-radius: 0;
+    background: transparent;
   }
 
   .metaButton {
-    min-height: 30px;
-    padding-inline: 11px;
-    border-color: rgba(214, 164, 103, 0.42);
+    border-color: vars.$color-border-accent;
     border-radius: 10px;
-    background: rgba(214, 164, 103, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    background: vars.$color-surface-accent;
+    box-shadow: inset 0 0 0 1px vars.$color-border-muted;
     font-size: 0.72rem;
   }
 
@@ -291,21 +442,11 @@
     text-align: left;
   }
 
-  .sourcePill {
-    order: 1;
-  }
-
-  .capability {
-    order: 2;
-  }
-
   .metaButton {
-    order: 3;
     margin-left: auto;
   }
 
   .metaRight > span:last-child {
-    order: 4;
     flex-basis: 100%;
     min-height: auto;
     padding: 0;

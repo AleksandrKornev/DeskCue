@@ -80,6 +80,7 @@ export function ChatThreadOperationStatus({
 
   return (
     <div
+      aria-busy="true"
       className={clsx(
         styles.chatWaiting,
         styles.chatWaitingReply,

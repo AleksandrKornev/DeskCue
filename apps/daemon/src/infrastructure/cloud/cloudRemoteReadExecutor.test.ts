@@ -2,9 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ProtocolSchemaError } from "@deskcue/protocol";
+import { CLOUD_REMOTE_ASSET_MAX_BODY_BYTES } from "@deskcue/protocol/cloud";
 import { isValidCloudProcessLocalAuthorization } from "#security/cloudProcessLocalCredential";
 
-import { CloudRemoteReadExecutor } from "./cloudRemoteReadExecutor.ts";
+import {
+  clampCloudRemoteAssetRange,
+  CloudRemoteReadExecutor
+} from "./cloudRemoteReadExecutor.ts";
+
+test("cloud asset ranges stay inside one bounded relay response", () => {
+  const maximumBytes = BigInt(CLOUD_REMOTE_ASSET_MAX_BODY_BYTES);
+
+  assert.equal(clampCloudRemoteAssetRange(undefined), undefined);
+  assert.equal(clampCloudRemoteAssetRange("bytes=0-4"), "bytes=0-4");
+  assert.equal(clampCloudRemoteAssetRange("bytes=0-"), `bytes=0-${maximumBytes - 1n}`);
+  assert.equal(
+    clampCloudRemoteAssetRange(`bytes=100-${maximumBytes * 2n}`),
+    `bytes=100-${maximumBytes + 99n}`
+  );
+
+  assert.equal(
+    clampCloudRemoteAssetRange(`bytes=-${maximumBytes * 2n}`),
+    `bytes=-${maximumBytes}`
+  );
+});
 
 test("remote read executor maps the typed sessions.list operation to one loopback route", async () => {
   let capturedUrl = "";
@@ -417,6 +438,82 @@ test("remote read executor creates a scoped asset ticket and relays its binary b
   });
 
   assert.equal(requests[1]?.method, "GET");
+});
+
+test("remote read executor relays a scoped file range and its response headers", async () => {
+  let requestUrl = "";
+  let requestRange: string | null = null;
+  const executor = new CloudRemoteReadExecutor({
+    daemonOrigin: "http://127.0.0.1:4100",
+    fetchImplementation: async (input, init) => {
+      requestUrl = String(input);
+      requestRange = new Headers(init?.headers).get("range");
+
+      return new Response(Buffer.from("range"), {
+        headers: {
+          "accept-ranges": "bytes",
+          "content-range": "bytes 0-4/128",
+          "content-type": "video/mp4"
+        },
+        status: 206
+      });
+    }
+  });
+
+  const read = await executor.execute("assets.file.read", {
+    agentSessionId: "codex:one",
+    managedSessionId: "managed-1",
+    path: "C:\\Videos\\capture.mp4",
+    range: "bytes=0-4"
+  });
+
+  assert.equal(read.status, 206);
+  assert.equal(read.binary, true);
+  assert.equal(requestRange, "bytes=0-4");
+  assert.match(requestUrl, /^http:\/\/127\.0\.0\.1:4100\/api\/assets\/file\?/u);
+  assert.match(requestUrl, /agentSessionId=codex%3Aone/u);
+  assert.match(requestUrl, /managedSessionId=managed-1/u);
+  assert.match(requestUrl, /path=C%3A%5CVideos%5Ccapture\.mp4/u);
+  assert.ok(Buffer.isBuffer(read.body));
+  const envelope = read.body as Buffer;
+  const headerBytes = envelope.readUInt32BE(4);
+
+  assert.deepEqual(JSON.parse(envelope.subarray(8, 8 + headerBytes).toString("utf8")), {
+    acceptRanges: "bytes",
+    contentRange: "bytes 0-4/128",
+    contentType: "video/mp4"
+  });
+
+  assert.equal(envelope.subarray(8 + headerBytes).toString("utf8"), "range");
+});
+
+test("remote read executor clamps an open asset range before reading the daemon response", async () => {
+  let requestRange: string | null = null;
+  const maximumBytes = BigInt(CLOUD_REMOTE_ASSET_MAX_BODY_BYTES);
+  const executor = new CloudRemoteReadExecutor({
+    daemonOrigin: "http://127.0.0.1:4100",
+    fetchImplementation: async (_input, init) => {
+      requestRange = new Headers(init?.headers).get("range");
+
+      return new Response(Buffer.from("bounded-range"), {
+        headers: {
+          "content-range": `bytes 0-${maximumBytes - 1n}/${maximumBytes * 2n}`,
+          "content-type": "video/mp4"
+        },
+        status: 206
+      });
+    }
+  });
+
+  const read = await executor.execute("assets.file.read", {
+    agentSessionId: "codex:one",
+    path: "C:\\Videos\\large-capture.mp4",
+    range: "bytes=0-"
+  });
+
+  assert.equal(requestRange, `bytes=0-${maximumBytes - 1n}`);
+  assert.equal(read.status, 206);
+  assert.equal(read.binary, true);
 });
 
 test("remote read executor fails closed on mismatched workspace file responses", async () => {

@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import type { RuntimeSummary, WorkspaceSummary } from "@deskcue/protocol";
 import { SidebarPanels } from "@modules/dashboard/shell/SidebarPanels";
@@ -18,10 +18,10 @@ export type SecondaryToolsShellProps = {
   presentation?: "cards" | "list";
   onChangeWorkspacePath: (value: string) => void;
   onPickWorkspace: () => void;
-  onAddWorkspace: (event: FormEvent<HTMLFormElement>) => void;
+  onAddWorkspace: (event: SubmitEvent<HTMLFormElement>) => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onChangeCommand: (value: string) => void;
-  onStartSession: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onStartSession: (event: SubmitEvent<HTMLFormElement>) => void | Promise<void>;
 };
 
 export function SecondaryToolsShell(props: SecondaryToolsShellProps) {

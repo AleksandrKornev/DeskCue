@@ -44,33 +44,6 @@
   flex: 0 0 auto;
 }
 
-.dialogIconClose {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f3eee5;
-}
-
-.dialogIconClose:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.dialogCloseIcon {
-  display: block;
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-}
-
 .diffModal,
 .lightbox {
   position: fixed;
@@ -112,6 +85,10 @@
 .diffModalCard {
   grid-template-rows: auto minmax(0, 1fr);
   width: min(1120px, 100%);
+}
+
+.diffModalCard:focus {
+  outline: none;
 }
 
 .diffModalHeader,
@@ -199,6 +176,7 @@
 
   .diffModalCard {
     width: 100%;
+    min-height: min(60dvh, 520px);
     max-height: calc(100dvh - max(12px, env(safe-area-inset-top, 0px)));
     padding: 24px 14px max(14px, env(safe-area-inset-bottom, 0px));
     border-right: 0;
@@ -216,6 +194,13 @@
     &:active {
       cursor: grabbing;
     }
+  }
+
+  .diffModalHeader strong {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .dialogHeaderActions {
@@ -267,5 +252,17 @@
     white-space: pre;
     overflow: visible;
     overflow-wrap: normal;
+  }
+}
+
+@media (max-width: 280px) {
+  .diffListItem {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 4px;
+  }
+
+  .diffListStats {
+    grid-column: 2;
+    justify-self: start;
   }
 }

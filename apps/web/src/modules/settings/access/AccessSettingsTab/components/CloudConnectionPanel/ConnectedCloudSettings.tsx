@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import type {
   CloudConnectionStatusResponse,
@@ -30,7 +30,7 @@ export function ConnectedCloudSettings({
   loadError: string | null;
   onDisconnect(): void;
   onPermissionChange(patch: Partial<UpdateCloudPermissionsInput>): void;
-  onSavePermissions(event: FormEvent): void;
+  onSavePermissions(event: SubmitEvent<HTMLFormElement>): void;
   onSessionLabelDisclosureChange(enabled: boolean): void;
   permissionFeedback: PermissionFeedback | null;
   permissions: PermissionDraft;

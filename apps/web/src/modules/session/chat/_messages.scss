@@ -3,7 +3,7 @@
 .chatMessage {
   display: grid;
   gap: 6px;
-  contain: layout paint;
+  contain: layout;
   max-width: min(880px, 94%);
 }
 
@@ -38,9 +38,9 @@
 }
 
 .chatMessageOrigin {
-  border: 1px solid rgba(118, 162, 255, 0.34);
+  border: 1px solid vars.$color-border-info;
   border-radius: 999px;
-  color: #b9cbff;
+  color: vars.$color-status-info;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -56,7 +56,7 @@
 }
 
 .chatMessageActivityChip {
-  --activity-chip-background: rgba(255, 255, 255, 0.08);
+  --activity-chip-background: #{vars.$color-surface-control-hover};
   position: relative;
   isolation: isolate;
   border: 0;
@@ -67,7 +67,7 @@
   letter-spacing: 0.04em;
   cursor: pointer;
   background: transparent;
-  color: #ddd4c6;
+  color: vars.$color-text-secondary;
 }
 
 .chatMessageActivityChip::before {
@@ -80,28 +80,28 @@
 }
 
 .chatMessageActivityChipTools {
-  --activity-chip-background: rgba(28, 116, 88, 0.2);
-  color: #a9efcf;
+  --activity-chip-background: #{vars.$color-surface-success};
+  color: vars.$color-status-success;
 }
 
 .chatMessageActivityChipChanges {
-  --activity-chip-background: rgba(78, 127, 255, 0.16);
-  color: #c9dcff;
+  --activity-chip-background: #{vars.$color-surface-info};
+  color: vars.$color-status-info;
 }
 
 .chatMessageActivityChipContext {
-  --activity-chip-background: rgba(219, 174, 86, 0.14);
-  color: #f2d69a;
+  --activity-chip-background: #{vars.$color-surface-warning};
+  color: vars.$color-status-warning;
 }
 
 .chatMessageActivityChipModel {
-  --activity-chip-background: rgba(132, 161, 255, 0.14);
-  color: #cbd8ff;
+  --activity-chip-background: #{vars.$color-surface-info};
+  color: vars.$color-status-info;
 }
 
 .chatMessageActivityChipDetails {
-  --activity-chip-background: rgba(255, 255, 255, 0.08);
-  color: #d2ccc3;
+  --activity-chip-background: #{vars.$color-surface-control-hover};
+  color: vars.$color-text-secondary;
 }
 
 .chatMessageBubble {
@@ -110,21 +110,21 @@
   gap: 8px;
   padding: 14px 16px;
   border-radius: vars.$radius-lg;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid vars.$color-border-subtle;
+  background: vars.$color-surface-control;
 }
 
 .chatMessageTextFallback {
   margin: 0;
-  color: #f4efe7;
+  color: vars.$color-text-primary;
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .chatMessageUser .chatMessageBubble {
-  background: rgba(49, 82, 181, 0.16);
-  border-color: rgba(82, 115, 217, 0.28);
+  background: vars.$color-surface-info;
+  border-color: vars.$color-border-info;
 }
 
 .chatMessageContinued .chatMessageBubble {
@@ -133,7 +133,7 @@
 
 .chatMessagePending .chatMessageBubble {
   opacity: 0.9;
-  box-shadow: inset 0 0 0 1px rgba(214, 164, 103, 0.22);
+  box-shadow: inset 0 0 0 1px vars.$color-border-warning-subtle;
 }
 
 .chatMessageTurnStatusRow {
@@ -155,29 +155,29 @@
 }
 
 .chatMessageTurnStatusSuperseded {
-  background: rgba(214, 164, 103, 0.12);
-  border: 1px solid rgba(214, 164, 103, 0.22);
-  color: #f0c998;
+  background: vars.$color-surface-warning;
+  border: 1px solid vars.$color-border-warning-subtle;
+  color: vars.$color-status-warning;
 }
 
 .chatMessageTurnStatusFailed {
-  background: rgba(179, 63, 63, 0.14);
-  border: 1px solid rgba(179, 63, 63, 0.26);
-  color: #ffb2b2;
+  background: vars.$color-surface-danger;
+  border: 1px solid vars.$color-border-danger;
+  color: vars.$color-status-danger;
 }
 
 .chatMessageTurnStatusIncomplete {
-  background: rgba(132, 161, 255, 0.12);
-  border: 1px solid rgba(132, 161, 255, 0.24);
-  color: #cbd8ff;
+  background: vars.$color-surface-info;
+  border: 1px solid vars.$color-border-info;
+  color: vars.$color-status-info;
 }
 
 .chatMessageFooter {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 22px;
-  padding: 0 4px;
+  min-height: 36px;
+  margin-top: 2px;
 }
 
 .chatMessageFooterAssistant {
@@ -189,16 +189,22 @@
 }
 
 .chatMessageAction {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: vars.$control-height-touch;
-  height: vars.$control-height-touch;
-  padding: 0;
+  width: 88px;
+  min-width: 88px;
+  min-height: 36px;
+  gap: 7px;
+  padding: 0 12px;
   border: 0;
   border-radius: 999px;
-  background: transparent;
-  color: #8f96a3;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-muted;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 650;
   line-height: 1;
   cursor: pointer;
   transition:
@@ -207,14 +213,35 @@
 }
 
 .chatMessageAction:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e7e0d5;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
+}
+
+.chatMessageAction[data-copy-status="copied"],
+.chatMessageAction[data-copy-status="copied"]:hover {
+  color: vars.$color-status-success;
+}
+
+.chatMessageAction[data-copy-status="failed"],
+.chatMessageAction[data-copy-status="failed"]:hover {
+  color: vars.$color-status-danger;
+}
+
+.chatMessageAction:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
 }
 
 .chatMessageActionStatus {
-  color: #9da5b3;
-  font-size: 0.76rem;
-  line-height: 1;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .chatWaiting {
@@ -222,9 +249,9 @@
   gap: 4px;
   padding: 14px 16px;
   border-radius: vars.$radius-md;
-  border: 1px dashed rgba(214, 164, 103, 0.26);
-  background: rgba(214, 164, 103, 0.08);
-  color: #dbc9a8;
+  border: 1px dashed vars.$color-border-warning-subtle;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
   max-width: 420px;
 }
 
@@ -259,14 +286,14 @@
   height: 14px;
   flex: 0 0 auto;
   margin-top: 3px;
-  border: 2px solid rgba(214, 164, 103, 0.18);
-  border-top-color: #d6a467;
+  border: 2px solid vars.$color-border-warning-subtle;
+  border-top-color: vars.$color-accent;
   border-radius: 999px;
   animation: chatHistoryGateSpin 720ms linear infinite;
 }
 
 .chatWaiting span {
-  color: #bfb39e;
+  color: vars.$color-text-secondary;
   line-height: 1.45;
 }
 
@@ -275,13 +302,13 @@
   gap: 6px;
   padding: 10px 12px;
   border-radius: vars.$radius-sm;
-  border: 1px solid rgba(82, 115, 217, 0.2);
-  background: rgba(49, 82, 181, 0.12);
-  color: #f1ede4;
+  border: 1px solid vars.$color-border-info;
+  background: vars.$color-surface-info;
+  color: vars.$color-text-primary;
 }
 
 .chatWaitingPrompt span {
-  color: #9ea8c7;
+  color: vars.$color-status-info;
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -317,8 +344,8 @@
   position: absolute;
   inset: 2px;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  background: vars.$color-surface-control-hover;
+  box-shadow: vars.$shadow-preview;
   backdrop-filter: blur(10px);
   content: "";
 }

@@ -5,11 +5,11 @@
   align-items: center;
   gap: 7px;
   min-height: vars.$control-height-touch;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control-strong;
   border-radius: vars.$radius-md;
   padding: 0 11px;
-  background: rgba(255, 255, 255, 0.035);
-  color: #b9c0ce;
+  background: vars.$color-surface-input;
+  color: vars.$color-text-secondary;
   font-size: 0.76rem;
   font-weight: 800;
   text-decoration: none;
@@ -21,9 +21,13 @@
 }
 
 .statusLink:hover {
-  border-color: rgba(214, 164, 103, 0.28);
-  background: rgba(214, 164, 103, 0.07);
-  color: #ede3d4;
+  border-color: vars.$color-border-accent-soft;
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
+}
+
+.compactLabel {
+  display: none;
 }
 
 .statusDot,
@@ -37,41 +41,55 @@
 }
 
 .statusDot {
-  border: 2px solid rgba(216, 225, 244, 0.42);
-  background: #596275;
+  border: 2px solid vars.$color-text-disabled;
+  background: vars.$color-status-neutral;
 }
 
 .statusDotConnected {
-  background: #55d886;
-  box-shadow: 0 0 0 3px rgba(85, 216, 134, 0.12);
+  background: vars.$color-status-running-strong;
+  box-shadow: vars.$shadow-status-running;
 }
 
 .statusDotReconnecting {
-  background: #e2b25f;
-  box-shadow: 0 0 0 3px rgba(226, 178, 95, 0.12);
+  background: vars.$color-warning;
+  box-shadow: vars.$shadow-status-warning;
 }
 
 .statusDotRevoked {
-  background: #ef7d88;
-  box-shadow: 0 0 0 3px rgba(239, 125, 136, 0.12);
-}
-
-.compactStatusLabel {
-  display: none;
+  background: vars.$color-status-offline;
+  box-shadow: vars.$shadow-status-offline;
 }
 
 @media (max-width: 420px) {
   .statusLink {
     gap: 6px;
     padding-inline: 8px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .statusLink {
+    padding-inline: 7px;
+    justify-content: center;
+  }
+
+  .fullLabel {
+    display: none;
+  }
+
+  .compactLabel {
+    display: inline;
+  }
+}
+
+@media (max-width: 280px) {
+  .statusLink {
+    width: vars.$control-height-touch;
+    padding: 0;
   }
 
   .statusLabel {
     display: none;
-  }
-
-  .compactStatusLabel {
-    display: inline;
   }
 }

@@ -1,7 +1,7 @@
 import type {
   Dispatch,
-  FormEvent,
   SetStateAction,
+  SubmitEvent,
   SyntheticEvent
 } from "react";
 
@@ -47,7 +47,7 @@ export async function refreshEnrollmentAttempt(
 }
 
 export async function startEnrollmentAttempt(
-  event: FormEvent,
+  event: SubmitEvent<HTMLFormElement>,
   context: CloudConnectionActionContext
 ) {
   event.preventDefault();
@@ -136,7 +136,7 @@ export async function updateSessionLabelDisclosure(
 }
 
 export async function savePermissions(
-  event: FormEvent,
+  event: SubmitEvent<HTMLFormElement>,
   context: CloudConnectionActionContext
 ) {
   event.preventDefault();

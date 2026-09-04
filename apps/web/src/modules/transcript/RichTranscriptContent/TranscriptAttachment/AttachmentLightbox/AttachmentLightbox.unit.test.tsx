@@ -72,19 +72,22 @@ describe("AttachmentLightbox", () => {
 
     const dialog = screen.getByRole("dialog", { name: "fixture.png" });
     const dialogQueries = within(dialog);
+    const closeButton = dialogQueries.getByRole("button", { name: "Close preview" });
     const openLink = dialogQueries.getByRole("link", { name: "Open" });
     const previewRegion = dialogQueries.getByRole("region", { name: "fixture.png preview" });
 
     expect(dialog).toHaveFocus();
     expect(document.body.style.overflow).toBe("hidden");
     expect(document.documentElement.style.overflow).toBe("hidden");
+    expect(closeButton.compareDocumentPosition(openLink) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
 
     fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
     expect(previewRegion).toHaveFocus();
 
     previewRegion.focus();
     fireEvent.keyDown(window, { key: "Tab" });
-    expect(openLink).toHaveFocus();
+    expect(closeButton).toHaveFocus();
 
     fireEvent.keyDown(window, { key: "Escape" });
 
@@ -108,5 +111,33 @@ describe("AttachmentLightbox", () => {
 
     fireEvent.keyDown(window, { key: "Tab" });
     expect(previewRegion).toHaveFocus();
+  });
+
+  it("announces media loading, exposes an error and retries the preview", () => {
+    render(<AttachmentLightboxFixture />);
+    fireEvent.click(screen.getByRole("button", { name: "Open preview" }));
+
+    const previewRegion = screen.getByRole("region", { name: "fixture.png preview" });
+    const initialImage = screen.getByRole("img", { name: "fixture.png" });
+
+    expect(previewRegion).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading preview");
+
+    fireEvent.error(initialImage);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Preview unavailable");
+    expect(screen.queryByRole("img", { name: "fixture.png" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    const retriedImage = screen.getByRole("img", { name: "fixture.png" });
+
+    expect(retriedImage).not.toBe(initialImage);
+    expect(previewRegion).toHaveAttribute("aria-busy", "true");
+
+    fireEvent.load(retriedImage);
+
+    expect(previewRegion).toHaveAttribute("aria-busy", "false");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Stats } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -28,7 +28,7 @@ function snapshot(size: number, mtimeMs: number): TranscriptLineIndexSnapshot {
   };
 }
 
-test("owns append, truncate, concurrent request, offset, and durable v6 semantics", async () => {
+test("owns append, truncate, concurrent request, offset, and durable v13 semantics", async () => {
   const originalDatabaseFilePath = daemonConfig.databaseFilePath;
   const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-codex-line-index-"));
 
@@ -85,7 +85,7 @@ test("owns append, truncate, concurrent request, offset, and durable v6 semantic
       await readFile(path.join(tempDir, "data", "codex-transcript-line-counts.json"), "utf8")
     ) as { snapshots?: Array<{ filePath?: string; size?: number }>; version?: number };
 
-    assert.equal(persisted.version, 6);
+    assert.equal(persisted.version, 13);
     assert.deepEqual(persisted.snapshots, [
       {
         endsWithLineBreak: true,
@@ -95,6 +95,116 @@ test("owns append, truncate, concurrent request, offset, and durable v6 semantic
         size: 3
       }
     ]);
+  } finally {
+    daemonConfig.databaseFilePath = originalDatabaseFilePath;
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("caches full-history hints beyond the legacy 64-entry limit", async () => {
+  const originalDatabaseFilePath = daemonConfig.databaseFilePath;
+  const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-codex-line-index-hints-"));
+  const compactLineSpans = Array.from({ length: 65 }, (_, index) => ({
+    end: index * 2,
+    kind: index % 2 === 0 ? "changes" as const : "tools" as const,
+    start: index * 2,
+    timestamp: `2026-09-02T12:00:${String(index % 60).padStart(2, "0")}.000Z`
+  }));
+  const exactLineOffsets = Array.from({ length: 65 }, (_, index) => ({
+    byteOffset: index * 100,
+    lineIndex: index * 2 + 1
+  }));
+
+  daemonConfig.databaseFilePath = path.join(tempDir, "data", "deskcue.sqlite");
+
+  let fullScans = 0;
+  const index = new CodexTranscriptLineIndex({
+    async readAppendSnapshot(cached) {
+      return cached;
+    },
+    async readFullSnapshot(_filePath, stat) {
+      fullScans += 1;
+      return {
+        chatMessageLineOffsets: [],
+        compactLineSpans,
+        endsWithLineBreak: true,
+        exactLineOffsets,
+        lineHintsComplete: true,
+        lineBreakCount: 130,
+        mtimeMs: stat.mtimeMs,
+        size: stat.size
+      };
+    }
+  });
+  const options = { requireLineHints: true };
+
+  try {
+    const first = await index.readSnapshot("long-session.jsonl", fileStat(10_000, 1), options);
+    const second = await index.readSnapshot("long-session.jsonl", fileStat(10_000, 1), options);
+
+    assert.equal(fullScans, 1);
+    assert.equal(first.compactLineSpans?.length, 65);
+    assert.equal(second.exactLineOffsets?.length, 65);
+
+    const persisted = JSON.parse(
+      await readFile(path.join(tempDir, "data", "codex-transcript-line-counts.json"), "utf8")
+    ) as { snapshots?: Array<TranscriptLineIndexSnapshot> };
+
+    assert.equal(persisted.snapshots?.[0]?.compactLineSpans?.length, 65);
+    assert.equal(persisted.snapshots?.[0]?.lineHintsComplete, true);
+  } finally {
+    daemonConfig.databaseFilePath = originalDatabaseFilePath;
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("rebuilds version 12 indexes with incomplete large-chat offsets", async () => {
+  const originalDatabaseFilePath = daemonConfig.databaseFilePath;
+  const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-codex-line-index-upgrade-"));
+  const dataDir = path.join(tempDir, "data");
+
+  daemonConfig.databaseFilePath = path.join(dataDir, "deskcue.sqlite");
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(
+    path.join(dataDir, "codex-transcript-line-counts.json"),
+    JSON.stringify({
+      snapshots: [{
+        endsWithLineBreak: true,
+        filePath: "session.jsonl",
+        lineBreakCount: 4,
+        mtimeMs: 1,
+        size: 4
+      }],
+      updatedAt: "2026-09-02T10:00:00.000Z",
+      version: 12
+    }),
+    "utf8"
+  );
+
+  let fullScans = 0;
+  const index = new CodexTranscriptLineIndex({
+    async readAppendSnapshot(_cached, _filePath, options) {
+      return snapshot(options.size, options.mtimeMs);
+    },
+    async readFullSnapshot(_filePath, stat) {
+      fullScans += 1;
+      return snapshot(stat.size, stat.mtimeMs);
+    }
+  });
+
+  try {
+    assert.deepEqual(
+      await index.readSnapshot("session.jsonl", fileStat(4, 1)),
+      snapshot(4, 1)
+    );
+
+    assert.equal(fullScans, 1);
+
+    const persisted = JSON.parse(
+      await readFile(path.join(dataDir, "codex-transcript-line-counts.json"), "utf8")
+    ) as { version?: number };
+
+    assert.equal(persisted.version, 13);
   } finally {
     daemonConfig.databaseFilePath = originalDatabaseFilePath;
     await rm(tempDir, { force: true, recursive: true });

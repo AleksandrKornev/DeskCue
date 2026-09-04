@@ -319,6 +319,7 @@ export type {
   AgentSessionIndexSnapshotMeta,
   AgentSessionInterruptLifecycle,
   AgentSessionObservedTurnState,
+  AgentSessionSubagent,
   AgentSessionSourceCount,
   AgentSessionSourceVersion,
   AgentSessionSummary,
@@ -392,12 +393,14 @@ export type {
 } from "./transcript.ts";
 export {
   buildAgentTranscriptSourceRefsKey,
+  COMPACT_DIFF_PLACEHOLDER_TEXT,
   compactAgentTranscriptSourceRefs,
   countAgentTranscriptSourceRefs,
   doAgentTranscriptSourceRefsOverlap,
-  expandAgentTranscriptSourceRanges
+  expandAgentTranscriptSourceRanges,
+  hasCompactDiffPlaceholderText,
+  isCanonicalCompactDiffPlaceholderPart
 } from "./transcript.ts";
-
 export type {
   AgentSessionTranscriptUpdatedPayload,
   AgentSessionTurnFinishedPayload,

@@ -161,8 +161,10 @@ export type SourceAgentSessionDiscovery = {
     workspaces: WorkspaceSummary[],
     options?: {
       force?: boolean;
+      includeSubagents?: boolean;
       includeLiveMetadata?: boolean;
       offset?: number;
+      parentSessionId?: string | null;
       query?: string | null;
       sourceId?: AgentKind | null;
     }

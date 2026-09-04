@@ -9,7 +9,17 @@ import {
 import type { SessionTab } from "@models/sessionTabs";
 import { dashboardNavigationStore } from "@modules/dashboard/shell/store/dashboardNavigationStore";
 
+import {
+  createManagedSessionNavigation,
+  createSubagentNavigationState,
+  readCurrentHistoryIndex,
+  readSubagentParentHistoryDelta,
+  readSubagentParentSessionId,
+  resetDashboardScroll
+} from "./helpers";
 import type {
+  AgentSessionNavigationOptions,
+  ManagedSessionNavigationOptions,
   UseDashboardRouteSelectionActionsArgs
 } from "./types";
 
@@ -33,6 +43,7 @@ export function useDashboardRouteSelectionActions({
   const getManagedSessionAgentSessionId = useCallback(
     (sessionId: string) => {
       const session = managedSessions.find((managedSession) => managedSession.id === sessionId);
+
       return session?.sourceSessionId && session.adapterId
         ? `${session.adapterId}:${session.sourceSessionId}`
         : "";
@@ -45,7 +56,9 @@ export function useDashboardRouteSelectionActions({
       dashboardNavigationStore.setIsAgentBrowserListMode(false);
       dashboardNavigationStore.setIsDashboardPinned(false);
       const agentSessionId = getManagedSessionAgentSessionId(sessionId);
+
       setSelectedAgentSessionId(agentSessionId);
+
       setSelectedSessionId(sessionId);
       navigateToRoute({
         kind: "session",
@@ -113,7 +126,8 @@ export function useDashboardRouteSelectionActions({
   );
 
   const handleSelectAgentSession = useCallback(
-    (agentSessionId: string) => {
+    (agentSessionId: string, options?: AgentSessionNavigationOptions) => {
+      resetDashboardScroll();
       dashboardNavigationStore.setIsAgentBrowserListMode(false);
       dashboardNavigationStore.setIsDashboardPinned(true);
       dashboardNavigationStore.setPendingAgentRouteSelection(agentSessionId);
@@ -121,18 +135,62 @@ export function useDashboardRouteSelectionActions({
       setSelectedSession(null);
       setSelectedAgentSessionId(agentSessionId);
       setActiveTab("overview");
-      navigateToRoute({
-        agentSessionId
-      });
+      navigate(
+        {
+          pathname: "/",
+          search: buildRouteSearch({
+            sourceId: selectedSourceId,
+            agentSessionId,
+            overlay: null
+          })
+        },
+        {
+          replace: options?.replace ?? false,
+          state: options?.subagentParentSessionId
+            ? createSubagentNavigationState(
+                options.subagentParentSessionId,
+                agentSessionId,
+                "history",
+                readCurrentHistoryIndex(window.history.state)
+              )
+            : undefined
+        }
+      );
     },
     [
-      navigateToRoute,
+      navigate,
+      selectedSourceId,
       setActiveTab,
       setSelectedAgentSessionId,
       setSelectedSession,
       setSelectedSessionId
     ]
   );
+
+  const handleOpenSubagentSession = useCallback((parentSessionId: string, childSessionId: string) => {
+    handleSelectAgentSession(childSessionId, {
+      subagentParentSessionId: parentSessionId
+    });
+  }, [handleSelectAgentSession]);
+
+  const handleBackToParentAgentSession = useCallback((
+    parentSessionId: string,
+    childSessionId: string
+  ) => {
+    const parentHistoryDelta = readSubagentParentHistoryDelta(
+      window.history.state,
+      parentSessionId,
+      childSessionId
+    );
+
+    if (parentHistoryDelta !== null) {
+      navigate(parentHistoryDelta);
+
+      return;
+    }
+
+    handleSelectAgentSession(parentSessionId, { replace: true });
+  }, [handleSelectAgentSession, navigate]);
 
   const handleClearAgentSessionSelection = useCallback(() => {
     dashboardNavigationStore.setIsAgentBrowserListMode(true);
@@ -164,7 +222,16 @@ export function useDashboardRouteSelectionActions({
   ]);
 
   const handleOpenManagedSession = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, options?: ManagedSessionNavigationOptions) => {
+      const subagentParentSessionId = options?.subagentParentSessionId ??
+        readSubagentParentSessionId(window.history.state, effectiveSelectedAgentSessionId) ??
+        undefined;
+      const navigation = createManagedSessionNavigation(
+        window.history.state,
+        subagentParentSessionId,
+        effectiveSelectedAgentSessionId
+      );
+
       flushSync(() => {
         dashboardNavigationStore.setIsAgentBrowserListMode(false);
         dashboardNavigationStore.setIsDashboardPinned(false);
@@ -179,6 +246,9 @@ export function useDashboardRouteSelectionActions({
           overlay: null,
           includeOverlay: true
         })
+      }, {
+        replace: navigation.replace,
+        state: navigation.state
       });
     },
     [
@@ -191,8 +261,10 @@ export function useDashboardRouteSelectionActions({
   );
 
   return {
+    handleBackToParentAgentSession,
     handleClearAgentSessionSelection,
     handleOpenManagedSession,
+    handleOpenSubagentSession,
     handleSelectAgentSession,
     handleSelectManagedSession,
     handleSelectSessionTab,

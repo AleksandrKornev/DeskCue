@@ -26,6 +26,7 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
   assetContext,
   copyFeedback,
   isActivityExpanded,
+  isPrimaryMobileCopyAction,
   item,
   onHydrateActivityGroup,
   onCopyMessage,
@@ -36,11 +37,21 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
     () => [...item.activities, ...item.changeActivities],
     [item.activities, item.changeActivities]
   );
-  const activityChips = messageActivities.map((activity) => (
+
+  const messageCopyStatus = copyFeedback?.messageId === item.entry.id
+    ? copyFeedback.status
+    : null;
+  const copyActionLabel = messageCopyStatus === "copied"
+    ? "Message copied"
+    : messageCopyStatus === "failed"
+      ? "Copy failed"
+      : "Copy message";
+  const activityChips = item.activities.map((activity) => (
     <ChatMessageActivityChip
       key={activity.id}
       activity={activity}
       isExpanded={isActivityExpanded(activity)}
+      messageEntryId={item.entry.id}
       onToggle={() => onToggleActivityGroup(activity)}
     />
   ));
@@ -89,6 +100,7 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
         <ChatInlineActivityFeed
           activities={messageActivities}
           isActivityExpanded={isActivityExpanded}
+          messageEntryId={item.entry.id}
           onHydrateActivity={onHydrateActivityGroup}
           renderActivityEntries={renderActivityEntries}
         />
@@ -105,29 +117,39 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
             </span>
           </div>
         ) : null}
-      </div>
-      {item.entry.text.trim() ? (
-        <div className={clsx(styles.chatMessageFooter, messageFooterClassByRole[item.role])}>
-          <button
-            aria-label="Copy message"
-            className={styles.chatMessageAction}
-            onClick={() => onCopyMessage(item.entry.id, item.entry.text)}
-            title="Copy message"
-            type="button"
+        {item.entry.text.trim() ? (
+          <div
+            className={clsx(
+              styles.chatMessageFooter,
+              messageFooterClassByRole[item.role],
+              !isPrimaryMobileCopyAction && styles.chatMessageFooterMobileSecondary
+            )}
           >
-            <CopyIcon
-              className={styles.chatMessageActionIcon}
-              aria-hidden="true"
-              focusable="false"
-            />
-          </button>
-          {copyFeedback?.messageId === item.entry.id ? (
-            <span className={styles.chatMessageActionStatus}>
-              {copyFeedback.status === "copied" ? "Copied" : "Copy failed"}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+            <button
+              aria-label="Copy message"
+              className={styles.chatMessageAction}
+              data-copy-status={messageCopyStatus ?? undefined}
+              data-feedback-label={messageCopyStatus ? copyActionLabel : undefined}
+              onClick={() => onCopyMessage(item.entry.id, item.entry.text)}
+              title={copyActionLabel}
+              type="button"
+            >
+              <CopyIcon
+                className={styles.chatMessageActionIcon}
+                aria-hidden="true"
+                focusable="false"
+              />
+              <span>
+                {messageCopyStatus === "copied"
+                  ? "Copied"
+                  : messageCopyStatus === "failed"
+                    ? "Failed"
+                    : "Copy"}
+              </span>
+            </button>
+          </div>
+        ) : null}
+      </div>
     </article>
   );
 });

@@ -24,6 +24,7 @@ export type LiveChatOverviewProps = {
   layoutMode?: "embedded" | "viewport";
   sessionShell: SessionDetail | SessionSummary;
   sharedViewerCount: number;
+  subagentSupplement?: ReactNode;
   threadProps: ManagedSessionChatThreadProps;
   composerProps: Pick<
     SessionMessageComposerProps,
@@ -54,6 +55,7 @@ export function LiveChatOverview({
   layoutMode = "viewport",
   sessionShell,
   sharedViewerCount,
+  subagentSupplement,
   threadProps
 }: LiveChatOverviewProps) {
   return (
@@ -71,6 +73,7 @@ export function LiveChatOverview({
 
       <div className={styles.chatComposerShell} ref={chatComposerShellRef}>
         <div className={styles.chatComposerContent}>
+          {subagentSupplement}
           {composerSupplement ? <div className={styles.chatComposerSupplement}>{composerSupplement}</div> : null}
           {!hideComposer ? (
             <SessionMessageComposer

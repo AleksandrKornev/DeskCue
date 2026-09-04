@@ -1,0 +1,272 @@
+@use "@assets/variables" as vars;
+
+.trigger {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: vars.$control-height-dense;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-pill;
+  padding: 0 12px;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-secondary;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.trigger:hover {
+  border-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
+  color: vars.$color-text-primary;
+}
+
+.trigger:focus-visible,
+.primaryAction:focus-visible,
+.addPathAction:focus-visible,
+.footer button:focus-visible,
+.manualDisclosure summary:focus-visible,
+.manualForm input:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.triggerIcon,
+.primaryAction svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+}
+
+.modalBody {
+  padding: 0;
+}
+
+.content {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.pickerSection,
+.manualDisclosure {
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-md;
+  background: vars.$color-surface-control-subtle;
+}
+
+.pickerSection {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.pickerSection[hidden] {
+  display: none;
+}
+
+.sectionCopy h3 {
+  margin: 0;
+  color: vars.$color-text-primary;
+  font-size: 0.94rem;
+}
+
+.sectionCopy p,
+.remoteHint,
+.fieldHelp {
+  color: vars.$color-text-muted;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.sectionCopy p,
+.remoteHint,
+.fieldHelp {
+  margin: 5px 0 0;
+}
+
+.primaryAction,
+.addPathAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: vars.$control-height-touch;
+  border-radius: vars.$radius-sm;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.primaryAction {
+  border: 1px solid transparent;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
+}
+
+.primaryAction:hover:not(:disabled) {
+  background: vars.$color-action-primary-hover;
+}
+
+.addPathAction {
+  border: 1px solid vars.$color-border-control;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-primary;
+}
+
+.addPathAction:hover:not(:disabled) {
+  border-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
+}
+
+.manualDisclosure[open] .addPathAction:not(:disabled) {
+  border-color: transparent;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
+}
+
+.manualDisclosure[open] .addPathAction:hover:not(:disabled) {
+  background: vars.$color-action-primary-hover;
+}
+
+.primaryAction:disabled,
+.addPathAction:disabled {
+  cursor: not-allowed;
+  border-color: transparent;
+  background: vars.$color-surface-control-disabled;
+  color: vars.$color-text-disabled;
+}
+
+.manualDisclosure summary {
+  min-height: vars.$control-height-touch;
+  padding: 13px 14px;
+  color: vars.$color-text-secondary;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 18px;
+}
+
+.manualDisclosure summary[aria-disabled="true"] {
+  cursor: not-allowed;
+  color: vars.$color-text-disabled;
+}
+
+.manualDisclosure[open] summary {
+  border-bottom: 1px solid vars.$color-border-subtle;
+  color: vars.$color-text-primary;
+}
+
+.manualForm {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.manualForm label {
+  color: vars.$color-text-secondary;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.manualForm input {
+  width: 100%;
+  min-height: vars.$control-height-touch;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: vars.$radius-sm;
+  padding: 0 12px;
+  background: vars.$color-surface-input;
+  color: vars.$color-text-primary;
+  font: inherit;
+  font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 1rem;
+}
+
+.manualForm input[aria-invalid="true"] {
+  border-color: vars.$color-border-danger;
+  background: vars.$color-surface-danger;
+}
+
+.pickerError,
+.fieldError {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid vars.$color-border-danger;
+  border-radius: vars.$radius-sm;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.fieldError {
+  margin-top: -2px;
+}
+
+.pendingStatus {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid vars.$color-border-info;
+  border-radius: vars.$radius-sm;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.footer button {
+  min-width: 88px;
+  min-height: 44px;
+  border: 0;
+  border-radius: vars.$radius-sm;
+  padding: 0 14px;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+@media (max-width: vars.$breakpoint-mobile) {
+  .trigger {
+    min-height: vars.$control-height-touch;
+  }
+
+  .content {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .content:has(.manualDisclosure[open]) {
+    gap: 10px;
+    padding: 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .primaryAction,
+  .addPathAction,
+  .footer button {
+    min-height: 48px;
+  }
+}

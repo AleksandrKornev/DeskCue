@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import type { AgentSessionDetail, AgentSessionSummary, SessionSummary } from "@deskcue/protocol";
 
 import {
+  hasAssistantReplyAfterPrompt,
   isConfirmedDeskCuePendingPrompt,
   isManagedSourceReplyWaiting,
   isManagedSourceSessionWorking,
@@ -76,6 +77,23 @@ function transcriptAssistant(id: string, text: string, phase: string | null) {
 }
 
 describe("managed session reply state helpers", () => {
+  it("does not treat a non-final assistant chunk as a completed reply", () => {
+    const prompt = {
+      requestedAt,
+      status: "waiting" as const,
+      text: "Continue work"
+    };
+
+    assert.equal(hasAssistantReplyAfterPrompt([
+      transcriptUser("user-1", prompt.text),
+      transcriptAssistant("assistant-1", "Still working", "non_final")
+    ], prompt), false);
+    assert.equal(hasAssistantReplyAfterPrompt([
+      transcriptUser("user-1", prompt.text),
+      transcriptAssistant("assistant-1", "Done", "final")
+    ], prompt), true);
+  });
+
   it("preserves the actionable writer-conflict reason when a prompt was not sent", () => {
     const writerConflictReason =
       "Another Codex client still owns this chat. Close it there, then retry the prompt from DeskCue.";
@@ -153,6 +171,16 @@ describe("managed session reply state helpers", () => {
       },
       sourceSessionId: "source-1"
     }), "DeskCue confirmed that the agent did not receive this prompt");
+  });
+
+  it("gives an external turn a concise recovery instruction", () => {
+    assert.equal(resolveInputUnavailableLabel({
+      canSendInput: false,
+      inputBlockedReason: null,
+      isExternalSourceTurn: true,
+      promptRecovery: null,
+      sourceSessionId: "source-1"
+    }), "Another client controls this turn. Finish or stop it there first.");
   });
 
   it("ignores stale active source metadata after the managed transport is done", () => {

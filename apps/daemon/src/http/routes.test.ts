@@ -355,6 +355,11 @@ function fakeApplication({
     lightweight?: boolean | "exact-ids" | "bounded-exact-ids";
     transcriptTail: number | undefined;
   }> = [];
+  const agentSessionPageRequests: Array<{
+    includeLiveMetadata: boolean;
+    limit: number;
+    options: Record<string, unknown>;
+  }> = [];
   const agentTranscriptEntriesRequests: Array<{
     entryIds: string[];
   }> = [];
@@ -527,7 +532,13 @@ function fakeApplication({
     async listRecentSessions() {
       return [agentSessionSummary()];
     },
-    async listRecentSessionPage() {
+    async listRecentSessionPage(
+      limit: number,
+      includeLiveMetadata: boolean,
+      options: Record<string, unknown>
+    ) {
+      agentSessionPageRequests.push({ includeLiveMetadata, limit, options });
+
       return {
         sessions: [agentSessionSummary()],
         limit: 100,
@@ -645,6 +656,7 @@ function fakeApplication({
 
   return {
     agentSessionDetailRequests,
+    agentSessionPageRequests,
     agentTranscriptEntriesRequests,
     agentTranscriptPreviousWindowRequests,
     agentTranscriptTailWindowRequests,
@@ -677,6 +689,7 @@ function fakeApplication({
     }
   } as unknown as DaemonApplication & {
     agentSessionDetailRequests: typeof agentSessionDetailRequests;
+    agentSessionPageRequests: typeof agentSessionPageRequests;
     agentTranscriptEntriesRequests: typeof agentTranscriptEntriesRequests;
     agentTranscriptPreviousWindowRequests: typeof agentTranscriptPreviousWindowRequests;
     agentTranscriptTailWindowRequests: typeof agentTranscriptTailWindowRequests;
@@ -1535,6 +1548,50 @@ test("agent session routes trim transcript and preserve attached metadata", asyn
     assert.deepEqual(await missing.json(), {
       error: "Agent session not found."
     });
+  });
+});
+
+test("agent session list routes keep roots by default and support direct-child queries", async () => {
+  const application = fakeApplication({});
+  const app = createTestApp((target) => {
+    installAgentSessionRoutes(target, {
+      decorateSession,
+      sourceAgentSessions: application.sourceAgentSessions
+    });
+  });
+
+  await withServer(app, async (baseUrl) => {
+    await requestJson<AgentSessionsResponse>(`${baseUrl}/api/agents/sessions`);
+    await requestJson<AgentSessionsResponse>(
+      `${baseUrl}/api/agents/sessions?includeSubagents=1&parentSessionId=${
+        encodeURIComponent("codex:parent")
+      }&includeLiveMetadata=1`
+    );
+
+    assert.deepEqual(application.agentSessionPageRequests, [
+      {
+        includeLiveMetadata: false,
+        limit: 100,
+        options: {
+          includeSubagents: false,
+          offset: 0,
+          parentSessionId: null,
+          query: null,
+          sourceId: null
+        }
+      },
+      {
+        includeLiveMetadata: true,
+        limit: 100,
+        options: {
+          includeSubagents: true,
+          offset: 0,
+          parentSessionId: "codex:parent",
+          query: null,
+          sourceId: null
+        }
+      }
+    ]);
   });
 });
 
@@ -2499,6 +2556,64 @@ test("agent transcript updates falls back when lightweight source window misses 
     assert.equal(application.agentTranscriptWindowRequests.length, 1);
     assert.equal(application.agentSessionDetailRequests.length, 1);
     assert.equal(application.agentSessionDetailRequests[0]?.lightweight, "bounded-exact-ids");
+  });
+});
+
+test("agent transcript updates falls back when a standalone activity is reparented to a reply", async () => {
+  const detail: AgentSessionDetail = {
+    ...agentSessionDetail(),
+    transcript: [
+      {
+        id: "entry-1",
+        timestamp: "2026-06-22T10:00:00.000Z",
+        role: "user",
+        text: "Work on it",
+        phase: null
+      },
+      {
+        id: "entry-2",
+        timestamp: "2026-06-22T10:00:01.000Z",
+        role: "tool",
+        text: "Tool result",
+        phase: null
+      },
+      {
+        id: "entry-3",
+        timestamp: "2026-06-22T10:00:02.000Z",
+        role: "assistant",
+        text: "Done",
+        phase: null
+      }
+    ]
+  };
+
+  const application = fakeApplication({
+    agentSessionDetailResponse: detail,
+    agentSessionPatch: { workState: "idle" },
+    agentTranscriptWindowResponse: detail.transcript.slice(1)
+  });
+  const app = createTestApp((target) => {
+    installAgentSessionRoutes(target, {
+      decorateSession,
+      sourceAgentSessions: application.sourceAgentSessions
+    });
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const updates = await requestJson<AgentTranscriptViewResponse & { replaceFromItemKey: string | null }>(
+      `${baseUrl}/api/agents/sessions/${detail.id}/transcript-updates` +
+        "?chatMessageTail=40&transcriptDetail=summary&baseItemKey=stale-tools&baseSourceEntryId=entry-2"
+    );
+    const assistant = updates.items.find(
+      (item) => item.type === "message" && item.entry.id === "entry-3"
+    );
+
+    assert.equal(application.agentTranscriptWindowRequests.length, 1);
+    assert.equal(application.agentSessionDetailRequests.length, 1);
+    assert.equal(updates.replaceFromItemKey, "entry-1");
+    assert.equal(assistant?.type, "message");
+    assert.deepEqual(assistant?.activities.map((activity) => activity.kind), ["tools"]);
+    assert.equal(updates.items.some((item) => item.type === "activity"), false);
   });
 });
 

@@ -6,6 +6,7 @@ export type RenderActivityEntries = ManagedSessionChatThreadProps["renderActivit
 export type ChatInlineActivityFeedProps = {
   activities: ConversationActivity[];
   isActivityExpanded: ManagedSessionChatThreadProps["isActivityExpanded"];
+  messageEntryId: string;
   onHydrateActivity: ManagedSessionChatThreadProps["onHydrateActivityGroup"];
   renderActivityEntries: RenderActivityEntries;
 };
@@ -22,6 +23,7 @@ export type ChatInlineActivityItemProps = {
 export type ChatMessageActivityChipProps = {
   activity: ConversationActivity;
   isExpanded: boolean;
+  messageEntryId: string;
   onToggle: () => void;
 };
 

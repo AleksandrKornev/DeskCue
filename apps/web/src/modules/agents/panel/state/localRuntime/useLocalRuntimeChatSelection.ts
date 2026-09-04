@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
   useState
 } from "react";
@@ -35,6 +34,7 @@ export function useLocalRuntimeChatSelection({
     }),
     [chats, query]
   );
+
   const filteredChats = useMemo(
     () => filterLocalRuntimeChats({
       chats,
@@ -44,10 +44,12 @@ export function useLocalRuntimeChatSelection({
     }),
     [chats, query, selectedRuntime, selectedSourceId]
   );
+
   const runtimeTabs = useMemo(
     () => buildLocalRuntimeTabs(query.trim() ? queryMatchedChats : chats),
     [chats, query, queryMatchedChats]
   );
+
   const selectedChat = useMemo(
     () => chats.find((chat) => chat.id === selectedChatId) ?? null,
     [chats, selectedChatId]
@@ -66,19 +68,10 @@ export function useLocalRuntimeChatSelection({
     onSelectSource(sourceId);
   }, [onSelectSource]);
   const clearSelectedChat = useCallback(() => setSelectedChatId(""), []);
+
   const openChat = useCallback((chat: LocalLlmChatSummary) => {
     setSelectedChatId(chat.id);
   }, []);
-
-  useEffect(() => {
-    if (
-      selectedRuntime &&
-      query.trim() &&
-      !queryMatchedChats.some((chat) => chat.runtimeId === selectedRuntime)
-    ) {
-      setSelectedRuntime(null);
-    }
-  }, [query, queryMatchedChats, selectedRuntime]);
 
   return {
     clearSelectedChat,

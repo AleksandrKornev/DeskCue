@@ -1,31 +1,47 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DeskCueLayoutModeProvider } from "@web/layout";
 
 import { AgentSessionsMobileLayout } from "./AgentSessionsMobileLayout";
 
-function renderLayout(showFocusedDetail: boolean, onBackToChats = vi.fn()) {
-  return {
-    onBackToChats,
-    ...render(
-      <DeskCueLayoutModeProvider mode="embedded">
-        <div data-deskcue-remote-root="">
-          <AgentSessionsMobileLayout
-            agentSessionId="session-1"
-            agentSessionLabel="Build release"
-            sessionsList={<div>Chat list</div>}
-            showFocusedDetail={showFocusedDetail}
-            transcriptPanel={<div>Selected transcript</div>}
-            onBackToChats={onBackToChats}
-          />
-        </div>
-      </DeskCueLayoutModeProvider>
-    )
-  };
+function renderLayout(
+  showFocusedDetail: boolean,
+  onBackToChats = vi.fn(),
+  agentSessionLabel = "Build release"
+) {
+  const view = render(
+    <DeskCueLayoutModeProvider mode="embedded">
+      <div data-deskcue-remote-root="">
+        <AgentSessionsMobileLayout
+          agentSessionId="session-1"
+          agentSessionLabel={agentSessionLabel}
+          sessionsList={(
+            <div>
+              <h2 data-chat-list-focus-fallback="" tabIndex={-1}>Control room</h2>
+              <span>Chat list</span>
+              <button data-chat-list-item-id="session-1" type="button">Build release</button>
+            </div>
+          )}
+          showFocusedDetail={showFocusedDetail}
+          transcriptPanel={<div>Selected transcript</div>}
+          onBackToChats={onBackToChats}
+        />
+      </div>
+    </DeskCueLayoutModeProvider>
+  );
+  const remoteRoot = view.container.querySelector<HTMLElement>("[data-deskcue-remote-root]");
+
+  if (remoteRoot) remoteRoot.scrollTo = vi.fn();
+
+  return { onBackToChats, ...view };
 }
 
 describe("AgentSessionsMobileLayout", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("switches from the list to a focused detail instead of stacking both", () => {
     renderLayout(true);
 
@@ -34,7 +50,14 @@ describe("AgentSessionsMobileLayout", () => {
   });
 
   it("returns to the list through Back to chats", () => {
+    vi.useFakeTimers();
     const { onBackToChats, rerender } = renderLayout(true);
+
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(screen.getByRole("button", { name: "Back to chats" })).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: "Back to chats" }));
     expect(onBackToChats).toHaveBeenCalledOnce();
@@ -45,7 +68,13 @@ describe("AgentSessionsMobileLayout", () => {
           <AgentSessionsMobileLayout
             agentSessionId=""
             agentSessionLabel=""
-            sessionsList={<div>Chat list</div>}
+            sessionsList={(
+              <div>
+                <h2 data-chat-list-focus-fallback="" tabIndex={-1}>Control room</h2>
+                <span>Chat list</span>
+                <button data-chat-list-item-id="session-1" type="button">Build release</button>
+              </div>
+            )}
             showFocusedDetail={false}
             transcriptPanel={null}
             onBackToChats={onBackToChats}
@@ -53,8 +82,89 @@ describe("AgentSessionsMobileLayout", () => {
         </div>
       </DeskCueLayoutModeProvider>
     );
+
     expect(screen.getByText("Chat list")).toBeInTheDocument();
     expect(screen.queryByText("Selected transcript")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(screen.getByRole("button", { name: "Build release" })).toHaveFocus();
+  });
+
+  it("returns a selected subagent directly to its parent chat", () => {
+    const onBackToParent = vi.fn();
+    const onBackToChats = vi.fn();
+
+    render(
+      <DeskCueLayoutModeProvider mode="embedded">
+        <AgentSessionsMobileLayout
+          agentSessionId="codex:child"
+          agentSessionLabel="Scout"
+          parentSessionId="codex:parent"
+          sessionsList={null}
+          showFocusedDetail
+          transcriptPanel={<div>Child transcript</div>}
+          onBackToParent={onBackToParent}
+          onBackToChats={onBackToChats}
+        />
+      </DeskCueLayoutModeProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to parent" }));
+
+    expect(onBackToParent).toHaveBeenCalledOnce();
+    expect(onBackToChats).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the browser heading when the previous card is no longer rendered", () => {
+    vi.useFakeTimers();
+    const { onBackToChats, rerender } = renderLayout(true);
+
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to chats" }));
+
+    rerender(
+      <DeskCueLayoutModeProvider mode="embedded">
+        <div data-deskcue-remote-root="">
+          <AgentSessionsMobileLayout
+            agentSessionId=""
+            agentSessionLabel=""
+            sessionsList={<h2 data-chat-list-focus-fallback="" tabIndex={-1}>Control room</h2>}
+            showFocusedDetail={false}
+            transcriptPanel={null}
+            onBackToChats={onBackToChats}
+          />
+        </div>
+      </DeskCueLayoutModeProvider>
+    );
+
+    expect(screen.getByRole("heading", { name: "Control room" })).toHaveFocus();
+  });
+
+  it("names the focused detail and moves unowned focus to Back", () => {
+    vi.useFakeTimers();
+    renderLayout(true);
+
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(screen.getByRole("heading", { name: "Build release" })).toBeInTheDocument();
+    expect(screen.queryByText("Build release", { selector: "span" })).not.toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: "Back to chats" })).toHaveFocus();
+  });
+
+  it("uses a stable fallback for a whitespace-only detail label", () => {
+    renderLayout(true, vi.fn(), "   ");
+
+    expect(screen.getByRole("heading", { name: "Selected chat" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Selected chat" })).toBeInTheDocument();
   });
 
   it("scrolls the embedded root to the selected detail without scrolling window", () => {
@@ -63,7 +173,9 @@ describe("AgentSessionsMobileLayout", () => {
     const { container } = renderLayout(true);
     const remoteRoot = container.querySelector<HTMLElement>("[data-deskcue-remote-root]");
     const detail = screen.getByRole("button", { name: "Back to chats" }).parentElement?.parentElement;
+
     expect(remoteRoot).not.toBeNull();
+
     expect(detail).not.toBeNull();
     if (!remoteRoot || !detail) return;
 
@@ -95,6 +207,7 @@ describe("AgentSessionsMobileLayout", () => {
       toJSON: () => ({})
     });
     const rootScroll = vi.fn();
+
     remoteRoot.scrollTo = rootScroll;
 
     act(() => {

@@ -10,6 +10,30 @@ import {
 } from "./helpers";
 import type { ReplyCompletionBridge } from "./types";
 
+function resolveImmediateReplyCompletionBridge({
+  baseIsWaitingForChatReply,
+  chatTranscriptEntries,
+  isInterruptingPrompt,
+  observedWaitingPrompt,
+  replyCompletionBridge
+}: {
+  baseIsWaitingForChatReply: boolean;
+  chatTranscriptEntries: ChatTranscriptEntry[];
+  isInterruptingPrompt: boolean;
+  observedWaitingPrompt: PendingChatPrompt | null;
+  replyCompletionBridge: ReplyCompletionBridge | null;
+}) {
+  if (isInterruptingPrompt) return null;
+  if (replyCompletionBridge) return replyCompletionBridge;
+  if (baseIsWaitingForChatReply || !observedWaitingPrompt) return null;
+  if (hasAssistantReplyAfterPrompt(chatTranscriptEntries, observedWaitingPrompt)) return null;
+
+  return {
+    key: buildPromptIdentity(observedWaitingPrompt),
+    prompt: observedWaitingPrompt
+  };
+}
+
 export function useReplyCompletionBridge({
   baseIsWaitingForChatReply,
   chatTranscriptEntries,
@@ -58,12 +82,20 @@ export function useReplyCompletionBridge({
     []
   );
 
+  const effectiveReplyCompletionBridge = resolveImmediateReplyCompletionBridge({
+    baseIsWaitingForChatReply,
+    chatTranscriptEntries,
+    isInterruptingPrompt,
+    observedWaitingPrompt: observedWaitingPromptRef.current,
+    replyCompletionBridge
+  });
+
   const isReplyCompletionBridgeActive = useMemo(
     () =>
-      replyCompletionBridge
-        ? !hasAssistantReplyAfterPrompt(chatTranscriptEntries, replyCompletionBridge.prompt)
+      effectiveReplyCompletionBridge
+        ? !hasAssistantReplyAfterPrompt(chatTranscriptEntries, effectiveReplyCompletionBridge.prompt)
         : false,
-    [chatTranscriptEntries, replyCompletionBridge]
+    [chatTranscriptEntries, effectiveReplyCompletionBridge]
   );
 
   useEffect(() => {
@@ -82,10 +114,12 @@ export function useReplyCompletionBridge({
       if (replyCompletionBridge?.key === currentWaitingPromptKey) {
         clearReplyCompletionBridge();
       }
+
       return;
     }
 
     const observedWaitingPrompt = observedWaitingPromptRef.current;
+
     if (!observedWaitingPrompt) {
       return;
     }
@@ -141,6 +175,6 @@ export function useReplyCompletionBridge({
 
   return {
     isReplyCompletionBridgeActive,
-    replyCompletionBridgePrompt: replyCompletionBridge?.prompt ?? null
+    replyCompletionBridgePrompt: effectiveReplyCompletionBridge?.prompt ?? null
   };
 }

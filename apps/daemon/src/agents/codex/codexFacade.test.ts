@@ -185,12 +185,15 @@ test("uses indexed lightweight Codex detail without parsing heavy activity paylo
         type: "event_msg",
         timestamp: "2026-07-22T10:00:03.000Z",
         payload: {
-          type: "patch_apply_end",
-          success: true,
-          changes: {
-            "src/example.ts": {
-              type: "update",
-              unified_diff: diffText
+          type: "item_completed",
+          item: {
+            type: "FileChange",
+            status: "completed",
+            changes: {
+              "src/example.ts": {
+                type: "update",
+                unified_diff: diffText
+              }
             }
           }
         }
@@ -352,7 +355,7 @@ test("uses indexed lightweight Codex detail without parsing heavy activity paylo
       snapshot.filePath === sessionFilePath
     );
 
-    assert.equal(persistedIndex.version, 6);
+    assert.equal(persistedIndex.version, 13);
     assert.equal(persistedSnapshot?.lineHintsComplete, true);
     assert.deepEqual(
       persistedSnapshot?.compactLineSpans?.map(({ end, kind, start }) => ({ end, kind, start })),
@@ -688,6 +691,99 @@ test("reads Codex source tail window with durable global source ids", async () =
   }
 });
 
+test("keeps FileChange activity attached beyond the bounded byte tail", async () => {
+  const originalCodexHome = daemonConfig.agentDataRoots.codexHome;
+  const originalDatabaseFilePath = daemonConfig.databaseFilePath;
+  const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-codex-facade-"));
+  const databaseFilePath = path.join(tempDir, "data", "deskcue.sqlite");
+  const sessionsRoot = path.join(tempDir, "sessions", "2026", "07");
+  const sessionIndexPath = path.join(tempDir, "session_index.jsonl");
+  const sessionFilePath = path.join(sessionsRoot, "session-old-file-change.jsonl");
+  const largeToolOutput = `HEAVY_TAIL_START\n${"t".repeat(17 * 1024 * 1024)}`;
+
+  await mkdir(sessionsRoot, { recursive: true });
+  await writeFile(
+    sessionIndexPath,
+    JSON.stringify({
+      id: "session-old-file-change",
+      thread_name: "Old FileChange transcript",
+      updated_at: "2026-07-22T10:00:00.000Z"
+    }),
+    "utf8"
+  );
+  await writeFile(
+    sessionFilePath,
+    `${jsonl([
+      {
+        type: "session_meta",
+        payload: { id: "session-old-file-change", cwd: "D:\\work\\repo" }
+      },
+      {
+        type: "event_msg",
+        timestamp: "2026-07-22T10:00:00.000Z",
+        payload: { type: "user_message", message: "Prompt before a heavy tail" }
+      },
+      {
+        type: "event_msg",
+        timestamp: "2026-07-22T10:00:01.000Z",
+        payload: {
+          type: "item_completed",
+          item: {
+            type: "FileChange",
+            changes: {
+              "src/before-heavy-tail.ts": {
+                type: "update",
+                unified_diff: "@@ -1 +1 @@\n-old\n+new"
+              }
+            }
+          }
+        }
+      },
+      {
+        type: "response_item",
+        timestamp: "2026-07-22T10:00:02.000Z",
+        payload: {
+          type: "function_call_output",
+          call_id: "call-heavy-tail",
+          output: largeToolOutput
+        }
+      },
+      {
+        type: "response_item",
+        timestamp: "2026-07-22T10:00:03.000Z",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "Answer after a heavy tail" }]
+        }
+      }
+    ])}\n`,
+    "utf8"
+  );
+
+  daemonConfig.agentDataRoots.codexHome = tempDir;
+  daemonConfig.databaseFilePath = databaseFilePath;
+  try {
+    const entries = await getCodexTranscriptTailWindow("session-old-file-change", {
+      chatMessageTail: 2,
+      force: true
+    });
+    const compactChanges = entries?.find((entry) =>
+      entry.isCompact &&
+      entry.parts?.some((part) => part.type === "diff")
+    );
+
+    assert.equal(entries?.some((entry) => entry.text === "Prompt before a heavy tail"), true);
+    assert.equal(entries?.some((entry) => entry.text === "Answer after a heavy tail"), true);
+    assert.equal(compactChanges?.sourceEntryRanges?.[0]?.prefix, "session-old-file-change-");
+    assert.equal(JSON.stringify(entries).includes("HEAVY_TAIL_START"), false);
+  } finally {
+    daemonConfig.agentDataRoots.codexHome = originalCodexHome;
+    daemonConfig.databaseFilePath = originalDatabaseFilePath;
+    await rm(tempDir, { force: true, recursive: true });
+  }
+});
+
 test("keeps a dense live Codex source window continuous beyond the legacy update limit", async () => {
   const originalCodexHome = daemonConfig.agentDataRoots.codexHome;
   const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-codex-facade-"));
@@ -883,7 +979,7 @@ test("serializes durable Codex line index writes across concurrent readers", asy
     };
     const persistedFilePaths = new Set(persistedIndex.snapshots.map((snapshot) => snapshot.filePath));
 
-    assert.equal(persistedIndex.version, 6);
+    assert.equal(persistedIndex.version, 13);
     for (const sessionId of sessionIds) {
       assert.equal(
         persistedFilePaths.has(path.join(sessionsRoot, `${sessionId}.jsonl`)),

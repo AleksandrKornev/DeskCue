@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { ReactNode } from "react";
 
 import type { NotificationProviderKind } from "@deskcue/protocol";
@@ -20,8 +21,10 @@ export function NotificationProviderCard({
   onEnabledChange: (provider: NotificationProviderKind, enabled: boolean) => void;
   onSendTest: (provider: NotificationProviderKind) => void;
 }) {
+  const titleId = useId();
+
   return (
-    <section className={styles.notificationProviderCard}>
+    <section aria-labelledby={titleId} className={styles.notificationProviderCard}>
       <div className={styles.providerHeader}>
         <label className={styles.providerToggle}>
           <input
@@ -30,7 +33,7 @@ export function NotificationProviderCard({
             type="checkbox"
             onChange={(event) => onEnabledChange(provider, event.target.checked)}
           />
-          <span>{title}</span>
+          <strong id={titleId}>{title}</strong>
         </label>
         <button
           className={styles.inlineButton}
@@ -41,9 +44,7 @@ export function NotificationProviderCard({
           {testing ? "Sending..." : "Send test"}
         </button>
       </div>
-      <div className={styles.providerBody}>
-        {children}
-      </div>
+      {enabled ? <div className={styles.providerBody}>{children}</div> : null}
     </section>
   );
 }

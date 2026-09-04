@@ -31,6 +31,15 @@
     flex-direction: column;
   }
 
+  .cloudStatusGate {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cloudStatusGate .inlineButton {
+    width: 100%;
+  }
+
   .permissionsActions .connectButton {
     width: 100%;
   }

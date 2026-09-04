@@ -133,6 +133,7 @@ describe("agent session collection", () => {
       updatedAt: "2026-08-06T10:01:00.000Z",
       workState: "idle" as const
     };
+
     const stale = {
       ...createSummary(0),
       model: null,
@@ -154,6 +155,7 @@ describe("agent session collection", () => {
       model: "gpt-5.6-terra",
       updatedAt: "2026-08-06T10:00:00.000Z"
     };
+
     const incoming = {
       ...createSummary(0),
       model: null,
@@ -175,11 +177,13 @@ describe("agent session collection", () => {
       id: "claude-code:session-1",
       sourceSessionId: "session-1"
     };
+
     const codex = {
       ...createSummary(0),
       id: "codex:session-2",
       sourceSessionId: "session-2"
     };
+
     const state = {
       ...createState([claude], "claude-code"),
       agentSessionSourceCounts: [
@@ -196,6 +200,55 @@ describe("agent session collection", () => {
     assert.deepEqual(patch?.agentSessionSourceCounts, state.agentSessionSourceCounts);
   });
 
+  it("keeps a live subagent out of the root chat window without changing root counts", () => {
+    const root = createSummary(0);
+    const child = {
+      ...createSummary(0),
+      id: "codex:child",
+      sourceSessionId: "child",
+      subagent: {
+        depth: 1,
+        nickname: "Scout",
+        parentSessionId: root.id,
+        role: null
+      },
+      updatedAt: "2026-08-06T10:02:00.000Z"
+    };
+
+    const state = createState([root]);
+
+    const patch = buildMergedAgentSessionSummaryPatch(state, child);
+
+    assert.deepEqual(patch?.agentSessions, [root]);
+    assert.equal(patch?.agentSessionsTotalCount, 1);
+  });
+
+  it("adds a matching live subagent to an explicit search window", () => {
+    const child = {
+      ...createSummary(0),
+      id: "codex:child",
+      sourceSessionId: "child",
+      subagent: {
+        depth: 1,
+        nickname: "Scout",
+        parentSessionId: "codex:parent",
+        role: null
+      },
+      updatedAt: "2026-08-06T10:02:00.000Z"
+    };
+
+    const state = {
+      ...createState([]),
+      agentSessionsHasMore: false,
+      agentSessionsQuery: "scout"
+    };
+
+    const patch = buildMergedAgentSessionSummaryPatch(state, child);
+
+    assert.deepEqual(patch?.agentSessions?.map((session) => session.id), ["codex:child"]);
+    assert.equal(patch?.agentSessionsTotalCount, 1);
+  });
+
   it("keeps exact counts stable for an unseen active-scope live summary", () => {
     const current = createSummary(0);
     const incoming = {
@@ -204,6 +257,7 @@ describe("agent session collection", () => {
       sourceSessionId: "off-page",
       updatedAt: "2026-08-06T10:02:00.000Z"
     };
+
     const state = {
       ...createState([current]),
       agentSessionsTotalCount: 100,
@@ -226,12 +280,14 @@ describe("agent session collection", () => {
       ...createSummary(0),
       title: "matching prompt"
     };
+
     const incoming = {
       ...current,
       id: "codex:new-match",
       sourceSessionId: "new-match",
       updatedAt: "2026-08-06T10:02:00.000Z"
     };
+
     const state = {
       ...createState([current]),
       agentSessionsHasMore: false,
@@ -252,11 +308,13 @@ describe("agent session collection", () => {
       ...createSummary(0),
       title: "matching prompt"
     };
+
     const incoming = {
       ...current,
       title: "renamed chat",
       updatedAt: "2026-08-06T10:02:00.000Z"
     };
+
     const state = {
       ...createState([current]),
       agentSessionsQuery: "matching",

@@ -1,5 +1,15 @@
 @use "@assets/variables" as vars;
 
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .mobileFlow {
   display: contents;
 }
@@ -8,22 +18,22 @@
   border: 0;
   border-radius: 14px;
   padding: 12px 16px;
-  background: #3152b5;
-  color: #ffffff;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
   font-weight: 600;
 }
 
 .ghostButton {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f3efe8;
+  background: vars.$color-surface-control-hover;
+  color: vars.$color-text-primary;
 }
 
 .emptyState {
   padding: 28px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed vars.$color-border-control;
   border-radius: 18px;
-  color: #a9adb7;
-  background: rgba(255, 255, 255, 0.02);
+  color: vars.$color-text-secondary;
+  background: vars.$color-surface-raised-subtle;
 }
 
 .emptyStateSoft {
@@ -45,7 +55,7 @@
 .emptyState strong {
   display: block;
   margin-bottom: 8px;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
 }
 
 .emptyState p {
@@ -57,23 +67,25 @@
   display: grid;
   align-content: start;
   gap: 12px;
+  width: 100%;
   min-height: 0;
+  min-width: 0;
 }
 
 .mobileDetailToolbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   align-items: center;
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
 }
 
 .skeletonBlock,
 .skeletonPill {
   position: relative;
   overflow: hidden;
-  border-color: rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: vars.$color-shimmer;
+  background: vars.$color-surface-input;
 }
 
 .attentionSkeleton {
@@ -89,7 +101,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.05) 48%,
+    vars.$color-shimmer 48%,
     transparent 100%
   );
   animation: skeletonShimmer 1.6s infinite;
@@ -159,6 +171,27 @@
 }
 
 @media (max-width: 1120px) {
+  .panelFocusedDetail {
+    overflow: visible;
+  }
+
+  .mobileDetailToolbar {
+    position: sticky;
+    z-index: 3;
+    top: 0;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+    background: vars.$color-surface-canvas-raised;
+  }
+
+  .mobileDetailToolbar .button {
+    flex: 0 0 auto;
+    min-height: 48px;
+  }
+
   .attentionSkeleton {
     display: grid;
     grid-template-rows: 1fr 1fr;
@@ -168,7 +201,7 @@
   }
 
   .attentionSkeletonSection {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid vars.$color-border-subtle;
     border-radius: 16px;
   }
   .toolbar {
@@ -210,7 +243,22 @@
 
 @media (max-width: 900px) {
   .panelHeader {
-    align-items: flex-start;
+    display: grid;
+    align-items: start;
+  }
+
+  .panelActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .panelActions > * {
+    width: 100%;
+  }
+
+  .panelBody {
+    padding-top: 10px;
   }
 
   .sourceStrip {
@@ -220,6 +268,7 @@
   }
 
   .sourceTab {
+    flex: 0 0 auto;
     gap: 5px;
     min-height: 44px;
     padding: 0 8px;
@@ -234,10 +283,14 @@
   }
 
   .listCardHeader,
-  .listSummary,
-  .mobileDetailToolbar {
+  .listSummary {
     display: grid;
     justify-items: start;
+  }
+
+  .mobileDetailToolbar {
+    display: flex;
+    align-items: center;
   }
 
   .layout {
@@ -261,5 +314,66 @@
 
   .mobileDetail {
     min-height: 0;
+  }
+
+}
+
+@media (max-width: 320px) {
+  .panelActions {
+    grid-template-columns: 1fr;
+  }
+
+  .sourceStrip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .sourceStrip::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .panelHeader {
+    padding: 14px 14px 0;
+  }
+
+  .panelHeader p {
+    margin-top: 4px;
+    font-size: 0.84rem;
+  }
+
+  .panelBody {
+    padding: 10px 14px 14px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1120px) and (max-height: 520px) {
+  .panelHeader {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px 0;
+  }
+
+  .panelHeader p {
+    margin-top: 2px;
+    font-size: 0.8rem;
+  }
+
+  .panelActions {
+    display: flex;
+    width: auto;
+    flex-wrap: nowrap;
+  }
+
+  .panelActions > * {
+    width: auto;
+    min-height: 44px;
+  }
+
+  .panelBody {
+    padding: 10px 14px 14px;
   }
 }

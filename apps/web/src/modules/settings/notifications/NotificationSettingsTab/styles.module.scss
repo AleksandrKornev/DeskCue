@@ -21,17 +21,17 @@
   justify-content: center;
   width: 44px;
   height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.055);
-  color: #c7ccd8;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-secondary;
   cursor: pointer;
 }
 
 .secretToggleButton:hover {
-  border-color: rgba(214, 164, 103, 0.24);
-  background: rgba(214, 164, 103, 0.09);
-  color: #f3efe8;
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-accent;
+  color: vars.$color-text-primary;
 }
 
 .secretToggleButton svg {
@@ -52,56 +52,56 @@
   margin: 0;
 }
 
-.pushInsecureContext {
+.pushRequirementNotice {
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr);
   gap: 11px;
   min-width: 0;
 }
 
-.pushInsecureRail {
+.pushRequirementRail {
   border-radius: 999px;
-  background: #d6a467;
+  background: vars.$color-accent;
 }
 
-.pushInsecureContent {
+.pushRequirementContent {
   display: grid;
   gap: 7px;
   min-width: 0;
 }
 
-.pushInsecureBadge {
+.pushRequirementBadge {
   width: fit-content;
-  border: 1px solid rgba(214, 164, 103, 0.24);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 999px;
   padding: 3px 7px;
-  background: rgba(214, 164, 103, 0.08);
-  color: #e6bc80;
+  background: vars.$color-surface-accent;
+  color: vars.$color-status-warning;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.01em;
 }
 
-.pushInsecureContent strong {
-  color: #f3efe8;
+.pushRequirementContent strong {
+  color: vars.$color-text-primary;
   font-size: 0.92rem;
   line-height: 1.35;
 }
 
-.pushInsecureContent p {
+.pushRequirementContent p {
   margin: -2px 0 0;
-  color: #aeb4c0;
+  color: vars.$color-text-secondary;
   font-size: 0.84rem;
   line-height: 1.45;
 }
 
-.pushAccessOptions {
-  color: #86aefa;
+.pushRequirementOptions {
+  color: vars.$color-status-info;
   font-size: 0.82rem;
   line-height: 1.4;
 }
 
-.pushAccessOptions summary {
+.pushRequirementOptions summary {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -110,13 +110,13 @@
   font-weight: 700;
 }
 
-.pushAccessOptions summary:hover {
-  color: #b7cdfd;
+.pushRequirementOptions summary:hover {
+  color: vars.$color-status-info;
 }
 
-.pushAccessOptions p {
+.pushRequirementOptions p {
   margin: 7px 0 0;
-  color: #c7ccd8;
+  color: vars.$color-text-secondary;
 }
 
 .srOnly {
@@ -136,14 +136,47 @@
   gap: 8px;
   min-width: 0;
   overflow-x: auto;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
+}
+
+.notificationSettingsFields {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.notificationSaveStatus {
+  @extend .saveStatus;
+
+  justify-content: center;
+  min-height: vars.$control-height-touch;
+  max-height: none;
+  border: 1px solid vars.$color-border-control;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-secondary;
+  text-align: center;
+}
+
+.notificationSaveStatus:focus {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+  box-shadow: vars.$shadow-focus-ring;
+}
+
+.pushProviderSettings {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
 }
 
 .notificationMatrixHeader,
-.notificationMatrixRow {
+.notificationMatrixRowContent {
   display: grid;
   grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(126px, 0.72fr));
   gap: 10px;
@@ -152,7 +185,7 @@
 }
 
 .notificationMatrixHeader {
-  color: #8f96a2;
+  color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -160,7 +193,12 @@
 }
 
 .notificationMatrixRow {
-  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  min-inline-size: 0;
+  margin: 0;
+  border-top: 1px solid vars.$color-border-control;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
   padding-top: 8px;
 }
 
@@ -169,19 +207,29 @@
   padding-top: 0;
 }
 
-.notificationMatrixRow > div {
+.notificationMatrixLegend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.notificationMatrixRowCopy {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
 .notificationMatrixRow strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.94rem;
 }
 
 .notificationMatrixRow small {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.8rem;
   line-height: 1.25;
 }
@@ -191,18 +239,18 @@
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.065);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 0 12px;
-  background: rgba(255, 255, 255, 0.032);
-  color: #dce2ef;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-primary;
   font-size: 0.82rem;
   font-weight: 700;
 }
 
 .notificationMatrixRow label:hover {
-  border-color: rgba(214, 164, 103, 0.22);
-  background: rgba(214, 164, 103, 0.065);
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-accent;
 }
 
 .notificationMatrixRow label input,
@@ -222,10 +270,10 @@
   align-content: start;
   gap: 12px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .notificationProviderCard .inlineButton {
@@ -248,11 +296,11 @@
   gap: 10px;
   min-height: 44px;
   min-width: 0;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-weight: 800;
 }
 
-.providerToggle span {
+.providerToggle strong {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -269,7 +317,7 @@
 }
 
 .telegramPairing small {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.82rem;
   line-height: 1.35;
 }
@@ -298,7 +346,7 @@
 
 .pushSessionsEmpty {
   margin: 0;
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.88rem;
   line-height: 1.4;
 }
@@ -312,12 +360,12 @@
 }
 
 .pushSubscriptionList strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.86rem;
 }
 
 .pushSubscriptionList span {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.78rem;
   line-height: 1.35;
 }
@@ -336,10 +384,10 @@
   justify-content: space-between;
   gap: 9px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.065);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 9px;
-  background: rgba(0, 0, 0, 0.14);
+  background: vars.$color-surface-panel-strong;
 }
 
 .pushSubscriptionList .inlineButton { min-height: 44px; }
@@ -348,10 +396,10 @@
   display: grid;
   gap: 12px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .deliveryDiagnosticsHeader {
@@ -364,7 +412,7 @@
 
 .deliveryDiagnosticsHeader h3 {
   margin: 4px 0 0;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.98rem;
 }
 
@@ -378,14 +426,14 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.14);
+  background: vars.$color-surface-panel-strong;
 }
 
 .deliveryDiagnosticMetric span {
-  color: #8f96a2;
+  color: vars.$color-text-secondary;
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -394,105 +442,120 @@
 
 .deliveryDiagnosticMetric strong {
   min-width: 0;
-  color: #dce2ef;
+  color: vars.$color-text-primary;
   font-size: 0.86rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
 .deliveryDiagnosticMetric[data-tone="success"] strong {
-  color: #82d7a5;
+  color: vars.$color-status-success;
 }
 
 .deliveryDiagnosticMetric[data-tone="warning"] strong {
-  color: #f0c184;
+  color: vars.$color-status-warning;
 }
 
 .deliveryDiagnosticsError {
-  border: 1px solid rgba(240, 126, 126, 0.22);
+  border: 1px solid vars.$color-border-danger;
   border-radius: 8px;
   padding: 10px;
-  background: rgba(240, 126, 126, 0.08);
-  color: #ffb4ad;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1023px) {
   .notificationMatrixHeader {
-      display: none;
-    }
+    display: none;
+  }
 
   .notificationMatrix,
-    .notificationMatrixRow {
-      min-width: 0;
-    }
+  .notificationMatrixRowContent {
+    min-width: 0;
+  }
+
+  .notificationMatrixRowContent {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
 
   .notificationMatrixRow {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 7px;
-      padding-top: 10px;
-    }
+    padding-top: 10px;
+  }
 
-  .notificationMatrixRow > div {
-      grid-column: 1 / -1;
-      gap: 2px;
-    }
+  .notificationMatrixRowCopy {
+    grid-column: 1 / -1;
+    gap: 2px;
+  }
 
   .notificationMatrixRow strong {
-      font-size: 0.9rem;
-    }
+    font-size: 0.9rem;
+  }
 
   .notificationMatrixRow small {
-      font-size: 0.78rem;
-    }
+    font-size: 0.78rem;
+  }
 
   .notificationMatrixRow label {
-      justify-content: flex-start;
-      min-height: 44px;
-      gap: 7px;
-      padding: 0 7px;
-      font-size: 0.78rem;
-      line-height: 1.15;
-      white-space: nowrap;
-    }
+    justify-content: flex-start;
+    min-height: 44px;
+    gap: 7px;
+    padding: 0 7px;
+    font-size: 0.78rem;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
 
   .notificationMatrixRow label input {
-      flex: 0 0 auto;
-      width: 15px;
-      height: 15px;
-    }
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@media (max-width: 720px) {
+  .notificationSettingsForm .actionsClean {
+    padding: 6px 14px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .actionsClean .notificationSaveStatus {
+    min-height: 36px;
+    border-color: transparent;
+  }
 
   .notificationProviderGrid {
-      grid-template-columns: 1fr;
-    }
+    grid-template-columns: 1fr;
+  }
 
   .providerHeader {
-      align-items: center;
-      flex-direction: row;
-      gap: 8px;
-    }
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
+  }
 
   .providerHeader .inlineButton {
-      min-height: 44px;
-      width: auto;
-      flex: 0 0 auto;
-    }
+    min-height: 44px;
+    width: auto;
+    flex: 0 0 auto;
+  }
 
   .providerActions .inlineButton {
-      min-height: 44px;
+    min-height: 44px;
   }
 
   .deliveryDiagnosticsHeader {
-      align-items: center;
-      flex-direction: row;
-    }
+    align-items: center;
+    flex-direction: row;
+  }
 
   .deliveryDiagnosticsHeader .inlineButton {
-      width: auto;
-      flex: 0 0 auto;
-    }
+    min-height: 44px;
+    width: auto;
+    flex: 0 0 auto;
+  }
 
   .deliveryDiagnosticsGrid {
-      grid-template-columns: 1fr;
-    }
+    grid-template-columns: 1fr;
+  }
 }

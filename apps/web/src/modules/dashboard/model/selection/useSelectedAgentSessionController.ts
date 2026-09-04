@@ -2,7 +2,10 @@ import { useCallback, useEffect } from "react";
 
 import { useAgentChatDetailResource } from "@modules/dashboard/model/chatDetail/resource/useAgentChatDetailResource";
 
-import { resolveSelectedAgentSessionTranscriptDetail } from "./helpers";
+import {
+  resolveSelectedAgentSessionLoadError,
+  resolveSelectedAgentSessionTranscriptDetail
+} from "./helpers";
 import type { UseSelectedAgentSessionControllerArgs } from "./types";
 
 export function useSelectedAgentSessionController({
@@ -50,6 +53,7 @@ export function useSelectedAgentSessionController({
 
   useEffect(() => {
     const detail = selectedAgentSessionSnapshot.detail;
+
     if (!detail || detail.id !== selectedAgentSessionId) {
       return;
     }
@@ -69,6 +73,7 @@ export function useSelectedAgentSessionController({
       if (selectedAgentSession) {
         setSelectedAgentSession(null);
       }
+
       hydratedSelectedAgentSessionIdRef.current = "";
       setIsAgentSessionLoading(false);
       return;
@@ -125,6 +130,7 @@ export function useSelectedAgentSessionController({
     updateSelectedAgentSession((current) =>
       current?.id === selectedAgentSessionId ? current : null
     );
+
     setIsAgentSessionLoading(
       selectedAgentSessionSnapshot.status === "idle" ||
         selectedAgentSessionSnapshot.status === "loading" ||
@@ -162,7 +168,7 @@ export function useSelectedAgentSessionController({
     setSelectedAgentSessionId
   ]);
 
-  return useCallback(() => {
+  const refreshSelectedAgentSession = useCallback(() => {
     hydratedSelectedAgentSessionIdRef.current = "";
     setSelectedAgentSession(null);
     setIsAgentSessionLoading(true);
@@ -173,4 +179,13 @@ export function useSelectedAgentSessionController({
     setIsAgentSessionLoading,
     setSelectedAgentSession
   ]);
+
+  return {
+    refreshSelectedAgentSession,
+    selectedAgentSessionLoadError: resolveSelectedAgentSessionLoadError(
+      shouldLoadSelectedAgentSession,
+      selectedAgentSessionId,
+      selectedAgentSessionSnapshot
+    )
+  };
 }

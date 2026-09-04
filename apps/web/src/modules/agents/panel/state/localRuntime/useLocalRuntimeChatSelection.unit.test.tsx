@@ -122,8 +122,27 @@ describe("local runtime chat selection", () => {
       generationState: "running" as const,
       updatedAt: "2026-08-06T00:01:00.000Z"
     };
+
     rerender({ currentChats: [updatedChat, chats[1]] });
 
     expect(result.current.selectedChat).toBe(updatedChat);
+  });
+
+  it("keeps the selected runtime explicit when a search has no matching chats", () => {
+    const { result, rerender } = renderHook(
+      ({ query }) => useLocalRuntimeChatSelection({
+        chats,
+        onSelectSource: vi.fn(),
+        query,
+        selectedSourceId: "all"
+      }),
+      { initialProps: { query: "" } }
+    );
+
+    act(() => result.current.selectRuntime("ollama"));
+    rerender({ query: "code review" });
+
+    expect(result.current.selectedRuntime).toBe("ollama");
+    expect(result.current.filteredChats).toEqual([]);
   });
 });

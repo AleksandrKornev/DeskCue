@@ -7,16 +7,23 @@ import {
 } from "react";
 
 import type { LocalLlmChatSummary } from "@deskcue/protocol";
+import { formatAgentSessionTitle } from "@models/sessionDisplay";
 import type {
   AgentSessionsPanelProps
 } from "@modules/agents/types";
 import { LocalLlmChatPreview } from "@modules/localLlmChats";
+import { SubagentSessionsSupplement } from "@modules/session/subagents";
 import { AgentTranscriptPanel } from "@modules/transcript";
 import { getDeskCueRuntime } from "@runtime";
 import { useDeskCueLayoutMode } from "@web/layout";
 
 import { reviewAndSelectAgentSession } from "./actions";
 import { AgentSessionsAttention } from "./attention/AgentSessionsAttention";
+import {
+  ATTENTION_PREVIEW_LIMIT,
+  MOBILE_ATTENTION_PREVIEW_LIMIT
+} from "./attention/constants";
+import { buildAttentionSessionGroups } from "./attention/helpers";
 import { useAgentSessionsAttentionState } from "./attention/useAgentSessionsAttentionState";
 import { INITIAL_PANEL_SETTLE_MS } from "./constants";
 import {
@@ -31,10 +38,12 @@ import {
 import { AgentSessionsDesktopLayout } from "./layout/AgentSessionsDesktopLayout";
 import { AgentSessionsMobileLayout } from "./layout/AgentSessionsMobileLayout";
 import { CollapsedAgentSessionsPanel } from "./layout/CollapsedAgentSessionsPanel";
+import { useAgentBrowserCompactFocusHandoff } from "./layout/useAgentBrowserCompactFocusHandoff";
 import { AgentSessionsEmptyState } from "./list/AgentSessionsEmptyState";
 import { AgentSessionsList } from "./list/AgentSessionsList";
 import { AgentSessionsPanelSurface } from "./loading/AgentSessionsPanelSurface";
 import { AgentSessionsSkeleton } from "./loading/AgentSessionsSkeleton";
+import { mergeAttentionSessions } from "./state/attention/helpers";
 import { useAttentionAgentSessionSummaries } from "./state/attention/useAttentionAgentSessionSummaries";
 import { useLocalChatCreation } from "./state/localChatCreation";
 import { useLocalLlmChatSummaries } from "./state/localLlm/useLocalLlmChatSummaries";
@@ -59,6 +68,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     selectedSourceId,
     selectedAgentSessionId,
     selectedAgentSession,
+    selectedAgentSessionLoadError,
     readyForReviewAgentSessionIds,
     isAgentSessionLoading,
     attaching,
@@ -67,26 +77,34 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     defaultCollapsed = false,
     isBootstrapping,
     pendingChatPrompt,
+    secondaryAction,
     onAttachAgentSession,
+    onBackToParentAgentSession,
     onMarkAgentSessionReviewed,
     onOpenManagedSession,
+    onOpenSubagentSession,
     onOpenLocalLlmChat,
-    onReloadAgentSessions
+    onReloadAgentSessions,
+    onRetrySelectedAgentSession
   } = props;
+
   const defaultLocalChatRuntime = useMemo(
     () => chooseDefaultLocalChatRuntime(runtimes),
     [runtimes]
   );
+
   const handleLocalChatCreated = useCallback(
     (chat: LocalLlmChatSummary) => {
       onOpenLocalLlmChat(chat.id);
     },
     [onOpenLocalLlmChat]
   );
+
   const localChatCreation = useLocalChatCreation({
     defaultRuntimeId: defaultLocalChatRuntime,
     onCreated: handleLocalChatCreated
   });
+
   const createLocalChatRuntimes = useMemo(
     () => buildCreateLocalChatRuntimeOptions(
       localChatCreation.catalog.runtime
@@ -106,10 +124,12 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
       runtimes
     ]
   );
+
   const createLocalChatWorkspaces = useMemo(
     () => buildCreateLocalChatWorkspaceOptions(workspaces),
     [workspaces]
   );
+
   const { chats: localLlmChats } = useLocalLlmChatSummaries();
   const {
     canShowFewerSessions,
@@ -120,6 +140,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     hiddenSessionsCount,
     isCompactViewport,
     isLoadingMoreSessions,
+    isMobileViewport,
     isSearchLoading,
     isSelectedAgentSessionSettling,
     isSourceSwitching,
@@ -138,14 +159,22 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
   } = useAgentSessionsPanelState(props);
   const {
     hasLoaded: hasLoadedAttentionAgentSessions,
+    hasMore: hasMoreAttentionAgentSessions,
     sessions: loadedAttentionAgentSessions
-  } = useAttentionAgentSessionSummaries(isCompactViewport && !collapsed);
+  } = useAttentionAgentSessionSummaries(!collapsed, selectedSourceId);
+
   const filteredAttentionAgentSessions = useMemo(
     () => selectedSourceId === "all"
       ? loadedAttentionAgentSessions
       : loadedAttentionAgentSessions.filter((session) => session.agentId === selectedSourceId),
     [loadedAttentionAgentSessions, selectedSourceId]
   );
+
+  const availableAttentionAgentSessions = useMemo(
+    () => mergeAttentionSessions(agentSessions, filteredAttentionAgentSessions),
+    [agentSessions, filteredAttentionAgentSessions]
+  );
+
   const {
     clearSelectedChat: clearSelectedLocalLlmChat,
     filteredChats: filteredLocalLlmChats,
@@ -163,24 +192,56 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     selectedSourceId
   });
 
-  const listAttention = useAgentSessionsAttentionState({
-    agentSessions,
+  const attentionState = useAgentSessionsAttentionState({
+    agentSessions: availableAttentionAgentSessions,
+    cacheScopeKey: selectedSourceId,
+    enabled: !collapsed,
     managedSessions,
     pendingChatPrompt,
     readyForReviewAgentSessionIds
   });
   const {
-    approvalRequestedSourceSessionIds,
+    approvalRequestedSourceSessionKeys,
     attentionSessions,
     effectiveReadyForReviewAgentSessionIds,
-    workIndicatorsBySourceSessionId
-  } = useAgentSessionsAttentionState({
-    agentSessions: filteredAttentionAgentSessions,
-    cacheScopeKey: selectedSourceId,
-    managedSessions,
-    pendingChatPrompt,
-    readyForReviewAgentSessionIds
-  });
+    workIndicatorsBySourceSessionKey
+  } = attentionState;
+  const shouldShowAttention = !isSourceSwitching && !query.trim() && selectedLocalRuntime === null;
+  const attentionPreviewLimit = isMobileViewport
+    ? MOBILE_ATTENTION_PREVIEW_LIMIT
+    : ATTENTION_PREVIEW_LIMIT;
+
+  const attentionGroups = useMemo(
+    () => buildAttentionSessionGroups({
+      approvalRequestedSourceSessionKeys,
+      readyForReviewAgentSessionIds: effectiveReadyForReviewAgentSessionIds,
+      sessions: attentionSessions,
+      workIndicatorsBySourceSessionKey
+    }),
+    [
+      approvalRequestedSourceSessionKeys,
+      attentionSessions,
+      effectiveReadyForReviewAgentSessionIds,
+      workIndicatorsBySourceSessionKey
+    ]
+  );
+
+  const attentionSessionIds = useMemo(
+    () => shouldShowAttention
+      ? new Set([
+          ...attentionGroups.approvalRequests.slice(0, attentionPreviewLimit),
+          ...attentionGroups.newResults.slice(0, attentionPreviewLimit),
+          ...attentionGroups.activeAgents.slice(0, attentionPreviewLimit)
+        ].map((session) => session.id))
+      : new Set<string>(),
+    [attentionGroups, attentionPreviewLimit, shouldShowAttention]
+  );
+
+  const recentVisibleSessions = useMemo(
+    () => visibleSessions.filter((session) => !attentionSessionIds.has(session.id)),
+    [attentionSessionIds, visibleSessions]
+  );
+
   const {
     allChatsCount,
     attachedSourceSessionKeys,
@@ -249,14 +310,15 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
       isLoadingMoreSessions={isLoadingMoreSessions}
       totalSessionsCountLabel={selectedSourceSessionsCount}
       attachedSourceSessionKeys={attachedSourceSessionKeys}
-      readyForReviewAgentSessionIds={listAttention.effectiveReadyForReviewAgentSessionIds}
-      workIndicatorsBySourceSessionId={listAttention.workIndicatorsBySourceSessionId}
+      readyForReviewAgentSessionIds={effectiveReadyForReviewAgentSessionIds}
+      workIndicatorsBySourceSessionKey={workIndicatorsBySourceSessionKey}
       query={query}
       selectedAgentSessionId={selectedLocalLlmChat ? "" : selectedAgentSessionId}
       selectedLocalLlmChatId={selectedLocalLlmChat?.id}
-      sessions={selectedLocalRuntime ? [] : visibleSessions}
+      sessions={selectedLocalRuntime ? [] : recentVisibleSessions}
       localLlmChats={filteredLocalLlmChats}
       showAllLocalLlmChats={Boolean(selectedLocalRuntime) || Boolean(query.trim())}
+      title={shouldShowAttention ? "Recent work" : undefined}
       onSelectAgentSession={(sessionId) => reviewAndSelectAgentSession(
         sessionId,
         isCompactViewport && layoutMode === "viewport",
@@ -269,13 +331,15 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     />
   );
 
-  const attentionSections = isCompactViewport && !isSourceSwitching ? (
+  const attentionSections = shouldShowAttention ? (
     <AgentSessionsAttention
-      approvalRequestedSourceSessionIds={approvalRequestedSourceSessionIds}
+      approvalRequestedSourceSessionKeys={approvalRequestedSourceSessionKeys}
+      countIsLowerBound={hasMoreAttentionAgentSessions || agentSessionsHasMore}
       readyForReviewAgentSessionIds={effectiveReadyForReviewAgentSessionIds}
+      previewLimit={attentionPreviewLimit}
       selectedAgentSessionId={selectedAgentSessionId}
       sessions={attentionSessions}
-      workIndicatorsBySourceSessionId={workIndicatorsBySourceSessionId}
+      workIndicatorsBySourceSessionKey={workIndicatorsBySourceSessionKey}
       onSelectAgentSession={(sessionId) => reviewAndSelectAgentSession(
         sessionId,
         isCompactViewport && layoutMode === "viewport",
@@ -284,6 +348,9 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
       )}
     />
   ) : null;
+  const parentAgentSessionId = selectedAgentSessionSummary?.subagent?.parentSessionId ??
+    selectedAgentSession?.subagent?.parentSessionId ??
+    null;
 
   const transcriptPanel = hasSelectedAgentSession ? (
     <AgentTranscriptPanel
@@ -293,11 +360,23 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
       onAttach={onAttachAgentSession}
       onMarkReviewed={onMarkAgentSessionReviewed}
       onOpenManagedSession={onOpenManagedSession}
+      parentAgentSessionId={parentAgentSessionId}
       previewItems={isCompactViewport ? 2 : undefined}
       readyForReviewAgentSessionIds={effectiveReadyForReviewAgentSessionIds}
+      selectedSessionId={selectedAgentSessionId}
       session={selectedAgentSession}
       sessionSummary={selectedAgentSessionSummary}
+      subagentSupplement={
+        <SubagentSessionsSupplement
+          knownSessions={agentSessions}
+          parentSessionId={selectedAgentSessionId || null}
+          onOpenSubagentSession={onOpenSubagentSession}
+        />
+      }
+
       isLoading={isAgentSessionLoading || isSelectedAgentSessionSettling}
+      loadError={selectedAgentSessionLoadError}
+      onRetryLoad={onRetrySelectedAgentSession}
     />
   ) : null;
 
@@ -311,9 +390,59 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
   ) : null;
   const activeTranscriptPanel = localLlmChatPanel ?? transcriptPanel;
   const showActiveMobileDetail = Boolean(localLlmChatPanel) || showFocusedMobileDetail;
+  const activeSessionFocusTargetId = selectedLocalLlmChat?.id ?? selectedAgentSessionId;
+  const showUnavailableListState =
+    !showActiveMobileDetail &&
+    !localLlmChatPanel &&
+    isListUnavailable &&
+    filteredLocalLlmChats.length === 0;
+  const showEmptyListState =
+    !showActiveMobileDetail &&
+    !localLlmChatPanel &&
+    filteredByQuery.length === 0 &&
+    filteredLocalLlmChats.length === 0 &&
+    !isListLoading;
+  const focusSurfaceKey = collapsed
+    ? "collapsed"
+    : showActiveMobileDetail
+      ? "detail"
+      : showUnavailableListState
+        ? "unavailable"
+        : isListLoading
+          ? "loading"
+          : showEmptyListState ? "empty" : "list";
+
+  useAgentBrowserCompactFocusHandoff({
+    focusTargetId: activeSessionFocusTargetId,
+    focusSurfaceKey,
+    isCompactViewport,
+    showFocusedDetail: !collapsed && showActiveMobileDetail
+  });
+
+  const mobileLayout = isCompactViewport ? (
+    <AgentSessionsMobileLayout
+      agentSessionId={selectedLocalLlmChat?.id ?? selectedAgentSessionId}
+      agentSessionLabel={
+        selectedLocalLlmChat?.title ?? formatAgentSessionTitle(selectedAgentSessionDisplay)
+      }
+
+      parentSessionId={parentAgentSessionId}
+      sessionsList={sessionsList}
+      showFocusedDetail={showActiveMobileDetail}
+      transcriptPanel={activeTranscriptPanel}
+      onBackToParent={parentAgentSessionId
+        ? () => onBackToParentAgentSession(parentAgentSessionId, selectedAgentSessionId)
+        : undefined}
+      onBackToChats={
+        selectedLocalLlmChat ? clearSelectedLocalLlmChat : handleClearAgentSessionSelection
+      }
+    />
+  ) : null;
 
   const panelBody =
-    !localLlmChatPanel && isListUnavailable && filteredLocalLlmChats.length === 0 ? (
+    isCompactViewport && showActiveMobileDetail ? (
+      mobileLayout
+    ) : showUnavailableListState ? (
       <AgentSessionsEmptyState
         hasSearchQuery={false}
         hasSourceSessions={false}
@@ -322,23 +451,13 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
           void onReloadAgentSessions({ sourceId: selectedSourceId });
         }}
       />
-    ) : !localLlmChatPanel && filteredByQuery.length === 0 && filteredLocalLlmChats.length === 0 && !isListLoading ? (
+    ) : showEmptyListState ? (
       <AgentSessionsEmptyState
         hasSearchQuery={Boolean(query.trim())}
         hasSourceSessions={agentSessions.length > 0}
       />
     ) : isCompactViewport ? (
-      <AgentSessionsMobileLayout
-        agentSessionId={selectedLocalLlmChat?.id ?? selectedAgentSessionId}
-        agentSessionLabel={
-          selectedLocalLlmChat?.title ?? selectedAgentSessionDisplay?.title ?? ""
-        }
-
-        sessionsList={sessionsList}
-        showFocusedDetail={showActiveMobileDetail}
-        transcriptPanel={activeTranscriptPanel}
-        onBackToChats={selectedLocalLlmChat ? clearSelectedLocalLlmChat : handleClearAgentSessionSelection}
-      />
+      mobileLayout
     ) : (
       <AgentSessionsDesktopLayout
         sessionsList={sessionsList}
@@ -348,24 +467,33 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
 
   if (collapsed) {
     return (
-      <CollapsedAgentSessionsPanel
-        selectedAgentSession={selectedAgentSession}
-        onExpand={() => setCollapsed(false)}
-      />
+      <div className={styles.agentBrowserFocusRoot} data-agent-browser-focus-root="">
+        <CollapsedAgentSessionsPanel
+          selectedAgentSession={selectedAgentSession}
+          onExpand={() => setCollapsed(false)}
+        />
+      </div>
     );
   }
 
   return (
-    <>
+    <div className={styles.agentBrowserFocusRoot} data-agent-browser-focus-root="">
       <AgentSessionsPanelSurface
-        action={features.localLlmChats ? (
-          <CreateLocalChatButton onClick={localChatCreation.open} />
-        ) : null}
+        action={(
+          <div className={styles.panelActions}>
+            {secondaryAction}
+            {features.localLlmChats ? (
+              <CreateLocalChatButton onClick={localChatCreation.open} />
+            ) : null}
+          </div>
+        )}
+        focusedDetail={isCompactViewport && showActiveMobileDetail}
       >
         {defaultCollapsed ? (
         <div className={styles.panelToolbar}>
           <button
             className={clsx(styles.button, styles.ghostButton)}
+            data-chat-list-focus-owner=""
             onClick={() => setCollapsed(true)}
             type="button"
           >
@@ -392,6 +520,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
                 selectedLocalRuntime={selectedLocalRuntime}
                 selectedSourceId={selectedSourceId}
                 sourceCards={isListUnavailable ? [] : sourceCards}
+                sourceCountsUnavailable={isListUnavailable}
                 totalAgentSessionsCount={allChatsCount}
                 onQueryChange={setQuery}
                 onSelectLocalRuntime={handleSelectLocalRuntime}
@@ -434,6 +563,6 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
         onRuntimeChange={localChatCreation.setRuntimeId}
         onWorkspaceChange={localChatCreation.setWorkspaceId}
       /> : null}
-    </>
+    </div>
   );
 }

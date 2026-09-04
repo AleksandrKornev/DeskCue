@@ -93,6 +93,7 @@ function base64UrlToUint8Array(value: string) {
 
 export function getPushClientId() {
   const existing = localStorage.getItem(PUSH_CLIENT_ID_STORAGE_KEY);
+
   if (existing) {
     return existing;
   }
@@ -103,11 +104,13 @@ export function getPushClientId() {
     // in DeskCue's subscription list. It is never used as an access credential.
     : `browser-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   localStorage.setItem(PUSH_CLIENT_ID_STORAGE_KEY, next);
+
   return next;
 }
 
 export async function enablePushNotifications(options?: { forceRenew?: boolean }) {
   const support = readPushSupportState();
+
   if (!support.supported) {
     return {
       data: {
@@ -119,6 +122,7 @@ export async function enablePushNotifications(options?: { forceRenew?: boolean }
   }
 
   const permission = await Notification.requestPermission();
+
   if (permission !== "granted") {
     return {
       data: {
@@ -136,6 +140,7 @@ export async function enablePushNotifications(options?: { forceRenew?: boolean }
     ]);
     const existingSubscription = await registration.pushManager.getSubscription();
     const replaceEndpoint = options?.forceRenew ? existingSubscription?.endpoint : null;
+
     if (existingSubscription && options?.forceRenew) {
       await existingSubscription.unsubscribe();
     }
@@ -148,6 +153,7 @@ export async function enablePushNotifications(options?: { forceRenew?: boolean }
         });
 
     const subscriptionJson = subscription.toJSON();
+
     if (!subscriptionJson.keys?.auth || !subscriptionJson.keys.p256dh) {
       throw new Error("Browser push subscription keys are unavailable.");
     }
@@ -180,6 +186,7 @@ export async function enablePushNotifications(options?: { forceRenew?: boolean }
 
 export async function hasCurrentPushSubscription() {
   const support = readPushSupportState();
+
   if (!support.supported || Notification.permission !== "granted") {
     return false;
   }
@@ -197,14 +204,24 @@ export async function hasCurrentPushSubscription() {
 }
 
 export async function disablePushNotifications() {
-  const registration =
-    await navigator.serviceWorker.getRegistration("/service-worker.js") ??
-    await navigator.serviceWorker.getRegistration("/");
-  const subscription = await registration?.pushManager.getSubscription();
-  const endpoint = subscription?.endpoint ?? null;
+  const serviceWorker = typeof navigator !== "undefined"
+    ? navigator.serviceWorker
+    : undefined;
+  let endpoint: string | null = null;
 
-  if (subscription) {
-    await subscription.unsubscribe();
+  if (serviceWorker?.getRegistration) {
+    try {
+      const registration =
+        await serviceWorker.getRegistration("/service-worker.js") ??
+        await serviceWorker.getRegistration("/");
+      const subscription = await registration?.pushManager?.getSubscription();
+
+      endpoint = subscription?.endpoint ?? null;
+      if (subscription) await subscription.unsubscribe();
+    } catch {
+      // Server-side removal by the stable browser id must remain available even
+      // when this browser can no longer access its old local subscription.
+    }
   }
 
   return notificationsApi.removePushSubscription({

@@ -1,0 +1,55 @@
+@use "@assets/variables" as vars;
+
+.button {
+  display: inline-grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: vars.$color-text-primary;
+  cursor: pointer;
+  place-items: center;
+}
+
+.surface {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  border: 1px solid vars.$color-border-control;
+  border-radius: 10px;
+  background: vars.$color-surface-control-hover;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+  place-items: center;
+}
+
+.button:hover .surface {
+  border-color: vars.$color-border-accent;
+  background: vars.$color-surface-accent;
+}
+
+.button:focus-visible {
+  outline: none;
+}
+
+.button:focus-visible .surface {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface {
+    transition: none;
+  }
+}

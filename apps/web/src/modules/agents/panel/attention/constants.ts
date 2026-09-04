@@ -1,1 +1,2 @@
 export const ATTENTION_PREVIEW_LIMIT = 2;
+export const MOBILE_ATTENTION_PREVIEW_LIMIT = 1;

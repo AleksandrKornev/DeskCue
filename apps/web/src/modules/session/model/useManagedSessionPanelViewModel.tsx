@@ -17,12 +17,19 @@ import type {
 } from "@modules/session/types";
 import { useDeskCueRuntime } from "@runtime";
 
-import { findManagedSourceSessionSummary } from "./liveChat/helpers";
 import {
-  CHAT_ACTIVITY_ENTRY_RENDER_LIMIT,
-  EXTERNAL_WAIT_VISIBILITY_DELAY_MS
-} from "./panel/constants";
-import { buildWaitingDetailStickKey } from "./panel/helpers";
+  findManagedSourceSessionSummary,
+  resolveLiveSourceState
+} from "./liveChat/helpers";
+import { CHAT_ACTIVITY_ENTRY_RENDER_LIMIT } from "./panel/constants";
+import {
+  buildWaitingDetailStickKey,
+  hasConfirmedExternalSourceReply,
+  isTranscriptHistoryKnownIncomplete,
+  resolveReplyOutcome,
+  stabilizeExternalSourceComposerState
+} from "./panel/helpers";
+import { useStableExternalSourceReplyVisibility } from "./panel/useStableExternalSourceReplyVisibility";
 import { usePreviewCandidates } from "./preview/usePreviewCandidates";
 import { usePreviewTicket } from "./preview/usePreviewTicket";
 import { useManagedSessionReplyState } from "./replyState";
@@ -37,11 +44,19 @@ import { useManagedSessionShellViewModel } from "./useManagedSessionShellViewMod
 import { useManagedSessionTranscriptViewModel } from "./useManagedSessionTranscriptViewModel";
 import { selectBackendWaitingDetailEntry } from "./waiting/selectBackendWaitingDetailEntry";
 
+function buildExternalSourceSessionKey(
+  selectedSessionId: string,
+  sourceSessionId: string | null | undefined
+) {
+  return `${selectedSessionId}:${sourceSessionId ?? "no-source-session"}`;
+}
+
 export function useManagedSessionPanelViewModel({
   activityHydrationRepository,
   activeTab,
   agentSessions,
   agentTranscriptHasMoreById,
+  agentTranscriptHistoryIncompleteById,
   canSendInputWhenReadOnly = false,
   isInterruptingPrompt: isLocalInterruptingPrompt,
   immediateInterruptPrompt: persistedImmediateInterruptPrompt = null,
@@ -57,10 +72,11 @@ export function useManagedSessionPanelViewModel({
   pendingChatPrompt,
   selectedSession,
   selectedSessionId,
+  sessionLoadError,
   suppressExternalWaiting = false,
   takenOverAgentSession
 }: ManagedSessionPanelProps) {
-  const { copyFeedback, handleCopyMessage } = useMessageCopyFeedback();
+  const { copyFeedback, handleCopyMessage } = useMessageCopyFeedback(selectedSessionId);
   const previewReview = previewReviewStore;
   const runtime = useDeskCueRuntime();
 
@@ -81,7 +97,8 @@ export function useManagedSessionPanelViewModel({
   } = useManagedSessionShellViewModel({
     managedSessions,
     selectedSession,
-    selectedSessionId
+    selectedSessionId,
+    suppressSessionShell: Boolean(sessionLoadError)
   });
   const previewEnabled = runtime.features.preview === true && hasPreview !== false;
   const usesHostPreviewLauncher = runtime.launchSessionPreview !== undefined;
@@ -106,6 +123,11 @@ export function useManagedSessionPanelViewModel({
         takenOverAgentSession
       ),
     [agentSessions, sessionShell, takenOverAgentSession]
+  );
+
+  const sourceTranscriptHistoryIncomplete = isTranscriptHistoryKnownIncomplete(
+    agentTranscriptHistoryIncompleteById,
+    takenOverAgentSession?.id
   );
 
   const retryRecoveredPrompt = useCallback(
@@ -137,10 +159,12 @@ export function useManagedSessionPanelViewModel({
     hasConversationContent,
     isTranscriptLoading,
     latestWaitingDetailEntry: backendLatestWaitingDetailEntry,
+    sourceDiffDetailsUnavailable,
     sourceDiffParts
   } = useManagedSessionTranscriptViewModel({
     activeTab,
     isTakenOverAgentSessionLoading,
+    sourceTranscriptHistoryIncomplete,
     takenOverAgentSession
   });
   const {
@@ -152,6 +176,7 @@ export function useManagedSessionPanelViewModel({
     effectiveIsWaitingForChatReply,
     effectiveShellWaitingPrompt,
     hasCompletedManagedPrompt,
+    hasCompletedManagedPromptWithFinalReply,
     inputUnavailableLabel,
     interruptLifecycle,
     isExternalSourceTurn,
@@ -220,29 +245,35 @@ export function useManagedSessionPanelViewModel({
   });
   const waitingDetailSince =
     waitingReplyPrompt?.requestedAt ?? null;
+  const liveExternalSourceSession = resolveLiveSourceState(
+    takenOverAgentSession,
+    sourceSessionSummary
+  );
   const hasExternalSourceReply =
     !suppressExternalWaiting &&
     isExternalSourceTurn;
-  const [isExternalSourceReplyVisible, setIsExternalSourceReplyVisible] = useState(false);
-
-  useEffect(() => {
-    if (!hasExternalSourceReply) {
-      setIsExternalSourceReplyVisible(false);
-      return;
-    }
-
-    const timer = window.setTimeout(
-      () => setIsExternalSourceReplyVisible(true),
-      EXTERNAL_WAIT_VISIBILITY_DELAY_MS
-    );
-
-    return () => window.clearTimeout(timer);
-  }, [hasExternalSourceReply]);
-
+  const externalSourceSessionKey = buildExternalSourceSessionKey(
+    selectedSessionId,
+    sessionShell?.sourceSessionId ?? liveChatSourceSessionId
+  );
+  const hasConfirmedExternalReply = hasConfirmedExternalSourceReply(
+    liveExternalSourceSession,
+    chatTranscriptEntries,
+    waitingReplyPrompt?.requestedAt ?? null
+  );
   const isWaitingForExternalSourceReply =
-    hasExternalSourceReply && isExternalSourceReplyVisible;
+    useStableExternalSourceReplyVisibility({
+      hasExternalSourceReply,
+      resetKey: externalSourceSessionKey,
+      terminalConfirmed: hasConfirmedExternalReply
+    });
   const isWaitingForAnySourceReply =
     effectiveIsWaitingForChatReply || isWaitingForExternalSourceReply;
+  const stableComposerState = stabilizeExternalSourceComposerState({
+    canSendInput,
+    composerPromptInFlight,
+    inputUnavailableLabel
+  }, isWaitingForExternalSourceReply);
 
   const latestWaitingDetailEntry = useMemo(
     () =>
@@ -320,6 +351,7 @@ export function useManagedSessionPanelViewModel({
   const renderActivityEntries = useCallback(
     (activity: ConversationActivity) => (
       <ManagedSessionActivityEntries
+        assetContext={liveChatAssetContext}
         deferEntryRender={activity.kind === "details" || activity.kind === "tools"}
         entries={readHydratedActivityEntries(activity)}
         errorLabel={readActivityHydrationErrorLabel(activity)}
@@ -328,7 +360,7 @@ export function useManagedSessionPanelViewModel({
         loadingLabel={`Loading ${activity.kind}...`}
       />
     ),
-    [readActivityHydrationErrorLabel, readHydratedActivityEntries]
+    [liveChatAssetContext, readActivityHydrationErrorLabel, readHydratedActivityEntries]
   );
 
   const immediateInterruptPrompt =
@@ -359,6 +391,18 @@ export function useManagedSessionPanelViewModel({
         ? { kind: "external", detailEntry: latestWaitingDetailEntry }
         : { kind: "idle" }
   });
+  const sourceTerminalOutcome = hasConfirmedExternalReply && liveExternalSourceSession?.turnState
+    ? liveExternalSourceSession.turnState.phase
+    : null;
+  const replyOutcome = resolveReplyOutcome(
+    sourceTerminalOutcome === "completed" ||
+      sourceTerminalOutcome === "failed" ||
+      sourceTerminalOutcome === "interrupted"
+      ? sourceTerminalOutcome
+      : null,
+    immediateInterruptPrompt?.phase,
+    hasCompletedManagedPromptWithFinalReply
+  );
   const liveChatThreadProps = {
     assistantDisplayName,
     assetContext: liveChatAssetContext,
@@ -367,7 +411,9 @@ export function useManagedSessionPanelViewModel({
     hiddenConversationItemCount,
     isLoadingMoreHistory,
     isActivityExpanded,
+    replyOutcome,
     renderActivityEntries,
+    sessionKey: externalSourceSessionKey,
     showScrollToLatest,
     state: chatThreadState,
     threadRef: chatThreadRef,
@@ -384,15 +430,15 @@ export function useManagedSessionPanelViewModel({
     activePromptText,
     activeSelectedSession,
     activityGroups,
-    canSendInput,
+    canSendInput: stableComposerState.canSendInput,
     chatComposerShellRef,
     chatSurfaceRef,
     chatToolbarRef,
     chatWorkspaceStyle,
-    composerPromptInFlight,
+    composerPromptInFlight: stableComposerState.composerPromptInFlight,
     contextCompactionCount,
     debugEntries,
-    inputUnavailableLabel,
+    inputUnavailableLabel: stableComposerState.inputUnavailableLabel,
     isCompactViewport,
     isActivityExpanded,
     interruptLifecycle,
@@ -412,6 +458,7 @@ export function useManagedSessionPanelViewModel({
     previewCandidatesLoading: previewCandidates.loading,
     previewLoading: previewTicket.loading,
     previewRetry: previewTicket.retry,
+    previewValidate: previewTicket.validate,
     previewUrl: previewTicket.url,
     renderActivityEntries,
     selectedSessionDetail,
@@ -419,6 +466,7 @@ export function useManagedSessionPanelViewModel({
     sharedSessionHint,
     sharedViewerCount,
     showModelContext,
+    sourceDiffDetailsUnavailable,
     sourceDiffParts,
     switchableManagedSessions,
     setShowModelContext,

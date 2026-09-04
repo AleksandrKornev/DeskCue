@@ -1,4 +1,9 @@
+import { hasCompactDiffPlaceholderText } from "@deskcue/protocol/transcript/compact-diff";
 import type { DiffFileGroup, DiffPart } from "@modules/transcript/RichTranscriptContent/types";
+
+function buildAgentReportedDiffPartKey(part: DiffPart) {
+  return JSON.stringify([part.filePath, part.changeType, part.title, part.text]);
+}
 
 export function splitDiffLines(value: string) {
   return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
@@ -22,6 +27,7 @@ function isChangedDiffLine(line: string) {
 function inferDiffFilePath(value: string) {
   const lines = splitDiffLines(value);
   const renameToLine = lines.find((line) => line.startsWith("rename to "));
+
   if (renameToLine) {
     return renameToLine.replace(/^rename to\s+/, "").trim();
   }
@@ -35,8 +41,10 @@ function inferDiffFilePath(value: string) {
   }
 
   const diffHeaderLine = lines.find((line) => line.startsWith("diff --git "));
+
   if (diffHeaderLine) {
     const match = diffHeaderLine.match(/^diff --git a\/(.+?) b\/(.+)$/);
+
     if (match) {
       return match[2];
     }
@@ -83,6 +91,7 @@ export function createSyntheticDiffPart(text: string, title: string): DiffPart {
 
 export function looksLikeUnifiedDiff(value: string) {
   const lines = splitDiffLines(value).filter((line) => line.trim().length > 0);
+
   if (lines.length === 0) {
     return false;
   }
@@ -119,6 +128,7 @@ export function getDiffStats(lines: string[]) {
 export function getDiffDisplayPath(part: DiffPart) {
   if (part.changeType === "move") {
     const moveTarget = part.title.replace(/^Moved\s+/, "").trim();
+
     if (moveTarget) {
       return moveTarget;
     }
@@ -163,7 +173,9 @@ export function groupDiffPartsByFile(parts: DiffPart[]) {
     }
 
     const group = groups[groupIndex];
+
     group.additions += diffStats.additions;
+
     group.changeType = part.changeType;
     group.deletions += diffStats.deletions;
     group.parts.push(part);
@@ -224,6 +236,24 @@ export function getDiffLineTone(line: string) {
   }
 
   return "context";
+}
+
+export function filterAgentReportedDiffParts(parts: DiffPart[]) {
+  const reviewableParts: DiffPart[] = [];
+  const seenPartKeys = new Set<string>();
+
+  for (const part of parts) {
+    if (hasCompactDiffPlaceholderText(part)) continue;
+
+    const partKey = buildAgentReportedDiffPartKey(part);
+
+    if (seenPartKeys.has(partKey)) continue;
+
+    seenPartKeys.add(partKey);
+    reviewableParts.push(part);
+  }
+
+  return reviewableParts;
 }
 
 export function getDiffLineMarker(line: string) {

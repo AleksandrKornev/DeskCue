@@ -18,6 +18,15 @@ export type NavigateToRoute = (
   }
 ) => void;
 
+export type AgentSessionNavigationOptions = {
+  replace?: boolean;
+  subagentParentSessionId?: string;
+};
+
+export type ManagedSessionNavigationOptions = {
+  subagentParentSessionId?: string;
+};
+
 export type UseDashboardRouteActionsArgs = {
   activeLiveOverlay: OverlayMode;
   activeTab: SessionTab;

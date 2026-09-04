@@ -1,13 +1,16 @@
 import { observer } from "mobx-react-lite";
 import { Navigate, Route, Routes, useLocation } from "react-router";
 
-import { dashboardNavigationStore, useDeskCueDashboard } from "@modules/dashboard";
-import { DashboardPage } from "@pages/DashboardPage";
-import { LocalLlmChatPage } from "@pages/LocalLlmChatPage/LocalLlmChatPage";
-import { ManagedSessionPage } from "@pages/ManagedSessionPage";
+import { useDeskCueDashboard } from "@modules/dashboard/model";
+import { dashboardNavigationStore } from "@modules/dashboard/shell/store/dashboardNavigationStore";
 import { useDeskCueRuntime } from "@runtime";
 
 import { readRouteSessionId, readRouteSessionTab } from "./helpers";
+import {
+  DashboardPage,
+  LocalLlmChatPage,
+  ManagedSessionPage
+} from "./lazyPages";
 import { LazyRoute } from "./LazyRoute";
 
 export const DeskCueRoutes = observer(function DeskCueRoutes() {

@@ -37,7 +37,7 @@
 }
 
 .tabPillActive {
-  background: rgba(214, 164, 103, 0.09);
+  background: vars.$color-surface-accent;
 }
 
 .listSummary {
@@ -49,7 +49,7 @@
 .searchField {
   width: 100%;
   min-height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-muted;
   border-radius: vars.$radius-md;
 }
 
@@ -63,9 +63,9 @@
   gap: 12px;
   min-height: 116px;
   padding: 16px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: vars.$color-surface-input;
 }
 
 .line {
@@ -77,11 +77,6 @@
 .lineTitle {
   width: 76%;
   min-height: 18px;
-}
-
-.lineTitleWide {
-  width: min(420px, 82%);
-  min-height: 22px;
 }
 
 .linePanelTitle {
@@ -102,96 +97,12 @@
   width: 34%;
 }
 
-.lineMetaWide {
-  width: min(320px, 64%);
-}
-
 .lineWide {
   width: 86%;
 }
 
 .lineMid {
   width: 58%;
-}
-
-.lineShort {
-  width: 34%;
-}
-
-.previewGrid {
-  display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
-}
-
-.previewRail {
-  min-width: 0;
-}
-
-.previewColumn {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-}
-
-.previewPanel {
-  display: grid;
-  align-content: start;
-  gap: 16px;
-  min-height: 0;
-  align-self: start;
-  padding: 18px;
-  border: 1px solid vars.$color-border-subtle;
-  border-radius: vars.$radius-lg;
-  background: vars.$color-surface-panel;
-}
-
-.backLine {
-  width: 112px;
-  min-height: 20px;
-  border-radius: vars.$radius-pill;
-}
-
-.previewHeader {
-  display: grid;
-  gap: 10px;
-}
-
-.previewTurn {
-  display: grid;
-  gap: 12px;
-  min-height: 164px;
-  padding: 16px;
-  border-radius: vars.$radius-md;
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.previewButton {
-  justify-self: start;
-  width: 148px;
-  min-height: 44px;
-  border-radius: vars.$radius-md;
-}
-
-.secondaryStack {
-  display: grid;
-  gap: 14px;
-}
-
-.secondaryCard {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid vars.$color-border-subtle;
-  border-radius: vars.$radius-lg;
-  background: vars.$color-surface-panel;
-}
-
-.secondaryButton {
-  width: 100%;
-  min-height: 44px;
-  border-radius: vars.$radius-md;
 }
 
 .pagePanel {
@@ -209,9 +120,9 @@
   gap: 10px;
   min-height: 92px;
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-muted;
   border-radius: vars.$radius-md;
-  background: rgba(255, 255, 255, 0.03);
+  background: vars.$color-surface-input;
 }
 
 .sessionPanel {
@@ -275,7 +186,7 @@
   gap: 6px;
   padding: 4px;
   border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.04);
+  background: vars.$color-surface-raised;
   width: fit-content;
   max-width: 100%;
 }
@@ -287,7 +198,7 @@
 }
 
 .segmentActive {
-  background: rgba(255, 255, 255, 0.08);
+  background: vars.$color-surface-control-hover;
 }
 
 .threadArea {
@@ -298,7 +209,7 @@
   padding: 16px;
   border: 1px solid vars.$color-border-subtle;
   border-radius: vars.$radius-lg;
-  background: rgba(255, 255, 255, 0.02);
+  background: vars.$color-surface-raised-subtle;
   overflow: hidden;
 }
 
@@ -307,7 +218,7 @@
   display: grid;
   gap: 10px;
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 16px;
 }
 
@@ -324,9 +235,9 @@
   position: relative;
   min-height: 112px;
   padding: 16px 72px 16px 16px;
-  border: 1px solid rgba(214, 164, 103, 0.26);
+  border: 1px solid vars.$color-border-accent;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-input;
 }
 
 .sendButton {
@@ -349,4 +260,3 @@
   right: 14px;
   bottom: 14px;
 }
-

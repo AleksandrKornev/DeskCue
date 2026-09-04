@@ -73,7 +73,6 @@ export class DashboardStore {
   previewPort = "";
   error = "";
   loading = false;
-  pickingWorkspace = false;
   attachingAgentSessionId = "";
   eventStreamAttempt = 0;
   isBootstrapping = true;
@@ -155,7 +154,6 @@ export class DashboardStore {
     this.previewPort = "";
     this.error = "";
     this.loading = false;
-    this.pickingWorkspace = false;
     this.attachingAgentSessionId = "";
     this.eventStreamAttempt += 1;
     this.isBootstrapping = true;
@@ -206,6 +204,7 @@ export class DashboardStore {
     if (this.agentSessionsLoadState !== "ready") {
       return "...";
     }
+
     return formatCount(this.agentSessionsTotalCount, this.agentSessionsTotalCountExact);
   }
 
@@ -224,6 +223,7 @@ export class DashboardStore {
       shouldPreserveWorkspace: (workspace) =>
         (this.overviewWorkspaceRevisionById.get(workspace.id) ?? 0) > requestRevision
     });
+
     this.pruneOverviewRevisions(requestRevision);
   }
 
@@ -233,7 +233,9 @@ export class DashboardStore {
 
   mergeOverviewSession(summary: SessionSummary) {
     const previousOverview = this.overview;
+
     liveStateSlice.mergeOverviewSession(this, summary);
+
     if (this.overview !== previousOverview) {
       this.recordOverviewSessionRevision(summary.id);
     }
@@ -241,7 +243,9 @@ export class DashboardStore {
 
   touchOverviewSession(sessionId: string, timestamp: string) {
     const previousOverview = this.overview;
+
     liveStateSlice.touchOverviewSession(this, sessionId, timestamp);
+
     if (this.overview !== previousOverview) {
       this.recordOverviewSessionRevision(sessionId);
     }
@@ -249,7 +253,9 @@ export class DashboardStore {
 
   addWorkspaceSummary(summary: WorkspaceSummary) {
     const previousOverview = this.overview;
+
     liveStateSlice.addWorkspaceSummary(this, summary);
+
     if (this.overview !== previousOverview) {
       this.overviewLiveRevision += 1;
       this.overviewWorkspaceRevisionById.set(summary.id, this.overviewLiveRevision);
@@ -450,10 +456,6 @@ export class DashboardStore {
     this.loading = value;
   }
 
-  setPickingWorkspace(value: boolean) {
-    this.pickingWorkspace = value;
-  }
-
   setAttachingAgentSessionId(value: string) {
     this.attachingAgentSessionId = value;
   }
@@ -477,6 +479,7 @@ export class DashboardStore {
         this.overviewSessionRevisionById.delete(sessionId);
       }
     }
+
     for (const [workspaceId, revision] of this.overviewWorkspaceRevisionById) {
       if (revision <= requestRevision) {
         this.overviewWorkspaceRevisionById.delete(workspaceId);

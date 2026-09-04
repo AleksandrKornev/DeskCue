@@ -4,6 +4,10 @@
   gap: 5px;
 }
 
+.connectionIdentity small {
+  overflow-wrap: anywhere;
+}
+
 .connectedSettings {
   display: grid;
   gap: 14px;
@@ -12,10 +16,10 @@
 .permissionsEditor {
   display: grid;
   gap: 12px;
-  border: 1px solid rgba(121, 151, 232, 0.18);
+  border: 1px solid vars.$color-border-info;
   border-radius: 10px;
   padding: 14px;
-  background: rgba(61, 89, 166, 0.055);
+  background: vars.$color-surface-info-glow;
 }
 
 .permissionPresets {
@@ -30,7 +34,7 @@
 .permissionPresets legend {
   margin-bottom: 7px;
   padding: 0;
-  color: #aeb7c7;
+  color: vars.$color-status-info;
   font-size: 0.76rem;
   font-weight: 800;
 }
@@ -47,28 +51,28 @@
   gap: 6px;
   min-width: 0;
   min-height: 92px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.025);
-  color: #929caf;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-status-info;
   font: inherit;
   text-align: left;
 }
 
 .presetButton:hover:not(:disabled) {
-  border-color: rgba(125, 151, 215, 0.34);
-  background: rgba(91, 122, 207, 0.08);
+  border-color: vars.$color-border-info;
+  background: vars.$color-surface-info-glow;
 }
 
 .presetButton[aria-pressed="true"] {
-  border-color: rgba(112, 145, 234, 0.58);
-  background: rgba(61, 89, 166, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(112, 145, 234, 0.12);
+  border-color: vars.$color-border-info;
+  background: vars.$color-surface-info;
+  box-shadow: inset 0 0 0 1px vars.$color-surface-info-glow;
 }
 
 .presetButton:focus-visible {
-  outline: 2px solid rgba(142, 167, 232, 0.7);
+  outline: 2px solid vars.$color-focus-ring;
   outline-offset: 1px;
 }
 
@@ -85,16 +89,16 @@
 }
 
 .presetButton strong {
-  color: #eef3ff;
+  color: vars.$color-text-primary;
   font-size: 0.8rem;
   line-height: 1.25;
 }
 
 .presetButton em {
-  border: 1px solid rgba(214, 164, 103, 0.34);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 999px;
   padding: 2px 5px;
-  color: #dfb776;
+  color: vars.$color-status-warning;
   font-size: 0.58rem;
   font-style: normal;
   font-weight: 850;
@@ -105,7 +109,7 @@
 
 .presetButton small,
 .presetStatus {
-  color: #929caf;
+  color: vars.$color-status-info;
   font-size: 0.7rem;
   line-height: 1.35;
 }
@@ -116,9 +120,9 @@
 
 .permissionsBoundary {
   margin: 0;
-  border-left: 2px solid rgba(214, 164, 103, 0.5);
+  border-left: 2px solid vars.$color-border-warning;
   padding: 2px 0 2px 10px;
-  color: #aeb7c7;
+  color: vars.$color-status-info;
   font-size: 0.75rem;
   line-height: 1.45;
 }
@@ -127,10 +131,10 @@
   display: grid;
   grid-column: 1 / -1;
   gap: 10px;
-  border: 1px solid rgba(121, 151, 232, 0.18);
+  border: 1px solid vars.$color-border-info;
   border-radius: 10px;
   padding: 14px;
-  background: rgba(61, 89, 166, 0.055);
+  background: vars.$color-surface-info-glow;
 }
 
 .permissionsGrid {
@@ -145,18 +149,18 @@
   align-items: start;
   gap: 9px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.075);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 11px;
-  background: rgba(255, 255, 255, 0.025);
-  color: #aeb7c7;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-status-info;
 }
 
 .permissionField input {
   width: 18px;
   height: 18px;
   margin: 1px 0 0;
-  accent-color: #5f82e5;
+  accent-color: vars.$color-action-primary;
 }
 
 .permissionField input:disabled {
@@ -171,13 +175,13 @@
 }
 
 .permissionField strong {
-  color: #eef3ff;
+  color: vars.$color-text-primary;
   font-size: 0.82rem;
   line-height: 1.3;
 }
 
 .permissionField small {
-  color: #929caf;
+  color: vars.$color-status-info;
   font-size: 0.74rem;
   line-height: 1.4;
 }
@@ -190,7 +194,7 @@
 }
 
 .permissionsActions > span {
-  color: #8fd6a8;
+  color: vars.$color-status-success;
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -205,11 +209,11 @@
 }
 
 .connectionTraits li {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid vars.$color-border-control;
   border-radius: 999px;
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.035);
-  color: #aeb7c7;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-status-info;
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.2;
@@ -222,7 +226,7 @@
 }
 
 .capabilitySummary span {
-  color: #7f899b;
+  color: vars.$color-status-info;
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.045em;
@@ -230,15 +234,15 @@
 }
 
 .capabilitySummary strong {
-  color: #c6d4f3;
+  color: vars.$color-status-info;
   font-size: 0.78rem;
   line-height: 1.35;
 }
 
 .connectButton {
   border: 0;
-  background: #3152b5;
-  color: #ffffff;
+  background: vars.$color-action-primary;
+  color: vars.$color-text-primary;
 }
 
 .connectButton:disabled {
@@ -255,7 +259,7 @@
 .field {
   display: grid;
   gap: 6px;
-  color: #aeb7c7;
+  color: vars.$color-status-info;
   font-size: 0.78rem;
   font-weight: 750;
 }
@@ -272,18 +276,18 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 10px;
-  border: 1px solid rgba(121, 151, 232, 0.2);
+  border: 1px solid vars.$color-border-info;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(61, 89, 166, 0.08);
-  color: #aeb7c7;
+  background: vars.$color-surface-info-glow;
+  color: vars.$color-status-info;
 }
 
 .consentField input {
   width: 18px;
   height: 18px;
   margin: 1px 0 0;
-  accent-color: #5f82e5;
+  accent-color: vars.$color-action-primary;
 }
 
 .consentField span {
@@ -292,12 +296,12 @@
 }
 
 .consentField strong {
-  color: #eef3ff;
+  color: vars.$color-text-primary;
   font-size: 0.84rem;
 }
 
 .consentField small {
-  color: #929caf;
+  color: vars.$color-status-info;
   font-size: 0.76rem;
   line-height: 1.4;
 }
@@ -305,22 +309,22 @@
 .field input {
   min-width: 0;
   min-height: vars.$control-height-touch;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 9px 11px;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-control-subtle;
   color: vars.$color-text-primary;
   font: inherit;
 }
 
 .field input:focus-visible {
-  outline: 2px solid rgba(142, 167, 232, 0.7);
+  outline: 2px solid vars.$color-focus-ring;
   outline-offset: 1px;
 }
 
 .error {
   margin: 0;
-  color: #ffaaa5;
+  color: vars.$color-status-danger;
   font-size: 0.8rem;
 }
 
@@ -334,10 +338,10 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-  border: 1px solid rgba(214, 164, 103, 0.36);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(214, 164, 103, 0.08);
+  background: vars.$color-surface-accent;
 }
 
 .enrollmentPending > div {
@@ -346,12 +350,12 @@
 }
 
 .enrollmentPending strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.88rem;
 }
 
 .enrollmentPending small {
-  color: #aeb7c7;
+  color: vars.$color-status-info;
   font-size: 0.78rem;
   line-height: 1.4;
 }
@@ -360,10 +364,10 @@
 .enrollmentPending button,
 .advancedToggle {
   min-height: vars.$control-height-touch;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 9px 13px;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-control-subtle;
   color: vars.$color-text-primary;
   font: inherit;
   font-size: 0.8rem;
@@ -383,7 +387,7 @@
   border: 0;
   padding: 4px 0;
   background: transparent;
-  color: #aeb7c7;
+  color: vars.$color-status-info;
 }
 
 .advancedToggle::after {
@@ -399,17 +403,17 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: end;
   gap: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid vars.$color-border-control;
   padding-top: 12px;
 }
 
 .disconnectButton {
   min-height: vars.$control-height-touch;
-  border: 1px solid rgba(255, 152, 145, 0.28);
+  border: 1px solid vars.$color-border-danger;
   border-radius: 8px;
   padding: 9px 14px;
-  background: rgba(164, 57, 49, 0.14);
-  color: #ffc0bb;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
   font-weight: 750;
 }
 

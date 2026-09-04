@@ -1,3 +1,5 @@
+@use "@assets/variables" as vars;
+
 .page {
   display: grid;
   height: 100dvh;
@@ -12,10 +14,10 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 20px;
   padding: 22px;
-  background: rgba(13, 14, 18, 0.88);
+  background: vars.$color-surface-panel;
 }
 
 .header h1 {
@@ -27,7 +29,7 @@
 .header p {
   max-width: 760px;
   margin: 0;
-  color: #c7ccd8;
+  color: vars.$color-text-dialog-secondary;
   line-height: 1.45;
 }
 
@@ -36,12 +38,24 @@
   align-items: center;
   min-height: 44px;
   padding: 0;
-  color: #fff5e1;
+  color: vars.$color-accent-strong;
   text-decoration: none;
 }
 
 .logoWordmark {
   width: 112px;
+}
+
+.homeIcon {
+  display: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+}
+
+.sourcePathCompact {
+  display: none;
 }
 
 .headerActions {
@@ -53,30 +67,30 @@
 .autoRefreshControl {
   display: grid;
   gap: 6px;
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
   font-size: 0.78rem;
   font-weight: 700;
 }
 
 .autoRefreshControl select {
   min-width: 104px;
-  min-height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: vars.$control-height-touch;
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 12px;
   padding: 0 12px;
-  background: #171920;
-  color: #f3efe8;
+  background: vars.$color-surface-dialog;
+  color: vars.$color-text-primary;
   font: inherit;
 }
 
 .refreshButton {
   min-width: 120px;
-  min-height: 42px;
+  min-height: vars.$control-height-touch;
   border: 0;
   border-radius: 12px;
   padding: 10px 16px;
-  background: #3152b5;
-  color: #ffffff;
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
   font-weight: 700;
 }
 
@@ -84,14 +98,21 @@
   opacity: 0.62;
 }
 
+.backLink:focus-visible,
+.autoRefreshControl select:focus-visible,
+.refreshButton:focus-visible {
+  outline: 0;
+  box-shadow: vars.$shadow-focus-ring;
+}
+
 .summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 16px;
   padding: 16px;
-  background: rgba(13, 14, 18, 0.72);
+  background: vars.$color-surface-panel;
 }
 
 .summary > div {
@@ -101,19 +122,27 @@
 }
 
 .summary strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .summary p {
   grid-column: 1 / -1;
   margin: 0;
-  color: #a9adb7;
+  overflow-wrap: anywhere;
+  color: vars.$color-text-secondary;
+}
+
+.liveRegion:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .label {
-  color: #8f96a2;
+  color: vars.$color-text-muted;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -121,15 +150,25 @@
 }
 
 .logSurface {
-  display: grid;
-  align-content: start;
   min-height: 0;
   overflow: auto;
-  gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-muted;
   border-radius: 18px;
   padding: 16px;
-  background: rgba(10, 11, 15, 0.86);
+  background: vars.$color-surface-terminal;
+}
+
+.logList {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.logListItem {
+  min-width: 0;
+  list-style: none;
 }
 
 .emptyState {
@@ -137,21 +176,21 @@
   place-items: center;
   min-height: 320px;
   gap: 8px;
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
   text-align: center;
 }
 
 .emptyState strong {
-  color: #f3efe8;
+  color: vars.$color-text-primary;
 }
 
 .logRow {
   display: grid;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid vars.$color-border-subtle;
   border-radius: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-input;
 }
 
 .logHeader {
@@ -159,14 +198,40 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 14px;
-  color: #a9adb7;
+  color: vars.$color-text-secondary;
   font-size: 0.82rem;
 }
 
 .logLevel {
-  color: #f3efe8;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: vars.$color-surface-raised;
+  color: vars.$color-text-primary;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.logLevelError {
+  border-color: vars.$color-border-danger;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
+}
+
+.logLevelWarning {
+  border-color: vars.$color-border-warning;
+  background: vars.$color-surface-warning;
+  color: vars.$color-status-warning;
+}
+
+.logLevelInfo {
+  border-color: vars.$color-border-info;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
+}
+
+.logLevelMuted {
+  color: vars.$color-text-secondary;
 }
 
 .timestamp {
@@ -178,35 +243,119 @@
 .logMessage {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   line-height: 1.45;
 }
 
 .context {
-  overflow: auto;
-  max-height: 260px;
   margin: 0;
   border-radius: 10px;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.24);
-  color: #c9ced8;
+  background: vars.$color-surface-canvas;
+  color: vars.$color-text-dialog-secondary;
   font-size: 0.82rem;
   line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-height: 480px) and (min-width: 721px) {
+  .page {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .header {
+    align-items: center;
+    padding: 10px 14px;
+  }
+
+  .header h1 {
+    margin: 0;
+    font-size: 1.35rem;
+  }
+
+  .header p {
+    display: none;
+  }
+
+  .logoWordmark {
+    width: 88px;
+  }
+
+  .summary {
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .summary p {
+    display: none;
+  }
 }
 
 @media (max-width: 720px) {
   .page {
     height: 100dvh;
+    gap: 12px;
     padding: 14px;
   }
 
-  .header,
-  .summary {
-    grid-template-columns: 1fr;
+  .header {
+    position: relative;
+    display: grid;
+    gap: 12px;
+    padding: 14px 16px;
   }
 
-  .header {
-    display: grid;
+  .header h1 {
+    margin: 0;
+    padding-right: 56px;
+    font-size: 1.5rem;
+    line-height: 1.08;
+  }
+
+  .header p {
+    padding-right: 48px;
+    font-size: 0.88rem;
+  }
+
+  .backLink {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    justify-content: center;
+    width: vars.$control-height-touch;
+    min-width: vars.$control-height-touch;
+    border: 1px solid vars.$color-border-accent;
+    border-radius: vars.$radius-md;
+    background: vars.$color-surface-accent;
+  }
+
+  .logoWordmark {
+    display: none;
+  }
+
+  .homeIcon {
+    display: block;
+  }
+
+  .summary {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .sourcePath {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sourcePathFull {
+    display: none;
+  }
+
+  .sourcePathCompact {
+    display: inline;
   }
 
   .refreshButton {
@@ -222,4 +371,5 @@
   .autoRefreshControl select {
     width: 100%;
   }
+
 }

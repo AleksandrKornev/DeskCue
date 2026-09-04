@@ -9,5 +9,4 @@ export const activityEntryClassByRole: Partial<
   tool: styles.activityEntryTool
 };
 
-export const COMPACT_DIFF_PLACEHOLDER_TEXT = "[diff hidden in live view]";
 export const PROGRESSIVE_RENDER_THRESHOLD = 3;

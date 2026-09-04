@@ -75,6 +75,7 @@ test("groups details, tools and changes without changing hydrated diff semantics
   const assistant = view.items.find(
     (item) => item.type === "message" && item.entry.id === "assistant-1"
   );
+
   assert.equal(assistant?.type, "message");
   assert.deepEqual(assistant?.activities.map((activity) => activity.kind), [
     "details",
@@ -90,11 +91,151 @@ test("groups details, tools and changes without changing hydrated diff semantics
 
   const changes = assistant?.changeActivities[0];
   const response = buildAgentTranscriptChangesResponse(session, changes?.id ?? "");
+
   assert.deepEqual(response?.files.map((file) => ({
     additions: file.additions,
     deletions: file.deletions,
     displayPath: file.displayPath
   })), [{ additions: 1, deletions: 1, displayPath: "app.ts" }]);
+});
+
+test("uses canonical source order when compact activity timestamps are skewed", () => {
+  const compactToolEntry = {
+    ...entry("compact-tools", "tool", "Tool summary", new Date(0).toISOString()),
+    isCompact: true,
+    parts: [{
+      type: "tool_result" as const,
+      toolName: "read_file",
+      status: "completed" as const,
+      text: "summary"
+    }],
+    sourceEntryCount: 5,
+    sourceEntryRanges: [{ prefix: "source-", start: 110, end: 114 }]
+  };
+
+  const userEntry = entry("source-100", "user", "Inspect it", "2026-08-05T01:00:10.000Z");
+  const assistantEntry = entry(
+    "source-130",
+    "assistant",
+    "Done",
+    "2026-08-05T01:00:30.000Z"
+  );
+
+  const view = buildAgentTranscriptView(agentSession([
+    userEntry,
+    compactToolEntry,
+    assistantEntry
+  ]));
+  const assistant = view.items.find(
+    (item) => item.type === "message" && item.entry.id === assistantEntry.id
+  );
+
+  assert.equal(assistant?.type, "message");
+  assert.deepEqual(assistant?.activities.map((activity) => activity.label), ["Tools (5)"]);
+  assert.equal(view.items.some((item) => item.type === "activity"), false);
+});
+
+test("uses one timestamp order when transcript source coordinate families are mixed", () => {
+  const compactToolEntry = {
+    ...entry("compact-tools", "tool", "Tool summary", "2026-08-05T01:00:20.000Z"),
+    isCompact: true,
+    parts: [{
+      type: "tool_result" as const,
+      toolName: "read_file",
+      status: "completed" as const,
+      text: "summary"
+    }],
+    sourceEntryCount: 5,
+    sourceEntryRanges: [{ prefix: "window-", start: 110, end: 114 }]
+  };
+
+  const view = buildAgentTranscriptView(agentSession([
+    entry("source-100", "user", "Inspect it", "2026-08-05T01:00:10.000Z"),
+    compactToolEntry,
+    entry("source-130", "assistant", "Done", "2026-08-05T01:00:30.000Z")
+  ]));
+  const assistant = view.items.find(
+    (item) => item.type === "message" && item.entry.id === "source-130"
+  );
+
+  assert.equal(assistant?.type, "message");
+  assert.deepEqual(assistant?.activities.map((activity) => activity.label), ["Tools (5)"]);
+  assert.equal(view.items.some((item) => item.type === "activity"), false);
+});
+
+test("keeps mixed compact changes honest and excludes hidden placeholders from files", () => {
+  const session = agentSession([
+    entry("user-1", "user", "update the file", "2026-08-05T01:00:00.000Z"),
+    {
+      ...entry("change-compact", "tool", "Changes hidden", "2026-08-05T01:00:01.000Z"),
+      isCompact: true,
+      parts: [{
+        type: "diff",
+        title: "Changes",
+        text: "[diff hidden in live view]",
+        filePath: null,
+        changeType: "unknown"
+      }]
+    },
+    {
+      ...entry("change-exact", "tool", "Updated app.ts", "2026-08-05T01:00:02.000Z"),
+      parts: [{
+        type: "diff",
+        title: "app.ts",
+        text: "--- a/app.ts\n+++ b/app.ts\n-old\n+new",
+        filePath: "app.ts",
+        changeType: "update"
+      }]
+    },
+    entry("assistant-1", "assistant", "Done", "2026-08-05T01:00:03.000Z")
+  ]);
+  const view = buildAgentTranscriptView(session);
+  const assistant = view.items.find(
+    (item) => item.type === "message" && item.entry.id === "assistant-1"
+  );
+
+  assert.equal(assistant?.type, "message");
+  assert.equal(assistant?.changeActivities[0]?.label, "Changes");
+
+  const response = buildAgentTranscriptChangesResponse(
+    session,
+    assistant?.changeActivities[0]?.id ?? ""
+  );
+
+  assert.deepEqual(response?.files.map((file) => file.displayPath), ["app.ts"]);
+});
+
+test("keeps duplicate change source events while avoiding doubled hydrated diff stats", () => {
+  const diffPart = {
+    type: "diff" as const,
+    title: "app.ts",
+    text: "--- a/app.ts\n+++ b/app.ts\n-old\n+new",
+    filePath: "app.ts",
+    changeType: "update" as const
+  };
+
+  const session = agentSession([
+    entry("user-1", "user", "update", "2026-08-05T01:00:00.000Z"),
+    { ...entry("change-legacy", "tool", "Updated app.ts", "2026-08-05T01:00:01.000Z"), parts: [diffPart] },
+    { ...entry("change-modern", "tool", "Updated app.ts", "2026-08-05T01:00:02.000Z"), parts: [diffPart] },
+    entry("assistant-1", "assistant", "Done", "2026-08-05T01:00:03.000Z")
+  ]);
+  const view = buildAgentTranscriptView(session);
+  const assistant = view.items.find(
+    (item) => item.type === "message" && item.entry.id === "assistant-1"
+  );
+
+  assert.equal(assistant?.type, "message");
+  assert.equal(assistant?.changeActivities[0]?.sourceEntryIds?.length, 2);
+
+  const response = buildAgentTranscriptChangesResponse(
+    session,
+    assistant?.changeActivities[0]?.id ?? ""
+  );
+
+  assert.equal(response?.files[0]?.parts.length, 1);
+  assert.equal(response?.files[0]?.additions, 1);
+  assert.equal(response?.files[0]?.deletions, 1);
 });
 
 test("keeps the latest full detail available to the waiting block", () => {
@@ -125,6 +266,7 @@ test("marks a prompt superseded when the next user prompt arrives first", () => 
   const replacement = view.items.find(
     (item) => item.type === "message" && item.entry.id === "user-2"
   );
+
   assert.equal(first?.type, "message");
   assert.equal(first?.turnStatus?.kind, "superseded");
   assert.equal(first?.turnStatus?.label, "Interrupted by next prompt");

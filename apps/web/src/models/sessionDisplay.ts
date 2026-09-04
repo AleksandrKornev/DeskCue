@@ -5,6 +5,12 @@ import type {
   SessionSummary
 } from "@deskcue/protocol";
 
+export function formatAgentSessionTitle(
+  session: Pick<AgentSessionDetail, "subagent" | "title"> | null | undefined
+) {
+  return session?.subagent?.nickname?.trim() || session?.title || "Agent chat";
+}
+
 export function formatManagedSessionTitle(
   session: SessionSummary | SessionDetail | null,
   takenOverAgentSession?: AgentSessionDetail | null
@@ -17,7 +23,9 @@ export function formatManagedSessionTitle(
     return session.command;
   }
 
-  const title = takenOverAgentSession?.title ?? session.workspaceName;
+  const title = takenOverAgentSession
+    ? formatAgentSessionTitle(takenOverAgentSession)
+    : session.workspaceName;
   return title || "Agent chat";
 }
 
@@ -64,6 +72,7 @@ function normalizeSystemLine(line: string, mode: "taken-over" | "manual") {
   if (mode === "taken-over") {
     if (line.startsWith("Started command:")) {
       const model = line.match(/-m "([^"]+)"/)?.[1];
+
       return model ? `Started Codex transport (${model})` : "Started Codex transport";
     }
 
@@ -168,6 +177,7 @@ function sanitizeTerminalLog(text: string, mode: "taken-over" | "manual") {
 function collapseDebugEntries(entries: DebugLogEntry[]) {
   return entries.filter((entry, index) => {
     const previous = entries[index - 1];
+
     return !previous || previous.stream !== entry.stream || previous.text !== entry.text;
   });
 }

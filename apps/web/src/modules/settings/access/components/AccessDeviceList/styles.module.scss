@@ -16,10 +16,10 @@
   align-content: start;
   gap: 5px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .devicePanel strong,
@@ -29,14 +29,21 @@
 
 .devicePanel strong {
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
 }
 
 .devicePanel small {
   overflow-wrap: anywhere;
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.82rem;
   line-height: 1.35;
+}
+
+.devicePanel .label:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 3px;
+  box-shadow: vars.$shadow-focus-ring;
 }
 
 .currentAccessDetail {
@@ -54,20 +61,20 @@
 .deviceRenameForm input {
   min-width: 0;
   height: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid vars.$color-border-control;
   border-radius: 7px;
   padding: 0 8px;
-  background: rgba(255, 255, 255, 0.055);
-  color: #f3efe8;
+  background: vars.$color-surface-control;
+  color: vars.$color-text-primary;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 700;
 }
 
 .deviceRenameForm input:focus {
-  border-color: rgba(214, 164, 103, 0.72);
+  border-color: vars.$color-border-warning;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(214, 164, 103, 0.16);
+  box-shadow: 0 0 0 2px vars.$color-surface-warning;
 }
 
 .deviceActions {
@@ -97,7 +104,7 @@
 
 .deviceList span {
   overflow-wrap: anywhere;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   font-size: 0.9rem;
   font-weight: 700;
 }
@@ -112,7 +119,7 @@
 }
 
 .deviceListFooter span {
-  color: #b9bdc7;
+  color: vars.$color-text-secondary;
   font-size: 0.88rem;
   line-height: 1.35;
 }
@@ -124,11 +131,11 @@
   justify-items: stretch;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  border-top: 1px solid vars.$color-border-control;
 }
 
 .deviceListActions span {
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.82rem;
   font-weight: 600;
   line-height: 1.35;
@@ -145,7 +152,7 @@
   border-radius: 0;
   padding: 10px 0;
   background: transparent;
-  color: #f3efe8;
+  color: vars.$color-text-primary;
   text-align: left;
 }
 
@@ -154,7 +161,7 @@
 }
 
 .deviceList > li + li .deviceGroupCard {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid vars.$color-border-control;
 }
 
 .deviceGroupTitle {
@@ -171,11 +178,11 @@
   display: inline-flex;
   align-items: center;
   min-height: 18px;
-  border: 1px solid rgba(214, 164, 103, 0.2);
+  border: 1px solid vars.$color-border-warning;
   border-radius: 999px;
   padding: 0 6px;
-  background: rgba(214, 164, 103, 0.1);
-  color: #d9bb8f;
+  background: vars.$color-surface-accent;
+  color: vars.$color-status-warning;
   font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -187,7 +194,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #bfd0ff;
+  color: vars.$color-status-info;
   font-size: 0.82rem;
   font-weight: 800;
   grid-column: 2;
@@ -209,7 +216,7 @@
 }
 
 .deviceGroupCard:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: vars.$color-surface-control-subtle;
 }
 
 .devicePanel .inlineButton,
@@ -228,9 +235,9 @@
   margin: 6px 0 0;
   padding: 6px;
   list-style: none;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid vars.$color-border-control;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.14);
+  background: vars.$color-surface-panel-strong;
 }
 
 .tokenList li {
@@ -243,7 +250,7 @@
 }
 
 .tokenList li + li {
-  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  border-top: 1px solid vars.$color-border-control;
 }
 
 .tokenList span {
@@ -265,7 +272,7 @@
 .tokenMain small {
   grid-column: 1;
   grid-row: 2;
-  color: #9da1ad;
+  color: vars.$color-text-secondary;
   font-size: 0.78rem;
 }
 
@@ -290,6 +297,13 @@
 }
 
 @media (max-width: 720px) {
+  .devicePanel .inlineButton,
+  .devicePanel .inlineDangerButton,
+  .tokenActions .inlineButton,
+  .tokenActions .inlineDangerButton {
+    min-height: vars.$control-height-touch;
+  }
+
   .devicePanel {
       grid-template-columns: 1fr;
       gap: 8px;

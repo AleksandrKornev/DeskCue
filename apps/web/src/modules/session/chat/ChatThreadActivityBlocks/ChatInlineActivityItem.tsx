@@ -39,13 +39,14 @@ export const ChatInlineActivityItem = memo(function ChatInlineActivityItem({
   return (
     <div className={styles.chatInlineActivity}>
       <button
-        aria-controls={contentId}
+        aria-controls={isExpanded ? contentId : undefined}
         aria-expanded={isExpanded}
         className={clsx(
           styles.chatInlineActivityToggle,
           inlineActivityToggleClassByKind[activity.kind]
         )}
         onClick={onToggle}
+        data-chat-activity-id={activity.id}
         id={toggleId}
         type="button"
       >
@@ -59,7 +60,7 @@ export const ChatInlineActivityItem = memo(function ChatInlineActivityItem({
             >
               {labelForActivityKind(activity.kind)}
             </span>
-            {activity.label}
+            <span className={styles.chatInlineActivityLabelText}>{activity.label}</span>
           </span>
           <span className={styles.chatInlineActivityTime}>
             {formatChatTime(activity.timestamp)}

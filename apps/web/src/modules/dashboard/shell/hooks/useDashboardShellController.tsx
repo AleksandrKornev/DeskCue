@@ -5,6 +5,7 @@ import {
   isManagedSessionActivelyAttached
 } from "@models/agentChatWorkState";
 import { DashboardBootShell } from "@modules/dashboard/shell/DashboardBootShell";
+import { readSubagentParentSessionId } from "@modules/dashboard/shell/route/helpers";
 import { dashboardNavigationStore } from "@modules/dashboard/shell/store/dashboardNavigationStore";
 
 import { useDashboardShellDisplayState } from "./display/useDashboardShellDisplayState";
@@ -47,12 +48,14 @@ export function useDashboardShellController({
     isDashboardPinned,
     closeLiveOverlays,
     toggleLiveTools,
+    handleBackToParentAgentSession,
     handleSelectManagedSession,
     handleSelectSessionTab,
     handleSelectSource,
     handleSelectAgentSession,
     handleClearAgentSessionSelection,
     handleOpenManagedSession,
+    handleOpenSubagentSession,
     handleOpenLocalLlmChat,
     handleGoHome,
     handleExitSession: handleRouteExitSession,
@@ -81,6 +84,7 @@ export function useDashboardShellController({
     hasManagedFocus,
     isAgentSessionLoading: agentBrowser.isAgentSessionLoading,
     isBootstrapping: overview.isBootstrapping,
+    initialManagedSessionLoadState,
     isCompactViewport,
     isExitingToDashboard,
     isTakenOverAgentSessionLoading,
@@ -102,16 +106,24 @@ export function useDashboardShellController({
     handleRouteExitSession();
   }, [handleRouteExitSession]);
 
-  const handleStopAndExitSession = useCallback(async () => {
+  const handleStopAndExitSession = useCallback(async (options?: {
+    subagentParentSessionId?: string;
+    subagentSessionId?: string;
+  }) => {
     setIsExitingToDashboardFrame(true);
-    await handleRouteStopAndExitSession();
+    await handleRouteStopAndExitSession(options);
   }, [handleRouteStopAndExitSession]);
 
   const handleStartSessionAndSyncRoute = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
+    async (event: React.SubmitEvent<HTMLFormElement>) => {
       await manualRunnerActions.handleStartSession(event);
     },
     [manualRunnerActions]
+  );
+
+  const subagentParentSessionId = readSubagentParentSessionId(
+    window.history.state,
+    displaySelectedAgentSessionId
   );
 
   const sections = useDashboardShellSections({
@@ -147,15 +159,18 @@ export function useDashboardShellController({
       isOpeningSelectedAgentSession,
       isTakenOverAgentSessionLoading,
       showLiveTools,
+      subagentParentSessionId,
       takenOverAgentSession: takenOverAgentSessionForPanel
     },
     routeActions: {
       onAttachSelectedAgentSession: handleAttachSelectedAgentSession,
+      onBackToParentAgentSession: handleBackToParentAgentSession,
       onClearAgentSessionSelection: handleClearAgentSessionSelection,
       onCloseLiveOverlays: closeLiveOverlays,
       onExitSession: handleExitSession,
       onInterruptPrompt: managedSessionActions.handleInterruptPrompt,
       onOpenManagedSession: handleOpenManagedSession,
+      onOpenSubagentSession: handleOpenSubagentSession,
       onOpenLocalLlmChat: handleOpenLocalLlmChat,
       onSelectAgentSession: handleSelectAgentSession,
       onSelectManagedSession: handleSelectManagedSession,

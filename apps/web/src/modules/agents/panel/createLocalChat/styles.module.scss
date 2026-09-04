@@ -7,10 +7,10 @@
   justify-content: center;
   gap: 6px;
   min-height: vars.$control-height-dense;
-  border: 1px solid rgba(214, 164, 103, 0.34);
+  border: 1px solid vars.$color-border-accent;
   border-radius: vars.$radius-pill;
   padding: 0 12px;
-  background: rgba(214, 164, 103, 0.1);
+  background: vars.$color-surface-accent;
   color: vars.$color-accent-strong;
   font: inherit;
   font-size: 0.82rem;
@@ -19,13 +19,14 @@
 }
 
 .trigger:hover:not(:disabled) {
-  border-color: rgba(214, 164, 103, 0.58);
-  background: rgba(214, 164, 103, 0.16);
+  border-color: vars.$color-border-accent-hover;
+  background: vars.$color-surface-accent-hover;
 }
 
 .trigger:focus-visible,
 .runtimeCard:has(input:focus-visible),
 .selectControl:has(select:focus-visible),
+.modelError button:focus-visible,
 .createButton:focus-visible {
   outline: 2px solid vars.$color-focus-ring;
   outline-offset: 2px;
@@ -37,9 +38,13 @@
 }
 
 .triggerIcon {
-  font-size: 1.08rem;
-  font-weight: 500;
-  line-height: 1;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
 }
 
 .dialog {
@@ -86,7 +91,7 @@
   overflow: hidden;
   border: 1px solid vars.$color-border-subtle;
   border-radius: vars.$radius-sm;
-  background: rgba(255, 255, 255, 0.018);
+  background: vars.$color-surface-raised-subtle;
 }
 
 .runtimeCard {
@@ -98,7 +103,7 @@
   min-width: 0;
   min-height: 58px;
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid vars.$color-border-subtle;
   padding: 8px 10px;
   background: transparent;
   cursor: pointer;
@@ -109,13 +114,13 @@
 }
 
 .runtimeCard:hover:not(:has(input:disabled)) {
-  background: rgba(255, 255, 255, 0.045);
+  background: vars.$color-surface-control;
 }
 
 .runtimeCardSelected {
   z-index: 1;
-  background: rgba(53, 182, 108, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(73, 206, 129, 0.35);
+  background: vars.$color-surface-accent;
+  box-shadow: inset 0 0 0 1px vars.$color-border-accent;
 }
 
 .runtimeCard:has(input:disabled) {
@@ -173,28 +178,29 @@
   place-items: center;
   width: 18px;
   height: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid vars.$color-text-disabled;
   border-radius: 50%;
-  color: #102218;
+  color: vars.$color-on-success;
   font-size: 0.7rem;
   font-weight: 900;
 }
 
 .runtimeCardSelected .runtimeSelection {
-  border-color: #62d993;
-  background: #62d993;
+  border-color: vars.$color-accent;
+  background: vars.$color-accent;
+  color: vars.$color-on-accent;
 }
 
 .runtimeCard[data-status="ready"] .runtimeStatus {
-  color: #7bdca4;
+  color: vars.$color-status-success;
 }
 
 .runtimeCard[data-status="offline"] .runtimeStatus {
-  color: #e3bd83;
+  color: vars.$color-status-warning;
 }
 
 .runtimeCard[data-status="unavailable"] .runtimeStatus {
-  color: #db8e8e;
+  color: vars.$color-status-danger;
 }
 
 .runtimeCard[data-status="loading"] .runtimeStatus {
@@ -258,7 +264,7 @@
   border-radius: vars.$radius-sm;
   padding: 0 38px 0 41px;
   appearance: none;
-  background: rgba(255, 255, 255, 0.035);
+  background: vars.$color-surface-input;
   color: vars.$color-text-primary;
   color-scheme: dark;
   font: inherit;
@@ -273,7 +279,7 @@
 }
 
 .selectControl option {
-  background: #202126;
+  background: vars.$color-surface-option;
   color: vars.$color-text-primary;
 }
 
@@ -286,42 +292,75 @@
 }
 
 .modelError {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  margin-top: 7px;
-  color: #e9a4a4;
+  color: vars.$color-status-danger;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.modelError > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.modelFeedback {
+  min-width: 0;
+}
+
+.modelFeedback:focus {
+  border-radius: vars.$radius-sm;
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.modelError button:focus {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
+}
+
+.modelLoading {
+  display: block;
+  color: vars.$color-status-info;
   font-size: 0.78rem;
   line-height: 1.35;
 }
 
 .modelError button {
   flex: 0 0 auto;
-  min-height: 28px;
-  border: 1px solid rgba(233, 164, 164, 0.32);
+  min-height: vars.$control-height-dense;
+  border: 1px solid vars.$color-border-danger;
   border-radius: vars.$radius-pill;
   padding: 0 10px;
-  background: rgba(179, 63, 63, 0.11);
-  color: #efb4b4;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
   font: inherit;
   font-size: 0.74rem;
   font-weight: 800;
 }
 
 .modelError button:hover {
-  border-color: rgba(233, 164, 164, 0.56);
-  background: rgba(179, 63, 63, 0.18);
+  border-color: vars.$color-status-danger;
+  background: vars.$color-surface-danger-hover;
 }
 
 .formError {
-  border: 1px solid rgba(179, 63, 63, 0.45);
+  min-width: 0;
+  border: 1px solid vars.$color-border-danger;
   border-radius: vars.$radius-sm;
   padding: 10px 11px;
-  background: rgba(179, 63, 63, 0.11);
-  color: #efb4b4;
+  background: vars.$color-surface-danger;
+  color: vars.$color-status-danger;
   font-size: 0.84rem;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.formError:focus {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
 }
 
 .actions {
@@ -338,27 +377,19 @@
   font: inherit;
   font-size: 0.88rem;
   font-weight: 800;
-}
-
-.createButton {
-  background: linear-gradient(100deg, #d6a467, #e6c486);
-  color: #21170c;
-  box-shadow: 0 7px 22px rgba(214, 164, 103, 0.13);
+  background: vars.$color-action-primary;
+  color: vars.$color-on-action-primary;
 }
 
 .createButton:hover:not(:disabled) {
-  filter: brightness(1.1);
+  background: vars.$color-action-primary-hover;
 }
 
 .createButton:disabled {
   cursor: not-allowed;
-  color: rgba(243, 239, 232, 0.42);
+  background: vars.$color-surface-control-disabled;
+  color: vars.$color-text-disabled;
   opacity: 1;
-}
-
-.createButton:disabled {
-  background: rgba(255, 255, 255, 0.075);
-  box-shadow: none;
 }
 
 @keyframes statusPulse {
@@ -374,6 +405,19 @@
   .form {
     gap: 10px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .modelError button,
+  .createButton {
+    min-height: 48px;
+  }
+
+  .modelError {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .modelError button {
+    width: 100%;
   }
 }
 

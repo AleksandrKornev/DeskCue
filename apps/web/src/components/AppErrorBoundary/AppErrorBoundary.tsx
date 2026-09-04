@@ -25,20 +25,35 @@ export class AppErrorBoundary extends Component<
       return this.props.children;
     }
 
+    const Page = this.props.embedded ? "div" : "main";
+    const pageClassName = this.props.embedded
+      ? `${styles.page} ${styles.embedded}`
+      : styles.page;
+
     return (
-      <main className={styles.page}>
-        <section className={styles.card} role="alert">
-          <p className={styles.eyebrow}>DeskCue recovered the page</p>
-          <h1>Something changed while this page was open</h1>
-          <p>
-            Reload DeskCue to reconnect and load a compatible view. Your local sessions keep
-            running on the host.
+      <Page className={pageClassName}>
+        <section className={styles.card} role="alert" aria-labelledby="app-error-title">
+          <div className={styles.icon} aria-hidden="true">
+            !
+          </div>
+          <p className={styles.eyebrow}>DeskCue couldn&apos;t show this view</p>
+          <h1 id="app-error-title">Reload this page to try again</h1>
+          <p className={styles.message}>
+            A rendering error interrupted this view. Reloading may restore it.
           </p>
-          <button type="button" onClick={() => window.location.reload()}>
+          <p className={styles.safetyNote}>
+            <span aria-hidden="true" />
+            Reloading refreshes only this page. It doesn&apos;t send a stop command to your agents.
+          </p>
+          <button
+            className={styles.reloadButton}
+            type="button"
+            onClick={() => window.location.reload()}
+          >
             Reload DeskCue
           </button>
         </section>
-      </main>
+      </Page>
     );
   }
 }

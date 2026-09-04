@@ -1,5 +1,5 @@
 import { DEFAULT_DAEMON_PORT } from "@deskcue/protocol";
-import { getConnectionConfig } from "@api/connection/configStorage";
+import { getConnectionConfig, readStoredDaemonUrl } from "@api/connection/configStorage";
 import {
   buildLocalDaemonUrl,
   buildPageDaemonUrl,
@@ -10,18 +10,17 @@ import {
 } from "@api/connection/configUrls";
 
 export function buildPairingDaemonUrlCandidates(queryDaemonUrl: string | null) {
-  const candidates = new Set<string>();
-  const currentConfig = getConnectionConfig();
-  const storedDaemonUrl = normalizeDaemonUrl(currentConfig.daemonUrl);
+  if (queryDaemonUrl) return [queryDaemonUrl];
+
+  const storedDaemonUrl = readStoredDaemonUrl();
   const sameOriginDaemonUrl = normalizeDaemonUrl(buildSameOriginDaemonUrl(window.location));
   const pageDaemonUrl = normalizeDaemonUrl(buildPageDaemonUrl(window.location));
 
-  if (queryDaemonUrl) candidates.add(queryDaemonUrl);
-  if (sameOriginDaemonUrl) candidates.add(sameOriginDaemonUrl);
-  if (storedDaemonUrl) candidates.add(storedDaemonUrl);
-  if (pageDaemonUrl) candidates.add(pageDaemonUrl);
+  if (sameOriginDaemonUrl) return [sameOriginDaemonUrl];
+  if (storedDaemonUrl && isLoopbackDaemonUrl(storedDaemonUrl)) return [storedDaemonUrl];
+  if (pageDaemonUrl && isLoopbackDaemonUrl(pageDaemonUrl)) return [pageDaemonUrl];
 
-  return Array.from(candidates);
+  return [];
 }
 
 export function buildLocalAccessLinkCandidates() {

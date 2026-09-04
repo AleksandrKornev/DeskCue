@@ -391,12 +391,18 @@ test("local asset routes serve authorized files below hidden directories", async
       const ticketAssetResponse = await fetch(`${baseUrl}${ticketPayload.url}`);
 
       assert.equal(directResponse.status, 200);
+      assert.equal(directResponse.headers.get("cache-control"), "private, no-store");
+      assert.equal(directResponse.headers.get("referrer-policy"), "no-referrer");
       assert.equal(await directResponse.text(), "image");
       assert.equal(downloadResponse.status, 200);
+      assert.equal(downloadResponse.headers.get("cache-control"), "private, no-store");
+      assert.equal(downloadResponse.headers.get("referrer-policy"), "no-referrer");
       assert.match(downloadResponse.headers.get("content-disposition") ?? "", /^attachment;/i);
       assert.equal(await downloadResponse.text(), "image");
       assert.equal(ticketResponse.status, 201);
       assert.equal(ticketAssetResponse.status, 200);
+      assert.equal(ticketAssetResponse.headers.get("cache-control"), "private, no-store");
+      assert.equal(ticketAssetResponse.headers.get("referrer-policy"), "no-referrer");
       assert.equal(await ticketAssetResponse.text(), "image");
     });
   } finally {
@@ -452,6 +458,47 @@ test("local asset routes reject symlink escapes and force SVG downloads", async 
     assert.match(svg.headers.get("content-disposition") ?? "", /^attachment;/i);
     assert.equal(svg.headers.get("x-content-type-options"), "nosniff");
   });
+});
+
+test("local asset routes force active documents to download", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "deskcue-assets-active-document-"));
+  const workspacePath = join(tempDir, "workspace");
+  const atomPath = join(workspacePath, "feed.atom");
+  const htmlPath = join(workspacePath, "report.html");
+  const svgzPath = join(workspacePath, "report.svgz");
+  const xhtmlPath = join(workspacePath, "report.xhtml");
+
+  try {
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(atomPath, "<feed xmlns=\"http://www.w3.org/2005/Atom\" />", "utf8");
+    await writeFile(htmlPath, "<script>globalThis.compromised = true</script>", "utf8");
+    await writeFile(svgzPath, "<svg><script>globalThis.compromised = true</script></svg>", "utf8");
+    await writeFile(xhtmlPath, "<html xmlns=\"http://www.w3.org/1999/xhtml\" />", "utf8");
+    const app = express();
+
+    installAssetRoutes(app, {
+      workspaces: {
+        listWorkspaces: () => [{ id: "workspace-1", path: workspacePath }]
+      }
+    });
+
+    await withServer(app, async (baseUrl) => {
+      for (const assetPath of [atomPath, htmlPath, svgzPath, xhtmlPath]) {
+        const response = await fetch(
+          `${baseUrl}/api/assets/file?path=${encodeURIComponent(assetPath)}`
+        );
+
+        assert.equal(response.status, 200);
+        assert.match(response.headers.get("content-disposition") ?? "", /^attachment;/i);
+        assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+      }
+    });
+  } finally {
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
 });
 
 test("local asset routes serve files from trusted generated artifact roots", async () => {
@@ -563,6 +610,7 @@ test("asset ticket serves files from scoped transcript attachments", async () =>
       workspaces: {
         listWorkspaces: () => [
           {
+            id: "workspace-1",
             path: workspacePath
           }
         ]
@@ -585,7 +633,8 @@ test("asset ticket serves files from scoped transcript attachments", async () =>
           agentSessionId: "codex:source-1",
           download: true,
           kind: "file",
-          path: attachmentPath
+          path: attachmentPath,
+          workspaceId: "workspace-1"
         }),
         headers: {
           "content-type": "application/json"
@@ -597,6 +646,16 @@ test("asset ticket serves files from scoped transcript attachments", async () =>
       };
 
       const assetResponse = await fetch(`${baseUrl}${ticketPayload.url}`);
+      const scopedLinkQuery = new URLSearchParams({
+        agentSessionId: "codex:source-1",
+        path: attachmentPath,
+        workspaceId: "workspace-1"
+      });
+      const scopedLinkResponse = await fetch(`${baseUrl}/api/assets/file?${scopedLinkQuery}`, {
+        headers: {
+          range: "bytes=0-1"
+        }
+      });
 
       assert.equal(deniedTicket.status, 403);
       assert.deepEqual(await deniedTicket.json(), {
@@ -606,6 +665,9 @@ test("asset ticket serves files from scoped transcript attachments", async () =>
       assert.equal(allowedTicket.status, 201);
       assert.equal(assetResponse.status, 200);
       assert.equal(await assetResponse.text(), "pdf");
+      assert.equal(scopedLinkResponse.status, 206);
+      assert.equal(await scopedLinkResponse.text(), "pd");
+      assert.equal(scopedLinkResponse.headers.get("content-range"), "bytes 0-1/3");
       assert.match(
         assetResponse.headers.get("content-disposition") ?? "",
         /filename="Screenshot test\.pdf"/
