@@ -319,6 +319,7 @@ export type {
   AgentSessionIndexSnapshotMeta,
   AgentSessionInterruptLifecycle,
   AgentSessionObservedTurnState,
+  AgentSessionSubagent,
   AgentSessionSourceCount,
   AgentSessionSourceVersion,
   AgentSessionSummary,

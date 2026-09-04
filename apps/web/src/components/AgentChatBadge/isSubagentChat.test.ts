@@ -15,4 +15,9 @@ test("marks only source chats spawned as subagents", () => {
       }
     }
   }), true);
+  assert.equal(isSubagentChat({
+    subagent: {
+      parentSessionId: "codex:parent-thread"
+    }
+  }), true);
 });

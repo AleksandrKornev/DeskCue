@@ -159,7 +159,9 @@ export class SourceAgentSessionService {
     includeLiveMetadata = false,
     options: {
       force?: boolean;
+      includeSubagents?: boolean;
       offset?: number;
+      parentSessionId?: string | null;
       query?: string | null;
       sourceId?: AgentKind | null;
     } = {}
@@ -169,8 +171,10 @@ export class SourceAgentSessionService {
       this.workspaces.listWorkspaces(),
       {
         force: options.force,
+        includeSubagents: options.includeSubagents,
         includeLiveMetadata,
         offset: options.offset,
+        parentSessionId: options.parentSessionId,
         query: options.query,
         sourceId: options.sourceId
       }

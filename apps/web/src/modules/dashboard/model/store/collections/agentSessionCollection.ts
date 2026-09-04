@@ -19,6 +19,7 @@ export function sortAgentSessionSummariesByActivity(sessions: AgentSessionSummar
 
 export function buildSourceCountsFromSessions(sessions: AgentSessionSummary[]): AgentSessionSourceCount[] {
   const counts = new Map<AgentKind, number>();
+
   for (const session of sessions) {
     counts.set(session.agentId, (counts.get(session.agentId) ?? 0) + 1);
   }
@@ -35,7 +36,6 @@ function mergeAgentSessionListSummary(
   incoming: AgentSessionSummary
 ) {
   if (!current) return incoming;
-
   if (isTimestampOlder(incoming.updatedAt, current.updatedAt)) return current;
 
   const contextCompactionCount = mergeContextCompactionCount(
@@ -43,6 +43,7 @@ function mergeAgentSessionListSummary(
     incoming.contextCompactionCount
   );
   const model = incoming.model ?? current.model;
+
   return contextCompactionCount === incoming.contextCompactionCount && model === incoming.model
     ? incoming
     : {
@@ -57,15 +58,19 @@ function mergeAgentSessionSummaryLists(
   incoming: AgentSessionSummary[]
 ) {
   const sessionsById = new Map<string, AgentSessionSummary>();
+
   for (const session of current) {
     sessionsById.set(session.id, session);
   }
+
   for (const session of incoming) {
     sessionsById.set(session.id, mergeAgentSessionListSummary(sessionsById.get(session.id), session));
   }
 
   const mergedSessions = Array.from(sessionsById.values());
+
   sortAgentSessionSummariesByActivity(mergedSessions);
+
   return mergedSessions;
 }
 
@@ -81,7 +86,9 @@ function matchesAgentSessionSummaryQuery(session: AgentSessionSummary, query: st
     session.source,
     session.filePath,
     session.approvalPolicy,
-    session.sandboxMode
+    session.sandboxMode,
+    session.subagent?.nickname,
+    session.subagent?.role
   ]
     .filter(Boolean)
     .join(" ")
@@ -94,7 +101,6 @@ function mergeAgentSessionSummary(
   summary: AgentSessionSummary
 ) {
   if (!current || current.id !== summary.id) return current;
-
   if (isTimestampOlder(summary.updatedAt, current.updatedAt)) return current;
 
   return {
@@ -172,10 +178,11 @@ export function buildMergedAgentSessionSummaryPatch(
 ): AgentSessionCollectionPatch | null {
   const matchesActiveSource =
     state.selectedSourceId === "all" || summary.agentId === state.selectedSourceId;
+  const matchesActiveHierarchy = Boolean(state.agentSessionsQuery) || !summary.subagent;
   const matchesActiveQueryText =
     !state.agentSessionsQuery || matchesAgentSessionSummaryQuery(summary, state.agentSessionsQuery);
   const matchesActiveQuery =
-    matchesActiveSource && matchesActiveQueryText;
+    matchesActiveSource && matchesActiveHierarchy && matchesActiveQueryText;
   const existingSession = state.agentSessions.find((session) => session.id === summary.id) ?? null;
   const hasExistingSession = Boolean(existingSession);
   const mergedListSummary = mergeAgentSessionListSummary(existingSession ?? undefined, summary);
@@ -201,6 +208,7 @@ export function buildMergedAgentSessionSummaryPatch(
         .map((session) => (session.id === summary.id ? mergedListSummary : session))
         .filter((session) =>
           (state.selectedSourceId === "all" || session.agentId === state.selectedSourceId) &&
+          (Boolean(state.agentSessionsQuery) || !session.subagent) &&
           (!state.agentSessionsQuery ||
             matchesAgentSessionSummaryQuery(session, state.agentSessionsQuery))
         )

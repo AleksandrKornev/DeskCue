@@ -9,9 +9,11 @@ import type {
 } from "@deskcue/protocol";
 
 export type FetchAgentSessionsOptions = {
+  includeSubagents?: boolean;
   includeLiveMetadata?: boolean;
   limit?: number;
   offset?: number;
+  parentSessionId?: string;
   query?: string;
   signal?: AbortSignal;
   sourceId?: AgentKind | "all";

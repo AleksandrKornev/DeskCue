@@ -122,6 +122,7 @@ export function LiveSessionHeader({
   isAgentChat,
   metaItem,
   contextCompactionCount,
+  exitLabel = "Back to chats",
   liveUpdatesConnection,
   navigationIdPrefix,
   status,
@@ -164,7 +165,7 @@ export function LiveSessionHeader({
     >
       <div className={styles.chatHeader}>
         <button
-          aria-label="Back to chats"
+          aria-label={exitLabel}
           className={styles.mobileBackButton}
           onClick={onExitSession}
           type="button"

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { AgentSessionDetail, AgentSessionSummary, SessionSummary } from "@deskcue/protocol";
 
 export type AttachedManagedSessionInfo = Pick<
@@ -16,9 +18,14 @@ export interface AgentTranscriptPanelProps {
   attachedManagedSessionInfo: AttachedManagedSessionInfo | null;
   readyForReviewAgentSessionIds: ReadonlySet<string>;
   previewItems?: number;
-  onAttach: () => void;
+  parentAgentSessionId?: string | null;
+  subagentSupplement?: ReactNode;
+  onAttach: (options?: { subagentParentSessionId?: string }) => void;
   onMarkReviewed: (sessionId: string) => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
   onRetryLoad?: () => void;
 }
 

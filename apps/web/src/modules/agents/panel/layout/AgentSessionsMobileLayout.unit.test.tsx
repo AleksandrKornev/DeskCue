@@ -93,6 +93,31 @@ describe("AgentSessionsMobileLayout", () => {
     expect(screen.getByRole("button", { name: "Build release" })).toHaveFocus();
   });
 
+  it("returns a selected subagent directly to its parent chat", () => {
+    const onBackToParent = vi.fn();
+    const onBackToChats = vi.fn();
+
+    render(
+      <DeskCueLayoutModeProvider mode="embedded">
+        <AgentSessionsMobileLayout
+          agentSessionId="codex:child"
+          agentSessionLabel="Scout"
+          parentSessionId="codex:parent"
+          sessionsList={null}
+          showFocusedDetail
+          transcriptPanel={<div>Child transcript</div>}
+          onBackToParent={onBackToParent}
+          onBackToChats={onBackToChats}
+        />
+      </DeskCueLayoutModeProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to parent" }));
+
+    expect(onBackToParent).toHaveBeenCalledOnce();
+    expect(onBackToChats).not.toHaveBeenCalled();
+  });
+
   it("falls back to the browser heading when the previous card is no longer rendered", () => {
     vi.useFakeTimers();
     const { onBackToChats, rerender } = renderLayout(true);

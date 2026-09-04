@@ -39,6 +39,7 @@ export type LiveSessionHeaderProps = {
   agentLabel?: string;
   navigationCapabilities: SessionNavigationCapabilities;
   contextCompactionCount: number;
+  exitLabel?: string;
   isAgentChat: boolean;
   liveUpdatesConnection: LiveUpdatesConnectionState;
   metaItem?: ReactNode;

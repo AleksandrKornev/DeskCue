@@ -8,6 +8,8 @@ import {
   vi
 } from "vitest";
 
+import type { AgentSessionDetail } from "@deskcue/protocol";
+
 import {
   buildAgentBrowserShellProps,
   buildManagedSessionShellProps,
@@ -128,9 +130,11 @@ function createAgentBrowserArgs(): BuildAgentBrowserShellPropsArgs {
     },
     routeActions: {
       onAttachSelectedAgentSession: vi.fn(),
+      onBackToParentAgentSession: vi.fn(),
       onClearAgentSessionSelection: vi.fn(),
       onOpenLocalLlmChat: vi.fn(),
       onOpenManagedSession: vi.fn(),
+      onOpenSubagentSession: vi.fn(),
       onSelectAgentSession: vi.fn(),
       onSelectSource: vi.fn()
     }
@@ -177,11 +181,15 @@ function createManagedSessionArgs(): BuildManagedSessionShellPropsArgs {
       effectiveSelectedSessionId: "session-1",
       initialManagedSessionLoadState: { kind: "loaded" },
       isTakenOverAgentSessionLoading: true,
+      subagentParentSessionId: null,
       takenOverAgentSession: null
     },
     routeActions: {
+      onBackToParentAgentSession: vi.fn(),
       onExitSession: vi.fn(),
       onInterruptPrompt: vi.fn(),
+      onOpenSubagentSession: vi.fn(),
+      onSelectAgentSession: vi.fn(),
       onSelectManagedSession: vi.fn(),
       onSelectSessionTab: vi.fn(),
       onSendInput: vi.fn().mockResolvedValue(true),
@@ -233,7 +241,35 @@ describe("section prop builders", () => {
       .toBe(args.agentBrowser.agentTranscriptHistoryIncompleteById);
     expect(props.onChangePreviewPort).toBe(args.managedSessionActions.setPreviewPort);
     expect(props.onHydrateAgentSessionChanges).toBe(args.agentBrowserActions.hydrateAgentSessionChanges);
+    expect(props.onOpenSubagentSession).toBe(args.routeActions.onOpenSubagentSession);
     expect(props.onSendInput).toBe(args.routeActions.onSendInput);
+  });
+
+  it("keeps a managed subagent in its parent navigation hierarchy", () => {
+    const args = createManagedSessionArgs();
+
+    args.route.takenOverAgentSession = {
+      id: "codex:child",
+      subagent: {
+        depth: 1,
+        nickname: "Arendt",
+        parentSessionId: "codex:parent",
+        role: null
+      }
+    } as AgentSessionDetail;
+    const props = buildManagedSessionShellProps(args);
+
+    expect(props.exitLabel).toBe("Back to parent");
+    props.onExitSession();
+    expect(args.routeActions.onBackToParentAgentSession)
+      .toHaveBeenCalledWith("codex:parent", "codex:child");
+    expect(args.routeActions.onExitSession).not.toHaveBeenCalled();
+
+    props.onStopAndExitSession();
+    expect(args.routeActions.onStopAndExitSession).toHaveBeenCalledWith({
+      subagentParentSessionId: "codex:parent",
+      subagentSessionId: "codex:child"
+    });
   });
 });
 

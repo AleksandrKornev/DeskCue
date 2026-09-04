@@ -9,9 +9,11 @@ export function AgentSessionsMobileLayout(props: AgentSessionsMobileLayoutProps)
   const {
     agentSessionId,
     agentSessionLabel,
+    parentSessionId,
     sessionsList,
     showFocusedDetail,
     transcriptPanel,
+    onBackToParent,
     onBackToChats
   } = props;
   const lastFocusedAgentSessionIdRef = useRef("");
@@ -42,7 +44,9 @@ export function AgentSessionsMobileLayout(props: AgentSessionsMobileLayoutProps)
     <MobileAgentSessionDetail
       agentSessionId={agentSessionId}
       agentSessionLabel={agentSessionLabel}
+      parentSessionId={parentSessionId}
       transcriptPanel={transcriptPanel}
+      onBackToParent={onBackToParent}
       onBackToChats={(focusOrigin) => {
         returnFocusScopeRef.current =
           focusOrigin.closest<HTMLElement>("[data-agent-browser-focus-root]") ??

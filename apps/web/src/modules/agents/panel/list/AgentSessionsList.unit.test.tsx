@@ -143,3 +143,42 @@ it("preserves the actionable new-result state in Recent work", () => {
   expect(screen.getByRole("button", { name: /Session review.*New result/ })).toBeInTheDocument();
   expect(screen.queryByText("Finished")).not.toBeInTheDocument();
 });
+
+it("shows a matching subagent nickname and supporting role in search results", () => {
+  const session = {
+    ...createAgentSession("child"),
+    subagent: {
+      depth: 1,
+      nickname: "Parfit",
+      parentSessionId: "codex:parent",
+      role: "adversarial reviewer"
+    }
+  };
+
+  render(
+    <AgentSessionsList
+      attachedSourceSessionKeys={new Set()}
+      canLoadMoreSessions={false}
+      canShowFewerSessions={false}
+      filteredSessionsCount={1}
+      hasMoreSessions={false}
+      hiddenSessionsCount={0}
+      isLoading={false}
+      isLoadingMoreSessions={false}
+      localLlmChats={[]}
+      query="Parfit"
+      readyForReviewAgentSessionIds={new Set()}
+      selectedAgentSessionId=""
+      sessions={[session]}
+      totalSessionsCountLabel="1"
+      workIndicatorsBySourceSessionKey={new Map()}
+      onOpenLocalLlmChat={vi.fn()}
+      onSelectAgentSession={vi.fn()}
+      onShowFewerSessions={vi.fn()}
+      onShowMoreSessions={vi.fn()}
+    />
+  );
+
+  expect(screen.getByText("Parfit")).toBeInTheDocument();
+  expect(screen.getByText("adversarial reviewer")).toBeInTheDocument();
+});

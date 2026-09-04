@@ -46,6 +46,7 @@ export interface ManagedSessionPanelProps {
   hasPreview?: boolean;
   showTools?: boolean;
   onSelectSession: (sessionId: string) => void;
+  onOpenSubagentSession?: (parentSessionId: string, childSessionId: string) => void;
   onSelectTab: (tab: SessionTab) => void;
   onSendInput: (instruction: string, options?: SendInputOptions) => Promise<boolean>;
   onHydrateAgentSessionTranscriptEntries: (
@@ -62,6 +63,7 @@ export interface ManagedSessionPanelProps {
   onStopSession: () => boolean | Promise<boolean>;
   onStopAndExitSession: () => void | Promise<void>;
   onExitSession: () => void;
+  exitLabel?: string;
   onRefreshGit: () => void;
   onRetrySessionLoad?: () => Promise<unknown>;
   onChangePreviewPort: (value: string) => void;

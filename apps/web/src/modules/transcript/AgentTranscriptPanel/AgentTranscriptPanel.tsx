@@ -6,6 +6,7 @@ import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
 import { AgentRuntimeIcon } from "@components/AgentRuntimeIcon";
 import { Tooltip } from "@components/Tooltip";
 import { formatDate } from "@lib/format";
+import { formatAgentSessionTitle } from "@models/sessionDisplay";
 import { useAgentSessionConfirmationGuard } from "@modules/agents/useAgentSessionConfirmationGuard";
 import { useCurrentAgentSessionActionGuard } from "@modules/agents/useCurrentAgentSessionActionGuard";
 import { ModelRuntimePanel } from "@modules/modelRuntime";
@@ -31,11 +32,13 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     attaching,
     isLoading,
     loadError,
+    parentAgentSessionId,
     previewItems,
     readyForReviewAgentSessionIds,
     selectedSessionId,
     session,
     sessionSummary,
+    subagentSupplement,
     onAttach,
     onMarkReviewed,
     onOpenManagedSession,
@@ -191,10 +194,11 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
     readyForReviewAgentSessionIds,
     sessionCommandsEnabled
   });
+  const displayTitle = formatAgentSessionTitle(displaySession);
 
   return (
     <div
-      aria-label={`${displaySession.title} chat details`}
+      aria-label={`${displayTitle} chat details`}
       className={clsx(styles.detail, isHydratingSelection && styles.detailSettling)}
       ref={detailFocusRef}
       tabIndex={-1}
@@ -205,7 +209,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
             <Tooltip
               className={styles.metaTitle}
               placement="below"
-              value={displaySession.title}
+              value={displayTitle}
             />
           </strong>
           <Tooltip
@@ -292,6 +296,8 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
         </div>
       )}
 
+      {subagentSupplement}
+
       {hasBlockingLoadError ? null : (
         <div className={clsx(styles.bottom, styles.bottomAttached)}>
         {!sessionCommandsEnabled ? (
@@ -310,7 +316,9 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
               const actionSessionId = displaySession.id;
 
               if (attachedManagedSessionId) {
-                onOpenManagedSession(attachedManagedSessionId);
+                onOpenManagedSession(attachedManagedSessionId, {
+                  subagentParentSessionId: parentAgentSessionId ?? undefined
+                });
                 return;
               }
 
@@ -328,7 +336,9 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
 
               if (currentDisplaySessionIdRef.current !== actionSessionId) return;
 
-              onAttach();
+              onAttach({
+                subagentParentSessionId: parentAgentSessionId ?? undefined
+              });
             }}
             type="button"
           >

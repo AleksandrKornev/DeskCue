@@ -15,6 +15,7 @@ import {
 const apiMocks = vi.hoisted(() => ({
   getList: vi.fn<(options: {
     includeLiveMetadata: boolean;
+    includeSubagents: boolean;
     limit: number;
     signal: AbortSignal;
     sourceId: AgentKind | "all";
@@ -56,8 +57,9 @@ describe("useAttentionAgentSessionSummaries", () => {
     const options = apiMocks.getList.mock.calls[0]?.[0];
 
     expect(options?.includeLiveMetadata).toBe(true);
+    expect(options?.includeSubagents).toBe(true);
 
-    expect(options?.limit).toBe(16);
+    expect(options?.limit).toBe(100);
     expect(options?.signal).toBeInstanceOf(AbortSignal);
     expect(options?.sourceId).toBe("claude-code");
     expect(result.current).toEqual({ hasLoaded: true, hasMore: true, sessions: [session] });
@@ -156,11 +158,11 @@ describe("useAttentionAgentSessionSummaries", () => {
   });
 
   it("marks the collection partial when a new live session overflows a full exact page", async () => {
-    const pageSessions = Array.from({ length: 16 }, (_, index) => createSession(
+    const pageSessions = Array.from({ length: 100 }, (_, index) => createSession(
       `session-${index}`,
-      `2026-08-06T10:00:${String(index).padStart(2, "0")}.000Z`
+      new Date(Date.UTC(2026, 7, 6, 10, 0, index)).toISOString()
     ));
-    const liveSession = createSession("session-live", "2026-08-06T10:01:00.000Z");
+    const liveSession = createSession("session-live", "2026-08-06T10:02:00.000Z");
 
     apiMocks.getList.mockResolvedValue({
       hasMore: false,
@@ -180,7 +182,7 @@ describe("useAttentionAgentSessionSummaries", () => {
     });
 
     expect(result.current.hasMore).toBe(true);
-    expect(result.current.sessions).toHaveLength(16);
+    expect(result.current.sessions).toHaveLength(100);
     expect(result.current.sessions[0]).toBe(liveSession);
   });
 
@@ -239,11 +241,11 @@ describe("useAttentionAgentSessionSummaries", () => {
     apiMocks.getList.mockReturnValue(new Promise((resolve) => {
       resolvePage = resolve;
     }));
-    const pageSessions = Array.from({ length: 16 }, (_, index) => createSession(
+    const pageSessions = Array.from({ length: 100 }, (_, index) => createSession(
       `session-${index}`,
-      `2026-08-06T10:00:${String(index).padStart(2, "0")}.000Z`
+      new Date(Date.UTC(2026, 7, 6, 10, 0, index)).toISOString()
     ));
-    const liveSession = createSession("session-live", "2026-08-06T10:01:00.000Z");
+    const liveSession = createSession("session-live", "2026-08-06T10:02:00.000Z");
 
     const { result } = renderHook(() => useAttentionAgentSessionSummaries());
 
@@ -258,7 +260,7 @@ describe("useAttentionAgentSessionSummaries", () => {
     });
 
     expect(result.current.hasMore).toBe(true);
-    expect(result.current.sessions).toHaveLength(16);
+    expect(result.current.sessions).toHaveLength(100);
     expect(result.current.sessions[0]).toBe(liveSession);
   });
 

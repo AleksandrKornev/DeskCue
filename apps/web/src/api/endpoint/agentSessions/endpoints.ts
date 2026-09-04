@@ -51,33 +51,43 @@ function buildAgentSessionRequestUrl(
   options?: FetchAgentSessionOptions
 ) {
   const query = new URLSearchParams();
+
   if (options?.chatMessageTail) {
     query.set("chatMessageTail", String(options.chatMessageTail));
   }
+
   if (options?.fullTranscript) {
     query.set("fullTranscript", "1");
   }
+
   if (options?.includeSessionSummary) {
     query.set("includeSessionSummary", "1");
   }
+
   if (options?.omitTranscript) {
     query.set("omitTranscript", "1");
   }
+
   if (options?.transcriptTail) {
     query.set("transcriptTail", String(options.transcriptTail));
   }
+
   if (options?.transcriptDetail === "summary") {
     query.set("transcriptDetail", "summary");
   }
+
   if (options?.waitingSince) {
     query.set("waitingSince", options.waitingSince);
   }
+
   if (options?.baseItemKey) {
     query.set("baseItemKey", options.baseItemKey);
   }
+
   if (options?.baseSourceEntryId) {
     query.set("baseSourceEntryId", options.baseSourceEntryId);
   }
+
   if (options?.overlapItemCount !== undefined) {
     query.set("overlapItemCount", String(options.overlapItemCount));
   }
@@ -102,20 +112,33 @@ function buildAgentSessionTranscriptUpdatesUrl(agentSessionId: string, options?:
 export const agentSessionsApi = {
   getList(options: FetchAgentSessionsOptions = {}) {
     const query = new URLSearchParams();
+
     if (options.limit) {
       query.set("limit", String(options.limit));
     }
+
     if (options.offset) {
       query.set("offset", String(options.offset));
     }
+
     if (options.query?.trim()) {
       query.set("query", options.query.trim());
     }
+
     if (options.sourceId && options.sourceId !== "all") {
       query.set("source", options.sourceId);
     }
+
     if (options.includeLiveMetadata) {
       query.set("includeLiveMetadata", "1");
+    }
+
+    if (options.includeSubagents) {
+      query.set("includeSubagents", "1");
+    }
+
+    if (options.parentSessionId?.trim()) {
+      query.set("parentSessionId", options.parentSessionId.trim());
     }
 
     return getJson<AgentSessionsResponse>(
@@ -183,9 +206,11 @@ export const agentSessionsApi = {
     if (sourceEntryIds?.length) {
       query.set("entryIds", Array.from(new Set(sourceEntryIds)).join(","));
     }
+
     if (options.sourceEntryRanges?.length) {
       query.set("entryRanges", JSON.stringify(options.sourceEntryRanges));
     }
+
     if (options.sourceEntrySpans?.length) {
       query.set("entrySpans", JSON.stringify(options.sourceEntrySpans));
     }
@@ -230,9 +255,11 @@ export const agentSessionsApi = {
     if (sourceEntryIds?.length) {
       query.set("entryIds", Array.from(new Set(sourceEntryIds)).join(","));
     }
+
     if (options.sourceEntryRanges?.length) {
       query.set("entryRanges", JSON.stringify(options.sourceEntryRanges));
     }
+
     if (options.sourceEntrySpans?.length) {
       query.set("entrySpans", JSON.stringify(options.sourceEntrySpans));
     }
@@ -271,6 +298,7 @@ export const agentSessionsApi = {
       entryIds,
       options
     );
+
     return response.data.entries;
   },
 
@@ -282,6 +310,7 @@ export const agentSessionsApi = {
     const uniqueEntryIds = Array.from(new Set(
       entryIds.map((entryId) => entryId.trim()).filter(Boolean)
     ));
+
     if (uniqueEntryIds.length === 0) {
       return buildUncachedConditionalJsonResult({
         entries: []
@@ -322,6 +351,7 @@ export const agentSessionsApi = {
     const query = new URLSearchParams({
       beforeEntryId: options.beforeEntryId
     });
+
     if (options.limit) {
       query.set("limit", String(options.limit));
     }
@@ -353,6 +383,7 @@ export const agentSessionsApi = {
       buildAgentSessionScopedUrl(agentSessionId, "/reviewed"),
       {}
     );
+
     if (!result.ok) {
       throw new Error(result.data.error ?? "Failed to mark agent chat as reviewed");
     }

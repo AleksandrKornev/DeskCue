@@ -19,12 +19,17 @@ import {
 } from "./sourceAgentRegistry.ts";
 import type { SourceAgentLightweightMode } from "./sourceAgentRegistry.ts";
 import type { SourceAgentSessionIndex } from "./sourceAgentSessionIndex.ts";
+import {
+  isDirectSubagentOf,
+  isTopLevelAgentSession
+} from "./sourceAgentSubagents.ts";
 
 type DescriptorSessionLists = AgentSessionSummary[][];
 type DescriptorSessionListsRead = {
   indexSnapshot: AgentSessionIndexSnapshotMeta;
   sessions: DescriptorSessionLists;
 };
+
 export type { SourceAgentLightweightMode };
 
 const SOURCE_AGENT_COUNT_SCAN_LIMIT = 1000;
@@ -104,6 +109,7 @@ function readIndexedDescriptorSessionLists({
   sessionIndex: SourceAgentSessionIndex;
 }): Promise<DescriptorSessionListsRead> {
   const cacheKey = buildCountScanCacheKey(workspaces);
+
   return sessionIndex.readSnapshot({
     cacheKey,
     force,
@@ -127,6 +133,7 @@ export async function getAgentSessionDetail(
   } = {}
 ): Promise<AgentSessionDetail | null> {
   const parsed = parseAgentSessionId(agentSessionId);
+
   if (!parsed) {
     return null;
   }
@@ -147,6 +154,7 @@ export async function getAgentSessionVersion(
   force = false
 ): Promise<AgentSessionSourceVersion | null> {
   const parsed = parseAgentSessionId(agentSessionId);
+
   if (!parsed) {
     return null;
   }
@@ -163,11 +171,13 @@ export async function getAgentSessionTranscriptEntries(
   force = false
 ): Promise<AgentTranscriptEntry[]> {
   const parsed = parseAgentSessionId(agentSessionId);
+
   if (!parsed || entryIds.length === 0) {
     return [];
   }
 
   const descriptor = getSourceAgentDescriptor(parsed.agentId);
+
   if (!descriptor) {
     return [];
   }
@@ -175,6 +185,7 @@ export async function getAgentSessionTranscriptEntries(
   if (descriptor.transcript?.getEntries) {
     return descriptor.transcript.getEntries(parsed.sourceSessionId, entryIds, { force });
   }
+
   return [];
 }
 
@@ -188,6 +199,7 @@ export async function getAgentSessionTranscriptWindow(
   }
 ): Promise<AgentTranscriptEntry[] | null> {
   const parsed = parseAgentSessionId(agentSessionId);
+
   if (!parsed) {
     return null;
   }
@@ -211,6 +223,7 @@ export async function getAgentSessionTranscriptTailWindow(
   } = {}
 ): Promise<AgentTranscriptEntry[] | null> {
   const parsed = parseAgentSessionId(agentSessionId);
+
   if (!parsed) {
     return null;
   }
@@ -232,6 +245,7 @@ export async function getAgentSessionTranscriptPreviousWindow(
   }
 ): Promise<{ entries: AgentTranscriptEntry[]; hasMore: boolean } | null> {
   const parsed = parseAgentSessionId(agentSessionId);
+
   if (!parsed) {
     return null;
   }
@@ -247,6 +261,7 @@ export async function getAgentSessionTranscriptPreviousWindow(
 
 function normalizeAgentSessionQuery(query: string | null | undefined) {
   const normalizedQuery = query?.trim().toLowerCase() ?? "";
+
   return normalizedQuery || null;
 }
 
@@ -266,7 +281,9 @@ function matchesAgentSessionQuery(session: AgentSessionSummary, query: string | 
     session.source,
     session.filePath,
     session.approvalPolicy,
-    session.sandboxMode
+    session.sandboxMode,
+    session.subagent?.nickname,
+    session.subagent?.role
   ]
     .filter(Boolean)
     .join(" ")
@@ -274,11 +291,30 @@ function matchesAgentSessionQuery(session: AgentSessionSummary, query: string | 
     .includes(query);
 }
 
+export function filterAgentSessionsByHierarchy(
+  sessions: AgentSessionSummary[],
+  options: {
+    includeSubagents?: boolean;
+    parentSessionId?: string | null;
+  }
+) {
+  const parentSessionId = options.parentSessionId?.trim() || null;
+
+  if (parentSessionId) {
+    return sessions.filter((session) => isDirectSubagentOf(session, parentSessionId));
+  }
+
+  if (options.includeSubagents) return sessions;
+
+  return sessions.filter(isTopLevelAgentSession);
+}
+
 function buildSourceCounts(
   sessions: AgentSessionSummary[],
-  countLimit: number
+  exactnessByAgent: ReadonlyMap<AgentSessionSummary["agentId"], boolean>
 ): AgentSessionSourceCount[] {
   const countsByAgent = new Map<AgentSessionSummary["agentId"], number>();
+
   for (const session of sessions) {
     countsByAgent.set(session.agentId, (countsByAgent.get(session.agentId) ?? 0) + 1);
   }
@@ -286,8 +322,20 @@ function buildSourceCounts(
   return Array.from(countsByAgent.entries()).map(([agentId, count]) => ({
     agentId,
     count,
-    exact: count < countLimit
+    exact: exactnessByAgent.get(agentId) ?? false
   }));
+}
+
+function buildSourceCountExactness(
+  descriptorSessions: DescriptorSessionLists,
+  countLimit: number
+) {
+  return new Map(
+    sourceAgentDescriptors.map((descriptor, index) => [
+      descriptor.adapterId,
+      (descriptorSessions[index]?.length ?? countLimit) < countLimit
+    ])
+  );
 }
 
 export async function listAgentSessionPage(
@@ -296,8 +344,10 @@ export async function listAgentSessionPage(
   workspaces: WorkspaceSummary[] = [],
   options: {
     force?: boolean;
+    includeSubagents?: boolean;
     includeLiveMetadata?: boolean;
     offset?: number;
+    parentSessionId?: string | null;
     query?: string | null;
     sourceId?: AgentKind | null;
   } = {}
@@ -306,7 +356,8 @@ export async function listAgentSessionPage(
   const offset = Math.max(0, options.offset ?? 0);
   const query = normalizeAgentSessionQuery(options.query);
   const sourceId = options.sourceId ?? null;
-  const discoveryLimit = query
+  const hierarchyFilterIsActive = Boolean(options.parentSessionId?.trim()) || !options.includeSubagents;
+  const discoveryLimit = query || hierarchyFilterIsActive
     ? SOURCE_AGENT_COUNT_SCAN_LIMIT
     : Math.min(SOURCE_AGENT_COUNT_SCAN_LIMIT, offset + normalizedLimit + 1);
   // Keep one canonical bounded discovery snapshot per workspace set. Including
@@ -345,19 +396,18 @@ export async function listAgentSessionPage(
   ]);
   const discoveredSessions = discoveredSessionsRead.sessions;
   const countSessions = countSessionsRead.sessions;
+  const sourceCountExactness = buildSourceCountExactness(countSessions, countLimit);
 
-  const matchingCountSessions = countSessions
-    .flat()
+  const matchingCountSessions = filterAgentSessionsByHierarchy(countSessions.flat(), options)
     .filter((session) => matchesAgentSessionQuery(session, query));
   const matchingSourceSessions = sourceId
     ? matchingCountSessions.filter((session) => session.agentId === sourceId)
     : matchingCountSessions;
-  const sourceCounts = buildSourceCounts(matchingCountSessions, countLimit);
+  const sourceCounts = buildSourceCounts(matchingCountSessions, sourceCountExactness);
   const totalCount = matchingCountSessions.length;
-  const totalCountExact = sourceCounts.every((sourceCount) => sourceCount.exact);
+  const totalCountExact = Array.from(sourceCountExactness.values()).every(Boolean);
 
-  const matchingSessions = discoveredSessions
-    .flat()
+  const matchingSessions = filterAgentSessionsByHierarchy(discoveredSessions.flat(), options)
     .filter((session) => matchesAgentSessionQuery(session, query))
     .filter((session) => !sourceId || session.agentId === sourceId)
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -384,7 +434,11 @@ export async function listAgentSessions(
     includeLiveMetadata?: boolean;
   } = {}
 ): Promise<AgentSessionSummary[]> {
-  const page = await listAgentSessionPage(sessionIndex, limit, workspaces, options);
+  const page = await listAgentSessionPage(sessionIndex, limit, workspaces, {
+    ...options,
+    includeSubagents: true
+  });
+
   return page.sessions;
 }
 

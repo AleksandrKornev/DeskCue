@@ -150,6 +150,11 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
             getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
           );
           const isReadyForReview = readyForReviewAgentSessionIds.has(session.id);
+          const subagentNickname = session.subagent?.nickname?.trim() || null;
+          const sessionDisplayTitle = subagentNickname ?? session.title;
+          const subagentDetail = subagentNickname
+            ? session.subagent?.role?.trim() || session.title
+            : null;
           const shouldShowWorkIndicator =
             workIndicator && !(isReadyForReview && workIndicator.tone === "readonly");
           const statusIndicator: AgentSessionListStatusIndicator | null =
@@ -187,13 +192,22 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
               type="button"
             >
               <div className={styles.listCardHeader}>
-                <strong>
-                  <Tooltip
-                    className={styles.listCardTitle}
-                    placement="below"
-                    value={session.title}
-                  />
-                </strong>
+                <span className={styles.listCardIdentity}>
+                  <strong>
+                    <Tooltip
+                      className={styles.listCardTitle}
+                      placement="below"
+                      value={sessionDisplayTitle}
+                    />
+                  </strong>
+                  {subagentDetail ? (
+                    <Tooltip
+                      className={styles.listCardSubagentDetail}
+                      placement="below"
+                      value={subagentDetail}
+                    />
+                  ) : null}
+                </span>
               </div>
               <div className={styles.listCardMeta}>
                 <span className={styles.listCardContext}>

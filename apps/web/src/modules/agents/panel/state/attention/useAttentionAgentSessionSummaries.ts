@@ -154,7 +154,7 @@ class AttentionSessionEventController implements EventListenerObject {
   }
 }
 
-/** Loads the bounded source-scoped page used only by the compact attention rail. */
+/** Loads the bounded source-scoped page used by the attention rail on every viewport. */
 export function useAttentionAgentSessionSummaries(
   enabled = true,
   sourceId: AgentKind | "all" = "all"
@@ -192,6 +192,7 @@ export function useAttentionAgentSessionSummaries(
 
       try {
         const page = await agentSessionsApi.getList({
+          includeSubagents: true,
           includeLiveMetadata: true,
           limit: ATTENTION_AGENT_SESSION_LIMIT,
           signal: abortController.signal,

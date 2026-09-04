@@ -34,6 +34,7 @@ export type ManagedSessionShellProps = {
   isInterruptingPrompt: boolean;
   immediateInterruptPrompt: PendingChatPrompt | null;
   showTools?: boolean;
+  onOpenSubagentSession: (parentSessionId: string, childSessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
   onSelectTab: (tab: SessionTab) => void;
   onSendInput: (instruction: string, options?: SendInputOptions) => Promise<boolean>;
@@ -51,6 +52,7 @@ export type ManagedSessionShellProps = {
   onStopSession: () => boolean | Promise<boolean>;
   onStopAndExitSession: () => void | Promise<void>;
   onExitSession: () => void;
+  exitLabel?: string;
   onRefreshGit: () => void;
   onRetrySessionLoad?: () => Promise<unknown>;
   onChangePreviewPort: (value: string) => void;

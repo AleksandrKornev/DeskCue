@@ -12,9 +12,13 @@ export function selectManagedSessions(
   );
 
   const deduped = new Map<string, SessionSummary>();
+
   for (const session of visibleSessions) {
-    const key = session.sourceSessionId ?? session.id;
+    const key = session.sourceSessionId
+      ? `${session.adapterId}:${session.sourceSessionId}`
+      : session.id;
     const existing = deduped.get(key);
+
     if (
       !existing ||
       (existing.status !== "running" && session.status === "running") ||

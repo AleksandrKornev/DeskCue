@@ -74,6 +74,8 @@ export function buildAgentBrowserShellProps({
     onRetrySelectedAgentSession: agentBrowserActions.refreshSelectedAgentSession,
     onSearchAgentSessions: agentBrowserLoaders.searchAgentSessions,
     onMarkAgentSessionReviewed: agentBrowserActions.markAgentSessionReviewed,
+    onBackToParentAgentSession: routeActions.onBackToParentAgentSession,
+    onOpenSubagentSession: routeActions.onOpenSubagentSession,
     onSelectAgentSession: routeActions.onSelectAgentSession,
     onClearAgentSessionSelection: routeActions.onClearAgentSessionSelection,
     onAttachAgentSession: routeActions.onAttachSelectedAgentSession,
@@ -95,6 +97,19 @@ export function buildManagedSessionShellProps({
   route,
   routeActions
 }: BuildManagedSessionShellPropsArgs): ManagedSessionShellProps {
+  const subagentSessionId = route.takenOverAgentSession?.id;
+  const subagentParentSessionId = route.subagentParentSessionId ??
+    route.takenOverAgentSession?.subagent?.parentSessionId;
+  const onExitSession = subagentSessionId && subagentParentSessionId
+    ? () => routeActions.onBackToParentAgentSession(subagentParentSessionId, subagentSessionId)
+    : routeActions.onExitSession;
+  const onStopAndExitSession = subagentSessionId && subagentParentSessionId
+    ? () => routeActions.onStopAndExitSession({
+        subagentParentSessionId,
+        subagentSessionId
+      })
+    : routeActions.onStopAndExitSession;
+
   return {
     agentSessions: agentBrowser.agentSessions,
     managedSessions: managedSession.managedSessions,
@@ -118,6 +133,7 @@ export function buildManagedSessionShellProps({
     isWaitingForChatReply: prompt.isWaitingForChatReply,
     isInterruptingPrompt: prompt.isInterruptingPrompt,
     immediateInterruptPrompt: prompt.immediateInterruptPrompt,
+    onOpenSubagentSession: routeActions.onOpenSubagentSession,
     onSelectSession: routeActions.onSelectManagedSession,
     onSelectTab: routeActions.onSelectSessionTab,
     onSendInput: routeActions.onSendInput,
@@ -126,8 +142,9 @@ export function buildManagedSessionShellProps({
     onLoadMoreAgentSessionTranscript: agentBrowserActions.loadMoreAgentSessionTranscript,
     onInterruptPrompt: routeActions.onInterruptPrompt,
     onStopSession: routeActions.onStopSession,
-    onStopAndExitSession: routeActions.onStopAndExitSession,
-    onExitSession: routeActions.onExitSession,
+    onStopAndExitSession,
+    onExitSession,
+    exitLabel: subagentParentSessionId ? "Back to parent" : undefined,
     onRefreshGit: managedSessionActions.handleRefreshGit,
     onRetrySessionLoad: managedSessionActions.retryInitialManagedSessionLoad,
     onChangePreviewPort: managedSessionActions.setPreviewPort,

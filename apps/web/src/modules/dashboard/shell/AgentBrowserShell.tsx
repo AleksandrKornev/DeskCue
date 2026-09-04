@@ -59,10 +59,15 @@ export type AgentBrowserShellProps = {
     options?: { silent?: boolean; sourceId?: AgentKind | "all" }
   ) => Promise<AgentSessionSummary[]>;
   onMarkAgentSessionReviewed: (sessionId: string) => void;
+  onBackToParentAgentSession: (parentSessionId: string, childSessionId: string) => void;
+  onOpenSubagentSession: (parentSessionId: string, childSessionId: string) => void;
   onSelectAgentSession: (sessionId: string) => void;
   onClearAgentSessionSelection: () => void;
-  onAttachAgentSession: () => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onAttachAgentSession: (options?: { subagentParentSessionId?: string }) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
   onOpenLocalLlmChat: (chatId: string) => void;
   onChangeWorkspacePath: (value: string) => void;
   onPickWorkspace: () => Promise<WorkspaceActionResult>;

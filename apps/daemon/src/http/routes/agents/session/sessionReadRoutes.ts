@@ -20,21 +20,25 @@ type InstallAgentSessionReadRoutesOptions = {
 
 function readOptionalStringQuery(value: unknown) {
   const rawValue: unknown = Array.isArray(value) ? value[0] : value;
+
   return typeof rawValue === "string" ? rawValue.trim() || null : null;
 }
 
 function readTranscriptDetailQuery(value: unknown) {
   const rawValue = readOptionalStringQuery(value);
+
   return rawValue === "summary" ? "summary" : "full";
 }
 
 function readBooleanQuery(value: unknown) {
   const rawValue: unknown = Array.isArray(value) ? value[0] : value;
+
   return rawValue === "1" || rawValue === "true";
 }
 
 function readAgentKindQuery(value: unknown): AgentKind | null {
   const rawValue = readOptionalStringQuery(value);
+
   if (
     rawValue === "codex" ||
     rawValue === "claude-code" ||
@@ -48,11 +52,13 @@ function readAgentKindQuery(value: unknown): AgentKind | null {
 
 function readNonNegativeIntegerQuery(value: unknown) {
   const rawValue: unknown = Array.isArray(value) ? value[0] : value;
+
   if (typeof rawValue !== "string" || !rawValue.trim()) {
     return null;
   }
 
   const parsed = Number(rawValue);
+
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
@@ -69,15 +75,21 @@ export function installAgentSessionReadRoutes(
       const offset = readNonNegativeIntegerQuery(request.query.offset) ?? 0;
       const query = readOptionalStringQuery(request.query.query);
       const sourceId = readAgentKindQuery(request.query.source);
+      const parentSessionId = readOptionalStringQuery(request.query.parentSessionId);
+      const includeSubagents = readBooleanQuery(request.query.includeSubagents);
       const includeLiveMetadata = readBooleanQuery(request.query.includeLiveMetadata);
       const sessionPage = await sourceAgentSessions.listRecentSessionPage(limit, includeLiveMetadata, {
+        includeSubagents,
         offset,
+        parentSessionId,
         query,
         sourceId
       });
+
       setRequestMetrics(response, {
         endpoint: "agent.sessions-list",
         hasMore: sessionPage.hasMore,
+        hierarchy: parentSessionId ? "children" : includeSubagents ? "all" : "roots",
         includeLiveMetadata,
         indexSnapshotAgeMs: sessionPage.indexSnapshot?.ageMs ?? null,
         indexSnapshotReadMode: sessionPage.indexSnapshot?.readMode ?? null,
@@ -133,6 +145,7 @@ export function installAgentSessionReadRoutes(
             }
           : undefined
       );
+
       if (!session) {
         response.status(404).json({
           error: "Agent session not found."

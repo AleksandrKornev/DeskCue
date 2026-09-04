@@ -47,9 +47,12 @@ export class LocalSourceAgentSessionDiscovery implements SourceAgentSessionDisco
     workspaces: WorkspaceSummary[],
     options: {
       force?: boolean;
+      includeSubagents?: boolean;
       includeLiveMetadata?: boolean;
       offset?: number;
+      parentSessionId?: string | null;
       query?: string | null;
+      sourceId?: AgentSessionSummary["agentId"] | null;
     } = {}
   ) {
     return listAgentSessionPage(this.sessionIndex, limit, workspaces, options);

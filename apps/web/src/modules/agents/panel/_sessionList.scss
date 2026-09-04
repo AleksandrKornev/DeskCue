@@ -157,6 +157,21 @@
   min-width: 0;
 }
 
+.listCardIdentity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listCardSubagentDetail {
+  overflow: hidden;
+  color: vars.$color-text-secondary;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .listCardMeta {
   display: grid;
   gap: 5px;

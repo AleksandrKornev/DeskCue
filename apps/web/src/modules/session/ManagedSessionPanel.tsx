@@ -32,6 +32,7 @@ import { useManagedSessionPanelViewModel } from "./model/useManagedSessionPanelV
 import { SessionOpeningSkeleton } from "./skeleton";
 import type { SessionOpeningRetryContext } from "./skeleton";
 import styles from "./styles.module.scss";
+import { SubagentSessionsSupplement } from "./subagents";
 import {
   DiffTabPanel,
   FilesTabPanel,
@@ -89,6 +90,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     isBootstrapping,
     liveUpdatesConnection,
     showTools = false,
+    onOpenSubagentSession,
     onSelectSession,
     onSelectTab,
     onSendInput,
@@ -96,6 +98,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     onStopSession,
     onStopAndExitSession,
     onExitSession,
+    exitLabel,
     onRefreshGit,
     onRetrySessionLoad,
     onChangePreviewPort,
@@ -272,6 +275,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                 status={liveHeaderStatus}
                 statusLabel={liveHeaderStatusLabel}
                 liveUpdatesConnection={liveUpdatesConnection}
+                exitLabel={exitLabel}
                 subtitle={liveSessionSubtitle}
                 title={liveSessionTitle}
                 toolbarRef={chatToolbarRef}
@@ -333,6 +337,16 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                   liveUpdatesConnection={liveUpdatesConnection}
                   sessionShell={sessionShell}
                   sharedViewerCount={sharedViewerCount}
+                  subagentSupplement={
+                    onOpenSubagentSession ? (
+                      <SubagentSessionsSupplement
+                        knownSessions={agentSessions}
+                        parentSessionId={takenOverAgentSession?.id ?? null}
+                        onOpenSubagentSession={onOpenSubagentSession}
+                      />
+                    ) : null
+                  }
+
                   threadProps={liveChatThreadProps}
                 />
               </div>

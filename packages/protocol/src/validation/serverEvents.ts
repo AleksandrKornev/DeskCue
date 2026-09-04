@@ -35,6 +35,23 @@ function validateAgentTurnState(value: unknown) {
   ]);
 }
 
+function validateAgentSessionSubagent(value: unknown) {
+  const subagent = readProtocolObject(value);
+
+  requireStrings(subagent, "parentSessionId");
+  requireNullableStrings(subagent, "nickname", "role");
+  if (
+    subagent.depth !== null &&
+    (
+      typeof subagent.depth !== "number" ||
+      !Number.isSafeInteger(subagent.depth) ||
+      subagent.depth < 0
+    )
+  ) {
+    throw new ProtocolSchemaError("Server event subagent depth must be a non-negative integer or null.");
+  }
+}
+
 function validateAgentSessionSummary(payload: Record<string, unknown>) {
   requireStrings(
     payload,
@@ -85,6 +102,10 @@ function validateAgentSessionSummary(payload: Record<string, unknown>) {
   }
 
   requireOptionalNullableStrings(payload, "attachModeReason", "reviewedAt");
+  if (payload.subagent !== undefined && payload.subagent !== null) {
+    validateAgentSessionSubagent(payload.subagent);
+  }
+
   if (payload.turnState !== undefined) validateAgentTurnState(payload.turnState);
   if (payload.interruptLifecycle !== undefined) {
     const lifecycle = readProtocolObject(payload.interruptLifecycle);

@@ -48,6 +48,70 @@ function createProps(patch: Partial<AgentTranscriptPanelProps> = {}): AgentTrans
 }
 
 describe("AgentTranscriptPanel load recovery", () => {
+  it("keeps parent subagent navigation visible beside the source transcript actions", () => {
+    render(
+      <AgentTranscriptPanel
+        {...createProps({
+          session: createSession(),
+          subagentSupplement: <section aria-label="Subagents">3 running · 54 total</section>
+        })}
+      />
+    );
+
+    expect(screen.getByRole("region", { name: "Subagents" })).toHaveTextContent("54 total");
+    expect(screen.getByRole("button", { name: "Continue chat" })).toBeInTheDocument();
+  });
+
+  it("retains the parent hierarchy when a subagent opens its managed chat", () => {
+    const onAttach = vi.fn();
+    const onOpenManagedSession = vi.fn();
+    const session = {
+      ...createSession(),
+      subagent: {
+        depth: 1,
+        nickname: "Scout",
+        parentSessionId: "codex:parent",
+        role: "reviewer"
+      }
+    };
+
+    const { rerender } = render(
+      <AgentTranscriptPanel
+        {...createProps({
+          onAttach,
+          parentAgentSessionId: "codex:parent",
+          session
+        })}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue chat" }));
+    expect(onAttach).toHaveBeenCalledWith({
+      subagentParentSessionId: "codex:parent"
+    });
+
+    rerender(
+      <AgentTranscriptPanel
+        {...createProps({
+          attachedManagedSessionId: "managed-1",
+          attachedManagedSessionInfo: {
+            id: "managed-1",
+            status: "running",
+            viewerCount: 1
+          },
+          onOpenManagedSession,
+          parentAgentSessionId: "codex:parent",
+          session
+        })}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open live chat" }));
+    expect(onOpenManagedSession).toHaveBeenCalledWith("managed-1", {
+      subagentParentSessionId: "codex:parent"
+    });
+  });
+
   it("replaces a summary-only preview with recovery instead of a false empty state", () => {
     render(
       <AgentTranscriptPanel

@@ -355,6 +355,11 @@ function fakeApplication({
     lightweight?: boolean | "exact-ids" | "bounded-exact-ids";
     transcriptTail: number | undefined;
   }> = [];
+  const agentSessionPageRequests: Array<{
+    includeLiveMetadata: boolean;
+    limit: number;
+    options: Record<string, unknown>;
+  }> = [];
   const agentTranscriptEntriesRequests: Array<{
     entryIds: string[];
   }> = [];
@@ -527,7 +532,13 @@ function fakeApplication({
     async listRecentSessions() {
       return [agentSessionSummary()];
     },
-    async listRecentSessionPage() {
+    async listRecentSessionPage(
+      limit: number,
+      includeLiveMetadata: boolean,
+      options: Record<string, unknown>
+    ) {
+      agentSessionPageRequests.push({ includeLiveMetadata, limit, options });
+
       return {
         sessions: [agentSessionSummary()],
         limit: 100,
@@ -645,6 +656,7 @@ function fakeApplication({
 
   return {
     agentSessionDetailRequests,
+    agentSessionPageRequests,
     agentTranscriptEntriesRequests,
     agentTranscriptPreviousWindowRequests,
     agentTranscriptTailWindowRequests,
@@ -677,6 +689,7 @@ function fakeApplication({
     }
   } as unknown as DaemonApplication & {
     agentSessionDetailRequests: typeof agentSessionDetailRequests;
+    agentSessionPageRequests: typeof agentSessionPageRequests;
     agentTranscriptEntriesRequests: typeof agentTranscriptEntriesRequests;
     agentTranscriptPreviousWindowRequests: typeof agentTranscriptPreviousWindowRequests;
     agentTranscriptTailWindowRequests: typeof agentTranscriptTailWindowRequests;
@@ -1535,6 +1548,50 @@ test("agent session routes trim transcript and preserve attached metadata", asyn
     assert.deepEqual(await missing.json(), {
       error: "Agent session not found."
     });
+  });
+});
+
+test("agent session list routes keep roots by default and support direct-child queries", async () => {
+  const application = fakeApplication({});
+  const app = createTestApp((target) => {
+    installAgentSessionRoutes(target, {
+      decorateSession,
+      sourceAgentSessions: application.sourceAgentSessions
+    });
+  });
+
+  await withServer(app, async (baseUrl) => {
+    await requestJson<AgentSessionsResponse>(`${baseUrl}/api/agents/sessions`);
+    await requestJson<AgentSessionsResponse>(
+      `${baseUrl}/api/agents/sessions?includeSubagents=1&parentSessionId=${
+        encodeURIComponent("codex:parent")
+      }&includeLiveMetadata=1`
+    );
+
+    assert.deepEqual(application.agentSessionPageRequests, [
+      {
+        includeLiveMetadata: false,
+        limit: 100,
+        options: {
+          includeSubagents: false,
+          offset: 0,
+          parentSessionId: null,
+          query: null,
+          sourceId: null
+        }
+      },
+      {
+        includeLiveMetadata: true,
+        limit: 100,
+        options: {
+          includeSubagents: true,
+          offset: 0,
+          parentSessionId: "codex:parent",
+          query: null,
+          sourceId: null
+        }
+      }
+    ]);
   });
 });
 

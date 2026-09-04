@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 
+import { getSourceSessionKey } from "@models/agentChatWorkState";
+
 import type { UseDashboardRouteViewModelArgs } from "./types";
 
 export function useDashboardRouteViewModel({
@@ -62,22 +64,24 @@ export function useDashboardRouteViewModel({
         openingAgentSessionId === effectiveSelectedAgentSessionId);
 
     const effectiveSelectedSourceId = selectedSourceId;
-    const effectiveSelectedAgentSourceSessionId =
+    const effectiveSelectedAgentSessionKey =
       selectedAgentSession?.id === effectiveSelectedAgentSessionId
-        ? selectedAgentSession.sourceSessionId
+        ? getSourceSessionKey(selectedAgentSession.agentId, selectedAgentSession.sourceSessionId)
         : effectiveSelectedAgentSessionId.includes(":")
-          ? effectiveSelectedAgentSessionId.slice(effectiveSelectedAgentSessionId.indexOf(":") + 1)
-          : effectiveSelectedAgentSessionId;
+          ? effectiveSelectedAgentSessionId
+          : null;
 
     const attachedManagedSession =
       overviewSessions.find(
         (session) =>
-          session.sourceSessionId === effectiveSelectedAgentSourceSessionId &&
+          getSourceSessionKey(session.adapterId, session.sourceSessionId) ===
+            effectiveSelectedAgentSessionKey &&
           session.status === "running"
       ) ??
       overviewSessions.find(
         (session) =>
-          session.sourceSessionId === effectiveSelectedAgentSourceSessionId &&
+          getSourceSessionKey(session.adapterId, session.sourceSessionId) ===
+            effectiveSelectedAgentSessionKey &&
           session.status === "read_only" &&
           (session.viewerCount ?? 0) > 0
       ) ??
@@ -87,8 +91,14 @@ export function useDashboardRouteViewModel({
       attachedManagedSession?.status === "running" &&
       (attachedManagedSession.replyState.phase === "sending" ||
         attachedManagedSession.replyState.phase === "waiting");
+    const hasResolvedSelectedAgentSession =
+      selectedAgentSession?.id === effectiveSelectedAgentSessionId &&
+      !isAgentSessionLoading;
     const shouldPromoteAttachedManagedSession =
-      isBrowsingUnattachedAgentSession && hasAttachedManagedPromptInFlight;
+      isBrowsingUnattachedAgentSession &&
+      hasAttachedManagedPromptInFlight &&
+      hasResolvedSelectedAgentSession &&
+      !selectedAgentSession.subagent;
 
     const effectiveSelectedSessionId = shouldPromoteAttachedManagedSession
       ? attachedManagedSession.id
@@ -144,15 +154,27 @@ export function useDashboardRouteViewModel({
           overviewSessions.find((session) => session.id === effectiveSelectedSessionId) ??
           null
         : null;
+    const panelAdapterId = selectedSession?.adapterId ??
+      effectiveManagedSessionSummary?.adapterId ??
+      null;
     const panelSourceSessionId =
       selectedSession?.sourceSessionId ?? effectiveManagedSessionSummary?.sourceSessionId ?? null;
+    const panelSourceSessionKey = panelAdapterId
+      ? getSourceSessionKey(panelAdapterId, panelSourceSessionId)
+      : null;
     const isPanelUsingActiveTakenOverAgentSession =
-      Boolean(panelSourceSessionId) &&
-      activeTakenOverAgentSession?.sourceSessionId === panelSourceSessionId;
+      Boolean(panelSourceSessionKey) &&
+      getSourceSessionKey(
+        activeTakenOverAgentSession?.agentId ?? "",
+        activeTakenOverAgentSession?.sourceSessionId ?? null
+      ) === panelSourceSessionKey;
     const isPanelUsingSelectedAgentSession =
       !isPanelUsingActiveTakenOverAgentSession &&
-      Boolean(panelSourceSessionId) &&
-      selectedAgentSession?.sourceSessionId === panelSourceSessionId;
+      Boolean(panelSourceSessionKey) &&
+      getSourceSessionKey(
+        selectedAgentSession?.agentId ?? "",
+        selectedAgentSession?.sourceSessionId ?? null
+      ) === panelSourceSessionKey;
     const takenOverAgentSessionForPanel = isPanelUsingActiveTakenOverAgentSession
       ? activeTakenOverAgentSession
       : isPanelUsingSelectedAgentSession

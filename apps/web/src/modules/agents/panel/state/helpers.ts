@@ -1,4 +1,5 @@
 import type { AgentSessionSummary } from "@deskcue/protocol";
+import { isSubagentChat } from "@components/AgentChatBadge/isSubagentChat";
 
 export const INITIAL_VISIBLE_SESSIONS = 8;
 export const VISIBLE_SESSIONS_INCREMENT = 24;
@@ -11,8 +12,11 @@ export function filterAndSortAgentSessionsByQuery(
   query: string
 ) {
   const normalizedQuery = query.trim().toLowerCase();
+  const listSessions = normalizedQuery
+    ? agentSessions
+    : agentSessions.filter((session) => !isSubagentChat(session));
   const matchingSessions = normalizedQuery
-    ? agentSessions.filter((session) =>
+    ? listSessions.filter((session) =>
         [
           session.id,
           session.sourceSessionId,
@@ -24,13 +28,15 @@ export function filterAndSortAgentSessionsByQuery(
           session.source ?? "",
           session.filePath,
           session.approvalPolicy ?? "",
-          session.sandboxMode ?? ""
+          session.sandboxMode ?? "",
+          session.subagent?.nickname ?? "",
+          session.subagent?.role ?? ""
         ]
           .join(" ")
           .toLowerCase()
           .includes(normalizedQuery)
       )
-    : agentSessions;
+    : listSessions;
 
   return [...matchingSessions].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()

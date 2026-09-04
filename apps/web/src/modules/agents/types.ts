@@ -51,10 +51,15 @@ export interface AgentSessionsPanelProps {
     options?: { silent?: boolean; sourceId?: AgentKind | "all" }
   ) => Promise<AgentSessionSummary[]>;
   onMarkAgentSessionReviewed: (sessionId: string) => void;
+  onBackToParentAgentSession: (parentSessionId: string, childSessionId: string) => void;
+  onOpenSubagentSession: (parentSessionId: string, childSessionId: string) => void;
   onSelectAgentSession: (sessionId: string) => void;
   onClearAgentSessionSelection: () => void;
-  onAttachAgentSession: () => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onAttachAgentSession: (options?: { subagentParentSessionId?: string }) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
   onOpenLocalLlmChat: (chatId: string) => void;
 }
 
@@ -123,7 +128,9 @@ export interface AgentSessionsEmptyStateProps {
 export interface MobileAgentSessionDetailProps {
   agentSessionId: string;
   agentSessionLabel: string;
+  parentSessionId?: string | null;
   transcriptPanel: ReactNode;
+  onBackToParent?: () => void;
   onBackToChats: (focusOrigin: HTMLElement) => void;
 }
 
@@ -135,8 +142,10 @@ export interface AgentSessionsDesktopLayoutProps {
 export interface AgentSessionsMobileLayoutProps {
   agentSessionId: string;
   agentSessionLabel: string;
+  parentSessionId?: string | null;
   sessionsList: ReactNode;
   showFocusedDetail: boolean;
   transcriptPanel: ReactNode;
+  onBackToParent?: () => void;
   onBackToChats: () => void;
 }

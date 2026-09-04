@@ -19,8 +19,11 @@ export type AgentTranscriptPanelFallbackProps = {
   attaching: boolean;
   isLoading: boolean;
   session: AgentSessionsPanelProps["selectedAgentSession"] | AgentSessionsPanelProps["agentSessions"][number] | null;
-  onAttach: () => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onAttach: (options?: { subagentParentSessionId?: string }) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
 };
 
 export function AgentTranscriptPanelFallback({
@@ -109,7 +112,9 @@ export function AgentTranscriptPanelFallback({
             const actionSessionId = session.id;
 
             if (attachedManagedSessionId) {
-              onOpenManagedSession(attachedManagedSessionId);
+              onOpenManagedSession(attachedManagedSessionId, {
+                subagentParentSessionId: session.subagent?.parentSessionId
+              });
               return;
             }
 
@@ -125,7 +130,9 @@ export function AgentTranscriptPanelFallback({
 
             if (currentSessionIdRef.current !== actionSessionId) return;
 
-            onAttach();
+            onAttach({
+              subagentParentSessionId: session.subagent?.parentSessionId
+            });
           }}
           type="button"
         >

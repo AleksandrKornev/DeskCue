@@ -230,6 +230,7 @@ export function useDashboardLoaders({
 
     try {
       const page = await agentSessionsApi.getList({
+        includeSubagents: Boolean(query?.trim()),
         includeLiveMetadata: true,
         limit: AGENT_SESSIONS_PAGE_LIMIT,
         offset: agentSessionsRef.current.length,
@@ -270,6 +271,7 @@ export function useDashboardLoaders({
 
     try {
       const page = await agentSessionsApi.getList({
+        includeSubagents: Boolean(query.trim()),
         includeLiveMetadata: true,
         limit: INITIAL_AGENT_SESSIONS_LIMIT,
         query,

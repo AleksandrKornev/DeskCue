@@ -121,6 +121,7 @@ function createProps(onRetrySessionLoad: () => Promise<unknown>): ManagedSession
   return {
     activeTab: "overview",
     agentSessions: [],
+    managedSessions: [],
     agentTranscriptHasMoreById: new Map(),
     agentTranscriptHistoryIncompleteById: new Map(),
     immediateInterruptPrompt: null,
@@ -129,7 +130,6 @@ function createProps(onRetrySessionLoad: () => Promise<unknown>): ManagedSession
     isTakenOverAgentSessionLoading: false,
     isWaitingForChatReply: false,
     liveUpdatesConnection: { lastSyncedAt: null, status: "offline" },
-    managedSessions: [],
     pendingChatPrompt: null,
     previewPort: "",
     selectedSession: null,
@@ -148,6 +148,7 @@ function createProps(onRetrySessionLoad: () => Promise<unknown>): ManagedSession
     onRefreshGit: vi.fn(),
     onRetrySessionLoad,
     onSelectSession: vi.fn(),
+    onOpenSubagentSession: vi.fn(),
     onSelectTab: vi.fn(),
     onSendInput: vi.fn(() => Promise.resolve(false)),
     onSetPreview: vi.fn(),

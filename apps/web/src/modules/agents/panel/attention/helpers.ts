@@ -34,6 +34,7 @@ export function buildAttentionSessionGroups({
   const approvalRequestIds = new Set(approvalRequests.map((session) => session.id));
   const newResults = sessions.filter(
     (session) =>
+      !session.subagent &&
       !approvalRequestIds.has(session.id) &&
       readyForReviewAgentSessionIds.has(session.id)
   );
@@ -43,6 +44,7 @@ export function buildAttentionSessionGroups({
   ]);
   const activeAgents = sessions.filter(
     (session) =>
+      !session.subagent &&
       !attentionIds.has(session.id) &&
       (
         workIndicatorsBySourceSessionKey.get(

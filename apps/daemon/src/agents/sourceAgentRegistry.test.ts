@@ -44,6 +44,7 @@ test("preserves Codex attach state when projecting list summaries", () => {
     phase: "active",
     startedAt: "2026-07-03T10:00:00.000Z"
   });
+
   assert.equal(projected.contextCompactionCount, 3);
   assert.equal(projected.approvalPolicy, "on-request");
   assert.equal(projected.sandboxMode, "workspace-write");
@@ -69,10 +70,54 @@ test("defaults Codex list summaries to resumable when no attach state is availab
   });
 });
 
+test("projects Codex subagent identity without exposing raw hierarchy parsing to clients", () => {
+  const projected = toCodexAgentSessionSummary({
+    ...codexSummary,
+    source: {
+      subagent: {
+        thread_spawn: {
+          agent_nickname: "Scout",
+          agent_role: "adversarial reviewer",
+          depth: 1,
+          parent_thread_id: "parent-thread"
+        }
+      }
+    } as unknown as string
+  });
+
+  assert.deepEqual(projected.subagent, {
+    depth: 1,
+    nickname: "Scout",
+    parentSessionId: "codex:parent-thread",
+    role: "adversarial reviewer"
+  });
+
+  assert.equal(projected.source, null);
+});
+
+test("keeps malformed self-parent Codex metadata in the root session list", () => {
+  const projected = toCodexAgentSessionSummary({
+    ...codexSummary,
+    source: {
+      subagent: {
+        thread_spawn: {
+          depth: 1,
+          parent_thread_id: codexSummary.id
+        }
+      }
+    } as unknown as string
+  });
+
+  assert.equal(projected.subagent, undefined);
+  assert.equal(projected.source, null);
+});
+
 test("advertises transcript random-access only for providers that implement it", () => {
   assert.ok(getSourceAgentDescriptor("codex")?.transcript);
   const claudeTranscript = getSourceAgentDescriptor("claude-code")?.transcript;
+
   assert.ok(claudeTranscript?.getEntries);
+
   assert.ok(claudeTranscript?.getWindow);
   assert.ok(claudeTranscript?.getTailWindow);
   assert.ok(claudeTranscript?.getPreviousWindow);

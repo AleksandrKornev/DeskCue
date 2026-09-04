@@ -1,6 +1,7 @@
 import type { AgentSessionSummary, SessionSummary } from "@deskcue/protocol";
 import type { LiveUpdatesConnectionState } from "@models/liveUpdatesConnection";
 import {
+  formatAgentSessionTitle,
   formatManagedSessionSubtitle,
   formatManagedSessionTitle
 } from "@models/sessionDisplay";
@@ -126,7 +127,9 @@ export function formatSwitcherTitle(
   session: SessionSummary,
   sourceAgentSession: AgentSessionSummary | null
 ) {
-  return sourceAgentSession?.title ?? formatManagedSessionTitle(session);
+  return sourceAgentSession
+    ? formatAgentSessionTitle(sourceAgentSession)
+    : formatManagedSessionTitle(session);
 }
 
 export function formatSwitcherSubtitle(

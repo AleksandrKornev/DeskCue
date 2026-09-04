@@ -34,7 +34,14 @@ function focusBackButtonIfUnowned(button: HTMLButtonElement | null) {
 }
 
 export function MobileAgentSessionDetail(props: MobileAgentSessionDetailProps) {
-  const { agentSessionId, agentSessionLabel, transcriptPanel, onBackToChats } = props;
+  const {
+    agentSessionId,
+    agentSessionLabel,
+    parentSessionId,
+    transcriptPanel,
+    onBackToParent,
+    onBackToChats
+  } = props;
   const layoutMode = useDeskCueLayoutMode();
   const displayLabel = agentSessionLabel.trim() || "Selected chat";
   const headingId = useId();
@@ -67,10 +74,18 @@ export function MobileAgentSessionDetail(props: MobileAgentSessionDetailProps) {
           data-chat-list-focus-fallback=""
           data-chat-list-focus-priority=""
           ref={backButtonRef}
-          onClick={(event) => onBackToChats(event.currentTarget)}
+          onClick={(event) => {
+            if (parentSessionId && onBackToParent) {
+              onBackToParent();
+
+              return;
+            }
+
+            onBackToChats(event.currentTarget);
+          }}
           type="button"
         >
-          Back to chats
+          {parentSessionId && onBackToParent ? "Back to parent" : "Back to chats"}
         </button>
       </div>
       {transcriptPanel}

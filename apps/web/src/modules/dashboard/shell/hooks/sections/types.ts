@@ -19,23 +19,32 @@ type DashboardShellRouteState = {
   isOpeningSelectedAgentSession: boolean;
   isTakenOverAgentSessionLoading: boolean;
   showLiveTools: boolean;
+  subagentParentSessionId: string | null;
   takenOverAgentSession: AgentSessionDetail | null;
 };
 
 type DashboardShellRouteActions = {
-  onAttachSelectedAgentSession: () => void;
+  onAttachSelectedAgentSession: (options?: { subagentParentSessionId?: string }) => void;
+  onBackToParentAgentSession: (parentSessionId: string, childSessionId: string) => void;
   onClearAgentSessionSelection: () => void;
   onCloseLiveOverlays: () => void;
   onExitSession: () => void;
   onInterruptPrompt: () => void;
-  onOpenManagedSession: (sessionId: string) => void;
+  onOpenManagedSession: (
+    sessionId: string,
+    options?: { subagentParentSessionId?: string }
+  ) => void;
+  onOpenSubagentSession: (parentSessionId: string, childSessionId: string) => void;
   onOpenLocalLlmChat: (chatId: string) => void;
   onSelectAgentSession: (sessionId: string) => void;
   onSelectManagedSession: (sessionId: string) => void;
   onSelectSessionTab: (tab: SessionTab) => void;
   onSelectSource: (sourceId: AgentKind | "all") => void;
   onSendInput: (instruction: string, options?: SendInputOptions) => Promise<boolean>;
-  onStopAndExitSession: () => void | Promise<void>;
+  onStopAndExitSession: (options?: {
+    subagentParentSessionId?: string;
+    subagentSessionId?: string;
+  }) => void | Promise<void>;
   onStopSession: () => boolean | Promise<boolean>;
   onToggleLiveTools: (options?: { replace?: boolean }) => void;
 };
@@ -105,9 +114,11 @@ export type BuildAgentBrowserShellPropsArgs = {
   routeActions: Pick<
     DashboardShellRouteActions,
     | "onAttachSelectedAgentSession"
+    | "onBackToParentAgentSession"
     | "onClearAgentSessionSelection"
     | "onOpenLocalLlmChat"
     | "onOpenManagedSession"
+    | "onOpenSubagentSession"
     | "onSelectAgentSession"
     | "onSelectSource"
   >;
@@ -147,12 +158,16 @@ export type BuildManagedSessionShellPropsArgs = {
     | "effectiveSelectedSessionId"
     | "initialManagedSessionLoadState"
     | "isTakenOverAgentSessionLoading"
+    | "subagentParentSessionId"
     | "takenOverAgentSession"
   >;
   routeActions: Pick<
     DashboardShellRouteActions,
     | "onExitSession"
+    | "onBackToParentAgentSession"
     | "onInterruptPrompt"
+    | "onOpenSubagentSession"
+    | "onSelectAgentSession"
     | "onSelectManagedSession"
     | "onSelectSessionTab"
     | "onSendInput"
