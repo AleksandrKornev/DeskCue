@@ -1,7 +1,24 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
+import type { AgentSessionSummary } from "@deskcue/protocol";
+
 import { AgentSessionsList } from "./AgentSessionsList";
+
+function createAgentSession(id: string) {
+  return {
+    agentId: "codex",
+    agentLabel: "Codex",
+    attachMode: "resume",
+    filePath: `${id}.jsonl`,
+    id,
+    sourceSessionId: `source-${id}`,
+    title: `Session ${id}`,
+    updatedAt: "2026-08-29T10:00:00.000Z",
+    workspaceName: "DeskCue",
+    workState: "idle"
+  } as AgentSessionSummary;
+}
 
 it("does not render an empty Recent work section when every chat is previewed above", () => {
   const { container } = render(
@@ -21,7 +38,7 @@ it("does not render an empty Recent work section when every chat is previewed ab
       sessions={[]}
       title="Recent work"
       totalSessionsCountLabel="1"
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onOpenLocalLlmChat={vi.fn()}
       onSelectAgentSession={vi.fn()}
       onShowFewerSessions={vi.fn()}
@@ -52,7 +69,7 @@ it("keeps the Recent work load action when more chats are available", () => {
       sessions={[]}
       title="Recent work"
       totalSessionsCountLabel="1"
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onOpenLocalLlmChat={vi.fn()}
       onSelectAgentSession={vi.fn()}
       onShowFewerSessions={vi.fn()}
@@ -81,7 +98,7 @@ it("provides a focus fallback while the chat list is recovering", () => {
       selectedAgentSessionId=""
       sessions={[]}
       totalSessionsCountLabel="0"
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onOpenLocalLlmChat={vi.fn()}
       onSelectAgentSession={vi.fn()}
       onShowFewerSessions={vi.fn()}
@@ -93,4 +110,36 @@ it("provides a focus fallback while the chat list is recovering", () => {
     .toHaveAttribute("data-chat-list-focus-fallback");
   expect(screen.getByText("Loading chats").parentElement)
     .toHaveAttribute("data-chat-list-focus-priority");
+});
+
+it("preserves the actionable new-result state in Recent work", () => {
+  const session = createAgentSession("review");
+
+  render(
+    <AgentSessionsList
+      attachedSourceSessionKeys={new Set()}
+      canLoadMoreSessions={false}
+      canShowFewerSessions={false}
+      filteredSessionsCount={1}
+      hasMoreSessions={false}
+      hiddenSessionsCount={0}
+      isLoading={false}
+      isLoadingMoreSessions={false}
+      localLlmChats={[]}
+      query=""
+      readyForReviewAgentSessionIds={new Set([session.id])}
+      selectedAgentSessionId=""
+      sessions={[session]}
+      title="Recent work"
+      totalSessionsCountLabel="1"
+      workIndicatorsBySourceSessionKey={new Map()}
+      onOpenLocalLlmChat={vi.fn()}
+      onSelectAgentSession={vi.fn()}
+      onShowFewerSessions={vi.fn()}
+      onShowMoreSessions={vi.fn()}
+    />
+  );
+
+  expect(screen.getByRole("button", { name: /Session review.*New result/ })).toBeInTheDocument();
+  expect(screen.queryByText("Finished")).not.toBeInTheDocument();
 });

@@ -231,6 +231,7 @@ test("agent session turn-state repository keeps v1 JSON bounded and drops expire
           evidence: "terminal_lifecycle",
           fingerprint: `done-${index}`,
           phase: "completed",
+          startedAt: null,
           turnStartFingerprint: null
         }
       });
@@ -244,6 +245,7 @@ test("agent session turn-state repository keeps v1 JSON bounded and drops expire
         evidence: "terminal_lifecycle",
         fingerprint: "expired",
         phase: "completed",
+        startedAt: null,
         turnStartFingerprint: null
       }
     });

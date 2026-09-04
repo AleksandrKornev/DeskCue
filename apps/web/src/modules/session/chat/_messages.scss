@@ -3,7 +3,7 @@
 .chatMessage {
   display: grid;
   gap: 6px;
-  contain: layout paint;
+  contain: layout;
   max-width: min(880px, 94%);
 }
 
@@ -189,6 +189,7 @@
 }
 
 .chatMessageAction {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -214,6 +215,16 @@
 .chatMessageAction:hover {
   background: vars.$color-surface-control-hover;
   color: vars.$color-text-primary;
+}
+
+.chatMessageAction[data-copy-status="copied"],
+.chatMessageAction[data-copy-status="copied"]:hover {
+  color: vars.$color-status-success;
+}
+
+.chatMessageAction[data-copy-status="failed"],
+.chatMessageAction[data-copy-status="failed"]:hover {
+  color: vars.$color-status-danger;
 }
 
 .chatMessageAction:focus-visible {

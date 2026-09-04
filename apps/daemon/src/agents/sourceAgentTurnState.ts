@@ -23,6 +23,7 @@ export type SourceAgentTurnState =
       evidence: "terminal_lifecycle";
       fingerprint: string;
       phase: "completed" | "failed" | "interrupted";
+      startedAt: string | null;
       turnStartFingerprint: string | null;
     };
 
@@ -128,6 +129,8 @@ export function findSourceAgentTerminalTurns(
 
     if (!isTerminalLifecycleLabel(label)) continue;
 
+    const turnStart = findMatchingTurnStart(transcript, index);
+
     terminalTurns.push({
       completedAt: entry.timestamp,
       evidence: "terminal_lifecycle",
@@ -137,7 +140,8 @@ export function findSourceAgentTerminalTurns(
         : label === "Turn interrupted"
           ? "interrupted"
           : "completed",
-      turnStartFingerprint: findMatchingTurnStart(transcript, index)?.id ?? null
+      startedAt: turnStart?.timestamp ?? null,
+      turnStartFingerprint: turnStart?.id ?? null
     });
   }
 
@@ -186,12 +190,15 @@ export function deriveSourceAgentTurnState(
 
       if (newUserTurn) return toUnansweredUserTurnState(newUserTurn, entry);
 
+      const turnStart = findMatchingTurnStart(session.transcript, index);
+
       return {
         completedAt: entry.timestamp,
         evidence: "terminal_lifecycle",
         fingerprint: entry.id,
         phase: label === "Turn failed" ? "failed" : "completed",
-        turnStartFingerprint: findMatchingTurnStart(session.transcript, index)?.id ?? null
+        startedAt: turnStart?.timestamp ?? null,
+        turnStartFingerprint: turnStart?.id ?? null
       };
     }
 
@@ -200,12 +207,15 @@ export function deriveSourceAgentTurnState(
 
       if (newUserTurn) return toUnansweredUserTurnState(newUserTurn, entry);
 
+      const turnStart = findMatchingTurnStart(session.transcript, index);
+
       return {
         completedAt: entry.timestamp,
         evidence: "terminal_lifecycle",
         fingerprint: entry.id,
         phase: "interrupted",
-        turnStartFingerprint: findMatchingTurnStart(session.transcript, index)?.id ?? null
+        startedAt: turnStart?.timestamp ?? null,
+        turnStartFingerprint: turnStart?.id ?? null
       };
     }
 

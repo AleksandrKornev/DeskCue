@@ -20,6 +20,8 @@
 }
 
 .dialogHeaderActions {
+  grid-column: 1 / -1;
+  grid-row: 2;
   display: flex;
   flex-wrap: nowrap;
   gap: 8px;
@@ -28,31 +30,10 @@
   flex: 0 0 auto;
 }
 
-.dialogIconClose {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  border-radius: vars.$radius-pill;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f3eee5;
-}
-
-.dialogIconClose:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.dialogCloseIcon {
-  display: block;
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
+.dialogHeaderClose {
+  grid-column: 2;
+  grid-row: 1;
+  margin: -4px;
 }
 
 .lightbox {
@@ -130,15 +111,42 @@
 }
 
 .lightboxBody {
+  position: relative;
   min-height: 0;
   overflow: auto;
   border-radius: 14px;
   background: rgba(6, 8, 12, 0.74);
 }
 
+.lightboxBodyPending {
+  min-height: min(42vh, 460px);
+}
+
+.lightboxPreviewLoading {
+  visibility: hidden;
+}
+
 .lightboxBodyText,
 .lightboxBodyPdf {
   min-height: min(62vh, 680px);
+}
+
+.lightboxBodyMedia {
+  display: grid;
+  place-items: center;
+  min-height: min(42vh, 460px);
+  padding: 16px;
+}
+
+.lightboxBodyMedia video,
+.lightboxBodyMedia audio {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+.lightboxBodyMedia video {
+  max-height: min(62vh, 680px);
 }
 
 .lightboxBody img {
@@ -184,6 +192,44 @@
   line-height: 1.45;
 }
 
+.lightboxMediaState {
+  position: absolute;
+  inset: 0;
+  min-height: 100%;
+}
+
+.lightboxSpinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(201, 214, 255, 0.22);
+  border-top-color: rgba(214, 164, 103, 0.94);
+  border-radius: vars.$radius-pill;
+  animation: lightbox-spinner 0.8s linear infinite;
+}
+
+.lightboxRetry {
+  min-width: 96px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: vars.$radius-pill;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f3eee5;
+  font-weight: 700;
+}
+
+@keyframes lightbox-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightboxSpinner {
+    animation: none;
+  }
+}
+
 @media (max-width: vars.$breakpoint-mobile) {
   .lightbox {
     place-items: end center;
@@ -212,11 +258,13 @@
   }
 
   .attachmentAction {
+    min-height: 44px;
     padding: 0 10px;
   }
 
   .lightboxBodyText,
   .lightboxBodyPdf,
+  .lightboxBodyMedia,
   .lightboxFrame,
   .lightboxState {
     min-height: min(56vh, 520px);

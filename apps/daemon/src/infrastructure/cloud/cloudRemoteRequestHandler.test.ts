@@ -25,6 +25,7 @@ test("workspace file reads require their separately negotiated local grant", () 
     remotePreviewEnabled: false,
     sessionLabelDisclosureEnabled: false
   };
+
   const closed: string[] = [];
   const handler = new CloudRemoteRequestHandler({
     store: { readActiveProfile: () => profile } as never,
@@ -50,6 +51,196 @@ test("workspace file reads require their separately negotiated local grant", () 
   assert.deepEqual(closed, ["remote files capability was not negotiated"]);
 });
 
+test("opaque asset tickets cannot outlive the separately negotiated files grant", () => {
+  const profile: CloudConnectorProfile = {
+    id: "profile-1",
+    cloudOrigin: "https://cloud.example.test",
+    displayName: "Machine",
+    enabled: true,
+    state: "connected",
+    machineId: "machine-1",
+    protocolVersion: 1,
+    lastConnectedAt: new Date().toISOString(),
+    lastErrorCode: null,
+    credentialRef: "credential-ref",
+    remoteReadEnabled: true,
+    remoteFilesEnabled: true,
+    remoteControlEnabled: false,
+    remotePreviewEnabled: false,
+    sessionLabelDisclosureEnabled: false
+  };
+
+  const closed: string[] = [];
+  const handler = new CloudRemoteRequestHandler({
+    store: { readActiveProfile: () => profile } as never,
+    readExecutor: { execute: async () => ({ status: 200, body: {} }) },
+    controlExecutor: { execute: async () => ({ status: 200, body: {} }) },
+    sendCloudFrame: () => true,
+    closeConnection: (_connection, _code, reason) => closed.push(reason),
+    isCurrentConnection: () => true
+  });
+
+  handler.handleReadFrame({
+    connection: {},
+    filesNegotiated: false,
+    negotiated: true,
+    profile
+  }, {
+    type: "remote.read.request.start",
+    protocolVersion: 1,
+    requestId: "request-ticket-after-revoke",
+    operation: "assets.ticket.read",
+    bodyBytes: 29,
+    chunkCount: 1,
+    bodySha256: createHash("sha256").update("unused").digest("hex"),
+    deadlineAt: new Date(Date.now() + 5_000).toISOString(),
+    sentAt: new Date().toISOString()
+  });
+
+  assert.deepEqual(closed, ["remote files capability was not negotiated"]);
+});
+
+function sendAssetFileRead(
+  handler: CloudRemoteRequestHandler<object>,
+  context: {
+    connection: object;
+    filesNegotiated?: boolean;
+    negotiated: boolean;
+    profile: CloudConnectorProfile;
+  },
+  requestId: string,
+  input: Record<string, unknown>
+) {
+  const body = Buffer.from(JSON.stringify(input), "utf8");
+  const bodySha256 = createHash("sha256").update(body).digest("hex");
+
+  handler.handleReadFrame(context, {
+    type: "remote.read.request.start",
+    protocolVersion: 1,
+    requestId,
+    operation: "assets.file.read",
+    bodyBytes: body.byteLength,
+    chunkCount: 1,
+    bodySha256,
+    deadlineAt: new Date(Date.now() + 5_000).toISOString(),
+    sentAt: new Date().toISOString()
+  });
+  handler.handleReadFrame(context, {
+    type: "remote.read.request.chunk",
+    protocolVersion: 1,
+    requestId,
+    index: 0,
+    data: body.toString("base64")
+  });
+  handler.handleReadFrame(context, {
+    type: "remote.read.request.end",
+    protocolVersion: 1,
+    requestId,
+    bodySha256,
+    sentAt: new Date().toISOString()
+  });
+}
+
+test("read-only Cloud grants reject unscoped asset file reads after input validation", () => {
+  const profile: CloudConnectorProfile = {
+    id: "profile-1",
+    cloudOrigin: "https://cloud.example.test",
+    displayName: "Machine",
+    enabled: true,
+    state: "connected",
+    machineId: "machine-1",
+    protocolVersion: 1,
+    lastConnectedAt: new Date().toISOString(),
+    lastErrorCode: null,
+    credentialRef: "credential-ref",
+    remoteReadEnabled: true,
+    remoteFilesEnabled: false,
+    remoteControlEnabled: false,
+    remotePreviewEnabled: false,
+    sessionLabelDisclosureEnabled: false
+  };
+
+  const closed: string[] = [];
+  let executorCalls = 0;
+  const handler = new CloudRemoteRequestHandler({
+    store: { readActiveProfile: () => profile } as never,
+    readExecutor: {
+      execute: async () => {
+        executorCalls += 1;
+        return { status: 200, body: {} };
+      }
+    },
+    controlExecutor: { execute: async () => ({ status: 200, body: {} }) },
+    sendCloudFrame: () => true,
+    closeConnection: (_connection, _code, reason) => closed.push(reason),
+    isCurrentConnection: () => true
+  });
+
+  sendAssetFileRead(
+    handler,
+    { connection: {}, profile, negotiated: true },
+    "request-unscoped-asset",
+    { path: "C:/Users/Admin/.codex/auth.json" }
+  );
+
+  assert.equal(executorCalls, 0);
+  assert.deepEqual(closed, ["remote files capability was not negotiated"]);
+});
+
+test("read-only Cloud grants permit only session-scoped asset file operations", async () => {
+  const profile: CloudConnectorProfile = {
+    id: "profile-1",
+    cloudOrigin: "https://cloud.example.test",
+    displayName: "Machine",
+    enabled: true,
+    state: "connected",
+    machineId: "machine-1",
+    protocolVersion: 1,
+    lastConnectedAt: new Date().toISOString(),
+    lastErrorCode: null,
+    credentialRef: "credential-ref",
+    remoteReadEnabled: true,
+    remoteFilesEnabled: false,
+    remoteControlEnabled: false,
+    remotePreviewEnabled: false,
+    sessionLabelDisclosureEnabled: false
+  };
+
+  const inputs: unknown[] = [];
+  const handler = new CloudRemoteRequestHandler({
+    store: { readActiveProfile: () => profile } as never,
+    readExecutor: {
+      execute: async (_operation, input) => {
+        inputs.push(input);
+        return { status: 200, body: {} };
+      }
+    },
+    controlExecutor: { execute: async () => ({ status: 200, body: {} }) },
+    sendCloudFrame: () => true,
+    closeConnection: () => undefined,
+    isCurrentConnection: () => true
+  });
+
+  sendAssetFileRead(
+    handler,
+    { connection: {}, profile, negotiated: true },
+    "request-scoped-asset",
+    {
+      agentSessionId: "codex:session-1",
+      path: "D:/work/report.png",
+      workspaceId: "workspace-1"
+    }
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(inputs, [{
+    agentSessionId: "codex:session-1",
+    path: "D:/work/report.png",
+    workspaceId: "workspace-1"
+  }]);
+});
+
 test("remote request handler bounds shutdown when an executor ignores abort", async () => {
   const profile: CloudConnectorProfile = {
     id: "profile-1",
@@ -68,6 +259,7 @@ test("remote request handler bounds shutdown when an executor ignores abort", as
     remotePreviewEnabled: false,
     sessionLabelDisclosureEnabled: false
   };
+
   const connection = {};
   const responseFrames: CloudRelayClientFrame[] = [];
   let isCurrentCalls = 0;
@@ -93,6 +285,7 @@ test("remote request handler bounds shutdown when an executor ignores abort", as
   const body = Buffer.from("{}", "utf8");
   const bodySha256 = createHash("sha256").update(body).digest("hex");
   const context = { connection, profile, negotiated: true };
+
   handler.handleReadFrame(context, {
     type: "remote.read.request.start",
     protocolVersion: 1,
@@ -120,7 +313,9 @@ test("remote request handler bounds shutdown when an executor ignores abort", as
   });
 
   const startedAt = Date.now();
+
   await handler.close();
+
   assert.ok(Date.now() - startedAt < 250);
 
   resolveExecution({ status: 200, body: { private: "late" } });
@@ -147,6 +342,7 @@ test("late control completion after bounded shutdown cannot update its durable r
     remotePreviewEnabled: true,
     sessionLabelDisclosureEnabled: false
   };
+
   const connection = {};
   let completedReceipts = 0;
   let isCurrentCalls = 0;
@@ -175,6 +371,7 @@ test("late control completion after bounded shutdown cannot update its durable r
   const body = Buffer.from(JSON.stringify({ sessionId: "session-1", input: "continue" }), "utf8");
   const bodySha256 = createHash("sha256").update(body).digest("hex");
   const context = { connection, profile, negotiated: true };
+
   handler.handleControlFrame(context, {
     type: "remote.control.request.start",
     protocolVersion: 1,
@@ -226,6 +423,7 @@ function sendControlRequest(
 ) {
   const body = Buffer.from(JSON.stringify(command.input), "utf8");
   const bodySha256 = createHash("sha256").update(body).digest("hex");
+
   handler.handleControlFrame(context, {
     type: "remote.control.request.start",
     protocolVersion: 1,
@@ -272,6 +470,7 @@ test("transient control results remain durably ambiguous instead of becoming stu
     remotePreviewEnabled: true,
     sessionLabelDisclosureEnabled: false
   };
+
   const connection = {};
   const responseFrames: CloudRelayClientFrame[] = [];
   let reserved = false;
@@ -282,6 +481,7 @@ test("transient control results remain durably ambiguous instead of becoming stu
       readActiveProfile: () => profile,
       reserveControlCommand: () => {
         if (reserved) return { kind: "ambiguous" };
+
         reserved = true;
         return { kind: "reserved" };
       },
@@ -316,6 +516,7 @@ test("transient control results remain durably ambiguous instead of becoming stu
       .map((frame) => frame.status),
     [409, 409]
   );
+
   const responseBodies = responseFrames
     .filter((frame) => frame.type === "remote.control.response.chunk")
     .map((frame) => JSON.parse(Buffer.from(frame.data, "base64").toString("utf8")) as unknown);
@@ -343,6 +544,7 @@ test("managed stop is executed once and replays its durable receipt", async () =
     remotePreviewEnabled: false,
     sessionLabelDisclosureEnabled: false
   };
+
   const connection = {};
   let executorCalls = 0;
   let receipt: { status: number; body: unknown } | undefined;

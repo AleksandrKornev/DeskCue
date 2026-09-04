@@ -43,15 +43,27 @@ test("maps legacy full transcript requests to the bounded cursor-friendly tail",
     chatMessageTail: String(MAX_AGENT_SESSION_CHAT_MESSAGE_TAIL + 50)
   });
 
-  assert.equal(fullRequest.chatMessageTail, null);
+  assert.equal(fullRequest.chatMessageTail, MAX_AGENT_SESSION_CHAT_MESSAGE_TAIL);
   assert.equal(fullRequest.fullTranscript, false);
-  assert.equal(fullRequest.transcriptTail, MAX_AGENT_SESSION_TRANSCRIPT_TAIL);
+  assert.equal(fullRequest.transcriptTail, null);
   assert.equal(fullRequest.includeSessionSummary, true);
   assert.equal(fullRequest.transcriptDetail, "summary");
   assert.equal(fullRequest.waitingSince, "2026-08-05T10:00:00.000Z");
   assert.equal(tailRequest.chatMessageTail, null);
   assert.equal(tailRequest.transcriptTail, 17);
   assert.equal(cappedChatRequest.chatMessageTail, MAX_AGENT_SESSION_CHAT_MESSAGE_TAIL);
+});
+
+test("keeps an explicit chat-message boundary for legacy full refreshes", () => {
+  const request = readTranscriptViewRouteRequest({
+    chatMessageTail: "24",
+    fullTranscript: "1",
+    transcriptDetail: "summary"
+  });
+
+  assert.equal(request.chatMessageTail, 24);
+  assert.equal(request.fullTranscript, false);
+  assert.equal(request.transcriptTail, null);
 });
 
 test("caps an explicit transcript tail", () => {
@@ -75,6 +87,7 @@ test("parses delta cursors and bounds overlap without changing its defaults", ()
     defaultRequest.overlapItemCount,
     DEFAULT_TRANSCRIPT_DELTA_OVERLAP_ITEM_COUNT
   );
+
   assert.equal(defaultRequest.baseItemKey, null);
   assert.equal(defaultRequest.baseSourceEntryId, null);
   assert.equal(requested.baseItemKey, "message:entry-8");

@@ -65,6 +65,7 @@ export function useManagedSessionChatScroll({
     liveChatSourceSessionId,
     resetKey
   });
+
   const updateShowScrollToLatest = useCallback((nextValue: boolean) => {
     setShowScrollToLatest((currentValue) =>
       currentValue === nextValue ? currentValue : nextValue
@@ -73,6 +74,7 @@ export function useManagedSessionChatScroll({
   const [isHistoryAutoLoadPending, setIsHistoryAutoLoadPending] = useState(false);
   const historyAutoLoadPendingStartedAtRef = useRef<number | null>(null);
   const historyAutoLoadPendingClearTimeoutRef = useRef<number | null>(null);
+
   const clearHistoryAutoLoadPendingTimeout = useCallback(() => {
     if (historyAutoLoadPendingClearTimeoutRef.current === null) {
       return;
@@ -81,6 +83,7 @@ export function useManagedSessionChatScroll({
     window.clearTimeout(historyAutoLoadPendingClearTimeoutRef.current);
     historyAutoLoadPendingClearTimeoutRef.current = null;
   }, []);
+
   const updateHistoryAutoLoadPending = useCallback((nextValue: boolean) => {
     clearHistoryAutoLoadPendingTimeout();
 
@@ -89,10 +92,12 @@ export function useManagedSessionChatScroll({
       setIsHistoryAutoLoadPending((currentValue) =>
         currentValue ? currentValue : true
       );
+
       return;
     }
 
     const startedAt = historyAutoLoadPendingStartedAtRef.current;
+
     if (startedAt === null) {
       setIsHistoryAutoLoadPending(false);
       return;
@@ -118,6 +123,7 @@ export function useManagedSessionChatScroll({
   }, [clearHistoryAutoLoadPendingTimeout]);
 
   const usePageScrollForChat = false;
+
   const chatWorkspaceStyle = useMemo<CSSProperties | undefined>(() => {
     if (!isCompactViewport || !isTakenOverChat) {
       return undefined;

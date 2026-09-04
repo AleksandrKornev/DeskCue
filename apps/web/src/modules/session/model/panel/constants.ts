@@ -11,7 +11,7 @@ export const CHAT_ACTIVITY_ENTRY_RENDER_LIMIT: Record<
   tools: 200
 };
 
-// Source transcript snapshots can briefly report an active turn while the next
-// hydration catches up. Do not let that transient state flash a whole waiting
-// panel into an otherwise stable chat.
-export const EXTERNAL_WAIT_VISIBILITY_DELAY_MS = 500;
+// Adjacent source snapshots can briefly disagree while transcript hydration
+// catches up. Hold the visible external turn across a short inactive edge so
+// the waiting panel and composer do not disappear between two snapshots.
+export const EXTERNAL_WAIT_INACTIVE_CONFIRMATION_DELAY_MS = 1_000;

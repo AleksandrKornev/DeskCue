@@ -14,6 +14,10 @@
       "types": "./dist/cloud/index.d.ts",
       "import": "./dist/cloud/index.js"
     },
+    "./markdown": {
+      "types": "./dist/markdown.d.ts",
+      "import": "./dist/markdown.js"
+    },
     "./notifications": {
       "types": "./dist/notifications/index.d.ts",
       "import": "./dist/notifications/index.js"
@@ -21,6 +25,10 @@
     "./sessions": {
       "types": "./dist/sessions.d.ts",
       "import": "./dist/sessions.js"
+    },
+    "./transcript/compact-diff": {
+      "types": "./dist/transcript/compactDiff.d.ts",
+      "import": "./dist/transcript/compactDiff.js"
     }
   },
   "scripts": {
@@ -31,5 +39,8 @@
     "test:runtime": "node --test test/*.test.mjs",
     "test:type": "tsc -p tsconfig.test.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "mdast-util-from-markdown": "^2.0.3"
   }
 }

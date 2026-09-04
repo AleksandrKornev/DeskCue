@@ -38,6 +38,15 @@
   letter-spacing: 0.07em;
 }
 
+.desktopSourcePill {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .skeletonPill {
   position: relative;
   overflow: hidden;
@@ -81,16 +90,61 @@
 }
 
 .mobileBackButton {
+  position: relative;
   display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: vars.$color-text-secondary;
+}
+
+.mobileBackButton::before {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: vars.$color-surface-control-subtle;
+  content: "";
+}
+
+.mobileBackButton > * { position: relative; }
+
+.mobileBackIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.mobileBackButton:hover,
+.mobileBackButton:focus-visible { color: vars.$color-text-primary; }
+
+.mobileBackButton:hover::before { background: vars.$color-surface-control-hover; }
+
+.mobileBackButton:focus-visible::before {
+  box-shadow: inset 0 0 0 2px vars.$color-focus-ring;
+}
+
+@media (min-width: 721px) and (max-width: 900px) and (min-height: 641px) {
+  .mobileBackButton { display: inline-grid; }
 }
 
 .chatMain {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   flex: 1 1 auto;
   gap: 8px;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.chatMain > .actions {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
 }
 
 .sourcePillMultiplier {
@@ -101,6 +155,30 @@
 
 .contextCompactionPill {
   display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: vars.$color-status-info;
+}
+
+.contextCompactionLow {
+  color: vars.$color-status-info;
+}
+
+.contextCompactionElevated {
+  color: vars.$color-status-warning;
+}
+
+.contextCompactionHigh {
+  color: vars.$color-status-danger;
+}
+
+.compactionSlot {
+  display: inline-flex;
+}
+
+.mobileSessionContext,
+.mobileSessionContextSlot {
+  display: none;
 }
 
 .desktopMetaItem,
@@ -116,6 +194,48 @@
 .mobileCompactionIcon {
   width: 11px;
   height: 11px;
+}
+
+.mobileSessionContextDetails {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.mobileSessionContextDetails > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mobileSessionContextDetails dt {
+  color: vars.$color-text-muted;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mobileSessionContextDetails dd {
+  min-width: 0;
+  margin: 0;
+  color: vars.$color-text-primary;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.runtimePill {
+  gap: 5px;
+  border: 1px solid vars.$color-border-info;
+  background: vars.$color-surface-info;
+  color: vars.$color-status-info;
+}
+
+.runtimePillIcon,
+.mobileAgentSourceIcon {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
 }
 
 .modelPill {
@@ -137,6 +257,8 @@
 }
 
 .titleRow {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -163,7 +285,18 @@
   white-space: nowrap;
 }
 
+.commandText {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .metaRow {
+  grid-column: 1;
+  grid-row: 2;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -171,9 +304,23 @@
   flex-wrap: wrap;
 }
 
+.sessionMetaCluster {
+  display: contents;
+}
+
 .headerStatus {
   display: inline-flex;
   flex: 0 0 auto;
+  min-width: 0;
+}
+
+.headerStatusDisclosure {
+  display: inline-flex;
+  align-items: center;
+}
+
+.desktopAgentChatBadgeSlot {
+  display: inline-flex;
   min-width: 0;
 }
 
@@ -200,12 +347,13 @@
   white-space: nowrap;
 }
 
-.headerStatusBadgeRunning {
+.headerStatusBadgePositive {
   background: vars.$color-surface-success;
   color: vars.$color-status-success;
 }
 
-.headerStatusBadgeRunning[class] {
+.headerStatusBadgePositive[class] {
+  border: 1px solid vars.$color-border-success;
   background: vars.$color-surface-success;
   color: vars.$color-status-success;
 }
@@ -221,6 +369,8 @@
 }
 
 .path {
+  grid-column: 1;
+  grid-row: 3;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;

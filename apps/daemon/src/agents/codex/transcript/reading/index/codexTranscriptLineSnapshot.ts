@@ -1,7 +1,6 @@
 import { createReadStream } from "node:fs";
 import type { Stats } from "node:fs";
 
-import { findNearestTranscriptByteOffset } from "./codexTranscriptLineIndex.ts";
 import type {
   TranscriptCompactLineSpan,
   TranscriptLineIndexSnapshot,
@@ -10,18 +9,24 @@ import type {
 import { isCodexChatMessageLine } from "../../parsing/codexTranscript.ts";
 import {
   CODEX_CHAT_MESSAGE_LINE_DETECTION_MAX_BYTES,
-  CODEX_CHAT_MESSAGE_TAIL_MAX_READ_BYTES,
   CODEX_TRANSCRIPT_INDEXED_LINE_HINT_BYTES,
+  CODEX_TRANSCRIPT_LINE_RETENTION_MAX_BYTES,
   CODEX_TRANSCRIPT_LINE_OFFSET_BLOCK_SIZE
 } from "../codexTranscriptReadLimits.ts";
 import {
   classifyIndexedTranscriptActivityLine,
-  hasJsonStringProperty,
   readCodexTranscriptLineTypeHint,
   resolveKnownCompactTranscriptLineDecision,
   shouldKeepIndexedTranscriptLineExact
 } from "../projection/codexTranscriptCompactProjection.ts";
 import type { CodexTranscriptLineTypeHint } from "../projection/codexTranscriptCompactProjection.ts";
+import {
+  appendCodexTranscriptJsonObjectBytes,
+  createCodexTranscriptJsonObjectScan,
+  isCompleteCodexTranscriptJsonObject,
+  isValidCodexTranscriptJsonObjectText
+} from "../projection/codexTranscriptJsonObjectScan.ts";
+import type { CodexTranscriptJsonObjectScan } from "../projection/codexTranscriptJsonObjectScan.ts";
 
 type TranscriptLineSnapshotScan = {
   byteOffset: number;
@@ -30,41 +35,19 @@ type TranscriptLineSnapshotScan = {
   currentLineByteOffset: number;
   exactLineOffsets: TranscriptLineOffset[] | undefined;
   lastByte: number | null;
-  lineHintMinByteOffset: number;
   lineHintsComplete: boolean | undefined;
   lineBreakCount: number;
   lineOffsets: TranscriptLineOffset[] | undefined;
   pendingLineBytes: number;
   pendingLineChunks: Buffer[];
+  pendingLineJsonObjectScan: CodexTranscriptJsonObjectScan;
   pendingLineTruncated: boolean;
+  pendingLineValidationBytes: number;
+  pendingLineValidationChunks: Buffer[];
+  pendingLineValidationTruncated: boolean;
 };
 
-function trimTranscriptLineHints(snapshot: TranscriptLineIndexSnapshot): TranscriptLineIndexSnapshot {
-  if (snapshot.lineHintsComplete !== true) {
-    return snapshot;
-  }
-
-  const hintStartByteOffset = Math.max(
-    0,
-    snapshot.size - CODEX_CHAT_MESSAGE_TAIL_MAX_READ_BYTES
-  );
-  const hintStartLineIndex = findNearestTranscriptByteOffset(
-    snapshot.lineOffsets,
-    hintStartByteOffset
-  ).lineIndex;
-
-  return {
-    ...snapshot,
-    compactLineSpans: (snapshot.compactLineSpans ?? [])
-      .filter((span) => span.end >= hintStartLineIndex)
-      .map((span) => ({
-        ...span,
-        start: Math.max(span.start, hintStartLineIndex)
-      })),
-    exactLineOffsets: (snapshot.exactLineOffsets ?? [])
-      .filter((offset) => offset.lineIndex >= hintStartLineIndex)
-  };
-}
+const UNKNOWN_TRANSCRIPT_TIMESTAMP = new Date(0).toISOString();
 
 function createTranscriptLineSnapshotScan(options: {
   chatMessageLineOffsets?: TranscriptLineOffset[];
@@ -75,7 +58,6 @@ function createTranscriptLineSnapshotScan(options: {
   includeOffsets: boolean;
   initialByteOffset: number;
   initialLineBreakCount: number;
-  lineHintMinByteOffset?: number;
   lineOffsets?: TranscriptLineOffset[];
 }): TranscriptLineSnapshotScan {
   return {
@@ -91,7 +73,6 @@ function createTranscriptLineSnapshotScan(options: {
       ? [...(options.exactLineOffsets ?? [])]
       : undefined,
     lastByte: null,
-    lineHintMinByteOffset: options.lineHintMinByteOffset ?? 0,
     lineHintsComplete: options.includeLineHints ? true : undefined,
     lineBreakCount: options.initialLineBreakCount,
     lineOffsets: options.lineOffsets?.length
@@ -106,7 +87,11 @@ function createTranscriptLineSnapshotScan(options: {
         : undefined,
     pendingLineBytes: 0,
     pendingLineChunks: [],
-    pendingLineTruncated: false
+    pendingLineJsonObjectScan: createCodexTranscriptJsonObjectScan(),
+    pendingLineTruncated: false,
+    pendingLineValidationBytes: 0,
+    pendingLineValidationChunks: [],
+    pendingLineValidationTruncated: false
   };
 }
 
@@ -114,9 +99,28 @@ function appendPendingTranscriptLineChunk(
   scan: TranscriptLineSnapshotScan,
   chunk: Buffer
 ) {
-  if (!scan.chatMessageLineOffsets || chunk.length === 0) {
-    return;
+  if (chunk.length === 0) return;
+
+  if (scan.lineHintsComplete !== undefined || scan.chatMessageLineOffsets) {
+    appendCodexTranscriptJsonObjectBytes(scan.pendingLineJsonObjectScan, chunk);
+
+    if (!scan.pendingLineValidationTruncated) {
+      const remainingBytes =
+        CODEX_TRANSCRIPT_LINE_RETENTION_MAX_BYTES - scan.pendingLineValidationBytes;
+      const retainedChunk = chunk.length > remainingBytes
+        ? chunk.subarray(0, remainingBytes)
+        : chunk;
+
+      if (retainedChunk.length > 0) {
+        scan.pendingLineValidationChunks.push(retainedChunk);
+        scan.pendingLineValidationBytes += retainedChunk.length;
+      }
+
+      if (retainedChunk.length < chunk.length) scan.pendingLineValidationTruncated = true;
+    }
   }
+
+  if (!scan.chatMessageLineOffsets && scan.lineHintsComplete === undefined) return;
 
   const remainingDetectionBytes =
     CODEX_CHAT_MESSAGE_LINE_DETECTION_MAX_BYTES - scan.pendingLineBytes;
@@ -129,6 +133,7 @@ function appendPendingTranscriptLineChunk(
     ? chunk.subarray(0, remainingDetectionBytes)
     : chunk;
   scan.pendingLineChunks.push(retainedChunk);
+
   scan.pendingLineBytes += retainedChunk.length;
   if (retainedChunk.length < chunk.length) {
     scan.pendingLineTruncated = true;
@@ -140,6 +145,18 @@ function readTranscriptLineHintPrefix(lineBuffer: Buffer) {
     ? lineBuffer.subarray(0, CODEX_TRANSCRIPT_INDEXED_LINE_HINT_BYTES)
     : lineBuffer;
   return prefix.toString("utf8");
+}
+
+function readValidatedPendingTranscriptLine(scan: TranscriptLineSnapshotScan) {
+  if (!isCompleteCodexTranscriptJsonObject(scan.pendingLineJsonObjectScan)) return null;
+  if (scan.pendingLineValidationTruncated) return null;
+
+  const validationLine = Buffer.concat(
+    scan.pendingLineValidationChunks,
+    scan.pendingLineValidationBytes
+  ).toString("utf8").trim();
+
+  return isValidCodexTranscriptJsonObjectText(validationLine) ? validationLine : null;
 }
 
 function isKnownChatMessageTypeHint(typeHint: CodexTranscriptLineTypeHint) {
@@ -168,12 +185,14 @@ function appendTranscriptCompactLineSpan(
   }
 
   const previous = scan.compactLineSpans.at(-1);
+
   if (previous && previous.kind === span.kind && previous.end + 1 === span.start) {
     scan.compactLineSpans[scan.compactLineSpans.length - 1] = {
       ...previous,
       end: span.end,
       timestamp: span.timestamp
     };
+
     return;
   }
 
@@ -183,18 +202,16 @@ function appendTranscriptCompactLineSpan(
 function recordTranscriptLineHint(
   scan: TranscriptLineSnapshotScan,
   lineBuffer: Buffer,
-  lineOffset: TranscriptLineOffset
+  lineOffset: TranscriptLineOffset,
+  validationLine: string
 ) {
-  if (lineOffset.byteOffset < scan.lineHintMinByteOffset) {
-    return;
-  }
-
   const linePrefix = readTranscriptLineHintPrefix(lineBuffer).trim();
+
   if (!linePrefix) {
     return;
   }
 
-  const typeHint = readCodexTranscriptLineTypeHint(linePrefix);
+  let typeHint = readCodexTranscriptLineTypeHint(linePrefix);
   let decision = resolveKnownCompactTranscriptLineDecision(typeHint);
 
   if (
@@ -208,10 +225,21 @@ function recordTranscriptLineHint(
     };
   }
 
-  if (!decision && !scan.pendingLineTruncated) {
-    const line = lineBuffer.toString("utf8").trim();
-    const fullTypeHint = readCodexTranscriptLineTypeHint(line);
-    if (shouldKeepIndexedTranscriptLineExact(line, fullTypeHint)) {
+  const fullTypeHint = !decision || typeHint.timestamp === UNKNOWN_TRANSCRIPT_TIMESTAMP
+    ? readCodexTranscriptLineTypeHint(validationLine)
+    : null;
+
+  if (fullTypeHint && decision) {
+    typeHint = {
+      ...typeHint,
+      timestamp: fullTypeHint.timestamp
+    };
+  }
+
+  if (!decision && fullTypeHint) {
+    typeHint = fullTypeHint;
+
+    if (shouldKeepIndexedTranscriptLineExact(validationLine, fullTypeHint)) {
       decision = {
         compactKind: null,
         retention: "keep"
@@ -225,7 +253,6 @@ function recordTranscriptLineHint(
   }
 
   if (!decision) {
-    scan.lineHintsComplete = false;
     return;
   }
 
@@ -233,6 +260,7 @@ function recordTranscriptLineHint(
     if (!isKnownChatMessageTypeHint(typeHint)) {
       scan.exactLineOffsets?.push(lineOffset);
     }
+
     return;
   }
 
@@ -251,36 +279,14 @@ function recordTranscriptLineHint(
 function resetPendingTranscriptLine(scan: TranscriptLineSnapshotScan) {
   scan.pendingLineBytes = 0;
   scan.pendingLineChunks = [];
+  scan.pendingLineJsonObjectScan = createCodexTranscriptJsonObjectScan();
   scan.pendingLineTruncated = false;
+  scan.pendingLineValidationBytes = 0;
+  scan.pendingLineValidationChunks = [];
+  scan.pendingLineValidationTruncated = false;
 }
 
-function isLikelyCodexChatMessageLinePrefix(linePrefix: string) {
-  if (
-    hasJsonStringProperty(linePrefix, "type", "event_msg") &&
-    hasJsonStringProperty(linePrefix, "type", "user_message")
-  ) {
-    return true;
-  }
-
-  if (
-    !hasJsonStringProperty(linePrefix, "type", "response_item") ||
-    !hasJsonStringProperty(linePrefix, "type", "message")
-  ) {
-    return false;
-  }
-
-  if (!hasJsonStringProperty(linePrefix, "role", "user") &&
-      !hasJsonStringProperty(linePrefix, "role", "assistant")) {
-    return false;
-  }
-
-  return !hasJsonStringProperty(linePrefix, "phase", "commentary");
-}
-
-function isCodexChatMessageLineBuffer(
-  lineBuffer: Buffer,
-  options: { truncated: boolean }
-) {
+function isCodexChatMessageLineBuffer(lineBuffer: Buffer) {
   const normalizedBuffer = lineBuffer.at(-1) === 13
     ? lineBuffer.subarray(0, lineBuffer.length - 1)
     : lineBuffer;
@@ -290,10 +296,6 @@ function isCodexChatMessageLineBuffer(
     !normalizedBuffer.includes('"type": "message"')
   ) {
     return false;
-  }
-
-  if (options.truncated) {
-    return isLikelyCodexChatMessageLinePrefix(normalizedBuffer.toString("utf8"));
   }
 
   return isCodexChatMessageLine(normalizedBuffer.toString("utf8").trim());
@@ -316,14 +318,34 @@ function recordChatMessageLineOffsetIfMatched(scan: TranscriptLineSnapshotScan) 
     byteOffset: scan.currentLineByteOffset,
     lineIndex: scan.lineBreakCount
   };
-  if (lineBuffer && scan.chatMessageLineOffsets && isCodexChatMessageLineBuffer(lineBuffer, {
-    truncated: scan.pendingLineTruncated
-  })) {
+
+  const shouldCheckChatMessage = Boolean(
+    lineBuffer &&
+    scan.chatMessageLineOffsets &&
+    (
+      scan.pendingLineTruncated ||
+      isCodexChatMessageLineBuffer(lineBuffer)
+    )
+  );
+  const needsValidation = shouldCheckChatMessage || scan.lineHintsComplete === true;
+  const validationLine = needsValidation ? readValidatedPendingTranscriptLine(scan) : null;
+
+  if (
+    shouldCheckChatMessage &&
+    validationLine &&
+    scan.chatMessageLineOffsets &&
+    isCodexChatMessageLine(validationLine)
+  ) {
     scan.chatMessageLineOffsets.push(lineOffset);
   }
 
-  if (lineBuffer && scan.lineHintsComplete === true) {
-    recordTranscriptLineHint(scan, lineBuffer, lineOffset);
+  if (lineBuffer && validationLine && scan.lineHintsComplete === true) {
+    recordTranscriptLineHint(
+      scan,
+      lineBuffer,
+      lineOffset,
+      validationLine
+    );
   }
 
   resetPendingTranscriptLine(scan);
@@ -338,7 +360,9 @@ function scanTranscriptLineSnapshotBuffer(
 
   for (let index = 0; index < buffer.length; index += 1) {
     const byte = buffer[index];
+
     scan.lastByte = byte;
+
     if (byte !== 10) {
       continue;
     }
@@ -348,6 +372,7 @@ function scanTranscriptLineSnapshotBuffer(
 
     scan.lineBreakCount += 1;
     const nextLineByteOffset = scan.byteOffset + index + 1;
+
     if (
       scan.lineOffsets &&
       scan.lineBreakCount % CODEX_TRANSCRIPT_LINE_OFFSET_BLOCK_SIZE === 0 &&
@@ -387,25 +412,23 @@ export async function readFullTranscriptLineBreakSnapshot(
     includeLineHints: options.includeLineHints,
     includeOffsets: options.includeOffsets,
     initialByteOffset: 0,
-    initialLineBreakCount: 0,
-    lineHintMinByteOffset: Math.max(
-      0,
-      fileStat.size - CODEX_CHAT_MESSAGE_TAIL_MAX_READ_BYTES
-    )
+    initialLineBreakCount: 0
   });
   const stream = createReadStream(filePath);
 
   try {
     for await (const chunk of stream as AsyncIterable<Buffer | string>) {
       const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+
       scanTranscriptLineSnapshotBuffer(scan, buffer, fileStat.size);
     }
   } finally {
     stream.destroy();
   }
+
   finishTranscriptLineSnapshotScan(scan);
 
-  return trimTranscriptLineHints({
+  return {
     chatMessageLineOffsets: scan.chatMessageLineOffsets,
     compactLineSpans: scan.compactLineSpans,
     endsWithLineBreak: scan.lastByte === 10,
@@ -415,7 +438,7 @@ export async function readFullTranscriptLineBreakSnapshot(
     lineOffsets: scan.lineOffsets,
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size
-  });
+  };
 }
 
 export async function readLineBreakSnapshotFromAppendRange(
@@ -439,12 +462,9 @@ export async function readLineBreakSnapshotFromAppendRange(
     includeOffsets: options.requireOffsets,
     initialByteOffset: options.appendStartByteOffset,
     initialLineBreakCount: cached.lineBreakCount,
-    lineHintMinByteOffset: Math.max(
-      0,
-      options.size - CODEX_CHAT_MESSAGE_TAIL_MAX_READ_BYTES
-    ),
     lineOffsets: cached.lineOffsets
   });
+
   scan.lastByte = cached.endsWithLineBreak ? 10 : null;
   const stream = createReadStream(filePath, {
     end: options.size - 1,
@@ -454,14 +474,16 @@ export async function readLineBreakSnapshotFromAppendRange(
   try {
     for await (const chunk of stream as AsyncIterable<Buffer | string>) {
       const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+
       scanTranscriptLineSnapshotBuffer(scan, buffer, options.size);
     }
   } finally {
     stream.destroy();
   }
+
   finishTranscriptLineSnapshotScan(scan);
 
-  return trimTranscriptLineHints({
+  return {
     chatMessageLineOffsets: scan.chatMessageLineOffsets,
     compactLineSpans: scan.compactLineSpans,
     endsWithLineBreak: scan.lastByte === 10,
@@ -471,5 +493,5 @@ export async function readLineBreakSnapshotFromAppendRange(
     lineOffsets: scan.lineOffsets,
     mtimeMs: options.mtimeMs,
     size: options.size
-  });
+  };
 }

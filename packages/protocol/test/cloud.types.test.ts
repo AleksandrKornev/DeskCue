@@ -15,11 +15,13 @@ type Equal<Left, Right> =
 type Expect<Value extends true> = Value;
 
 const overview = parseCloudRemoteReadOperationInput("overview.get", { sessionLimit: 10 });
+
 type OverviewIsOperationSpecific = Expect<Equal<
   typeof overview,
   CloudRemoteReadOperationInputMap["overview.get"]
 >>;
 const overviewLimit: number | undefined = overview.sessionLimit;
+
 // @ts-expect-error overview input cannot expose a session identity
 overview.sessionId;
 
@@ -28,16 +30,25 @@ const reviewed = parseCloudRemoteReadOperationInput("sessions.reviewed.post", {
 });
 const reviewedSessionId: string = reviewed.agentSessionId;
 
+const assetFile = parseCloudRemoteReadOperationInput("assets.file.read", {
+  agentSessionId: "agent-1",
+  path: "C:\\Temp\\capture.mp4",
+  range: "bytes=0-1023"
+});
+const assetRange: string | undefined = assetFile.range;
+
 const changes = parseCloudRemoteReadOperationInput("changes.post", {
   agentSessionId: "agent-1",
   groupId: "group-1",
   sourceEntryRanges: [{ prefix: "entry", start: 1, end: 2 }]
 });
+
 type ChangesAreOperationSpecific = Expect<Equal<
   typeof changes,
   CloudRemoteReadOperationInputMap["changes.post"]
 >>;
 const rangeStart: number | undefined = changes.sourceEntryRanges?.[0]?.start;
+
 // @ts-expect-error changes input cannot expose transcript paging fields
 changes.beforeEntryId;
 
@@ -45,11 +56,13 @@ const managedInput = parseRemoteControlOperationInput("managed.input", {
   sessionId: "session-1",
   input: "continue"
 });
+
 type ManagedInputIsOperationSpecific = Expect<Equal<
   typeof managedInput,
   RemoteControlOperationInputMap["managed.input"]
 >>;
 const prompt: string = managedInput.input;
+
 // @ts-expect-error managed input cannot expose source attach identity
 managedInput.agentSessionId;
 
@@ -57,6 +70,7 @@ const compatibleTaggedInput: RemoteControlOperationInput = {
   operation: "source.attach",
   input: { agentSessionId: "source-1" }
 };
+
 const anyReadInput: CloudRemoteReadOperationInput = overview;
 const manifestVersion: 1 = CLOUD_RELAY_V1_CONTRACT_MANIFEST.manifestVersion;
 const fixtureInput: string =
@@ -67,6 +81,7 @@ void (0 as unknown as ChangesAreOperationSpecific);
 void (0 as unknown as ManagedInputIsOperationSpecific);
 void overviewLimit;
 void reviewedSessionId;
+void assetRange;
 void rangeStart;
 void prompt;
 void compatibleTaggedInput;

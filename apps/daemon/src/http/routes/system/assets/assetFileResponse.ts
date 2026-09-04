@@ -4,15 +4,90 @@ import { open, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
+const ACTIVE_DOCUMENT_EXTENSIONS = new Set([
+  ".htm",
+  ".html",
+  ".mht",
+  ".mhtml",
+  ".shtml",
+  ".svg",
+  ".svgz",
+  ".xht",
+  ".xhtml",
+  ".xml",
+  ".xsl",
+  ".xslt"
+]);
+
 export type LocalAssetFileIdentity = {
   deviceId: bigint;
   inodeId: bigint;
 };
 
+export type LocalAssetByteRange = {
+  end: bigint;
+  start: bigint;
+};
+
+export function resolveLocalAssetByteRange(
+  rangeHeader: string | undefined,
+  size: bigint
+): LocalAssetByteRange | "unsatisfiable" | null {
+  if (!rangeHeader) return null;
+
+  const match = rangeHeader.trim().match(/^bytes=(\d*)-(\d*)$/iu);
+
+  if (!match || size === 0n) return "unsatisfiable";
+
+  const startText = match[1] ?? "";
+  const endText = match[2] ?? "";
+
+  if (!startText && !endText) return "unsatisfiable";
+
+  if (!startText) {
+    const suffixLength = BigInt(endText);
+
+    if (suffixLength <= 0n) return "unsatisfiable";
+
+    return {
+      end: size - 1n,
+      start: suffixLength >= size ? 0n : size - suffixLength
+    };
+  }
+
+  const start = BigInt(startText);
+
+  if (start >= size) return "unsatisfiable";
+
+  const requestedEnd = endText ? BigInt(endText) : size - 1n;
+
+  if (requestedEnd < start) return "unsatisfiable";
+
+  return {
+    end: requestedEnd >= size ? size - 1n : requestedEnd,
+    start
+  };
+}
+
 function normalizeComparablePath(filePath: string) {
   const normalizedPath = path.resolve(filePath);
 
   return process.platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
+}
+
+function shouldForceAssetDownload(normalizedPath: string) {
+  return ACTIVE_DOCUMENT_EXTENSIONS.has(path.extname(normalizedPath).toLowerCase());
+}
+
+function hasActiveAssetContentType(contentType: number | string | string[] | undefined) {
+  if (typeof contentType !== "string") return false;
+
+  const mimeType = contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+
+  return mimeType === "text/html" ||
+    mimeType === "text/xml" ||
+    mimeType === "application/xml" ||
+    mimeType.endsWith("+xml");
 }
 
 function readFileIdentity(stats: BigIntStats): LocalAssetFileIdentity {
@@ -66,9 +141,13 @@ export async function sendLocalAssetFile(
   normalizedPath: string,
   download: boolean,
   maxBytes?: number,
-  expectedIdentity?: LocalAssetFileIdentity
+  expectedIdentity?: LocalAssetFileIdentity,
+  rangeHeader?: string
 ) {
   let fileHandle;
+
+  response.setHeader("Cache-Control", "private, no-store");
+  response.setHeader("Referrer-Policy", "no-referrer");
 
   try {
     fileHandle = await open(normalizedPath, "r");
@@ -100,13 +179,34 @@ export async function sendLocalAssetFile(
       return;
     }
 
-    response.setHeader("X-Content-Type-Options", "nosniff");
-    response.setHeader("Content-Length", stats.size.toString());
+    const range = resolveLocalAssetByteRange(rangeHeader, stats.size);
 
-    if (download || path.extname(normalizedPath).toLowerCase() === ".svg") {
+    response.setHeader("Accept-Ranges", "bytes");
+    if (range === "unsatisfiable") {
+      response.setHeader("Content-Range", `bytes */${stats.size}`);
+      response.status(416).end();
+      return;
+    }
+
+    const start = range?.start ?? 0n;
+    const end = range?.end ?? stats.size - 1n;
+    const contentLength = stats.size === 0n ? 0n : end - start + 1n;
+
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("Content-Length", contentLength.toString());
+
+    if (range) {
+      response.setHeader("Content-Range", `bytes ${start}-${end}/${stats.size}`);
+      response.status(206);
+    }
+
+    response.type(normalizedPath);
+    const forceDownload = download ||
+      shouldForceAssetDownload(normalizedPath) ||
+      hasActiveAssetContentType(response.getHeader("Content-Type"));
+
+    if (forceDownload) {
       response.attachment(path.basename(normalizedPath));
-    } else {
-      response.type(normalizedPath);
     }
 
     if (stats.size === 0n) {
@@ -116,8 +216,8 @@ export async function sendLocalAssetFile(
 
     const fileStream = fileHandle.createReadStream({
       autoClose: false,
-      end: Number(stats.size - 1n),
-      start: 0
+      end: Number(end),
+      start: Number(start)
     });
 
     await pipeline(fileStream, response);

@@ -44,19 +44,17 @@ export function useTranscriptAttachmentPreview({
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [imagePreviewState, setImagePreviewState] = useState<ImagePreviewState>("idle");
   const [imagePreviewRetryNonce, setImagePreviewRetryNonce] = useState(0);
-  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
   const [isPreviewNearViewport, setIsPreviewNearViewport] = useState(false);
   const [copyLinkState, setCopyLinkState] = useState<"idle" | "copying">("idle");
   const cardRef = useRef<HTMLDivElement | null>(null);
   const assetContextAgentSessionId = assetContext?.agentSessionId;
   const assetContextManagedSessionId = assetContext?.managedSessionId;
+  const assetContextWorkspaceId = assetContext?.workspaceId;
 
   const effectivePreviewUrl =
     part.kind === "local-image"
       ? imagePreviewUrl
-      : part.path && previewKind === "pdf"
-        ? documentPreviewUrl
-        : previewUrl;
+      : previewUrl;
   const imagePreviewCacheKey = previewUrl
     ? getAttachmentImagePreviewCacheKey({
         assetContext,
@@ -81,7 +79,9 @@ export function useTranscriptAttachmentPreview({
   const handleOpenLocalAsset = useCallback(() => {
     if (!part.path) return;
 
-    void openLocalAssetInNewTab(part.path, displayName, assetContext);
+    void openLocalAssetInNewTab(part.path, displayName, assetContext).catch((error) => {
+      toast.error(error instanceof Error ? error.message : `Unable to open ${displayName}`);
+    });
   }, [assetContext, displayName, part.path]);
 
   const notifyDownloadStarting = useCallback(() => {
@@ -103,17 +103,24 @@ export function useTranscriptAttachmentPreview({
     setCopyLinkState("copying");
 
     try {
-      const assetLink = await assetsApi.createLocalAssetLink(part.path, {
-        context: assetContext
-      });
-      const copied = await copyText(assetLink.url);
+      const hasSessionScope = Boolean(
+        assetContext?.agentSessionId || assetContext?.managedSessionId
+      );
+      const assetUrl = hasSessionScope
+        ? assetsApi.buildFileUrl(part.path, { context: assetContext })
+        : (await assetsApi.createLocalAssetLink(part.path, {
+            context: assetContext
+          })).url;
+      const copied = await copyText(assetUrl);
 
       if (!copied) {
         toast.error("Copy failed");
         return;
       }
 
-      toast.success(`Temporary file link copied. Valid for ${LOCAL_ASSET_LINK_EXPIRY_LABEL}.`);
+      toast.success(hasSessionScope
+        ? "File link copied."
+        : `Temporary file link copied. Valid for ${LOCAL_ASSET_LINK_EXPIRY_LABEL}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to copy file link");
     } finally {
@@ -141,10 +148,13 @@ export function useTranscriptAttachmentPreview({
 
     let cancelled = false;
     let releaseImagePreview: (() => void) | null = null;
-    const localAssetContext = assetContextAgentSessionId || assetContextManagedSessionId
+    const localAssetContext = assetContextAgentSessionId ||
+      assetContextManagedSessionId ||
+      assetContextWorkspaceId
       ? {
           agentSessionId: assetContextAgentSessionId,
-          managedSessionId: assetContextManagedSessionId
+          managedSessionId: assetContextManagedSessionId,
+          workspaceId: assetContextWorkspaceId
         }
       : undefined;
 
@@ -183,6 +193,7 @@ export function useTranscriptAttachmentPreview({
   }, [
     assetContextAgentSessionId,
     assetContextManagedSessionId,
+    assetContextWorkspaceId,
     displayName,
     imagePreviewCacheKey,
     imagePreviewRetryNonce,
@@ -225,18 +236,13 @@ export function useTranscriptAttachmentPreview({
   }, [part.kind, previewKind]);
 
   useEffect(() => {
-    if (!previewOpen || previewKind !== "text" || !previewUrl) return;
+    if (!previewOpen || part.path || previewKind !== "text" || !previewUrl) return;
 
     let cancelled = false;
 
     setTextPreviewState("loading");
 
-    const fetchPreviewText =
-      part.path
-        ? assetsApi.getTicketText(part.path, displayName, {
-            context: assetContext
-          })
-        : assetsApi.getTextPreview(previewUrl, displayName);
+    const fetchPreviewText = assetsApi.getTextPreview(previewUrl, displayName);
 
     fetchPreviewText
       .then((value) => {
@@ -254,34 +260,6 @@ export function useTranscriptAttachmentPreview({
 
     return () => {
       cancelled = true;
-    };
-  }, [assetContext, displayName, part.path, previewKind, previewOpen, previewUrl]);
-
-  useEffect(() => {
-    if (!previewOpen || previewKind !== "pdf" || !part.path || !previewUrl) {
-      setDocumentPreviewUrl(null);
-      return;
-    }
-
-    let cancelled = false;
-    let objectUrl: string | null = null;
-
-    assetsApi.getTicketBlob(part.path, displayName, {
-      context: assetContext
-    })
-      .then((blob) => {
-        if (cancelled) return;
-
-        objectUrl = URL.createObjectURL(blob);
-        setDocumentPreviewUrl(objectUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setDocumentPreviewUrl(null);
-      });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [assetContext, displayName, part.path, previewKind, previewOpen, previewUrl]);
 

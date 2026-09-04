@@ -30,29 +30,33 @@ export function renderTranscriptParts(
       const attachmentParts: AttachmentPart[] = [part];
       let nextIndex = index + 1;
 
-      while (nextIndex < parts.length && parts[nextIndex]?.type === "attachment") {
-        attachmentParts.push(parts[nextIndex] as AttachmentPart);
-        nextIndex += 1;
+      if (options.groupAttachments) {
+        while (nextIndex < parts.length && parts[nextIndex]?.type === "attachment") {
+          attachmentParts.push(parts[nextIndex] as AttachmentPart);
+          nextIndex += 1;
+        }
       }
 
       rendered.push(
-        attachmentParts.length === 1 ? (
-          <TranscriptAttachmentCard
-            assetContext={assetContext}
-            dense={options.compactAttachments}
-            key={`${keyPrefix}-attachment-${index}`}
-            part={attachmentParts[0]}
-          />
-        ) : (
+        options.groupAttachments ? (
           <AttachmentCluster
             assetContext={assetContext}
             dense={options.compactAttachments}
             key={`${keyPrefix}-attachments-${index}`}
             parts={attachmentParts}
           />
+        ) : (
+          <TranscriptAttachmentCard
+            assetContext={assetContext}
+            dense={options.compactAttachments}
+            key={`${keyPrefix}-attachment-${index}`}
+            part={attachmentParts[0]}
+          />
         )
       );
+
       index = nextIndex - 1;
+
       continue;
     }
 
@@ -71,6 +75,7 @@ export function renderTranscriptParts(
           parts={diffParts}
         />
       );
+
       index = nextIndex - 1;
       continue;
     }

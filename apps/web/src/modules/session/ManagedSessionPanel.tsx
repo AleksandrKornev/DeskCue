@@ -163,6 +163,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
     sharedSessionHint,
     sharedViewerCount,
     showModelContext,
+    sourceDiffDetailsUnavailable,
     sourceDiffParts,
     switchableManagedSessions,
     setShowModelContext
@@ -171,16 +172,10 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
   const baseNavigationCapabilities = sessionShell?.sourceSessionId
     ? sourceChatNavigationCapabilities
     : manualCommandNavigationCapabilities;
-  const navigationCapabilities = restrictSessionNavigationToRuntime({
-    ...baseNavigationCapabilities,
-    files: props.hasWorkspaceFiles ?? Boolean(sessionShell?.workspaceId),
-    preview:
-      props.hasPreview ??
-      Boolean(
-        sessionShell?.preview.active ||
-        (sessionShell?.workspaceId && !sessionShell.workspaceId.startsWith("local-runtime:"))
-      )
-  }, runtime.features);
+  const navigationCapabilities = restrictSessionNavigationToRuntime(
+    baseNavigationCapabilities,
+    runtime.features
+  );
   const canRefreshGit = runtime.features.gitRefresh === true;
   const launchSessionPreview = runtime.launchSessionPreview;
   const availableSessionTabs = getSessionTabsForCapabilities(navigationCapabilities);
@@ -394,6 +389,7 @@ export const ManagedSessionPanel = observer(function ManagedSessionPanel(
                   key={sessionShell.id}
                   preferredFilePath={artifactReviewPath}
                   showWorkspaceGit
+                  sourceDiffDetailsUnavailable={sourceDiffDetailsUnavailable}
                   sourceDiffParts={sourceDiffParts}
                   onOpenFile={navigationCapabilities.files ? (path) => {
                     setArtifactReviewState({ ownerSessionId: selectedSessionId, path });

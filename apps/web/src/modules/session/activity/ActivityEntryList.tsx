@@ -6,8 +6,9 @@ import {
 
 import { ActivityEntryArticle } from "./ActivityEntryArticle";
 import { ActivityTranscriptContent } from "./ActivityTranscriptContent";
+import type { ActivityEntryListProps } from "./types";
 
-export function ActivityEntryList({ entries }: { entries: ChatTranscriptEntry[] }) {
+export function ActivityEntryList({ assetContext, entries }: ActivityEntryListProps) {
   const rendered = [];
   let index = 0;
 
@@ -26,14 +27,23 @@ export function ActivityEntryList({ entries }: { entries: ChatTranscriptEntry[] 
       const mergedEntry = mergeBareTranscriptEntries(bareEntries);
 
       if (mergedEntry) {
-        rendered.push(<ActivityTranscriptContent key={`merged:${entry.id}`} entry={mergedEntry} />);
+        rendered.push(
+          <ActivityTranscriptContent
+            key={`merged:${entry.id}`}
+            assetContext={assetContext}
+            entry={mergedEntry}
+          />
+        );
       }
 
       index = nextIndex;
       continue;
     }
 
-    rendered.push(<ActivityEntryArticle key={entry.id} entry={entry} />);
+    rendered.push(
+      <ActivityEntryArticle key={entry.id} assetContext={assetContext} entry={entry} />
+    );
+
     index += 1;
   }
 

@@ -17,6 +17,22 @@ function createBounds(left: number, right: number): DOMRect {
   };
 }
 
+function mockHorizontalScroll(scroller: HTMLElement, clampAtZero = true) {
+  const scrollBy = vi.fn((options: ScrollToOptions) => {
+    const left = Number(options.left ?? 0);
+    const nextScrollLeft = scroller.scrollLeft + left;
+
+    scroller.scrollLeft = clampAtZero ? Math.max(0, nextScrollLeft) : nextScrollLeft;
+  });
+
+  Object.defineProperty(scroller, "scrollBy", {
+    configurable: true,
+    value: scrollBy
+  });
+
+  return scrollBy;
+}
+
 describe("SegmentedTabs", () => {
   it("renders tab options and marks the active tab", () => {
     render(
@@ -109,6 +125,7 @@ describe("SegmentedTabs", () => {
     const tabList = screen.getByRole("tablist", { name: "Session sections" });
     const scroller = tabList.parentElement as HTMLElement;
     const activityTab = screen.getByRole("tab", { name: "Activity" });
+    const scrollBy = mockHorizontalScroll(scroller);
 
     scroller.scrollLeft = 0;
     vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(createBounds(0, 100));
@@ -127,6 +144,7 @@ describe("SegmentedTabs", () => {
     );
 
     expect(scroller.scrollLeft).toBe(66);
+    expect(scrollBy).toHaveBeenCalledWith({ left: 66 });
   });
 
   it("keeps the active tab horizontally visible without moving the page on resize", () => {
@@ -146,6 +164,7 @@ describe("SegmentedTabs", () => {
     const scroller = tabList.parentElement as HTMLElement;
     const activityTab = screen.getByRole("tab", { name: "Activity" });
     const pageScroll = vi.spyOn(window, "scrollTo");
+    const scrollBy = mockHorizontalScroll(scroller);
 
     scroller.scrollLeft = 20;
     vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(createBounds(0, 100));
@@ -154,6 +173,46 @@ describe("SegmentedTabs", () => {
     fireEvent(window, new Event("resize"));
 
     expect(scroller.scrollLeft).toBe(0);
+    expect(scrollBy).toHaveBeenCalledWith({ left: -26 });
     expect(pageScroll).not.toHaveBeenCalled();
+  });
+
+  it("scrolls toward a hidden active tab in RTL layouts", () => {
+    const { rerender } = render(
+      <SegmentedTabs
+        activeTab="activity"
+        ariaLabel="Session sections"
+        options={[
+          { key: "chat", label: "Chat" },
+          { key: "activity", label: "Activity" }
+        ]}
+        onSelectTab={() => undefined}
+      />
+    );
+
+    const tabList = screen.getByRole("tablist", { name: "Session sections" });
+    const scroller = tabList.parentElement as HTMLElement;
+    const chatTab = screen.getByRole("tab", { name: "Chat" });
+    const scrollBy = mockHorizontalScroll(scroller, false);
+
+    scroller.dir = "rtl";
+    scroller.scrollLeft = 0;
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(createBounds(0, 100));
+    vi.spyOn(chatTab, "getBoundingClientRect").mockReturnValue(createBounds(-40, 10));
+
+    rerender(
+      <SegmentedTabs
+        activeTab="chat"
+        ariaLabel="Session sections"
+        options={[
+          { key: "chat", label: "Chat" },
+          { key: "activity", label: "Activity" }
+        ]}
+        onSelectTab={() => undefined}
+      />
+    );
+
+    expect(scroller.scrollLeft).toBe(-46);
+    expect(scrollBy).toHaveBeenCalledWith({ left: -46 });
   });
 });

@@ -81,19 +81,62 @@
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  min-height: 18px;
+  min-height: 26px;
   padding: 0 6px;
   border: 1px solid rgba(174, 184, 201, 0.12);
   border-radius: 999px;
   background: rgba(174, 184, 201, 0.08);
   color: #b9c1cf;
   font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sourcePill {
+  gap: 6px;
+  padding-inline: 2px;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+}
+
+.sourcePillIcon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  color: vars.$color-status-info;
 }
 
 .capability {
   color: vars.$color-text-secondary;
+}
+
+.capability.capabilityReady {
+  gap: 5px;
+  border-color: vars.$color-border-success;
+  border-radius: vars.$radius-pill;
+  color: vars.$color-status-success;
+  background: vars.$color-surface-success;
+}
+
+.capability.capabilityReady::before,
+.connectionHint::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 999px;
+  background: vars.$color-status-running-strong;
+  box-shadow: vars.$shadow-status-running;
+  content: "";
+}
+
+.connectionHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: vars.$color-text-secondary;
+  font-weight: 600;
 }
 
 .button {

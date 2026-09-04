@@ -53,10 +53,17 @@ export function getLiveConnectionCopy(
   const lastUpdateLabel = age ? `last update ${age}` : "not updated yet";
 
   if (connection.status === "live") {
+    const compactDetail = age === "now"
+      ? "Updated now"
+      : age
+        ? `Updated ${age}`
+        : "Awaiting update";
+
     return {
       label: "Live",
       detail: age === "now" ? "updated now" : lastUpdateLabel,
-      compactDetail: age === "now" ? "updated" : age ? `update ${age}` : "not updated"
+      compactDetail,
+      tooltipLabel: age ? compactDetail : "No update received yet"
     };
   }
 
@@ -64,7 +71,8 @@ export function getLiveConnectionCopy(
     return {
       label: "Connecting",
       detail: age ? lastUpdateLabel : "opening live updates",
-      compactDetail: age ?? "opening"
+      compactDetail: "Connecting",
+      tooltipLabel: age ? `Last update ${age}` : "Opening live updates"
     };
   }
 
@@ -72,24 +80,33 @@ export function getLiveConnectionCopy(
     return {
       label: "Reconnecting",
       detail: lastUpdateLabel,
-      compactDetail: age ?? "not synced"
+      compactDetail: "Reconnecting",
+      tooltipLabel: age ? `Last update ${age}` : "No update received yet"
     };
   }
 
   return {
-    label: "Host offline",
+    label: "Updates offline",
     detail: lastUpdateLabel,
-    compactDetail: age ?? "not synced"
+    compactDetail: "Updates offline",
+    tooltipLabel: age ? `Last update ${age}` : "No update received yet"
   };
 }
 
-export function getLiveConnectionFreshnessLabel(
+export function getLiveConnectionTooltipLabel(
   copy: ReturnType<typeof getLiveConnectionCopy>
 ) {
-  const freshness = copy.detail
-    .replace(/^updated\s+/i, "")
-    .replace(/^last update\s+/i, "");
-  return `Last update ${freshness}`;
+  if (copy.label === "Live") return copy.tooltipLabel;
+
+  return `${copy.label} · ${copy.tooltipLabel}`;
+}
+
+export function getWorkspaceDisplayLabel(subtitle: string) {
+  const normalizedSubtitle = subtitle.trim();
+
+  if (!normalizedSubtitle) return "Workspace";
+
+  return normalizedSubtitle.split(/[\\/]/u).filter(Boolean).at(-1) ?? normalizedSubtitle;
 }
 
 export function findSourceAgentSession(

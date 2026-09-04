@@ -19,6 +19,20 @@ function readWorkspaceFileBrowserError(error: unknown, fallback: string) {
   return error.message.trim() || fallback;
 }
 
+function replaceWorkspaceFileHistoryTarget(target: WorkspaceFileHistoryTarget) {
+  window.history.replaceState({
+    ...window.history.state,
+    [WORKSPACE_FILE_HISTORY_KEY]: target
+  }, "", window.location.href);
+}
+
+function workspaceFileHistoryTargetsMatch(
+  left: WorkspaceFileHistoryTarget | null,
+  right: WorkspaceFileHistoryTarget
+) {
+  return left?.workspaceId === right.workspaceId && left.kind === right.kind && left.path === right.path;
+}
+
 export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFileBrowserState {
   const [currentPath, setCurrentPath] = useState("");
   const [entries, setEntries] = useState<WorkspaceFileEntry[]>([]);
@@ -126,11 +140,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
   }, [workspaceId]);
 
   const pushHistoryTarget = useCallback((target: WorkspaceFileHistoryTarget) => {
-    if (
-      historyTargetRef.current?.workspaceId === target.workspaceId &&
-      historyTargetRef.current.kind === target.kind &&
-      historyTargetRef.current.path === target.path
-    ) return;
+    if (workspaceFileHistoryTargetsMatch(historyTargetRef.current, target)) return;
 
     window.history.pushState({
       ...window.history.state,
@@ -170,7 +180,37 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
   const showFile = useCallback(async (path: string, recordHistory: boolean) => {
     if (!workspaceId) return;
 
-    const target = { kind: "file", path, workspaceId } satisfies WorkspaceFileHistoryTarget;
+    let previousTarget = historyTargetRef.current;
+    const openingCurrentFile = previousTarget?.kind === "file" &&
+      previousTarget.path === path &&
+      previousTarget.workspaceId === workspaceId;
+
+    if (recordHistory && previousTarget?.kind === "file" && !openingCurrentFile && !previousTarget.returnDepth) {
+      previousTarget = {
+        kind: "directory",
+        path: currentPathRef.current,
+        workspaceId
+      };
+
+      replaceWorkspaceFileHistoryTarget(previousTarget);
+      historyTargetRef.current = previousTarget;
+    }
+
+    const returnDepth = recordHistory
+      ? previousTarget?.kind === "file"
+        ? openingCurrentFile
+          ? previousTarget.returnDepth
+          : (previousTarget.returnDepth ?? 1) + 1
+        : 1
+      : previousTarget?.kind === "file"
+        ? previousTarget.returnDepth
+        : undefined;
+    const target = {
+      kind: "file",
+      path,
+      ...(returnDepth ? { returnDepth } : {}),
+      workspaceId
+    } satisfies WorkspaceFileHistoryTarget;
 
     if (recordHistory) pushHistoryTarget(target);
 
@@ -238,7 +278,11 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
         : null;
     historyTargetRef.current = initialTarget;
 
-    if (initialTarget) void restoreTarget(initialTarget);
+    if (initialTarget) {
+      if (initialTarget !== stateTarget) replaceWorkspaceFileHistoryTarget(initialTarget);
+
+      void restoreTarget(initialTarget);
+    }
 
     return () => {
       directoryOperationRef.current += 1;
@@ -255,6 +299,8 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     const stateTarget = readWorkspaceFileHistoryTarget(event.state);
 
     if (stateTarget?.workspaceId === workspaceId) {
+      if (workspaceFileHistoryTargetsMatch(historyTargetRef.current, stateTarget)) return;
+
       void restoreTarget(stateTarget);
       return;
     }
@@ -280,6 +326,35 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     targetOperationRef.current += 1;
     void showFile(path, true);
   }, [showFile]);
+
+  const returnToDirectory = useCallback(() => {
+    if (!workspaceId) return;
+
+    const currentTarget = historyTargetRef.current;
+
+    if (currentTarget?.kind === "file" && currentTarget.returnDepth) {
+      const directoryTarget = {
+        kind: "directory",
+        path: currentPathRef.current,
+        workspaceId
+      } satisfies WorkspaceFileHistoryTarget;
+
+      targetOperationRef.current += 1;
+      showDirectory(directoryTarget.path, false);
+      window.history.go(-currentTarget.returnDepth);
+      return;
+    }
+
+    const target = {
+      kind: "directory",
+      path: currentPathRef.current,
+      workspaceId
+    } satisfies WorkspaceFileHistoryTarget;
+
+    targetOperationRef.current += 1;
+    replaceWorkspaceFileHistoryTarget(target);
+    showDirectory(target.path, false);
+  }, [showDirectory, workspaceId]);
 
   const loadMore = useCallback(() => {
     if (!loadingDirectory && nextCursor) void loadDirectory(currentPath, nextCursor);
@@ -320,6 +395,17 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
       return "directory";
     }
 
+    const directoryTarget = { kind: "directory", path: directoryPath, workspaceId } satisfies WorkspaceFileHistoryTarget;
+
+    if (
+      historyTargetRef.current?.kind !== "directory" ||
+      historyTargetRef.current.path !== directoryPath ||
+      historyTargetRef.current.workspaceId !== workspaceId
+    ) {
+      replaceWorkspaceFileHistoryTarget(directoryTarget);
+      historyTargetRef.current = directoryTarget;
+    }
+
     await showFile(normalizedPath, true);
     if (targetOperationRef.current !== targetOperation) return null;
 
@@ -339,6 +425,7 @@ export function useWorkspaceFileBrowser(workspaceId: string | null): WorkspaceFi
     loadMore,
     openDirectory,
     openFile,
-    openPath
+    openPath,
+    returnToDirectory
   };
 }

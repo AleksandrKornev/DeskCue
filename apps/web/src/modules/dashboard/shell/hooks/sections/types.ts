@@ -37,7 +37,7 @@ type DashboardShellRouteActions = {
   onSendInput: (instruction: string, options?: SendInputOptions) => Promise<boolean>;
   onStopAndExitSession: () => void | Promise<void>;
   onStopSession: () => boolean | Promise<boolean>;
-  onToggleLiveTools: () => void;
+  onToggleLiveTools: (options?: { replace?: boolean }) => void;
 };
 
 export type UseDashboardShellSectionsArgs = {
@@ -115,7 +115,10 @@ export type BuildAgentBrowserShellPropsArgs = {
 
 export type BuildManagedSessionShellPropsArgs = {
   overview: DashboardSlice<"overview", "isBootstrapping">;
-  agentBrowser: DashboardSlice<"agentBrowser", "agentSessions" | "agentTranscriptHasMoreById">;
+  agentBrowser: DashboardSlice<
+    "agentBrowser",
+    "agentSessions" | "agentTranscriptHasMoreById" | "agentTranscriptHistoryIncompleteById"
+  >;
   managedSession: DashboardSlice<
     "managedSession",
     "activeTab" | "liveUpdatesConnection" | "managedSessions" | "previewPort" | "selectedSession"

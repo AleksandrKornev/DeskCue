@@ -20,6 +20,9 @@ import type { ChatTranscriptEntry } from "@modules/session/types";
 
 type SessionShell = SessionDetail | SessionSummary | null;
 
+export const EXTERNAL_SOURCE_INPUT_UNAVAILABLE_LABEL =
+  "Another client controls this turn. Finish or stop it there first.";
+
 export function isManagedSourceSessionWorking(
   sessionShell: SessionShell,
   sourceSession: AgentSessionDetail | null,
@@ -252,7 +255,10 @@ export function hasAssistantReplyAfterPrompt(
   return chatTranscriptEntries.some((entry) => {
     const entryTime = new Date(entry.timestamp).getTime();
 
-    return entry.role === "assistant" && Number.isFinite(entryTime) && entryTime >= promptTime;
+    return entry.role === "assistant" &&
+      entry.phase !== "non_final" &&
+      Number.isFinite(entryTime) &&
+      entryTime >= promptTime;
   });
 }
 
@@ -302,7 +308,7 @@ export function resolveInputUnavailableLabel({
   sourceSessionId: string | null | undefined;
 }) {
   if (canSendInput) return null;
-  if (isExternalSourceTurn) return "Turn active outside DeskCue";
+  if (isExternalSourceTurn) return EXTERNAL_SOURCE_INPUT_UNAVAILABLE_LABEL;
 
   const explicitInputBlockedReason = inputBlockedReason?.trim();
 

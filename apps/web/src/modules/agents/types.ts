@@ -87,7 +87,7 @@ export interface AgentSessionsListProps {
   totalSessionsCountLabel: string;
   attachedSourceSessionKeys: ReadonlySet<string>;
   readyForReviewAgentSessionIds: ReadonlySet<string>;
-  workIndicatorsBySourceSessionId: ReadonlyMap<string, AgentSessionWorkIndicator>;
+  workIndicatorsBySourceSessionKey: ReadonlyMap<string, AgentSessionWorkIndicator>;
   query: string;
   selectedAgentSessionId: string;
   selectedLocalLlmChatId?: string | null;

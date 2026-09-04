@@ -2502,6 +2502,64 @@ test("agent transcript updates falls back when lightweight source window misses 
   });
 });
 
+test("agent transcript updates falls back when a standalone activity is reparented to a reply", async () => {
+  const detail: AgentSessionDetail = {
+    ...agentSessionDetail(),
+    transcript: [
+      {
+        id: "entry-1",
+        timestamp: "2026-06-22T10:00:00.000Z",
+        role: "user",
+        text: "Work on it",
+        phase: null
+      },
+      {
+        id: "entry-2",
+        timestamp: "2026-06-22T10:00:01.000Z",
+        role: "tool",
+        text: "Tool result",
+        phase: null
+      },
+      {
+        id: "entry-3",
+        timestamp: "2026-06-22T10:00:02.000Z",
+        role: "assistant",
+        text: "Done",
+        phase: null
+      }
+    ]
+  };
+
+  const application = fakeApplication({
+    agentSessionDetailResponse: detail,
+    agentSessionPatch: { workState: "idle" },
+    agentTranscriptWindowResponse: detail.transcript.slice(1)
+  });
+  const app = createTestApp((target) => {
+    installAgentSessionRoutes(target, {
+      decorateSession,
+      sourceAgentSessions: application.sourceAgentSessions
+    });
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const updates = await requestJson<AgentTranscriptViewResponse & { replaceFromItemKey: string | null }>(
+      `${baseUrl}/api/agents/sessions/${detail.id}/transcript-updates` +
+        "?chatMessageTail=40&transcriptDetail=summary&baseItemKey=stale-tools&baseSourceEntryId=entry-2"
+    );
+    const assistant = updates.items.find(
+      (item) => item.type === "message" && item.entry.id === "entry-3"
+    );
+
+    assert.equal(application.agentTranscriptWindowRequests.length, 1);
+    assert.equal(application.agentSessionDetailRequests.length, 1);
+    assert.equal(updates.replaceFromItemKey, "entry-1");
+    assert.equal(assistant?.type, "message");
+    assert.deepEqual(assistant?.activities.map((activity) => activity.kind), ["tools"]);
+    assert.equal(updates.items.some((item) => item.type === "activity"), false);
+  });
+});
+
 test("agent transcript updates uses source tail window when the source cursor is stale", async () => {
   const detail: AgentSessionDetail = {
     ...agentSessionDetail(),

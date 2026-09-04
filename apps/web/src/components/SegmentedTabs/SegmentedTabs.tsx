@@ -58,14 +58,20 @@ function scrollActiveTabHorizontally(
 
   const activeTabBounds = activeTabElement.getBoundingClientRect();
   const scrollerBounds = scroller.getBoundingClientRect();
+
+  if (scrollerBounds.width <= 0) return;
+
   const visibleLeft = scrollerBounds.left + ACTIVE_TAB_SCROLL_MARGIN_PX;
   const visibleRight = scrollerBounds.right - ACTIVE_TAB_SCROLL_MARGIN_PX;
+  let scrollDelta = 0;
 
   if (activeTabBounds.left < visibleLeft) {
-    scroller.scrollLeft = Math.max(0, scroller.scrollLeft - (visibleLeft - activeTabBounds.left));
+    scrollDelta = activeTabBounds.left - visibleLeft;
   } else if (activeTabBounds.right > visibleRight) {
-    scroller.scrollLeft += activeTabBounds.right - visibleRight;
+    scrollDelta = activeTabBounds.right - visibleRight;
   }
+
+  if (scrollDelta !== 0) scroller.scrollBy({ left: scrollDelta });
 }
 
 export function SegmentedTabs<TValue extends string>({

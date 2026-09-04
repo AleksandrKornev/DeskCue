@@ -22,7 +22,7 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
     totalSessionsCountLabel,
     attachedSourceSessionKeys,
     readyForReviewAgentSessionIds,
-    workIndicatorsBySourceSessionId,
+    workIndicatorsBySourceSessionKey,
     query,
     selectedAgentSessionId,
     selectedLocalLlmChatId,
@@ -143,7 +143,9 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
           }
 
           const { session } = item;
-          const workIndicator = workIndicatorsBySourceSessionId.get(session.sourceSessionId);
+          const workIndicator = workIndicatorsBySourceSessionKey.get(
+            getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+          );
           const isAttached = attachedSourceSessionKeys.has(
             getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
           );
@@ -162,7 +164,7 @@ export function AgentSessionsList(props: AgentSessionsListProps) {
                 }
               : isReadyForReview
               ? {
-                  label: "Finished",
+                  label: "New result",
                   tone: "review" as const,
                   viewerCount: 0,
                   sessionId: session.id

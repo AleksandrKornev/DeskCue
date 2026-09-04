@@ -13,6 +13,7 @@ import {
   getAttachmentPreviewKind,
   getAttachmentSecondaryLabel
 } from "@modules/transcript/RichTranscriptContent/helpers";
+import { LocalAssetActionDialog } from "@modules/transcript/RichTranscriptContent/MarkdownContent/LocalAssetActionDialog";
 import type { AttachmentPart } from "@modules/transcript/RichTranscriptContent/types";
 
 import { AttachmentLightbox } from "./AttachmentLightbox";
@@ -70,20 +71,28 @@ export function TranscriptAttachmentCard(props: {
     !effectivePreviewUrl &&
     imagePreviewState !== "error";
   const isImagePreviewError = hasImagePreview && imagePreviewState === "error";
+  const canOpenPreviewDialog = isLocalAsset || (previewKind !== "none" && Boolean(previewUrl));
+  const localImageDialogStatus = previewKind === "image"
+    ? part.kind === "local-image"
+      ? imagePreviewState === "loaded"
+        ? "ready"
+        : imagePreviewState === "error" ? "error" : "loading"
+      : effectivePreviewUrl ? "ready" : "loading"
+    : undefined;
 
   const handlePrimaryCardAction = useCallback(() => {
+    if (isLocalAsset) {
+      setPreviewOpen(true);
+      return;
+    }
+
     if (previewKind !== "none" && previewUrl) {
       setPreviewOpen(true);
       return;
     }
 
-    if (isLocalAsset) {
-      handleOpenLocalAsset();
-      return;
-    }
-
     if (openHref) window.open(openHref, "_blank", "noopener,noreferrer");
-  }, [handleOpenLocalAsset, isLocalAsset, openHref, previewKind, previewUrl, setPreviewOpen]);
+  }, [isLocalAsset, openHref, previewKind, previewUrl, setPreviewOpen]);
 
   return (
     <>
@@ -98,6 +107,8 @@ export function TranscriptAttachmentCard(props: {
       >
         {hasImagePreview ? (
           <button
+            aria-expanded={isImagePreviewError ? undefined : previewOpen}
+            aria-haspopup={isImagePreviewError ? undefined : "dialog"}
             aria-label={isImagePreviewError ? `Retry preview ${displayName}` : `Preview ${displayName}`}
             className={styles.attachmentPreview}
             onClick={isImagePreviewError ? retryImagePreview : openPreview}
@@ -122,7 +133,11 @@ export function TranscriptAttachmentCard(props: {
           </button>
         ) : (
           <button
-            aria-label={previewKind !== "none" && previewUrl ? `Preview ${displayName}` : `Open ${displayName}`}
+            aria-expanded={canOpenPreviewDialog ? previewOpen : undefined}
+            aria-haspopup={canOpenPreviewDialog ? "dialog" : undefined}
+            aria-label={canOpenPreviewDialog
+              ? `Preview ${displayName}`
+              : `Open ${displayName}`}
             className={styles.attachmentTile}
             disabled={!isLocalAsset && !openHref && previewKind === "none"}
             onClick={handlePrimaryCardAction}
@@ -248,7 +263,20 @@ export function TranscriptAttachmentCard(props: {
         ) : null}
       </div>
 
-      {previewOpen && effectivePreviewUrl && previewKind !== "none" ? (
+      {previewOpen && isLocalAsset && part.path ? (
+        <LocalAssetActionDialog
+          assetContext={assetContext}
+          assetPath={part.path}
+          displayName={displayName}
+          isOpen
+          previewImage={previewKind === "image" && effectivePreviewUrl
+            ? { alt: displayName, url: effectivePreviewUrl }
+            : undefined}
+          previewStatus={localImageDialogStatus}
+          onClose={() => setPreviewOpen(false)}
+          onRetryPreview={retryImagePreview}
+        />
+      ) : previewOpen && effectivePreviewUrl && previewKind !== "none" ? (
         <AttachmentLightbox
           displayName={displayName}
           downloadHref={downloadHref ?? undefined}

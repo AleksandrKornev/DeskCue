@@ -29,11 +29,12 @@ export function RichTranscriptContent(props: RichTranscriptContentProps) {
   const orderedParts = shouldOrderAttachmentsBeforeMarkdown(entry)
     ? orderAttachmentsBeforeMarkdown(parts)
     : parts;
+  const groupAttachments = "role" in entry && entry.role === "user";
 
   if (!collapseSecondaryParts) {
     return (
       <div className={styles.richTranscript}>
-        {renderTranscriptParts(orderedParts, "full", assetContext)}
+        {renderTranscriptParts(orderedParts, "full", assetContext, { groupAttachments })}
       </div>
     );
   }
@@ -54,7 +55,10 @@ export function RichTranscriptContent(props: RichTranscriptContentProps) {
 
   return (
     <div className={styles.richTranscript}>
-      {renderTranscriptParts(primaryParts, "primary", assetContext, { compactAttachments: true })}
+      {renderTranscriptParts(primaryParts, "primary", assetContext, {
+        compactAttachments: true,
+        groupAttachments
+      })}
 
       {secondaryParts.length > 0 ? (
         <details className={styles.collapse}>

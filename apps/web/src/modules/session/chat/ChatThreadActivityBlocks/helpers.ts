@@ -23,3 +23,12 @@ export function labelForActivityKind(kind: ConversationActivity["kind"]) {
 export function shouldHydrateActivityOnExpand(activity: ConversationActivity) {
   return activity.entries.some((entry) => entry.isCompact === true);
 }
+
+export function buildMessageActivityElementIds(messageEntryId: string, activityId: string) {
+  const identity = encodeURIComponent(`${messageEntryId}:${activityId}`);
+
+  return {
+    contentId: `message-activity-content-${identity}`,
+    triggerId: `message-activity-trigger-${identity}`
+  };
+}

@@ -1,4 +1,5 @@
 import {
+  COMPACT_DIFF_PLACEHOLDER_TEXT,
   compactAgentTranscriptSourceRefs,
   countAgentTranscriptSourceRefs
 } from "@deskcue/protocol";
@@ -7,7 +8,6 @@ import type { AgentSessionDetail, AgentTranscriptEntry, TranscriptPart } from "@
 const ENTRY_TEXT_LIMIT = 160;
 const MARKDOWN_TEXT_LIMIT = 260;
 const STATUS_DETAIL_LIMIT = 160;
-const DIFF_SUMMARY_TEXT = "[diff hidden in live view]";
 const TOOL_RESULT_SUMMARY = "[tool result hidden in live view]";
 const compactActivityKindOrder: Record<CompactActivityKind, number> = {
   details: 0,
@@ -29,6 +29,7 @@ function isStandaloneTranscriptEntry(entry: AgentTranscriptEntry) {
 
   const statusPart = entry.parts?.find((part) => part.type === "status");
   const label = statusPart?.type === "status" ? statusPart.label : entry.text;
+
   return (
     label === "Turn started" ||
     label === "Turn completed" ||
@@ -60,6 +61,7 @@ function readCompactDiffParts(entries: AgentTranscriptEntry[]) {
 
     const displayPath = part.filePath ?? part.title;
     const currentPart = partsByDisplayPath.get(displayPath);
+
     if (!currentPart) {
       partsByDisplayPath.set(displayPath, part);
       continue;
@@ -93,6 +95,7 @@ function buildCompactGroupEntry(entries: AgentTranscriptEntry[]): AgentTranscrip
   const sourceEntryIds: string[] = [];
   const existingSourceEntryRanges: NonNullable<AgentTranscriptEntry["sourceEntryRanges"]> = [];
   const existingSourceEntrySpans: NonNullable<AgentTranscriptEntry["sourceEntrySpans"]> = [];
+
   for (const entry of entries) {
     if (entry.sourceEntryIds) {
       sourceEntryIds.push(...entry.sourceEntryIds);
@@ -103,10 +106,12 @@ function buildCompactGroupEntry(entries: AgentTranscriptEntry[]): AgentTranscrip
     if (entry.sourceEntryRanges) {
       existingSourceEntryRanges.push(...entry.sourceEntryRanges);
     }
+
     if (entry.sourceEntrySpans) {
       existingSourceEntrySpans.push(...entry.sourceEntrySpans);
     }
   }
+
   const sourceRefs = compactAgentTranscriptSourceRefs(sourceEntryIds);
   const sourceEntryRanges = [
     ...(sourceRefs.sourceEntryRanges ?? []),
@@ -121,6 +126,7 @@ function buildCompactGroupEntry(entries: AgentTranscriptEntry[]): AgentTranscrip
     sourceEntryRanges: sourceEntryRanges.length > 0 ? sourceEntryRanges : undefined,
     sourceEntrySpans: sourceEntrySpans.length > 0 ? sourceEntrySpans : undefined
   };
+
   const sourceEntryCount = countAgentTranscriptSourceRefs(mergedSourceRefs);
   const groupKey = getCompactGroupKey(firstEntry);
   const label = groupKey === "changes"
@@ -161,9 +167,11 @@ function buildCompactGroupEntries(entries: AgentTranscriptEntry[]): AgentTranscr
   }
 
   const groups = new Map<CompactActivityKind, AgentTranscriptEntry[]>();
+
   for (const entry of entries) {
     const key = getCompactGroupKey(entry);
     const groupEntries = groups.get(key);
+
     if (groupEntries) {
       groupEntries.push(entry);
     } else {
@@ -176,18 +184,20 @@ function buildCompactGroupEntries(entries: AgentTranscriptEntry[]): AgentTranscr
     .map(([, groupEntries]) => buildCompactGroupEntry(groupEntries));
 }
 
+function flushPendingCompactGroup(
+  coalescedEntries: AgentTranscriptEntry[],
+  pendingGroup: AgentTranscriptEntry[]
+) {
+  if (pendingGroup.length === 0) return pendingGroup;
+
+  coalescedEntries.push(...buildCompactGroupEntries(pendingGroup));
+
+  return [];
+}
+
 function coalesceCompactTranscriptEntries(entries: AgentTranscriptEntry[]) {
   const coalescedEntries: AgentTranscriptEntry[] = [];
   let pendingGroup: AgentTranscriptEntry[] = [];
-
-  const flushPendingGroup = () => {
-    if (pendingGroup.length === 0) {
-      return;
-    }
-
-    coalescedEntries.push(...buildCompactGroupEntries(pendingGroup));
-    pendingGroup = [];
-  };
 
   for (const entry of entries) {
     if (canCoalesceCompactTranscriptEntry(entry)) {
@@ -195,11 +205,12 @@ function coalesceCompactTranscriptEntries(entries: AgentTranscriptEntry[]) {
       continue;
     }
 
-    flushPendingGroup();
+    pendingGroup = flushPendingCompactGroup(coalescedEntries, pendingGroup);
     coalescedEntries.push(entry);
   }
 
-  flushPendingGroup();
+  flushPendingCompactGroup(coalescedEntries, pendingGroup);
+
   return coalescedEntries.length === entries.length ? entries : coalescedEntries;
 }
 
@@ -228,7 +239,7 @@ function summarizeDiffPart(part: DiffPart): DiffPart {
     ...part,
     additions: stats.additions,
     deletions: stats.deletions,
-    text: DIFF_SUMMARY_TEXT
+    text: COMPACT_DIFF_PLACEHOLDER_TEXT
   };
 }
 
@@ -247,6 +258,7 @@ function summarizeTranscriptPart(part: TranscriptPart): TranscriptPart {
 
   if (part.type === "markdown") {
     const text = truncateText(part.text, MARKDOWN_TEXT_LIMIT);
+
     return text === part.text ? part : { ...part, text };
   }
 
@@ -260,6 +272,7 @@ function summarizeTranscriptPart(part: TranscriptPart): TranscriptPart {
 
   if (part.type === "status") {
     const detail = part.detail === null ? null : truncateText(part.detail, STATUS_DETAIL_LIMIT);
+
     return detail === part.detail ? part : { ...part, detail };
   }
 
@@ -291,6 +304,7 @@ function findLatestLiveDetailEntryId(entries: AgentTranscriptEntry[]) {
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
+
     if (entry.role === "user" || entry.role === "assistant") {
       lastChatEntryIndex = index;
     }
@@ -298,6 +312,7 @@ function findLatestLiveDetailEntryId(entries: AgentTranscriptEntry[]) {
 
   for (let index = entries.length - 1; index > lastChatEntryIndex; index -= 1) {
     const entry = entries[index];
+
     if (entry.role !== "tool" && entry.role !== "user" && entry.role !== "assistant") {
       return entry.id;
     }
@@ -315,6 +330,7 @@ export function summarizeAgentSessionTranscript(session: AgentSessionDetail): Ag
     }
 
     const summarizedEntry = summarizeTranscriptEntry(entry);
+
     if (summarizedEntry !== entry) {
       changed = true;
     }
@@ -322,6 +338,7 @@ export function summarizeAgentSessionTranscript(session: AgentSessionDetail): Ag
     return summarizedEntry;
   });
   const transcript = coalesceCompactTranscriptEntries(summarizedTranscript);
+
   if (transcript !== summarizedTranscript) {
     changed = true;
   }

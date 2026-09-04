@@ -102,6 +102,7 @@
   align-items: center;
   flex: 0 0 auto;
   gap: 8px;
+  min-width: 0;
 }
 
 .chatButton {
@@ -120,6 +121,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.runtimeMetaWrap {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .runtimeMetaTooltip {
@@ -151,6 +159,30 @@
 .runtimeDotUnavailable {
   background: vars.$color-danger;
   box-shadow: vars.$shadow-status-offline;
+}
+
+@media (max-width: 420px) {
+  .runtimeRowHeader {
+    display: grid;
+    align-items: start;
+    gap: 6px;
+  }
+
+  .runtimeActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .runtimeStatus {
+    flex: 1 1 100%;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .chatButton {
+    min-height: vars.$control-height-touch;
+  }
 }
 
 .skeletonBlock {

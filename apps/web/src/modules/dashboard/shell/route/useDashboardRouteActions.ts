@@ -53,10 +53,10 @@ export function useDashboardRouteActions({
     });
   }, [navigateToRoute]);
 
-  const toggleLiveTools = useCallback(() => {
+  const toggleLiveTools = useCallback((options?: { replace?: boolean }) => {
     navigateToRoute({
       overlay: activeLiveOverlay === "tools" ? null : "tools"
-    });
+    }, options);
   }, [activeLiveOverlay, navigateToRoute]);
 
   const {

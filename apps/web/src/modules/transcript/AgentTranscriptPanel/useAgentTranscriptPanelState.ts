@@ -69,7 +69,7 @@ export function useAgentTranscriptPanelState({
     : isHydratingSelection
       ? "Loading chat"
       : canContinueSourceChat
-        ? "Ready to continue"
+        ? "Ready"
         : unavailableChatPresentation?.capabilityLabel ?? "View only";
   const actionButtonLabel = buildAttachActionButtonLabel({
     attachWaitStage,
@@ -86,16 +86,16 @@ export function useAgentTranscriptPanelState({
   const attachedViewerCount = attachedManagedSessionInfo?.viewerCount ?? 0;
   const attachedClientLabel =
     attachedViewerCount === 1
-      ? "1 DeskCue client"
-      : `${attachedViewerCount} DeskCue clients`;
+      ? "1 connected DeskCue client"
+      : `${attachedViewerCount} connected DeskCue clients`;
   const attachedSessionHint = attachedManagedSessionInfo
     ? attachedManagedSessionInfo.status === "running"
       ? attachedViewerCount > 0
-        ? `DeskCue is attached in ${attachedClientLabel}`
-        : "DeskCue is attached to this local chat"
+        ? attachedClientLabel
+        : "Live chat connected"
       : attachedViewerCount > 0
-        ? `DeskCue chat is open in ${attachedClientLabel}`
-        : "A DeskCue chat is available"
+        ? attachedClientLabel
+        : "Live chat available"
     : null;
 
   const transcriptTimeline = useMemo(

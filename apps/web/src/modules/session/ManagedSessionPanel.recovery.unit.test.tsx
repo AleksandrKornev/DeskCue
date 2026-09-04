@@ -50,7 +50,7 @@ const viewModel = vi.hoisted(() => ({
 
 vi.mock("@runtime", () => ({
   useDeskCueRuntime: () => ({
-    features: { gitRefresh: false },
+    features: { files: true, gitRefresh: false, preview: true },
     launchSessionPreview: null
   })
 }));
@@ -72,7 +72,13 @@ vi.mock("./model/capabilities/useExternalClaudeBackgroundStopCapability", () => 
 
 vi.mock("./chrome", () => ({
   LiveSessionActions: () => null,
-  LiveSessionHeader: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  LiveSessionHeader: ({ navigationCapabilities }: {
+    navigationCapabilities: Record<string, boolean>;
+  }) => (
+    <div data-testid="live-session-navigation-capabilities">
+      {JSON.stringify(navigationCapabilities)}
+    </div>
+  ),
   ManagedSessionSwitcher: () => null
 }));
 
@@ -116,6 +122,7 @@ function createProps(onRetrySessionLoad: () => Promise<unknown>): ManagedSession
     activeTab: "overview",
     agentSessions: [],
     agentTranscriptHasMoreById: new Map(),
+    agentTranscriptHistoryIncompleteById: new Map(),
     immediateInterruptPrompt: null,
     isBootstrapping: false,
     isInterruptingPrompt: false,
@@ -198,5 +205,28 @@ describe("ManagedSessionPanel initial load recovery", () => {
     });
 
     expect(document.body).toHaveFocus();
+  });
+
+  it("keeps all four local source-chat sections available before a workspace is attached", () => {
+    viewModel.sessionShell = createSession("session-1");
+
+    render(
+      <ManagedSessionPanel
+        {...createProps(() => Promise.resolve())}
+        hasPreview={false}
+        hasWorkspaceFiles={false}
+        sessionLoadError={null}
+      />
+    );
+
+    expect(screen.getByTestId("live-session-navigation-capabilities")).toHaveTextContent(
+      JSON.stringify({
+        conversation: true,
+        output: false,
+        changes: true,
+        files: true,
+        preview: true
+      })
+    );
   });
 });

@@ -38,8 +38,10 @@ describe("createWebEmbedManualChunk", () => {
     const entry = "/src/embed/index.ts";
     const runtime = "/src/runtime/provider.tsx";
     const dynamicDashboard = "/src/modules/dashboard/model/store.ts";
+    const dynamicTranscript = "/src/modules/transcript/RichTranscriptContent/RichTranscriptContent.tsx";
     const meta = createMeta({
       [dynamicDashboard]: { importers: [] },
+      [dynamicTranscript]: { importers: [] },
       [entry]: { importers: [], isEntry: true },
       [runtime]: { importers: [entry] }
     });
@@ -48,6 +50,7 @@ describe("createWebEmbedManualChunk", () => {
     expect(manualChunk(entry, meta)).toBeUndefined();
     expect(manualChunk(runtime, meta)).toBe("embed-entry-runtime");
     expect(manualChunk(dynamicDashboard, meta)).toBe("dashboard-model");
+    expect(manualChunk(dynamicTranscript, meta)).toBe("rich-transcript");
   });
 
   it("resolves static reachability through importer cycles", () => {

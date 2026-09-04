@@ -98,7 +98,7 @@ it("shows the matching runtime mark on every agent and local chat card", () => {
       selectedAgentSessionId=""
       sessions={[agentSession]}
       totalSessionsCountLabel="2"
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onOpenLocalLlmChat={vi.fn()}
       onSelectAgentSession={vi.fn()}
       onShowFewerSessions={vi.fn()}
@@ -135,7 +135,7 @@ it("shows the runtime mark on compact attention cards", () => {
       selectedAgentSessionId=""
       sessions={[session]}
       tone="active"
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onSelectAgentSession={vi.fn()}
     />
   );

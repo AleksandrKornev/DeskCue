@@ -17,7 +17,7 @@ describe("TranscriptPreviewEntry", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "DESKCUE_CHANGE_VALIDATION.md" }));
+    fireEvent.click(screen.getByRole("link", { name: "DESKCUE_CHANGE_VALIDATION.md" }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open" })).toBeEnabled();
@@ -37,7 +37,7 @@ describe("TranscriptPreviewEntry", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "mobile evidence" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "mobile evidence" })).toHaveAttribute(
       "title",
       "D:/work/DeskCueWorkspace/mobile-evidence.png"
     );
@@ -58,8 +58,8 @@ describe("TranscriptPreviewEntry", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "report" }));
-    expect(screen.getByRole("dialog", { name: "report" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "report" }));
+    expect(screen.getByRole("dialog", { name: "report.txt" })).toBeInTheDocument();
 
     view.rerender(
       <TranscriptPreviewEntry
@@ -68,6 +68,6 @@ describe("TranscriptPreviewEntry", () => {
       />
     );
 
-    expect(screen.getByRole("dialog", { name: "report" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "report.txt" })).toBeInTheDocument();
   });
 });

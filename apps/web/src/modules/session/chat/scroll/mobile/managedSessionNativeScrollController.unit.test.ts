@@ -22,25 +22,33 @@ class TestScheduler implements ManagedSessionNativeScrollScheduler {
 
   requestAnimationFrame = (callback: () => void) => {
     const handle = this.nextHandle++;
+
     this.animationFrames.set(handle, callback);
+
     return handle;
   };
 
   setTimeout = (callback: () => void) => {
     const handle = this.nextHandle++;
+
     this.timeouts.set(handle, callback);
+
     return handle;
   };
 
   flushAnimationFrames() {
     const callbacks = [...this.animationFrames.values()];
+
     this.animationFrames.clear();
+
     callbacks.forEach((callback) => callback());
   }
 
   flushTimeouts() {
     const callbacks = [...this.timeouts.values()];
+
     this.timeouts.clear();
+
     callbacks.forEach((callback) => callback());
   }
 }
@@ -53,17 +61,20 @@ function createFixture(scheduler: ManagedSessionNativeScrollScheduler) {
     pendingHistoryExpansion: false,
     shouldStickToBottom: true
   };
+
   const metrics: ChatScrollMetrics = {
     clientHeight: 400,
     scrollHeight: 1_000,
     scrollTop: 0
   };
+
   const loadEarlierHistoryFromMetrics = vi.fn(() => true);
   const updateHistoryAutoLoadPending = vi.fn();
   const updateShowScrollToLatest = vi.fn();
 
   return {
     loadEarlierHistoryFromMetrics,
+    metrics,
     options: {
       canRevealEarlierHistory: true,
       getAllowAutoStickRelease: () => state.allowAutoStickRelease,
@@ -88,6 +99,7 @@ function createFixture(scheduler: ManagedSessionNativeScrollScheduler) {
       updateHistoryAutoLoadPending,
       updateShowScrollToLatest
     },
+    state,
     updateHistoryAutoLoadPending,
     updateShowScrollToLatest
   };
@@ -127,6 +139,7 @@ describe("managed session native scroll controller lifecycle", () => {
     const secondController = createManagedSessionNativeScrollController(
       secondFixture.options
     );
+
     secondController.handlers.onWheel(-1);
     scheduler.flushAnimationFrames();
     scheduler.flushTimeouts();
@@ -162,5 +175,100 @@ describe("managed session native scroll controller lifecycle", () => {
     scheduler.flushTimeouts();
 
     expect(fixture.loadEarlierHistoryFromMetrics).not.toHaveBeenCalled();
+  });
+
+  it("releases bottom stick on the first upward wheel step below the button threshold", () => {
+    const scheduler = new TestScheduler();
+    const fixture = createFixture(scheduler);
+    const controller = createManagedSessionNativeScrollController(fixture.options);
+
+    fixture.metrics.scrollTop = 600;
+    controller.handlers.onScroll();
+    controller.handlers.onWheel(-40);
+    fixture.metrics.scrollTop = 560;
+    controller.handlers.onScroll();
+
+    expect(fixture.state.shouldStickToBottom).toBe(false);
+    expect(fixture.updateShowScrollToLatest).toHaveBeenLastCalledWith(false);
+  });
+
+  it("keeps a detached chat detached across duplicate native scroll notifications", () => {
+    const scheduler = new TestScheduler();
+    const fixture = createFixture(scheduler);
+    const controller = createManagedSessionNativeScrollController(fixture.options);
+
+    fixture.metrics.scrollTop = 600;
+    controller.handlers.onScroll();
+    controller.handlers.onWheel(-40);
+    fixture.metrics.scrollTop = 560;
+    controller.handlers.onScroll();
+    controller.handlers.onScroll();
+
+    expect(fixture.state.shouldStickToBottom).toBe(false);
+  });
+
+  it("reattaches after the user returns all the way to the bottom", () => {
+    const scheduler = new TestScheduler();
+    const fixture = createFixture(scheduler);
+    const controller = createManagedSessionNativeScrollController(fixture.options);
+
+    fixture.metrics.scrollTop = 600;
+    controller.handlers.onScroll();
+    controller.handlers.onWheel(-40);
+    fixture.metrics.scrollTop = 560;
+    controller.handlers.onScroll();
+    fixture.metrics.scrollTop = 600;
+    controller.handlers.onScroll();
+
+    expect(fixture.state.shouldStickToBottom).toBe(true);
+  });
+
+  it("recognizes an upward scrollbar drag from its pointerdown and scroll events", () => {
+    const scheduler = new TestScheduler();
+    const fixture = createFixture(scheduler);
+    const controller = createManagedSessionNativeScrollController(fixture.options);
+
+    fixture.metrics.scrollTop = 600;
+    controller.handlers.onScroll();
+    controller.handlers.onPointerDown(300);
+    fixture.metrics.scrollTop = 560;
+    controller.handlers.onScroll();
+
+    expect(fixture.state.shouldStickToBottom).toBe(false);
+    expect(fixture.updateShowScrollToLatest).toHaveBeenLastCalledWith(false);
+  });
+
+  it.each([
+    ["ArrowUp", false],
+    ["Home", false],
+    ["PageUp", false],
+    [" ", true]
+  ])("releases bottom stick before %s scroll navigation", (key, shiftKey) => {
+    const scheduler = new TestScheduler();
+    const fixture = createFixture(scheduler);
+    const controller = createManagedSessionNativeScrollController(fixture.options);
+
+    fixture.metrics.scrollTop = 600;
+    controller.handlers.onScroll();
+    controller.handlers.onKeyDown(key, shiftKey);
+    fixture.metrics.scrollTop = 560;
+    controller.handlers.onScroll();
+
+    expect(fixture.state.shouldStickToBottom).toBe(false);
+  });
+
+  it("releases bottom stick on a short upward touch gesture", () => {
+    const scheduler = new TestScheduler();
+    const fixture = createFixture(scheduler);
+    const controller = createManagedSessionNativeScrollController(fixture.options);
+
+    fixture.metrics.scrollTop = 600;
+    controller.handlers.onScroll();
+    controller.handlers.onTouchStart(100);
+    controller.handlers.onTouchMove(112);
+    fixture.metrics.scrollTop = 588;
+    controller.handlers.onScroll();
+
+    expect(fixture.state.shouldStickToBottom).toBe(false);
   });
 });

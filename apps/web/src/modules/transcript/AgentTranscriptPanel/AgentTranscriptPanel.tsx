@@ -1,7 +1,9 @@
 import clsx from "clsx";
 import { memo, useEffect, useRef } from "react";
 
+import ModelIcon from "@assets/images/icon-sliders.svg?react";
 import { AgentChatBadge, isSubagentChat } from "@components/AgentChatBadge";
+import { AgentRuntimeIcon } from "@components/AgentRuntimeIcon";
 import { Tooltip } from "@components/Tooltip";
 import { formatDate } from "@lib/format";
 import { useAgentSessionConfirmationGuard } from "@modules/agents/useAgentSessionConfirmationGuard";
@@ -213,18 +215,32 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
           />
         </div>
         <div className={styles.metaRight}>
-          {isSubagentChat(displaySession) ? <AgentChatBadge /> : null}
-          <span className={styles.sourcePill}>{displaySession.agentLabel}</span>
-          <button
-            className={styles.metaButton}
-            onClick={() => setShowModelContext(true)}
-            type="button"
+          <span
+            className={clsx(
+              styles.capability,
+              sourceCapabilityLabel === "Ready" && styles.capabilityReady
+            )}
           >
-            Model
-          </button>
-          <span className={styles.capability}>
             {sourceCapabilityLabel}
           </span>
+          {isSubagentChat(displaySession) ? <AgentChatBadge /> : null}
+          <span className={styles.sourcePill}>
+            <AgentRuntimeIcon
+              aria-hidden="true"
+              className={styles.sourcePillIcon}
+              runtimeId={displaySession.agentId}
+            />
+            {displaySession.agentLabel}
+          </span>
+          <button
+            aria-label="Model details"
+            className={styles.metaButton}
+            onClick={() => setShowModelContext(true)}
+            title="Model details"
+            type="button"
+          >
+            <ModelIcon aria-hidden="true" className={styles.metaButtonIcon} focusable="false" />
+          </button>
           <span>{formatDate(displaySession.updatedAt)}</span>
         </div>
       </div>
@@ -340,7 +356,7 @@ export const AgentTranscriptPanel = memo(function AgentTranscriptPanel(props: Ag
             DeskCue is attaching to the existing local chat. The agent is not being restarted.
           </p>
         ) : !isReviewOnlyRuntime && attachedSessionHint ? (
-          <p className={styles.nextMessageSubtle}>
+          <p className={clsx(styles.nextMessageSubtle, styles.nextMessageConnection)}>
             {attachedSessionHint}
           </p>
         ) : !isReviewOnlyRuntime && !isHydratingSelection && isSharedLiveThread && displaySession.attachModeReason ? (

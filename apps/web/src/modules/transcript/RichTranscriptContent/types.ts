@@ -3,7 +3,7 @@ import type { LocalAssetLinkContext } from "@api/endpoint/assets/types";
 
 export type AttachmentPart = Extract<TranscriptPart, { type: "attachment" }>;
 export type DiffPart = Extract<TranscriptPart, { type: "diff" }>;
-export type AttachmentPreviewKind = "image" | "text" | "pdf" | "none";
+export type AttachmentPreviewKind = "audio" | "image" | "text" | "pdf" | "video" | "none";
 
 export type RichTranscriptContentEntry =
   | Pick<AgentTranscriptEntry, "role" | "text" | "parts">
@@ -17,6 +17,7 @@ export type RichTranscriptContentProps = {
 
 export type RenderTranscriptPartsOptions = {
   compactAttachments?: boolean;
+  groupAttachments?: boolean;
 };
 
 export type RichTranscriptPartProps = {

@@ -37,6 +37,7 @@ function isWaitingDetailEntry(entry: AgentTranscriptEntry) {
 
 function readTimestamp(value: string) {
   const parsed = new Date(value).getTime();
+
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -57,6 +58,7 @@ function findLatestWaitingDetailEntry(
   for (let index = entries.length - 1; index > lastChatEntryIndex; index -= 1) {
     const entry = entries[index];
     const entryTime = readTimestamp(entry.timestamp);
+
     if (!isWaitingDetailEntry(entry) || (sinceTime !== null && entryTime < sinceTime)) {
       continue;
     }
@@ -91,11 +93,13 @@ function isInjectedEnvironmentContextEntry(entry: AgentTranscriptEntry) {
   }
 
   const text = getTranscriptEntryText(entry);
+
   if (!text) {
     return false;
   }
 
   const normalized = text.trim();
+
   if (
     normalized.startsWith("<recommended_plugins>") &&
     normalized.includes("</recommended_plugins>") &&
@@ -166,6 +170,7 @@ function isDuplicateChatEntry(
 
   const previousTextKey = getConversationEntryTextKey(previousEntry);
   const nextTextKey = getConversationEntryTextKey(nextEntry);
+
   if (!previousTextKey || previousTextKey !== nextTextKey) {
     return false;
   }
@@ -179,14 +184,92 @@ function isDuplicateChatEntry(
 
   const previousTime = readTimestamp(previousEntry.timestamp);
   const nextTime = readTimestamp(nextEntry.timestamp);
+
   return Math.abs(nextTime - previousTime) <= 5_000;
 }
 
+type TranscriptSourcePosition = {
+  index: number;
+  prefix: string;
+};
+
+function parseTranscriptSourcePosition(entryId: string): TranscriptSourcePosition | null {
+  const separatorIndex = entryId.lastIndexOf("-");
+
+  if (separatorIndex < 0 || separatorIndex === entryId.length - 1) return null;
+
+  const index = Number(entryId.slice(separatorIndex + 1));
+
+  if (!Number.isInteger(index) || index < 0) return null;
+
+  return {
+    index,
+    prefix: entryId.slice(0, separatorIndex + 1)
+  };
+}
+
+function readTranscriptSourcePosition(entry: AgentTranscriptEntry) {
+  const ranges = [
+    ...(entry.sourceEntryRanges ?? []),
+    ...(entry.sourceEntrySpans ?? [])
+  ];
+
+  if (ranges.length > 0) {
+    const prefix = ranges[0]?.prefix;
+
+    if (prefix && ranges.every((range) => range.prefix === prefix)) {
+      return {
+        index: Math.min(...ranges.map((range) => range.start)),
+        prefix
+      };
+    }
+  }
+
+  const sourcePositions = (entry.sourceEntryIds ?? [])
+    .map(parseTranscriptSourcePosition)
+    .filter((position): position is TranscriptSourcePosition => position !== null);
+  const fallbackPosition = parseTranscriptSourcePosition(entry.id);
+
+  if (fallbackPosition) sourcePositions.push(fallbackPosition);
+
+  if (sourcePositions.length === 0) return null;
+
+  const prefix = sourcePositions[0]?.prefix;
+
+  if (!prefix || !sourcePositions.every((position) => position.prefix === prefix)) return null;
+
+  return sourcePositions.reduce((earliest, position) =>
+    position.index < earliest.index ? position : earliest
+  );
+}
+
 function sortConversationEntries(entries: AgentTranscriptEntry[]) {
-  return [...entries].sort((left, right) => {
-    const timeDelta = readTimestamp(left.timestamp) - readTimestamp(right.timestamp);
-    return timeDelta === 0 ? left.id.localeCompare(right.id) : timeDelta;
-  });
+  const entriesWithSourcePositions = entries.map((entry) => ({
+    entry,
+    sourcePosition: readTranscriptSourcePosition(entry)
+  }));
+  const sourcePrefixes = new Set(
+    entriesWithSourcePositions.flatMap(({ sourcePosition }) =>
+      sourcePosition ? [sourcePosition.prefix] : []
+    )
+  );
+  const hasSharedSourceCoordinates = sourcePrefixes.size === 1 &&
+    entriesWithSourcePositions.every(({ sourcePosition }) => sourcePosition !== null);
+
+  return entriesWithSourcePositions.sort((left, right) => {
+    if (
+      hasSharedSourceCoordinates &&
+      left.sourcePosition &&
+      right.sourcePosition &&
+      left.sourcePosition.index !== right.sourcePosition.index
+    ) {
+      return left.sourcePosition.index - right.sourcePosition.index;
+    }
+
+    const timeDelta = readTimestamp(left.entry.timestamp) - readTimestamp(right.entry.timestamp);
+
+    return timeDelta === 0 ? left.entry.id.localeCompare(right.entry.id) : timeDelta;
+  }).map(({ entry }) => entry);
 }
 
 function normalizeConversationEntries(entries: AgentTranscriptEntry[]) {
@@ -238,6 +321,7 @@ export function findAgentTranscriptActivityGroup(
   groupId: string
 ) {
   const view = buildAgentTranscriptView(session);
+
   return (
     view.items
       .flatMap((item) =>
@@ -258,6 +342,7 @@ export function buildAgentTranscriptActivityGroupFromEntries(
   }
 
   const group = buildConversationActivityGroup(entries, `exact:${groupId}`);
+
   return {
     ...group,
     id: groupId
@@ -269,6 +354,7 @@ export function buildAgentTranscriptChangesResponse(
   groupId: string
 ): AgentTranscriptChangesResponse | null {
   const group = findAgentTranscriptActivityGroup(session, groupId);
+
   if (!group || group.kind !== "changes") {
     return null;
   }

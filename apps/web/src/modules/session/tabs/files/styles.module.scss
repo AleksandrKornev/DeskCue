@@ -125,6 +125,7 @@
 
 .changedFilter {
   min-width: 88px;
+  min-height: 44px;
 }
 
 .changedFilterActive {
@@ -133,7 +134,9 @@
 }
 
 .filesSearch {
+  box-sizing: border-box;
   min-width: 0;
+  min-height: 44px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -151,7 +154,7 @@
 
 .filesSearch input {
   min-width: 0;
-  height: 44px;
+  height: 42px;
   border: 0;
   outline: 0;
   background: transparent;
@@ -176,7 +179,9 @@
   scrollbar-width: thin;
 }
 
-.filesBreadcrumbs button {
+.filesBreadcrumbs button,
+.filesBreadcrumbCurrent {
+  box-sizing: border-box;
   border: 0;
   min-width: 44px;
   min-height: 44px;
@@ -185,6 +190,19 @@
   color: vars.$color-status-info;
   font: inherit;
   font-size: 0.82rem;
+}
+
+.filesBreadcrumbCurrent {
+  display: inline-flex;
+  align-items: center;
+  color: vars.$color-text-primary;
+  font-weight: 650;
+}
+
+.filesBreadcrumbCurrent:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: -2px;
 }
 
 .filesBreadcrumbSeparator {
@@ -289,7 +307,8 @@
   outline-offset: 2px;
 }
 
-.fileRow:disabled {
+.fileRow[aria-disabled="true"] {
+  cursor: not-allowed;
   opacity: 0.52;
 }
 
@@ -391,41 +410,52 @@
 
 .fileRetryButton[aria-disabled="true"] { cursor: wait; }
 
-.fileActionDialogActions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.filePreviewActions {
+  display: flex;
   gap: 8px;
 }
 
 .fileActionDialogButton,
 .fileActionDialogPrimaryButton {
+  width: 44px;
+  min-width: 44px;
   min-height: 44px;
+  display: inline-grid;
+  place-items: center;
   border: 0;
   border-radius: 9px;
-  padding: 0 10px;
+  padding: 0;
   color: vars.$color-text-primary;
-  font: inherit;
-  font-size: 0.86rem;
-  font-weight: 750;
+  cursor: pointer;
+}
+
+.fileActionDialogButton svg,
+.fileActionDialogPrimaryButton svg {
+  width: 17px;
+  height: 17px;
 }
 
 .fileActionDialogButton { background: vars.$color-surface-control-hover; }
 .fileActionDialogPrimaryButton { background: vars.$color-surface-accent; }
 
-.fileActionDialogButton:disabled,
-.fileActionDialogPrimaryButton:disabled {
+.fileActionDialogButton[aria-disabled="true"],
+.fileActionDialogPrimaryButton[aria-disabled="true"] {
   cursor: wait;
   opacity: 0.65;
 }
 
-.fileActionDialogPath {
-  display: -webkit-box;
-  max-height: calc(1.35em * 3);
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  color: vars.$color-text-secondary;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+.fileActionDialogButton:hover,
+.fileActionDialogButton:focus-visible,
+.fileActionDialogPrimaryButton:hover,
+.fileActionDialogPrimaryButton:focus-visible {
+  background: vars.$color-surface-accent;
+  color: vars.$color-accent-text;
+}
+
+.fileActionDialogButton:focus-visible,
+.fileActionDialogPrimaryButton:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: 2px;
 }
 
 @include fileViewer.responsive;

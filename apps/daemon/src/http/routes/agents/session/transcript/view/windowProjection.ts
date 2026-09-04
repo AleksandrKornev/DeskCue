@@ -13,6 +13,7 @@ import { transcriptHttpCache } from "../hydration/projectionCache.ts";
 import { hydrateTranscriptViewWaitingDetailEntry } from "../hydration/waitingDetailHydration.ts";
 
 const LIGHTWEIGHT_TRANSCRIPT_UPDATES_OVERLAP_LINE_COUNT = 96;
+
 // Keep one source window through a realistically dense active turn. Re-anchoring
 // after a short tail makes Codex source entry IDs change and remounts the live UI.
 const LIGHTWEIGHT_TRANSCRIPT_UPDATES_MAX_LINE_COUNT = 16_384;
@@ -63,9 +64,11 @@ function buildReconciledWindowSession(
     ...sourceVersion.summary,
     transcript
   };
+
   if (syncReplyState) {
     sourceAgentSessions.syncReplyStateFromAgentSession(windowSession);
   }
+
   return reconcileSourceWindowSession(sourceAgentSessions, windowSession);
 }
 
@@ -92,11 +95,13 @@ export async function tryBuildTranscriptViewFromSourceTailWindow({
   const readTranscriptTailWindow = sourceAgentSessions.getTranscriptTailWindow?.bind(
     sourceAgentSessions
   );
+
   if (!readTranscriptTailWindow) {
     return null;
   }
 
   const transcriptWindow = await readTranscriptTailWindow(agentSessionId, { chatMessageTail });
+
   if (!transcriptWindow?.length) {
     return null;
   }
@@ -150,6 +155,7 @@ export async function enrichTranscriptViewSourceVersionSummary({
     chatMessageTail ?? undefined,
     { lightweight: "bounded-exact-ids" }
   );
+
   if (!detail?.model) {
     return sourceVersion;
   }
@@ -195,11 +201,13 @@ export async function tryBuildTranscriptUpdatesFromSourceTailWindow({
   const readTranscriptTailWindow = sourceAgentSessions.getTranscriptTailWindow?.bind(
     sourceAgentSessions
   );
+
   if (!readTranscriptTailWindow) {
     return null;
   }
 
   const transcriptWindow = await readTranscriptTailWindow(agentSessionId, { chatMessageTail });
+
   if (!transcriptWindow?.length) {
     return null;
   }
@@ -276,6 +284,7 @@ export async function tryBuildLightweightTranscriptUpdates({
     maxLineCount: LIGHTWEIGHT_TRANSCRIPT_UPDATES_MAX_LINE_COUNT,
     overlapLineCount: LIGHTWEIGHT_TRANSCRIPT_UPDATES_OVERLAP_LINE_COUNT
   });
+
   if (
     !transcriptWindow?.length ||
     !doesTranscriptWindowReferenceSourceEntry(transcriptWindow, baseSourceEntryId)
@@ -300,7 +309,14 @@ export async function tryBuildLightweightTranscriptUpdates({
     item.key === baseItemKey ||
     doesTranscriptViewItemReferenceSourceEntry(item, baseSourceEntryId)
   );
+
   if (baseItemIndex < 0) {
+    return null;
+  }
+
+  const matchedBaseItem = transcriptView.items[baseItemIndex];
+
+  if (matchedBaseItem?.type === "message" && matchedBaseItem.key !== baseItemKey) {
     return null;
   }
 

@@ -53,7 +53,7 @@
   border-bottom: 1px solid vars.$color-border-muted;
 }
 
-.fileViewerHeader div {
+.fileViewerHeader > div {
   min-width: 0;
   display: flex;
   align-items: baseline;
@@ -66,6 +66,8 @@
   flex: 0 0 auto;
   justify-content: flex-end;
 }
+
+.fileViewerHeader > .fileViewerActions { gap: 8px; }
 
 .fileWrapButton,
 .fileViewerExpandButton {
@@ -98,6 +100,12 @@
   color: vars.$color-text-muted;
   font-size: 0.76rem;
   white-space: nowrap;
+}
+
+.fileViewerMeta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fileContent {
@@ -307,19 +315,96 @@
 
 @mixin responsive {
 @include mobile-or-compact-height {
+  .filesWorkspaceLabel { display: none; }
+
+  .filesPathText {
+    display: grid;
+    align-items: center;
+  }
+
+  .filesBreadcrumbs {
+    height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .filesBreadcrumbs > span {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .filesSearch input { font-size: 1rem; }
+
   .changedFilter,
   .viewChangeButton,
   .filesBackButton,
   .filesError button,
+  .fileActionDialogButton,
+  .fileActionDialogPrimaryButton,
   .fileWrapButton,
   .fileViewerExpandButton {
     min-height: 44px;
   }
 
   .fileWrapButton,
-  .fileViewerExpandButton { width: 44px; padding: 0; }
+  .fileViewerExpandButton {
+    width: 44px;
+    flex: 0 0 44px;
+    padding: 0;
+  }
   .fileWrapButton span,
   .fileViewerExpandButton span { display: none; }
+
+  .fileViewerHeader {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .fileViewerHeader > div:nth-of-type(1) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .fileViewerActions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .filesBackButton {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .filePreviewActions {
+    flex: 0 0 auto;
+  }
+
+  @media (max-width: 260px) {
+    .fileViewerHeader > .fileViewerActions {
+      display: grid;
+      grid-template-columns: repeat(2, 44px);
+      justify-content: end;
+    }
+
+    .filePreviewActions,
+    .fileTruncated,
+    .viewChangeButton { grid-column: 1 / -1; justify-self: end; }
+
+    .fileViewerExpandButton { grid-column: 2; }
+  }
+
+  @media (min-width: 740px) {
+    .filesToolbar {
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+      align-items: center;
+    }
+  }
 }
 
 @media (min-width: 1100px) {
@@ -379,6 +464,8 @@
 }
 
 @media (max-width: 720px) {
+  .filesToolbarViewingFile { display: none; }
+
   .filesError {
     align-items: stretch;
     flex-direction: column;
@@ -418,7 +505,7 @@
 
 @media (max-width: 380px) {
   .filesToolbar { padding-inline: 10px; }
-  .filesFilters { gap: 7px; }
+  .filesFilters { gap: 8px; }
   .changedFilter { min-width: 0; padding-inline: 8px; }
 }
 }

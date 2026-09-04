@@ -1,8 +1,7 @@
 import clsx from "clsx";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import type { WorkspaceFileEntry } from "@deskcue/protocol";
 import ArrowUpIcon from "@assets/images/icon-arrow-up.svg?react";
 import CollapseIcon from "@assets/images/icon-collapse.svg?react";
 import ExpandIcon from "@assets/images/icon-expand.svg?react";
@@ -22,20 +21,20 @@ import {
 import styles from "./styles.module.scss";
 import type { FilesTabPanelProps } from "./types";
 import { useWorkspaceFileBrowser } from "./useWorkspaceFileBrowser";
-import { WorkspaceFileActionDialog } from "./WorkspaceFileActionDialog";
+import { WorkspaceFileActions } from "./WorkspaceFileActions";
 import { WorkspaceImagePreview } from "./WorkspaceImagePreview";
 
-type WorkspaceFileActionTarget = {
-  file: WorkspaceFileEntry;
-  workspaceId: string;
-};
-
 const FILES_COMPACT_MEDIA_QUERY = "(max-width: 720px)";
+const FILES_COMPACT_TOOLBAR_MEDIA_QUERY = "(max-width: 720px), (max-height: 640px)";
 const WORKSPACE_NOT_FOUND_ERROR = "workspace not found";
 
 type FolderErrorCopy = {
   detail: string;
   title: string;
+};
+
+type MutableValue<T> = {
+  current: T;
 };
 
 function eventTargetIsInside(target: EventTarget | null, element: HTMLElement | null) {
@@ -56,26 +55,56 @@ function getFolderErrorCopy(error: string): FolderErrorCopy {
   };
 }
 
-function useCompactFilesViewport() {
+function revealCurrentBreadcrumb(currentBreadcrumb: HTMLElement | null) {
+  currentBreadcrumb?.scrollIntoView?.({
+    block: "nearest",
+    inline: "nearest"
+  });
+}
+
+function resetFileViewerScrollPosition(fileViewer: HTMLElement | null) {
+  if (!fileViewer) return;
+
+  fileViewer.scrollLeft = 0;
+  fileViewer.scrollTop = 0;
+}
+
+function clearFileBackFocusOwnership(fileBackOwnsFocusRef: MutableValue<boolean>) {
+  fileBackOwnsFocusRef.current = false;
+}
+
+function scheduleFileBackFocusRelease(fileBackOwnsFocusRef: MutableValue<boolean>) {
+  window.setTimeout(clearFileBackFocusOwnership, 0, fileBackOwnsFocusRef);
+}
+
+function useFilesMediaQuery(mediaQueryText: string) {
   const [compact, setCompact] = useState(() =>
     typeof window === "undefined" || typeof window.matchMedia !== "function"
       ? true
-      : window.matchMedia(FILES_COMPACT_MEDIA_QUERY).matches
+      : window.matchMedia(mediaQueryText).matches
   );
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
 
-    const mediaQuery = window.matchMedia(FILES_COMPACT_MEDIA_QUERY);
+    const mediaQuery = window.matchMedia(mediaQueryText);
     const controller = new AbortController();
 
     setCompact(mediaQuery.matches);
     mediaQuery.addEventListener("change", () => setCompact(mediaQuery.matches), { signal: controller.signal });
 
     return () => controller.abort();
-  }, []);
+  }, [mediaQueryText]);
 
   return compact;
+}
+
+function useCompactFilesViewport() {
+  return useFilesMediaQuery(FILES_COMPACT_MEDIA_QUERY);
+}
+
+function useCompactFilesToolbarViewport() {
+  return useFilesMediaQuery(FILES_COMPACT_TOOLBAR_MEDIA_QUERY);
 }
 
 export function FilesTabPanel({
@@ -86,26 +115,34 @@ export function FilesTabPanel({
   onOpenChanges,
   onSelectFile
 }: FilesTabPanelProps) {
+  const fileBackButtonRef = useRef<HTMLButtonElement>(null);
+  const fileBackOwnsFocusRef = useRef(false);
   const compactViewport = useCompactFilesViewport();
+  const compactToolbarViewport = useCompactFilesToolbarViewport();
   const browser = useWorkspaceFileBrowser(workspaceId);
   const [changedOnly, setChangedOnly] = useState(false);
-  const [fileActionTarget, setFileActionTarget] = useState<WorkspaceFileActionTarget | null>(null);
   const [fileRetrying, setFileRetrying] = useState(false);
   const [fileViewerExpanded, setFileViewerExpanded] = useState(false);
   const [folderRetrying, setFolderRetrying] = useState(false);
   const [query, setQuery] = useState("");
   const [viewingFile, setViewingFile] = useState(false);
   const [wrapLines, setWrapLines] = useState(false);
-  const fileBackButtonRef = useRef<HTMLButtonElement>(null);
   const fileExpandButtonRef = useRef<HTMLButtonElement>(null);
   const fileLoadOwnsFocusRef = useRef(false);
+  const filesListRef = useRef<HTMLDivElement>(null);
+  const filesToolbarRef = useRef<HTMLElement>(null);
+  const hiddenDesktopControlsOwnFocusRef = useRef(false);
   const fileRetryButtonRef = useRef<HTMLButtonElement>(null);
   const fileRetryFocusTargetRef = useRef<"preview" | "retry" | null>(null);
   const fileRetryOwnsFocusRef = useRef(false);
   const fileViewerRef = useRef<HTMLElement>(null);
+  const breadcrumbsRef = useRef<HTMLElement>(null);
+  const currentBreadcrumbRef = useRef<HTMLElement>(null);
+  const directoryNavigationOwnsFocusRef = useRef(false);
   const folderRetryButtonRef = useRef<HTMLButtonElement>(null);
   const folderRetryFocusRef = useRef(false);
   const folderRetryLoadStartPendingRef = useRef(false);
+  const previousCompactViewportRef = useRef(compactViewport);
   const requestedPathRef = useRef("");
   const returnFocusButtonRef = useRef<HTMLButtonElement>(null);
   const returnFocusOwnsFocusRef = useRef(false);
@@ -113,6 +150,7 @@ export function FilesTabPanel({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const selectedPathRef = useRef("");
   const openRequestedPath = browser.openPath;
+  const workspaceLabel = workspaceName || "Workspace files";
   const changedPaths = useMemo(() => new Set(changedFiles.map(normalizeWorkspacePath)), [changedFiles]);
   const breadcrumbs = buildWorkspaceBreadcrumbs(browser.currentPath);
   const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -136,9 +174,86 @@ export function FilesTabPanel({
     [browser.file]
   );
 
+  const selectedFileLineCount = browser.file?.content ? textFileLines.length : 0;
+  const selectedFileLineLabel = `${selectedFileLineCount} ${selectedFileLineCount === 1 ? "line" : "lines"}`;
+  const selectedFileMeta = browser.file
+    ? `${workspaceLabel} · ${formatFileSize(browser.file.sizeBytes)}${browser.file.binary ? "" : ` · ${selectedFileLineLabel}`}`
+    : "";
   const fileContentStyle = {
     "--file-line-number-width": buildWorkspaceFileLineNumberWidth(textFileLines.length)
   } as CSSProperties;
+
+  useLayoutEffect(() => {
+    const breadcrumbs = breadcrumbsRef.current;
+    const currentBreadcrumb = currentBreadcrumbRef.current;
+
+    revealCurrentBreadcrumb(currentBreadcrumb);
+
+    if (directoryNavigationOwnsFocusRef.current) {
+      directoryNavigationOwnsFocusRef.current = false;
+      currentBreadcrumb?.focus({ preventScroll: true });
+    }
+
+    if (!breadcrumbs || !currentBreadcrumb || typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      revealCurrentBreadcrumb(currentBreadcrumbRef.current);
+    });
+
+    resizeObserver.observe(breadcrumbs);
+    resizeObserver.observe(currentBreadcrumb);
+
+    return () => resizeObserver.disconnect();
+  }, [browser.currentPath]);
+
+  useLayoutEffect(() => {
+    const wasCompact = previousCompactViewportRef.current;
+
+    previousCompactViewportRef.current = compactViewport;
+
+    if (!wasCompact && compactViewport && viewingFile && hiddenDesktopControlsOwnFocusRef.current) {
+      hiddenDesktopControlsOwnFocusRef.current = false;
+      fileBackButtonRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
+    if (
+      !wasCompact ||
+      compactViewport ||
+      !viewingFile ||
+      !fileBackOwnsFocusRef.current ||
+      document.activeElement !== document.body
+    ) return;
+
+    fileBackOwnsFocusRef.current = false;
+    fileViewerRef.current?.focus({ preventScroll: true });
+  }, [compactViewport, viewingFile]);
+
+  useLayoutEffect(() => {
+    if (!viewingFile || !browser.selectedPath) return;
+
+    resetFileViewerScrollPosition(fileViewerRef.current);
+  }, [browser.selectedPath, compactViewport, viewingFile]);
+
+  useLayoutEffect(() => {
+    const fileViewer = fileViewerRef.current;
+    const fileViewerHeader = fileViewer?.querySelector("header");
+
+    if (!viewingFile || !fileViewer || !fileViewerHeader || typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      const currentBackButton = fileViewerRef.current?.querySelector(`.${styles.filesBackButton}`);
+
+      if (document.activeElement !== currentBackButton) return;
+
+      resetFileViewerScrollPosition(fileViewerRef.current);
+    });
+
+    resizeObserver.observe(fileViewer);
+    resizeObserver.observe(fileViewerHeader);
+
+    return () => resizeObserver.disconnect();
+  }, [browser.error, browser.file, browser.loadingFile, browser.selectedPath, viewingFile]);
 
   useEffect(() => {
     if (!requestedPath) {
@@ -213,7 +328,7 @@ export function FilesTabPanel({
     );
 
     if (browser.loadingFile) {
-      if (compactViewport && loadStillOwnsFocus) fileBackButtonRef.current?.focus();
+      if (compactViewport && loadStillOwnsFocus) fileBackButtonRef.current?.focus({ preventScroll: true });
       return;
     }
 
@@ -221,9 +336,9 @@ export function FilesTabPanel({
 
     if (!loadStillOwnsFocus) return;
 
-    if (compactViewport && browser.error && browser.selectedPath) fileRetryButtonRef.current?.focus();
-    else if (compactViewport) fileBackButtonRef.current?.focus();
-    else fileViewerRef.current?.focus();
+    if (compactViewport && browser.error && browser.selectedPath) fileRetryButtonRef.current?.focus({ preventScroll: true });
+    else if (compactViewport) fileBackButtonRef.current?.focus({ preventScroll: true });
+    else fileViewerRef.current?.focus({ preventScroll: true });
   }, [browser.error, browser.file, browser.loadingFile, browser.selectedPath, compactViewport, fileRetrying, viewingFile]);
 
   useEffect(() => {
@@ -319,7 +434,6 @@ export function FilesTabPanel({
   }, [browser.selectedPath, onSelectFile]);
 
   useEffect(() => {
-    setFileActionTarget(null);
     fileLoadOwnsFocusRef.current = false;
     setFileRetrying(false);
     fileRetryFocusTargetRef.current = null;
@@ -364,7 +478,6 @@ export function FilesTabPanel({
     window.addEventListener("popstate", (event) => {
       const target = readWorkspaceFileHistoryTarget(event.state);
 
-      setFileActionTarget(null);
       setFileRetrying(false);
       fileRetryFocusTargetRef.current = null;
       fileRetryOwnsFocusRef.current = false;
@@ -398,14 +511,29 @@ export function FilesTabPanel({
   }
 
   return (
-    <div className={styles.filesBrowser}>
-      <header className={styles.filesToolbar}>
+    <div
+      className={styles.filesBrowser}
+      onBlurCapture={(event) => {
+        if (!eventTargetIsInside(event.relatedTarget, event.currentTarget)) {
+          hiddenDesktopControlsOwnFocusRef.current = false;
+        }
+      }}
+      onFocusCapture={(event) => {
+        hiddenDesktopControlsOwnFocusRef.current = eventTargetIsInside(event.target, filesToolbarRef.current)
+          || eventTargetIsInside(event.target, filesListRef.current);
+      }}
+    >
+      <header
+        className={clsx(styles.filesToolbar, viewingFile && styles.filesToolbarViewingFile)}
+        ref={filesToolbarRef}
+      >
         <div className={styles.filesPathNavigation}>
           <button
-            aria-label="Go to parent folder"
+            aria-label={browser.currentPath ? "Go to parent folder" : "Already at workspace root"}
             className={styles.filesUpButton}
             disabled={!browser.currentPath}
             onClick={() => {
+              directoryNavigationOwnsFocusRef.current = true;
               setViewingFile(false);
               browser.openDirectory(browser.currentPath.split("/").slice(0, -1).join("/"));
             }}
@@ -415,21 +543,40 @@ export function FilesTabPanel({
             <ArrowUpIcon aria-hidden="true" focusable="false" />
           </button>
           <div className={styles.filesPathText}>
-            <div className={styles.filesWorkspaceLabel}>{workspaceName || "Workspace files"}</div>
-            <nav aria-label="Workspace path" className={styles.filesBreadcrumbs}>
+            <div className={styles.filesWorkspaceLabel}>{workspaceLabel}</div>
+            <nav
+              aria-label="Workspace path"
+              className={styles.filesBreadcrumbs}
+              ref={breadcrumbsRef}
+            >
               {breadcrumbs.map((breadcrumb, index) => (
                 <span key={breadcrumb.path || "root"}>
                   {index > 0 ? <span aria-hidden="true" className={styles.filesBreadcrumbSeparator}>/</span> : null}
-                  <button
-                    aria-current={breadcrumb.path === browser.currentPath ? "page" : undefined}
-                    onClick={() => {
-                      setViewingFile(false);
-                      browser.openDirectory(breadcrumb.path);
-                    }}
-                    type="button"
-                  >
-                    {breadcrumb.label}
-                  </button>
+                  {breadcrumb.path === browser.currentPath ? (
+                    <span
+                      aria-current="page"
+                      className={styles.filesBreadcrumbCurrent}
+                      ref={currentBreadcrumbRef}
+                      tabIndex={-1}
+                    >
+                      {index === 0 && compactToolbarViewport
+                        ? workspaceName || breadcrumb.label
+                        : breadcrumb.label}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        directoryNavigationOwnsFocusRef.current = true;
+                        setViewingFile(false);
+                        browser.openDirectory(breadcrumb.path);
+                      }}
+                      type="button"
+                    >
+                      {index === 0 && compactToolbarViewport
+                        ? workspaceName || breadcrumb.label
+                        : breadcrumb.label}
+                    </button>
+                  )}
                 </span>
               ))}
             </nav>
@@ -526,6 +673,7 @@ export function FilesTabPanel({
           aria-busy={browser.loadingDirectory}
           aria-label="Workspace files"
           className={styles.filesList}
+          ref={filesListRef}
           role={visibleEntries.length > 0 ? "list" : undefined}
         >
           {browser.loadingDirectory && browser.entries.length === 0 ? (
@@ -561,17 +709,25 @@ export function FilesTabPanel({
                 <div key={entry.path} role="listitem">
                   <button
                     aria-current={browser.selectedPath === entry.path ? "true" : undefined}
+                    aria-disabled={!isDirectory && !entry.readable}
                     aria-label={`${entryLabel} ${entry.name}${isChanged ? " (changed)" : ""}${entry.readable ? "" : ", unavailable"}`}
                     className={clsx(
                       styles.fileRow,
                       browser.selectedPath === entry.path && styles.fileRowSelected
                     )}
-                    disabled={!isDirectory && !entry.readable}
                     onClick={() => {
+                      if (!isDirectory && !entry.readable) return;
+
                       if (isDirectory) {
+                        directoryNavigationOwnsFocusRef.current = true;
                         setViewingFile(false);
                         browser.openDirectory(entry.path);
-                      } else setFileActionTarget({ file: entry, workspaceId });
+                      } else {
+                        setViewingFile(true);
+                        fileLoadOwnsFocusRef.current = true;
+                        requestedPathRef.current = entry.path;
+                        browser.openFile(entry.path);
+                      }
                     }}
                     ref={returnFocusPathRef.current === entry.path ? returnFocusButtonRef : undefined}
                     title={entry.readable ? undefined : "This entry cannot be opened from DeskCue."}
@@ -611,24 +767,39 @@ export function FilesTabPanel({
           {browser.loadingFile && !fileRetrying ? (
             <>
               <header className={styles.fileViewerHeader}>
-                <button
-                  className={styles.filesBackButton}
-                  onBlur={() => {
-                    if (browser.loadingFile) fileLoadOwnsFocusRef.current = false;
-                  }}
-                  onClick={() => {
-                    fileLoadOwnsFocusRef.current = false;
-                    setFileRetrying(false);
-                    fileRetryFocusTargetRef.current = null;
-                    fileRetryOwnsFocusRef.current = false;
-                    returnFocusOwnsFocusRef.current = true;
-                    returnFocusPathRef.current = browser.selectedPath;
-                    setFileViewerExpanded(false);
-                    browser.openDirectory(browser.currentPath);
-                  }}
-                  ref={fileBackButtonRef}
-                  type="button"
-                >← Files</button>
+                {compactViewport ? (
+                  <button
+                    className={styles.filesBackButton}
+                    onBlur={() => {
+                      scheduleFileBackFocusRelease(fileBackOwnsFocusRef);
+                      if (browser.loadingFile) fileLoadOwnsFocusRef.current = false;
+                    }}
+                    onClick={() => {
+                      fileLoadOwnsFocusRef.current = false;
+                      setFileRetrying(false);
+                      fileRetryFocusTargetRef.current = null;
+                      fileRetryOwnsFocusRef.current = false;
+                      returnFocusOwnsFocusRef.current = true;
+                      returnFocusPathRef.current = browser.selectedPath;
+                      setFileViewerExpanded(false);
+                      browser.returnToDirectory();
+                    }}
+                    onFocus={() => {
+                      fileBackOwnsFocusRef.current = true;
+                    }}
+                    ref={fileBackButtonRef}
+                    type="button"
+                  >← Files</button>
+                ) : null}
+                <div>
+                  <strong title={browser.selectedPath}>{browser.selectedPath}</strong>
+                  <span className={styles.fileViewerMeta} title={`${workspaceLabel} · Loading preview`}>
+                    {workspaceLabel} · Loading preview…
+                  </span>
+                </div>
+                <div className={styles.fileViewerActions}>
+                  <WorkspaceFileActions filePath={browser.selectedPath} workspaceId={workspaceId} />
+                </div>
               </header>
               <div className={styles.filesLoadingState} role="status">
                 <span aria-hidden="true" className={styles.filesLoadingSpinner} />
@@ -648,30 +819,35 @@ export function FilesTabPanel({
                 </span>
               ) : null}
               <header className={styles.fileViewerHeader}>
-                <button
-                  className={styles.filesBackButton}
-                  onClick={() => {
-                    fileLoadOwnsFocusRef.current = false;
-                    setFileRetrying(false);
-                    fileRetryFocusTargetRef.current = null;
-                    fileRetryOwnsFocusRef.current = false;
-                    returnFocusOwnsFocusRef.current = true;
-                    returnFocusPathRef.current = browser.file?.path ?? browser.selectedPath;
-                    setFileViewerExpanded(false);
-                    browser.openDirectory(browser.currentPath);
-                  }}
-                  ref={fileBackButtonRef}
-                  type="button"
-                >← Files</button>
+                {compactViewport ? (
+                  <button
+                    className={styles.filesBackButton}
+                    onBlur={() => {
+                      scheduleFileBackFocusRelease(fileBackOwnsFocusRef);
+                    }}
+                    onClick={() => {
+                      fileLoadOwnsFocusRef.current = false;
+                      setFileRetrying(false);
+                      fileRetryFocusTargetRef.current = null;
+                      fileRetryOwnsFocusRef.current = false;
+                      returnFocusOwnsFocusRef.current = true;
+                      returnFocusPathRef.current = browser.file?.path ?? browser.selectedPath;
+                      setFileViewerExpanded(false);
+                      browser.returnToDirectory();
+                    }}
+                    onFocus={() => {
+                      fileBackOwnsFocusRef.current = true;
+                    }}
+                    ref={fileBackButtonRef}
+                    type="button"
+                  >← Files</button>
+                ) : null}
                 <div>
-                  <strong>{browser.file.path}</strong>
-                  <span>{formatFileSize(browser.file.sizeBytes)}{browser.file.content ? ` · ${textFileLines.length} lines` : ""}</span>
+                  <strong title={browser.file.path}>{browser.file.path}</strong>
+                  <span className={styles.fileViewerMeta} title={selectedFileMeta}>{selectedFileMeta}</span>
                 </div>
                 <div className={styles.fileViewerActions}>
-                  {browser.file.truncated ? <span className={styles.fileTruncated}>Preview truncated</span> : null}
-                  {selectedFileChanged && onOpenChanges ? (
-                    <button className={styles.viewChangeButton} onClick={() => onOpenChanges(browser.file!.path)} type="button">View change</button>
-                  ) : null}
+                  <WorkspaceFileActions filePath={browser.file.path} workspaceId={workspaceId} />
                   {!browser.file.binary ? (
                     <button
                       aria-label={wrapLines ? "Disable line wrapping" : "Enable line wrapping"}
@@ -699,6 +875,10 @@ export function FilesTabPanel({
                       : <ExpandIcon aria-hidden="true" focusable="false" />}
                     <span>{fileViewerExpanded ? "Exit full screen" : "Full screen"}</span>
                   </button>
+                  {browser.file.truncated ? <span className={styles.fileTruncated}>Preview truncated</span> : null}
+                  {selectedFileChanged && onOpenChanges ? (
+                    <button className={styles.viewChangeButton} onClick={() => onOpenChanges(browser.file!.path)} type="button">View change</button>
+                  ) : null}
                 </div>
               </header>
               {browser.file.binary && isWorkspaceRasterImagePath(browser.file.path) ? (
@@ -727,21 +907,38 @@ export function FilesTabPanel({
           ) : viewingFile && browser.selectedPath ? (
             <>
               <header className={styles.fileViewerHeader}>
-                <button
-                  className={styles.filesBackButton}
-                  onClick={() => {
-                    fileLoadOwnsFocusRef.current = false;
-                    setFileRetrying(false);
-                    fileRetryFocusTargetRef.current = null;
-                    fileRetryOwnsFocusRef.current = false;
-                    returnFocusOwnsFocusRef.current = true;
-                    returnFocusPathRef.current = browser.selectedPath;
-                    setFileViewerExpanded(false);
-                    browser.openDirectory(browser.currentPath);
-                  }}
-                  ref={fileBackButtonRef}
-                  type="button"
-                >← Files</button>
+                {compactViewport ? (
+                  <button
+                    className={styles.filesBackButton}
+                    onBlur={() => {
+                      scheduleFileBackFocusRelease(fileBackOwnsFocusRef);
+                    }}
+                    onClick={() => {
+                      fileLoadOwnsFocusRef.current = false;
+                      setFileRetrying(false);
+                      fileRetryFocusTargetRef.current = null;
+                      fileRetryOwnsFocusRef.current = false;
+                      returnFocusOwnsFocusRef.current = true;
+                      returnFocusPathRef.current = browser.selectedPath;
+                      setFileViewerExpanded(false);
+                      browser.returnToDirectory();
+                    }}
+                    onFocus={() => {
+                      fileBackOwnsFocusRef.current = true;
+                    }}
+                    ref={fileBackButtonRef}
+                    type="button"
+                  >← Files</button>
+                ) : null}
+                <div>
+                  <strong title={browser.selectedPath}>{browser.selectedPath}</strong>
+                  <span className={styles.fileViewerMeta} title={`${workspaceLabel} · Preview unavailable`}>
+                    {workspaceLabel} · Preview unavailable
+                  </span>
+                </div>
+                <div className={styles.fileViewerActions}>
+                  <WorkspaceFileActions filePath={browser.selectedPath} workspaceId={workspaceId} />
+                </div>
               </header>
               <div
                 aria-busy={fileRetrying}
@@ -781,32 +978,6 @@ export function FilesTabPanel({
           </section>
         </div>
       </div>
-      <WorkspaceFileActionDialog
-        key={fileActionTarget
-          ? `${fileActionTarget.workspaceId}:${fileActionTarget.file.path}`
-          : "closed"}
-        file={fileActionTarget?.file ?? null}
-        workspaceId={fileActionTarget?.workspaceId ?? workspaceId}
-        onClose={() => {
-          const closingTarget = fileActionTarget;
-
-          setFileActionTarget((currentTarget) =>
-            currentTarget === closingTarget ? null : currentTarget
-          );
-        }}
-        onPreview={(file) => {
-          const previewTarget = fileActionTarget;
-
-          setFileActionTarget((currentTarget) =>
-            currentTarget === previewTarget ? null : currentTarget
-          );
-
-          setViewingFile(true);
-          fileLoadOwnsFocusRef.current = true;
-          requestedPathRef.current = file.path;
-          browser.openFile(file.path);
-        }}
-      />
     </div>
   );
 }

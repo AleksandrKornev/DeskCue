@@ -110,6 +110,27 @@
   background: vars.$color-surface-danger;
 }
 
+.actionSheetBody.actionSheetBody {
+  padding: 6px 12px max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+.actionSheetMenu {
+  display: grid;
+  gap: 4px;
+}
+
+.actionSheetMenu .actionMenuItem {
+  min-height: 52px;
+  padding-inline: 14px;
+  border-radius: 12px;
+  font-size: 0.96rem;
+}
+
+.actionSheetMenu .actionMenuItem:focus-visible {
+  outline: 2px solid vars.$color-focus-ring;
+  outline-offset: -2px;
+}
+
 .managedSessionSwitcher {
   display: grid;
   flex: 0 0 auto;

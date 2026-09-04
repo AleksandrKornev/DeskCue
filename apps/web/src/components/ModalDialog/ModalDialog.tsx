@@ -1,3 +1,5 @@
+import clsx from "clsx";
+
 import { Modal } from "@components/Modal";
 
 import styles from "./styles.module.scss";
@@ -5,6 +7,7 @@ import type { ModalDialogProps } from "./types";
 
 export function ModalDialog({
   actions,
+  actionsLayout = "weighted",
   size = "confirm",
   ...modalProps
 }: ModalDialogProps) {
@@ -12,7 +15,14 @@ export function ModalDialog({
     <Modal
       {...modalProps}
       size={size}
-      footer={actions ? <div className={styles.actions}>{actions}</div> : null}
+      footer={actions ? (
+        <div className={clsx(
+          styles.actions,
+          actionsLayout === "equal" && styles.actionsEqual
+        )}>
+          {actions}
+        </div>
+      ) : null}
     />
   );
 }

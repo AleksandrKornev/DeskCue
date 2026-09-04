@@ -1,7 +1,14 @@
 import type {
   AgentSessionDetail,
+  AgentTranscriptActivityGroup,
+  AgentTranscriptEntry,
   AgentTranscriptViewItem,
   AgentTranscriptViewResponse
+} from "@deskcue/protocol";
+import {
+  compactAgentTranscriptSourceRefs,
+  doAgentTranscriptSourceRefsOverlap,
+  expandAgentTranscriptSourceRanges
 } from "@deskcue/protocol";
 
 import {
@@ -28,25 +35,148 @@ function compareTranscriptViewItems(
   return left.key.localeCompare(right.key);
 }
 
-function readEmbeddedActivityIds(items: AgentTranscriptViewItem[]) {
-  const activityIds = new Set<string>();
+function readProjectedActivities(items: AgentTranscriptViewItem[]) {
+  const activities: AgentTranscriptActivityGroup[] = [];
 
   for (const item of items) {
-    if (item.type !== "message") continue;
+    if (item.type === "activity") {
+      activities.push(item.activity);
+      continue;
+    }
 
-    for (const activity of [...item.activities, ...item.changeActivities]) {
-      activityIds.add(activity.id);
+    activities.push(...item.activities, ...item.changeActivities);
+  }
+
+  return activities;
+}
+
+function doTranscriptActivitiesConnect(
+  left: AgentTranscriptActivityGroup,
+  right: AgentTranscriptActivityGroup
+) {
+  if (left.kind !== right.kind) return false;
+
+  return left.id === right.id || doAgentTranscriptSourceRefsOverlap(left, right);
+}
+
+function readConnectedCurrentActivities(
+  currentActivities: AgentTranscriptActivityGroup[],
+  projectedActivities: AgentTranscriptActivityGroup[]
+) {
+  const connectedCurrentActivities = new Set<AgentTranscriptActivityGroup>();
+  const pendingActivities = [...projectedActivities];
+
+  for (let pendingIndex = 0; pendingIndex < pendingActivities.length; pendingIndex += 1) {
+    const projectedActivity = pendingActivities[pendingIndex];
+
+    for (const activity of currentActivities) {
+      if (connectedCurrentActivities.has(activity)) continue;
+      if (!doTranscriptActivitiesConnect(activity, projectedActivity)) continue;
+
+      connectedCurrentActivities.add(activity);
+      pendingActivities.push(activity);
     }
   }
 
-  return activityIds;
+  return currentActivities.filter((activity) => connectedCurrentActivities.has(activity));
+}
+
+function readExactActivitySourceEntryIds(activity: AgentTranscriptActivityGroup) {
+  if (activity.sourceEntrySpans?.length) return null;
+
+  const sourceEntryIds = [
+    ...(activity.sourceEntryIds ?? []),
+    ...expandAgentTranscriptSourceRanges(activity.sourceEntryRanges)
+  ];
+
+  return sourceEntryIds.length > 0 ? sourceEntryIds : null;
+}
+
+function mergeTranscriptActivityEntries(
+  activities: AgentTranscriptActivityGroup[]
+) {
+  const entriesById = new Map<string, AgentTranscriptEntry>();
+
+  for (const activity of activities) {
+    for (const entry of activity.entries) {
+      entriesById.set(
+        entry.id,
+        mergeTranscriptEntryReference(entriesById.get(entry.id), entry) ?? entry
+      );
+    }
+  }
+
+  return Array.from(entriesById.values());
+}
+
+function mergeSlidingTranscriptActivities(
+  currentActivities: AgentTranscriptActivityGroup[],
+  next: AgentTranscriptActivityGroup
+) {
+  if (next.kind !== "details" && next.kind !== "tools") return next;
+
+  const overlappingActivities = readConnectedCurrentActivities(currentActivities, [next]);
+
+  if (overlappingActivities.length === 0) return next;
+
+  const activities = [...overlappingActivities, next];
+  const sourceEntryIdGroups = activities.map(readExactActivitySourceEntryIds);
+
+  if (sourceEntryIdGroups.some((sourceEntryIds) => sourceEntryIds === null)) return next;
+
+  const exactSourceEntryIds = sourceEntryIdGroups.flatMap(
+    (sourceEntryIds) => sourceEntryIds ?? []
+  );
+
+  const sourceRefs = compactAgentTranscriptSourceRefs(exactSourceEntryIds);
+  const sourceEntryCount = sourceRefs.sourceEntryCount ?? 0;
+  const labelPrefix = next.kind === "tools" ? "Tools" : "Details";
+
+  return {
+    ...next,
+    entries: mergeTranscriptActivityEntries(activities),
+    entryIds: Array.from(new Set(activities.flatMap((activity) => activity.entryIds))),
+    label: `${labelPrefix} (${sourceEntryCount})`,
+    sourceEntryCount,
+    sourceEntryIds: sourceRefs.sourceEntryIds,
+    sourceEntryRanges: sourceRefs.sourceEntryRanges,
+    sourceEntrySpans: sourceRefs.sourceEntrySpans
+  };
+}
+
+function mergeSlidingTranscriptActivityItems(
+  currentItems: AgentTranscriptViewItem[],
+  nextItems: AgentTranscriptViewItem[]
+) {
+  const currentActivities = currentItems.flatMap((item) =>
+    item.type === "activity" ? [item.activity] : []
+  );
+
+  return nextItems.map((item) => {
+    if (item.type !== "activity") return item;
+
+    const activity = mergeSlidingTranscriptActivities(currentActivities, item.activity);
+
+    return activity === item.activity ? item : { ...item, activity };
+  });
+}
+
+function readReplacedStandaloneActivities(
+  currentItems: AgentTranscriptViewItem[],
+  projectedActivities: AgentTranscriptActivityGroup[]
+) {
+  const currentActivities = currentItems.flatMap((item) =>
+    item.type === "activity" ? [item.activity] : []
+  );
+
+  return new Set(readConnectedCurrentActivities(currentActivities, projectedActivities));
 }
 
 function shouldRetainTranscriptViewItem(
   item: AgentTranscriptViewItem,
-  embeddedActivityIds: Set<string>
+  replacedActivities: Set<AgentTranscriptActivityGroup>
 ) {
-  return item.type !== "activity" || !embeddedActivityIds.has(item.activity.id);
+  return item.type !== "activity" || !replacedActivities.has(item.activity);
 }
 
 function mergeTranscriptViewItem(
@@ -103,14 +233,19 @@ export function mergeAgentTranscriptViewPage(
   if (!current || current.sessionId !== page.sessionId) return page;
 
   const currentItemsByKey = new Map(current.items.map((item) => [item.key, item]));
-  const pageItemKeys = new Set(page.items.map((item) => item.key));
-  const pageEmbeddedActivityIds = readEmbeddedActivityIds(page.items);
+  const pageItems = mergeSlidingTranscriptActivityItems(current.items, page.items);
+  const pageItemKeys = new Set(pageItems.map((item) => item.key));
+  const pageProjectedActivities = readProjectedActivities(pageItems);
+  const replacedActivities = readReplacedStandaloneActivities(
+    current.items,
+    pageProjectedActivities
+  );
   const retainedCurrentItems = current.items.filter(
     (item) =>
       !pageItemKeys.has(item.key) &&
-      shouldRetainTranscriptViewItem(item, pageEmbeddedActivityIds)
+      shouldRetainTranscriptViewItem(item, replacedActivities)
   );
-  const refreshedPageItems = page.items.map((item) =>
+  const refreshedPageItems = pageItems.map((item) =>
     mergeTranscriptViewItem(currentItemsByKey.get(item.key), item)
   );
 
@@ -130,14 +265,19 @@ export function mergeAgentTranscriptView(
     current.items.map((item) => [item.key, item])
   );
   const sessionUnchanged = areAgentSessionSummariesEqual(current.session, next.session);
-  const nextItemKeys = new Set(next.items.map((item) => item.key));
-  const nextEmbeddedActivityIds = readEmbeddedActivityIds(next.items);
+  const nextItems = mergeSlidingTranscriptActivityItems(current.items, next.items);
+  const nextItemKeys = new Set(nextItems.map((item) => item.key));
+  const nextProjectedActivities = readProjectedActivities(nextItems);
+  const replacedActivities = readReplacedStandaloneActivities(
+    current.items,
+    nextProjectedActivities
+  );
   const retainedHistory = current.items.filter(
     (item) =>
       !nextItemKeys.has(item.key) &&
-      shouldRetainTranscriptViewItem(item, nextEmbeddedActivityIds)
+      shouldRetainTranscriptViewItem(item, replacedActivities)
   );
-  const refreshedItems = next.items.map((item) => {
+  const refreshedItems = nextItems.map((item) => {
     const mergedItem = mergeTranscriptViewItem(currentItemsByKey.get(item.key), item);
 
     return mergedItem;

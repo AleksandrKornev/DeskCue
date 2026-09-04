@@ -93,3 +93,13 @@
 .toolRow[aria-expanded="true"] .toolChevron {
   transform: rotate(45deg);
 }
+
+@media (max-width: 320px) {
+  .toolText strong,
+  .toolText span {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}

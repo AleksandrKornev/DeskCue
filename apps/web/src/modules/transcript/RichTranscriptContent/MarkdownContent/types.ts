@@ -10,6 +10,13 @@ export type LocalMarkdownImageProps = {
   alt: string;
   assetContext?: LocalAssetLinkContext;
   assetPath: string;
+  interactive?: boolean;
+};
+
+export type LocalMarkdownVideoProps = {
+  assetContext?: LocalAssetLinkContext;
+  assetPath: string;
+  label: string;
 };
 
 export type LocalAssetActionDialogProps = {
@@ -18,4 +25,11 @@ export type LocalAssetActionDialogProps = {
   displayName: string;
   isOpen: boolean;
   onClose: () => void;
+  onRetryPreview?: () => void;
+  previewImage?: {
+    alt: string;
+    url: string;
+  };
+
+  previewStatus?: "error" | "loading" | "ready";
 };

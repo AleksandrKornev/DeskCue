@@ -4,7 +4,7 @@
   display: grid;
   gap: 10px;
   justify-items: center;
-  contain: layout paint;
+  contain: layout;
 }
 
 .chatInlineActivityToggle {
@@ -54,8 +54,14 @@
 .chatInlineActivityLabel {
   display: inline-flex;
   align-items: center;
+  flex: 1 1 auto;
   gap: 10px;
   min-width: 0;
+}
+
+.chatInlineActivityLabelText {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .chatInlineActivityBadge {
@@ -167,7 +173,7 @@
 .chatMessageChangesBlock {
   display: grid;
   gap: 8px;
-  contain: layout paint;
+  contain: layout;
   padding: 10px;
   border-radius: 14px;
   border: 1px solid vars.$color-border-info;

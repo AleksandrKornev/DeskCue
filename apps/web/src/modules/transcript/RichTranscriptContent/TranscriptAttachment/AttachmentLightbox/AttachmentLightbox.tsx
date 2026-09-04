@@ -1,9 +1,9 @@
 import clsx from "clsx";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import CloseIcon from "@assets/images/icon-close.svg?react";
 import { useBottomSheetDrag } from "@components/BottomSheet";
-import { useModalFocusLifecycle } from "@components/Modal";
+import { ModalCloseButton, useModalFocusLifecycle } from "@components/Modal";
 import type { AttachmentPreviewKind } from "@modules/transcript/RichTranscriptContent/types";
 
 import { lightboxBodyClassByKind } from "./constants";
@@ -34,11 +34,21 @@ export function AttachmentLightbox({
   onClose,
   onDownloadStart
 }: AttachmentLightboxProps) {
+  const [mediaPreviewRetryKey, setMediaPreviewRetryKey] = useState(0);
+  const [mediaPreviewState, setMediaPreviewState] = useState<"loading" | "loaded" | "error">(
+    "loading"
+  );
   const {
     dragHandleProps,
     sheetGestureProps,
     sheetRef
   } = useBottomSheetDrag<HTMLDivElement>({ onDismiss: onClose });
+  const isMediaPreview = previewKind !== "none" && previewKind !== "text";
+
+  useEffect(() => {
+    setMediaPreviewRetryKey(0);
+    setMediaPreviewState("loading");
+  }, [previewKind, previewUrl]);
 
   useModalFocusLifecycle({ dialogRef: sheetRef, onClose });
   const lightbox = (
@@ -69,49 +79,123 @@ export function AttachmentLightbox({
             <strong>{displayName}</strong>
             <span>{secondaryLabel}</span>
           </div>
-          <div className={clsx(styles.lightboxActions, styles.dialogHeaderActions)}>
-            {openHref ? (
-              <a
-                className={styles.attachmentAction}
-                href={openHref}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Open
-              </a>
-            ) : null}
-            {downloadHref ? (
-              <a
-                className={styles.attachmentAction}
-                download={displayName}
-                href={downloadHref}
-                onClick={onDownloadStart}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Download
-              </a>
-            ) : null}
-            <button
-              aria-label="Close preview"
-              className={styles.dialogIconClose}
-              onClick={onClose}
-              type="button"
-            >
-              <CloseIcon className={styles.dialogCloseIcon} aria-hidden="true" focusable="false" />
-            </button>
-          </div>
+          <ModalCloseButton
+            className={styles.dialogHeaderClose}
+            label="Close preview"
+            onClick={onClose}
+          />
+          {openHref || downloadHref ? (
+            <div className={clsx(styles.lightboxActions, styles.dialogHeaderActions)}>
+              {openHref ? (
+                <a
+                  className={styles.attachmentAction}
+                  href={openHref}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Open
+                </a>
+              ) : null}
+              {downloadHref ? (
+                <a
+                  className={styles.attachmentAction}
+                  download={displayName}
+                  href={downloadHref}
+                  onClick={onDownloadStart}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Download
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div
+          aria-busy={isMediaPreview && mediaPreviewState === "loading"}
           aria-label={`${displayName} preview`}
-          className={clsx(styles.lightboxBody, lightboxBodyClassByKind[previewKind])}
+          className={clsx(
+            styles.lightboxBody,
+            lightboxBodyClassByKind[previewKind],
+            isMediaPreview && mediaPreviewState !== "loaded" && styles.lightboxBodyPending
+          )}
           role="region"
           tabIndex={0}
         >
-          {previewKind === "image" ? <img alt={displayName} src={previewUrl} /> : null}
-          {previewKind === "pdf" ? (
-            <iframe className={styles.lightboxFrame} src={previewUrl} title={displayName} />
+          {previewKind === "image" && mediaPreviewState !== "error" ? (
+            <img
+              alt={displayName}
+              className={mediaPreviewState === "loading" ? styles.lightboxPreviewLoading : undefined}
+              key={`${previewUrl}:${mediaPreviewRetryKey}`}
+              onError={() => setMediaPreviewState("error")}
+              onLoad={() => setMediaPreviewState("loaded")}
+              src={previewUrl}
+            />
+          ) : null}
+          {previewKind === "video" && mediaPreviewState !== "error" ? (
+            <video
+              className={mediaPreviewState === "loading" ? styles.lightboxPreviewLoading : undefined}
+              controls
+              key={`${previewUrl}:${mediaPreviewRetryKey}`}
+              onError={() => setMediaPreviewState("error")}
+              onLoadedMetadata={() => setMediaPreviewState("loaded")}
+              playsInline
+              preload="metadata"
+              src={previewUrl}
+            >
+              Your browser cannot preview this video
+            </video>
+          ) : null}
+          {previewKind === "audio" && mediaPreviewState !== "error" ? (
+            <audio
+              className={mediaPreviewState === "loading" ? styles.lightboxPreviewLoading : undefined}
+              controls
+              key={`${previewUrl}:${mediaPreviewRetryKey}`}
+              onError={() => setMediaPreviewState("error")}
+              onLoadedMetadata={() => setMediaPreviewState("loaded")}
+              preload="metadata"
+              src={previewUrl}
+            >
+              Your browser cannot preview this audio
+            </audio>
+          ) : null}
+          {previewKind === "pdf" && mediaPreviewState !== "error" ? (
+            <iframe
+              className={clsx(
+                styles.lightboxFrame,
+                mediaPreviewState === "loading" && styles.lightboxPreviewLoading
+              )}
+              key={`${previewUrl}:${mediaPreviewRetryKey}`}
+              onError={() => setMediaPreviewState("error")}
+              onLoad={() => setMediaPreviewState("loaded")}
+              sandbox=""
+              src={previewUrl}
+              title={displayName}
+            />
+          ) : null}
+          {isMediaPreview && mediaPreviewState === "loading" ? (
+            <div className={clsx(styles.lightboxState, styles.lightboxMediaState)} role="status">
+              <span className={styles.lightboxSpinner} aria-hidden="true" />
+              <strong>Loading preview</strong>
+              <span>Fetching {displayName}</span>
+            </div>
+          ) : null}
+          {isMediaPreview && mediaPreviewState === "error" ? (
+            <div className={clsx(styles.lightboxState, styles.lightboxMediaState)} role="alert">
+              <strong>Preview unavailable</strong>
+              <span>Check the connection or use Open or Download</span>
+              <button
+                className={styles.lightboxRetry}
+                onClick={() => {
+                  setMediaPreviewState("loading");
+                  setMediaPreviewRetryKey((current) => current + 1);
+                }}
+                type="button"
+              >
+                Retry
+              </button>
+            </div>
           ) : null}
           {previewKind === "text" ? (
             textPreviewState === "loaded" ? (

@@ -3,7 +3,9 @@ const CLOUD_REMOTE_ASSET_PREFIX_BYTES = 8;
 const CLOUD_REMOTE_ASSET_MAX_HEADER_BYTES = 2 * 1024;
 
 type CloudRemoteAssetHeaders = {
+  acceptRanges?: string;
   contentDisposition?: string;
+  contentRange?: string;
   contentType: string;
 };
 
@@ -15,9 +17,11 @@ function readSafeHeader(value: string | null, maximumLength: number) {
 
 export function encodeCloudRemoteAssetEnvelope(response: Response, body: Buffer) {
   const headers: CloudRemoteAssetHeaders = {
+    acceptRanges: readSafeHeader(response.headers.get("accept-ranges"), 32),
     contentType: readSafeHeader(response.headers.get("content-type"), 256) ??
       "application/octet-stream",
-    contentDisposition: readSafeHeader(response.headers.get("content-disposition"), 1024)
+    contentDisposition: readSafeHeader(response.headers.get("content-disposition"), 1024),
+    contentRange: readSafeHeader(response.headers.get("content-range"), 128)
   };
 
   const header = Buffer.from(JSON.stringify(headers), "utf8");

@@ -37,7 +37,7 @@ function toAgentSessionObservedTurnState(turnState: SourceAgentTurnState) {
     evidence: turnState.evidence,
     fingerprint: turnState.fingerprint,
     phase: turnState.phase,
-    startedAt: null,
+    startedAt: turnState.startedAt,
     turnStartFingerprint: turnState.turnStartFingerprint
   };
 }

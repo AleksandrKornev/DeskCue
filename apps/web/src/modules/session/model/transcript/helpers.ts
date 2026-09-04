@@ -1,6 +1,8 @@
 import type { AgentSessionDetail } from "@deskcue/protocol";
+import { hasCompactDiffPlaceholderText } from "@deskcue/protocol/transcript/compact-diff";
 import { filterHumanVisibleTranscriptEntries } from "@models/transcriptEntries";
 import type { ConversationActivity } from "@modules/session/types";
+import { filterAgentReportedDiffParts } from "@modules/transcript/RichTranscriptContent/model/diffParts";
 
 import { emptyTranscriptEntries } from "./constants";
 
@@ -70,4 +72,25 @@ export function readTranscriptViewChatEntries(
   return view.items.flatMap((item) =>
     item.type === "message" ? [item.entry] : []
   );
+}
+
+export function readAgentReportedDiffProjection(
+  transcriptEntries: AgentSessionDetail["transcript"],
+  historyIncomplete = false
+) {
+  const visibleEntries = filterHumanVisibleTranscriptEntries(transcriptEntries);
+  const detailsUnavailable = historyIncomplete || visibleEntries.some((entry) =>
+    entry.parts?.some((part) =>
+      hasCompactDiffPlaceholderText(part) ||
+      (entry.isCompact === true && part.type === "diff")
+    )
+  );
+  const exactParts = visibleEntries
+    .filter((entry) => !entry.isCompact)
+    .flatMap((entry) => entry.parts?.filter((part) => part.type === "diff") ?? []);
+
+  return {
+    detailsUnavailable,
+    parts: filterAgentReportedDiffParts(exactParts)
+  };
 }

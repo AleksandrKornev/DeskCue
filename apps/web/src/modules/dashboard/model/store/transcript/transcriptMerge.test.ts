@@ -51,6 +51,33 @@ function createActivityGroup(
   };
 }
 
+function createRangedActivityGroup(
+  id: string,
+  start: number,
+  end: number,
+  kind: AgentTranscriptActivityGroup["kind"] = "tools",
+  useSpan = false
+): AgentTranscriptActivityGroup {
+  const sourceEntryCount = end - start + 1;
+  const sourceRefs = useSpan
+    ? { sourceEntrySpans: [{ end, prefix: "session-", start }] }
+    : { sourceEntryRanges: [{ end, prefix: "session-", start }] };
+  const label = kind === "changes"
+    ? "Changes (1)"
+    : `${kind === "tools" ? "Tools" : "Details"} (${sourceEntryCount})`;
+
+  return {
+    entries: [],
+    entryIds: [],
+    id,
+    kind,
+    label,
+    ...sourceRefs,
+    sourceEntryCount,
+    timestamp: baseTimestamp
+  };
+}
+
 function createSummary(id = "codex:session"): AgentSessionSummary {
   return {
     agentId: "codex",
@@ -788,6 +815,256 @@ describe("mergeAgentSessionDetail", () => {
         ["message", "message:assistant"]
       ]
     );
+  });
+
+  it("drops a reparented standalone activity when its sliding-window id changed", () => {
+    const historyEntry = {
+      ...createEntry("entry:history", "earlier output", "2026-07-17T09:59:00.000Z"),
+      role: "tool" as const
+    };
+
+    const currentEntry = {
+      ...createEntry("entry:current", "current output", "2026-07-17T10:00:01.000Z"),
+      role: "tool" as const
+    };
+
+    const finalToolEntry = {
+      ...createEntry("entry:final-tool", "final tool output", "2026-07-17T10:00:02.000Z"),
+      role: "tool" as const
+    };
+
+    const assistantEntry = createEntry(
+      "entry:assistant",
+      "done",
+      "2026-07-17T10:00:03.000Z"
+    );
+    const historyActivity = createActivityGroup("tools:history", [historyEntry]);
+    const staleActivity = createActivityGroup("tools:window-a", [currentEntry]);
+    const embeddedActivity = createActivityGroup(
+      "tools:window-b",
+      [currentEntry, finalToolEntry]
+    );
+    const current = createSessionDetail({
+      transcript: [historyEntry, currentEntry],
+      transcriptView: createTranscriptView({
+        items: [
+          { activity: historyActivity, key: historyActivity.id, type: "activity" },
+          { activity: staleActivity, key: staleActivity.id, type: "activity" }
+        ]
+      })
+    });
+    const terminal = createSessionDetail({
+      transcript: [historyEntry, currentEntry, finalToolEntry, assistantEntry],
+      transcriptView: createTranscriptView({
+        items: [{
+          activities: [embeddedActivity],
+          changeActivities: [],
+          entry: assistantEntry,
+          key: "message:assistant",
+          role: "assistant",
+          timestamp: assistantEntry.timestamp,
+          turnStatus: null,
+          type: "message"
+        }],
+        updatedAt: "2026-07-17T10:00:04.000Z"
+      }),
+      updatedAt: "2026-07-17T10:00:04.000Z"
+    });
+    const historyProtection = {
+      entryIds: new Set([historyEntry.id]),
+      viewItemKeys: new Set([historyActivity.id])
+    };
+
+    const merged = mergeAgentSessionDetail(current, terminal, historyProtection);
+
+    assert.deepEqual(
+      merged.transcriptView?.items.map((item) => [item.type, item.key]),
+      [
+        ["activity", historyActivity.id],
+        ["message", "message:assistant"]
+      ]
+    );
+  });
+
+  it("replaces an overlapping live activity when its sliding-window id changed", () => {
+    const historyEntry = {
+      ...createEntry("entry:history", "earlier output", "2026-07-17T09:59:00.000Z"),
+      role: "tool" as const
+    };
+
+    const firstEntry = {
+      ...createEntry("entry:first", "first output", "2026-07-17T10:00:01.000Z"),
+      role: "tool" as const
+    };
+
+    const secondEntry = {
+      ...createEntry("entry:second", "second output", "2026-07-17T10:00:02.000Z"),
+      role: "tool" as const
+    };
+
+    const historyActivity = createActivityGroup("tools:history", [historyEntry]);
+    const firstWindow = createActivityGroup("tools:window-a", [firstEntry]);
+    const secondWindow = createActivityGroup(
+      "tools:window-b",
+      [firstEntry, secondEntry]
+    );
+    const current = createSessionDetail({
+      transcript: [historyEntry, firstEntry],
+      transcriptView: createTranscriptView({
+        items: [
+          { activity: historyActivity, key: historyActivity.id, type: "activity" },
+          { activity: firstWindow, key: firstWindow.id, type: "activity" }
+        ]
+      })
+    });
+    const next = createSessionDetail({
+      transcript: [historyEntry, firstEntry, secondEntry],
+      transcriptView: createTranscriptView({
+        items: [{ activity: secondWindow, key: secondWindow.id, type: "activity" }],
+        updatedAt: "2026-07-17T10:00:03.000Z"
+      }),
+      updatedAt: "2026-07-17T10:00:03.000Z"
+    });
+    const historyProtection = {
+      entryIds: new Set([historyEntry.id]),
+      viewItemKeys: new Set([historyActivity.id])
+    };
+
+    const merged = mergeAgentSessionDetail(current, next, historyProtection);
+
+    assert.deepEqual(
+      merged.transcriptView?.items.map((item) => [item.type, item.key]),
+      [
+        ["activity", historyActivity.id],
+        ["activity", secondWindow.id]
+      ]
+    );
+
+    const mergedWindow = merged.transcriptView?.items[1];
+
+    assert.equal(mergedWindow?.type, "activity");
+    assert.equal(mergedWindow?.activity.label, "Tools (2)");
+    assert.equal(mergedWindow?.activity.sourceEntryCount, 2);
+  });
+
+  it("does not shrink a live activity when a narrower window keeps the same id", () => {
+    const firstEntry = {
+      ...createEntry("entry:first", "first output", "2026-07-17T10:00:01.000Z"),
+      role: "tool" as const
+    };
+
+    const secondEntry = {
+      ...createEntry("entry:second", "second output", "2026-07-17T10:00:02.000Z"),
+      role: "tool" as const
+    };
+
+    const thirdEntry = {
+      ...createEntry("entry:third", "third output", "2026-07-17T10:00:03.000Z"),
+      role: "tool" as const
+    };
+
+    const currentWindow = createActivityGroup(
+      "tools:window",
+      [firstEntry, secondEntry, thirdEntry]
+    );
+    const narrowerWindow = createActivityGroup(
+      "tools:window",
+      [secondEntry, thirdEntry]
+    );
+    const current = createSessionDetail({
+      transcript: [firstEntry, secondEntry, thirdEntry],
+      transcriptView: createTranscriptView({
+        items: [{ activity: currentWindow, key: currentWindow.id, type: "activity" }]
+      })
+    });
+    const next = createSessionDetail({
+      transcript: [secondEntry, thirdEntry],
+      transcriptView: createTranscriptView({
+        items: [{ activity: narrowerWindow, key: narrowerWindow.id, type: "activity" }],
+        updatedAt: "2026-07-17T10:00:04.000Z"
+      }),
+      updatedAt: "2026-07-17T10:00:04.000Z"
+    });
+
+    const merged = mergeAgentSessionDetail(current, next);
+    const mergedWindow = merged.transcriptView?.items[0];
+
+    assert.equal(mergedWindow?.type, "activity");
+    assert.equal(mergedWindow?.activity.label, "Tools (3)");
+    assert.equal(mergedWindow?.activity.sourceEntryCount, 3);
+    assert.deepEqual(
+      mergedWindow?.activity.entries.map((entry) => entry.id),
+      [firstEntry.id, secondEntry.id, thirdEntry.id]
+    );
+  });
+
+  it("preserves the full transitive overlap component while replacing stale windows", () => {
+    const firstWindow = createRangedActivityGroup("tools:window-a", 1, 96);
+    const secondWindow = createRangedActivityGroup("tools:window-b", 50, 146);
+    const nextWindow = createRangedActivityGroup("tools:window-c", 100, 150);
+    const current = createSessionDetail({
+      transcriptView: createTranscriptView({
+        items: [
+          { activity: firstWindow, key: firstWindow.id, type: "activity" },
+          { activity: secondWindow, key: secondWindow.id, type: "activity" }
+        ]
+      })
+    });
+    const next = createSessionDetail({
+      transcriptView: createTranscriptView({
+        items: [{ activity: nextWindow, key: nextWindow.id, type: "activity" }],
+        updatedAt: "2026-07-17T10:00:04.000Z"
+      }),
+      updatedAt: "2026-07-17T10:00:04.000Z"
+    });
+
+    const merged = mergeAgentSessionDetail(current, next);
+    const mergedWindow = merged.transcriptView?.items[0];
+
+    assert.equal(merged.transcriptView?.items.length, 1);
+    assert.equal(mergedWindow?.type, "activity");
+    assert.equal(mergedWindow?.key, nextWindow.id);
+    assert.equal(mergedWindow?.activity.label, "Tools (150)");
+    assert.equal(mergedWindow?.activity.sourceEntryCount, 150);
+    assert.deepEqual(mergedWindow?.activity.sourceEntryRanges, [{
+      end: 150,
+      prefix: "session-",
+      start: 1
+    }]);
+  });
+
+  it("evicts the full transitive span component without changing Changes count semantics", () => {
+    const firstWindow = createRangedActivityGroup("changes:window-a", 1, 96, "changes", true);
+    const secondWindow = createRangedActivityGroup("changes:window-b", 50, 146, "changes", true);
+    const nextWindow = createRangedActivityGroup("changes:window-c", 100, 150, "changes", true);
+    const current = createSessionDetail({
+      transcriptView: createTranscriptView({
+        items: [
+          { activity: firstWindow, key: firstWindow.id, type: "activity" },
+          { activity: secondWindow, key: secondWindow.id, type: "activity" }
+        ]
+      })
+    });
+    const next = createSessionDetail({
+      transcriptView: createTranscriptView({
+        items: [{ activity: nextWindow, key: nextWindow.id, type: "activity" }],
+        updatedAt: "2026-07-17T10:00:04.000Z"
+      }),
+      updatedAt: "2026-07-17T10:00:04.000Z"
+    });
+
+    const merged = mergeAgentSessionDetail(current, next);
+    const mergedWindow = merged.transcriptView?.items[0];
+
+    assert.equal(merged.transcriptView?.items.length, 1);
+    assert.equal(mergedWindow?.type, "activity");
+    assert.equal(mergedWindow?.key, nextWindow.id);
+    assert.equal(mergedWindow?.activity.label, "Changes (1)");
+    assert.deepEqual(mergedWindow?.activity.sourceEntrySpans, [{
+      end: 150,
+      prefix: "session-",
+      start: 100
+    }]);
   });
 
   it("keeps a known context-compaction count when a stale detail reports zero", () => {

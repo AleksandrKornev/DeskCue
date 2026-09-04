@@ -4,6 +4,11 @@ export type {
   AgentTranscriptSourceRange,
   AgentTranscriptSourceRefs
 } from "./transcript/sourceRefs.ts";
+export {
+  COMPACT_DIFF_PLACEHOLDER_TEXT,
+  hasCompactDiffPlaceholderText,
+  isCanonicalCompactDiffPlaceholderPart
+} from "./transcript/compactDiff.ts";
 
 export type AgentTranscriptRole =
   | "user"

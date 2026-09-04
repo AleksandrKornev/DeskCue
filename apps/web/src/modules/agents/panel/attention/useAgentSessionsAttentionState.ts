@@ -4,6 +4,7 @@ import {
   buildAgentChatWorkIndicator,
   buildManagedChatWorkIndicator,
   buildPendingPromptChatWorkIndicator,
+  getSourceSessionKey,
   getWorkIndicatorPriority
 } from "@models/agentChatWorkState";
 import type {
@@ -12,6 +13,34 @@ import type {
 } from "@modules/agents/types";
 
 import { isAgentSessionReviewed } from "./helpers";
+
+function resolvePendingPromptSourceSessionKey(
+  pendingChatPrompt: AgentSessionsPanelProps["pendingChatPrompt"],
+  managedSessions: AgentSessionsPanelProps["managedSessions"],
+  agentSessions: AgentSessionsPanelProps["agentSessions"]
+) {
+  if (!pendingChatPrompt?.sourceSessionId) return null;
+
+  const managedPromptSession = pendingChatPrompt.sessionId
+    ? managedSessions.find((session) => session.id === pendingChatPrompt.sessionId)
+    : null;
+  if (managedPromptSession) {
+    return getSourceSessionKey(managedPromptSession.adapterId, pendingChatPrompt.sourceSessionId);
+  }
+
+  const matchingSourceSessionKeys = new Set([
+    ...managedSessions
+      .filter((session) => session.sourceSessionId === pendingChatPrompt.sourceSessionId)
+      .map((session) => getSourceSessionKey(session.adapterId, session.sourceSessionId)),
+    ...agentSessions
+      .filter((session) => session.sourceSessionId === pendingChatPrompt.sourceSessionId)
+      .map((session) => getSourceSessionKey(session.agentId, session.sourceSessionId))
+  ].filter((sourceSessionKey): sourceSessionKey is string => Boolean(sourceSessionKey)));
+
+  return matchingSourceSessionKeys.size === 1
+    ? matchingSourceSessionKeys.values().next().value ?? null
+    : null;
+}
 
 export function useAgentSessionsAttentionState({
   agentSessions,
@@ -38,57 +67,69 @@ export function useAgentSessionsAttentionState({
     };
   }
 
-  const workIndicatorsBySourceSessionId = useMemo(() => {
+  const workIndicatorsBySourceSessionKey = useMemo(() => {
     const indicators = new Map<string, AgentSessionWorkIndicator>();
 
     if (!enabled) return indicators;
 
     for (const session of managedSessions) {
-      if (!session.sourceSessionId) continue;
+      const sourceSessionKey = getSourceSessionKey(session.adapterId, session.sourceSessionId);
 
-      const existing = indicators.get(session.sourceSessionId);
+      if (!sourceSessionKey) continue;
+
+      const existing = indicators.get(sourceSessionKey);
       const nextIndicator = buildManagedChatWorkIndicator(session);
 
       if (!nextIndicator) continue;
 
       if (!existing || getWorkIndicatorPriority(nextIndicator) > getWorkIndicatorPriority(existing)) {
-        indicators.set(session.sourceSessionId, nextIndicator);
+        indicators.set(sourceSessionKey, nextIndicator);
       }
     }
 
     const pendingPromptIndicator = buildPendingPromptChatWorkIndicator(pendingChatPrompt);
+    const pendingPromptSourceSessionKey = resolvePendingPromptSourceSessionKey(
+      pendingChatPrompt,
+      managedSessions,
+      agentSessions
+    );
 
-    if (pendingPromptIndicator && pendingChatPrompt?.sourceSessionId) {
-      const existing = indicators.get(pendingChatPrompt.sourceSessionId);
+    if (pendingPromptIndicator && pendingPromptSourceSessionKey) {
+      const existing = indicators.get(pendingPromptSourceSessionKey);
 
       if (
         !existing ||
         getWorkIndicatorPriority(pendingPromptIndicator) > getWorkIndicatorPriority(existing)
       ) {
-        indicators.set(pendingChatPrompt.sourceSessionId, pendingPromptIndicator);
+        indicators.set(pendingPromptSourceSessionKey, pendingPromptIndicator);
       }
     }
 
     for (const session of agentSessions) {
       const nextIndicator = buildAgentChatWorkIndicator(session);
+      const sourceSessionKey = getSourceSessionKey(session.agentId, session.sourceSessionId);
 
-      if (!session.sourceSessionId || !nextIndicator) continue;
+      if (!sourceSessionKey || !nextIndicator) continue;
 
-      const existing = indicators.get(session.sourceSessionId);
+      const existing = indicators.get(sourceSessionKey);
 
       if (!existing || getWorkIndicatorPriority(nextIndicator) > getWorkIndicatorPriority(existing)) {
-        indicators.set(session.sourceSessionId, nextIndicator);
+        indicators.set(sourceSessionKey, nextIndicator);
       }
     }
 
     return indicators;
   }, [agentSessions, enabled, managedSessions, pendingChatPrompt]);
 
-  const approvalRequestedSourceSessionIds = useMemo(
+  const approvalRequestedSourceSessionKeys = useMemo(
     () => enabled
       ? new Set(
         managedSessions.flatMap((session) =>
-          session.actionRequest && session.sourceSessionId ? [session.sourceSessionId] : []
+          session.actionRequest
+            ? [getSourceSessionKey(session.adapterId, session.sourceSessionId)].filter(
+              (sourceSessionKey): sourceSessionKey is string => Boolean(sourceSessionKey)
+            )
+            : []
         )
       )
       : new Set<string>(),
@@ -112,14 +153,16 @@ export function useAgentSessionsAttentionState({
         return !session || !isAgentSessionReviewed(session);
       })
     );
-    const completedSourceSessionIds = new Set(
+    const completedSourceSessionKeys = new Set(
       managedSessions.flatMap((session) =>
         session.sourceSessionId &&
         session.status !== "running" &&
         session.finishedAt &&
         !session.actionRequest &&
         session.replyState.phase === "idle"
-          ? [session.sourceSessionId]
+          ? [getSourceSessionKey(session.adapterId, session.sourceSessionId)].filter(
+            (sourceSessionKey): sourceSessionKey is string => Boolean(sourceSessionKey)
+          )
           : []
       )
     );
@@ -128,7 +171,9 @@ export function useAgentSessionsAttentionState({
       if (
         session.workState !== "running" &&
         !isAgentSessionReviewed(session) &&
-        completedSourceSessionIds.has(session.sourceSessionId)
+        completedSourceSessionKeys.has(
+          getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+        )
       ) {
         readySessionIds.add(session.id);
       }
@@ -144,13 +189,17 @@ export function useAgentSessionsAttentionState({
 
     for (const session of agentSessions) {
       const hasWorkIndicator =
-        workIndicatorsBySourceSessionId.has(session.sourceSessionId) ||
+        workIndicatorsBySourceSessionKey.has(
+          getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+        ) ||
         session.workState === "running";
       const isReadyForReview = effectiveReadyForReviewAgentSessionIds.has(session.id);
       const hasAttentionState =
         hasWorkIndicator ||
         isReadyForReview ||
-        approvalRequestedSourceSessionIds.has(session.sourceSessionId);
+        approvalRequestedSourceSessionKeys.has(
+          getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+        );
 
       if (hasAttentionState) {
         cache.set(session.id, session);
@@ -161,24 +210,28 @@ export function useAgentSessionsAttentionState({
 
     return Array.from(cache.values())
       .filter((session) =>
-        workIndicatorsBySourceSessionId.has(session.sourceSessionId) ||
+        workIndicatorsBySourceSessionKey.has(
+          getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+        ) ||
         session.workState === "running" ||
         effectiveReadyForReviewAgentSessionIds.has(session.id) ||
-        approvalRequestedSourceSessionIds.has(session.sourceSessionId)
+        approvalRequestedSourceSessionKeys.has(
+          getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+        )
       )
       .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
   }, [
     agentSessions,
-    approvalRequestedSourceSessionIds,
+    approvalRequestedSourceSessionKeys,
     enabled,
     effectiveReadyForReviewAgentSessionIds,
-    workIndicatorsBySourceSessionId
+    workIndicatorsBySourceSessionKey
   ]);
 
   return {
-    approvalRequestedSourceSessionIds,
+    approvalRequestedSourceSessionKeys,
     attentionSessions,
     effectiveReadyForReviewAgentSessionIds,
-    workIndicatorsBySourceSessionId
+    workIndicatorsBySourceSessionKey
   };
 }

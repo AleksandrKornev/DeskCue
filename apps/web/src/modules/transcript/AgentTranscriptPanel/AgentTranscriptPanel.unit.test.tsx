@@ -188,4 +188,26 @@ describe("AgentTranscriptPanel load recovery", () => {
     expect(screen.queryByText("Recovered chat")).not.toBeInTheDocument();
     expect(screen.getByText("Loading chat preview")).toBeInTheDocument();
   });
+
+  it("presents resumable chats as ready with runtime identity and a connected-client hint", () => {
+    const { container } = render(
+      <AgentTranscriptPanel
+        {...createProps({
+          attachedManagedSessionId: "managed-1",
+          attachedManagedSessionInfo: {
+            id: "managed-1",
+            status: "running",
+            viewerCount: 1
+          },
+          session: createSession()
+        })}
+      />
+    );
+
+    expect(screen.getByText("Ready", { selector: "span" })).toBeInTheDocument();
+    expect(screen.queryByText("Ready to continue")).not.toBeInTheDocument();
+    expect(screen.getByText("Codex", { selector: "span" })).toBeInTheDocument();
+    expect(container.querySelector('[data-runtime-icon="codex"]')).toBeInTheDocument();
+    expect(screen.getByText("1 connected DeskCue client")).toBeInTheDocument();
+  });
 });

@@ -46,6 +46,7 @@ export type DiffTabPanelProps = {
   git: SessionDetail["git"] | null;
   preferredFilePath?: string;
   showWorkspaceGit?: boolean;
+  sourceDiffDetailsUnavailable?: boolean;
   sourceDiffParts: DiffPart[];
   onOpenFile?: (path: string) => void;
   onRefreshGit?: () => void | Promise<void>;

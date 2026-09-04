@@ -355,7 +355,7 @@ describe("managed session live chat model", () => {
     );
   });
 
-  it("labels an active view-only source chat as observing", () => {
+  it("uses the canonical running status for an active view-only source chat", () => {
     assert.equal(
       resolveLiveHeaderStatusLabel({
         isPromptInFlight: false,
@@ -368,7 +368,7 @@ describe("managed session live chat model", () => {
           workState: "running"
         }
       }),
-      "observing"
+      undefined
     );
   });
 
@@ -456,6 +456,70 @@ describe("managed session live chat model", () => {
     };
 
     assert.deepEqual(resolveLiveSourceState(detail, summary), detail);
+  });
+
+  it("keeps a distinct active turn over an old terminal summary at the same timestamp", () => {
+    const timestamp = "2026-08-22T16:40:36.000Z";
+    const detail = {
+      attachMode: "read_only" as const,
+      turnState: {
+        activityAt: timestamp,
+        completedAt: null,
+        evidence: "unanswered_user_turn" as const,
+        fingerprint: "user-new",
+        phase: "active" as const,
+        startedAt: timestamp
+      },
+      workState: "running" as const
+    };
+
+    const summary = {
+      attachMode: "read_only" as const,
+      turnState: {
+        activityAt: null,
+        completedAt: timestamp,
+        evidence: "terminal_lifecycle" as const,
+        fingerprint: "terminal-old",
+        phase: "completed" as const,
+        startedAt: null,
+        turnStartFingerprint: "user-old"
+      },
+      workState: "idle" as const
+    };
+
+    assert.deepEqual(resolveLiveSourceState(detail, summary), detail);
+  });
+
+  it("keeps terminal detail over a stale active summary for the same turn at the same timestamp", () => {
+    const timestamp = "2026-09-02T12:00:00.000Z";
+    const detail = {
+      attachMode: "read_only" as const,
+      turnState: {
+        activityAt: null,
+        completedAt: timestamp,
+        evidence: "terminal_lifecycle" as const,
+        fingerprint: "terminal-current",
+        phase: "completed" as const,
+        startedAt: "2026-09-02T11:59:00.000Z",
+        turnStartFingerprint: "start-current"
+      },
+      workState: "idle" as const
+    };
+
+    const summary = {
+      attachMode: "read_only" as const,
+      turnState: {
+        activityAt: timestamp,
+        completedAt: null,
+        evidence: "recent_non_final_activity" as const,
+        fingerprint: "start-current",
+        phase: "active" as const,
+        startedAt: "2026-09-02T11:59:00.000Z"
+      },
+      workState: "running" as const
+    };
+
+    assert.equal(resolveLiveSourceState(detail, summary)?.turnState?.phase, "completed");
   });
 
   it("labels a non-resumable source chat as view only", () => {

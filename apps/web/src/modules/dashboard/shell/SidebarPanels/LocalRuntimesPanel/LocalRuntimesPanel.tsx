@@ -59,6 +59,7 @@ export function LocalRuntimesPanel({
                       <strong>{runtime.label}</strong>
                       {showStatusIndicator ? (
                         <span
+                          aria-hidden="true"
                           className={clsx(
                             styles.runtimeDot,
                             runtime.running
@@ -105,12 +106,14 @@ export function LocalRuntimesPanel({
                     </span>
                   ) : null}
                   {runtime.modelStoragePath && runtime.id === "ollama" && runtime.modelCount === 0 ? (
-                    <span className={styles.runtimeMeta}>
+                    <span className={clsx(styles.runtimeMeta, styles.runtimeMetaWrap)}>
                       No models reported by this endpoint. Storage: {runtime.modelStoragePath}
                     </span>
                   ) : null}
                   {runtime.id === "lm-studio" && lmStudioControlMessage ? (
-                    <span className={styles.runtimeMeta}>{lmStudioControlMessage}</span>
+                    <span className={clsx(styles.runtimeMeta, styles.runtimeMetaWrap)}>
+                      {lmStudioControlMessage}
+                    </span>
                   ) : null}
                 </div>
               ))}

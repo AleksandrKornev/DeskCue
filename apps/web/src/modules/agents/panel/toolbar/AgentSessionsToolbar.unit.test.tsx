@@ -1,11 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-
-import styles from "@modules/agents/panel/styles.module.scss";
 
 import { AgentSessionsToolbar } from "./AgentSessionsToolbar";
 
-it("keeps mobile runtime filters behind an explicit disclosure", () => {
+it("renders every available filter without an extra disclosure", () => {
   render(
     <AgentSessionsToolbar
       isSearchLoading={false}
@@ -41,16 +39,20 @@ it("keeps mobile runtime filters behind an explicit disclosure", () => {
     />
   );
 
-  const disclosure = screen.getByRole("button", { name: "Show 4 more filters" });
+  const filterGroup = screen.getByRole("group", {
+    name: "Filter chats by agent or runtime"
+  });
 
-  expect(disclosure).toHaveAttribute("aria-expanded", "false");
-
-  fireEvent.click(disclosure);
-
-  expect(screen.getByRole("button", { name: "Hide extra filters" })).toHaveAttribute(
-    "aria-expanded",
-    "true"
-  );
+  expect(within(filterGroup).getAllByRole("button").map(
+    (button) => button.textContent?.trim()
+  )).toEqual([
+    "All 7",
+    "Codex 2",
+    "Claude Code 1",
+    "Ollama 3",
+    "LM Studio 1"
+  ]);
+  expect(screen.queryByRole("button", { name: /more filters/i })).not.toBeInTheDocument();
 });
 
 it("gives chat search a persistent label instead of relying on its placeholder", () => {
@@ -75,7 +77,7 @@ it("gives chat search a persistent label instead of relying on its placeholder",
   );
 });
 
-it("keeps the selected mobile filter visible and uses a singular disclosure label", () => {
+it("keeps source and runtime filters available when one source is selected", () => {
   render(
     <AgentSessionsToolbar
       isSearchLoading={false}
@@ -102,15 +104,17 @@ it("keeps the selected mobile filter visible and uses a singular disclosure labe
     />
   );
 
-  expect(screen.getByRole("button", { name: "Codex 2" })).not.toHaveClass(
-    styles.sourceTabMobileOptional
+  expect(screen.getByRole("button", { name: "Codex 2" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
   );
 
-  expect(screen.getByRole("button", { name: "Ollama 3" })).toHaveClass(
-    styles.sourceTabMobileOptional
+  expect(screen.getByRole("button", { name: "Ollama 3" })).toHaveAttribute(
+    "aria-pressed",
+    "false"
   );
 
-  expect(screen.getByRole("button", { name: "Show 1 more filter" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /more filters/i })).not.toBeInTheDocument();
 });
 
 it("keeps zero-count selected source and runtime filters visible", () => {

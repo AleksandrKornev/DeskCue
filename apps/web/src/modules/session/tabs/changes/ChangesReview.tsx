@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { hasCompactDiffPlaceholderText } from "@deskcue/protocol/transcript/compact-diff";
 import { MAX_VISIBLE_DIFF_FILES } from "@modules/session/tabs/constants";
 import {
   filterDiffFiles,
@@ -10,7 +11,8 @@ import {
 } from "@modules/session/tabs/helpers";
 import { TabPanelSurface } from "@modules/session/tabs/TabPanelSurface";
 import type { DiffTabPanelProps } from "@modules/session/tabs/types";
-import { TranscriptDiffList } from "@modules/transcript";
+import { groupDiffPartsByFile, TranscriptDiffList } from "@modules/transcript";
+import { filterAgentReportedDiffParts } from "@modules/transcript/RichTranscriptContent/model/diffParts";
 
 import {
   basename,
@@ -30,6 +32,13 @@ type RefreshChangesArgs = {
   onRefreshGit: NonNullable<DiffTabPanelProps["onRefreshGit"]>;
   setRefreshError: (value: string) => void;
   setRefreshing: (value: boolean) => void;
+};
+
+type AgentReportedChangesProps = Pick<
+  DiffTabPanelProps,
+  "sourceDiffDetailsUnavailable" | "sourceDiffParts"
+> & {
+  collapsible: boolean;
 };
 
 async function refreshChanges({
@@ -87,16 +96,109 @@ function useCompactChangesViewport() {
   return compact;
 }
 
+function AgentReportedChanges({
+  collapsible,
+  sourceDiffDetailsUnavailable = false,
+  sourceDiffParts
+}: AgentReportedChangesProps) {
+  const hiddenDiffCount = sourceDiffParts.filter((part) => isHiddenDiffPath(part.filePath ?? part.title)).length;
+  const visibleDiffParts = sourceDiffParts.filter((part) => !isHiddenDiffPath(part.filePath ?? part.title));
+
+  if (collapsible) {
+    if (visibleDiffParts.length === 0 && hiddenDiffCount === 0) return null;
+
+    const fileCount = groupDiffPartsByFile(visibleDiffParts).length;
+    const summaryCount = fileCount > 0
+      ? describeCount(fileCount, "file", "files")
+      : describeCount(hiddenDiffCount, "hidden change", "hidden changes");
+
+    return (
+      <details className={styles.agentReportedChanges}>
+        <summary>
+          <span className={styles.agentReportedChangesLabel}>
+            <strong>Reported in chat</strong>
+          </span>
+          <span className={styles.agentReportedChangesCount}>
+            <span>{summaryCount}</span>
+            {sourceDiffDetailsUnavailable ? (
+              <span className={styles.agentReportedChangesPartial}>Partial</span>
+            ) : null}
+          </span>
+        </summary>
+        <div className={styles.agentReportedChangesBody}>
+          <p className={styles.agentReportedChangesNote}>
+            Historical agent evidence; workspace changes above show the current disk state.
+          </p>
+          {sourceDiffDetailsUnavailable ? (
+            <p className={styles.agentReportedChangesNote}>
+              Some reported change details are not loaded in this view.
+            </p>
+          ) : null}
+          {hiddenDiffCount > 0 ? (
+            <p className={styles.agentReportedChangesNote}>
+              {describeCount(hiddenDiffCount, "generated or temporary change", "generated or temporary changes")} hidden
+            </p>
+          ) : null}
+          {visibleDiffParts.length > 0 ? <TranscriptDiffList parts={visibleDiffParts} /> : null}
+        </div>
+      </details>
+    );
+  }
+
+  return (
+    <TabPanelSurface
+      title="Agent-reported changes"
+      subtitle={sourceDiffDetailsUnavailable
+        ? "Evidence captured from this chat; some details are not loaded"
+        : "Evidence captured from this chat"}
+    >
+      {sourceDiffParts.length === 0 ? (
+        <p className={styles.muted}>
+          {sourceDiffDetailsUnavailable
+            ? "Change details are not loaded in this view."
+            : "Agent-reported file changes will appear here."}
+        </p>
+      ) : visibleDiffParts.length > 0 ? (
+        <div className={styles.changesStack}>
+          {sourceDiffDetailsUnavailable ? (
+            <p className={styles.muted}>Some reported change details are not loaded in this view.</p>
+          ) : null}
+          {hiddenDiffCount > 0 ? (
+            <p className={styles.muted}>
+              {describeCount(hiddenDiffCount, "generated or temporary change", "generated or temporary changes")} hidden
+            </p>
+          ) : null}
+          <TranscriptDiffList parts={visibleDiffParts} />
+        </div>
+      ) : (
+        <p className={styles.muted}>
+          {describeCount(hiddenDiffCount, "generated or temporary change", "generated or temporary changes")} hidden
+        </p>
+      )}
+    </TabPanelSurface>
+  );
+}
+
 export function ChangesReview({
   git,
   preferredFilePath = "",
   showWorkspaceGit = true,
+  sourceDiffDetailsUnavailable = false,
   sourceDiffParts,
   onOpenFile,
   onRefreshGit,
   onSelectFile
 }: DiffTabPanelProps) {
   const compactViewport = useCompactChangesViewport();
+  const hasUnavailableSourceDiffDetails = sourceDiffDetailsUnavailable || sourceDiffParts.some((part) =>
+    hasCompactDiffPlaceholderText(part)
+  );
+
+  const reviewableSourceDiffParts = useMemo(
+    () => filterAgentReportedDiffParts(sourceDiffParts),
+    [sourceDiffParts]
+  );
+
   const visibleChangedFiles = useMemo(() => git ? filterDiffFiles(git.changedFiles) : [], [git]);
   const hiddenChangedFileCount = git ? git.changedFiles.length - visibleChangedFiles.length : 0;
 
@@ -139,9 +241,6 @@ export function ChangesReview({
     : visibleDiff?.wasTrimmed
       ? "This file's patch is not included in the bounded workspace diff. Open it in Files to inspect the current contents."
       : "This is often a new, binary, ignored, or untracked path. Open it in Files to inspect the current contents.";
-  const hiddenSourceDiffCount = sourceDiffParts.filter((part) => isHiddenDiffPath(part.filePath ?? part.title)).length;
-  const visibleSourceDiffParts = sourceDiffParts.filter((part) => !isHiddenDiffPath(part.filePath ?? part.title));
-
   useEffect(() => {
     const preferred = reviewFiles.find((file) => file.path === preferredFilePath)?.path;
 
@@ -174,24 +273,6 @@ export function ChangesReview({
 
   return (
     <div className={clsx(styles.changesStack, styles.changesReviewStack)}>
-      {sourceDiffParts.length > 0 || !showWorkspaceGit ? (
-        <TabPanelSurface
-          title="Agent-reported changes"
-          subtitle="Evidence captured from this chat; workspace state below remains authoritative"
-        >
-          {sourceDiffParts.length === 0 ? (
-            <p className={styles.muted}>Agent-reported file changes will appear here.</p>
-          ) : visibleSourceDiffParts.length > 0 ? (
-            <div className={styles.changesStack}>
-              {hiddenSourceDiffCount > 0 ? <p className={styles.muted}>{hiddenSourceDiffCount} generated or temporary changes hidden</p> : null}
-              <TranscriptDiffList parts={visibleSourceDiffParts} />
-            </div>
-          ) : (
-            <p className={styles.muted}>{hiddenSourceDiffCount} generated or temporary changes hidden</p>
-          )}
-        </TabPanelSurface>
-      ) : null}
-
       {showWorkspaceGit ? (
         <section className={styles.changesReview}>
           <div className={styles.changesHeaderStack}>
@@ -369,6 +450,20 @@ export function ChangesReview({
           )}
         </section>
       ) : null}
+
+      {showWorkspaceGit ? (
+        <AgentReportedChanges
+          collapsible
+          sourceDiffDetailsUnavailable={hasUnavailableSourceDiffDetails}
+          sourceDiffParts={reviewableSourceDiffParts}
+        />
+      ) : (
+        <AgentReportedChanges
+          collapsible={false}
+          sourceDiffDetailsUnavailable={hasUnavailableSourceDiffDetails}
+          sourceDiffParts={reviewableSourceDiffParts}
+        />
+      )}
     </div>
   );
 }

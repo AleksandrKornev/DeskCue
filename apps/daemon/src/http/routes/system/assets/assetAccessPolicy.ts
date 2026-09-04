@@ -3,12 +3,17 @@ import os from "node:os";
 import path from "node:path";
 
 import type { AgentSessionDetail, CreateAssetTicketInput } from "@deskcue/protocol";
+import {
+  getMarkdownAuthoredAssetSources,
+  normalizeMarkdownLocalAssetPath
+} from "@deskcue/protocol/markdown";
 import { waitForPendingGeneratedImage } from "#agents/codex/transcript/parsing/entries/codexTranscriptGeneratedImages";
 import type { ManagedSessionService } from "#application/managedSessionService";
 import type { SourceAgentSessionService } from "#application/sourceAgentSessionService";
 import { daemonConfig } from "#config/daemonConfig";
 
 const LOCAL_IMAGE_EXTENSIONS = new Set([
+  ".avif",
   ".png",
   ".jpg",
   ".jpeg",
@@ -40,18 +45,35 @@ type AssetAccessPolicyOptions = {
   listWorkspaces: () => Array<{ id?: string; path: string }>;
 };
 
-function normalizeComparablePath(assetPath: string) {
-  return path.resolve(path.normalize(assetPath)).toLowerCase();
+export function normalizeAssetPolicyComparablePath(
+  assetPath: string,
+  platform = process.platform
+) {
+  const normalizedPath = path.resolve(path.normalize(assetPath));
+
+  return platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
+}
+
+function hasMarkdownAssetPath(markdown: string, expectedPath: string) {
+  return getMarkdownAuthoredAssetSources(markdown).some((source) => {
+    const normalizedSource = normalizeMarkdownLocalAssetPath(source);
+
+    return Boolean(
+      normalizedSource &&
+      path.isAbsolute(path.normalize(normalizedSource)) &&
+      normalizeAssetPolicyComparablePath(normalizedSource) === expectedPath
+    );
+  });
 }
 
 function hasTranscriptAttachmentPath(session: AgentSessionDetail, normalizedPath: string) {
-  const expectedPath = normalizeComparablePath(normalizedPath);
+  const expectedPath = normalizeAssetPolicyComparablePath(normalizedPath);
 
   return session.transcript.some((entry) =>
     entry.parts?.some((part) =>
-      part.type === "attachment" &&
-      part.path &&
-      normalizeComparablePath(part.path) === expectedPath
+      part.type === "attachment"
+        ? Boolean(part.path && normalizeAssetPolicyComparablePath(part.path) === expectedPath)
+        : part.type === "markdown" && hasMarkdownAssetPath(part.text, expectedPath)
     )
   );
 }
@@ -202,6 +224,10 @@ export class AssetAccessPolicy {
     normalizedPath: string,
     requestContext: AssetRequestContext
   ): Promise<AssetAuthorization> {
+    if (requestContext.agentSessionId || requestContext.managedSessionId) {
+      return this.authorizeTranscriptTicket(kind, normalizedPath, requestContext);
+    }
+
     if (requestContext.workspaceId) {
       return this.authorizeWorkspaceTicket(kind, normalizedPath, requestContext.workspaceId);
     }
@@ -227,6 +253,28 @@ export class AssetAccessPolicy {
       isTranscriptAttachment ||
       (isRootCandidate && await isInsideAnyCanonicalRoot(canonicalPath, roots));
     if (!isAllowed) return deniedTicketAccess(kind);
+
+    const typeError = kind === "local_image" ? this.readImageTypeError(canonicalPath) : null;
+
+    return typeError ? denied(typeError) : { error: null, path: canonicalPath };
+  }
+
+  private async authorizeTranscriptTicket(
+    kind: "file" | "local_image",
+    normalizedPath: string,
+    requestContext: AssetRequestContext
+  ): Promise<AssetAuthorization> {
+    const isTranscriptAttachment = await this.isTranscriptAttachmentPath(
+      normalizedPath,
+      requestContext
+    );
+
+    if (!isTranscriptAttachment) return deniedTicketAccess(kind);
+
+    await waitForPendingGeneratedImage(normalizedPath);
+    const canonicalPath = await canonicalizeAssetPath(normalizedPath);
+
+    if (!canonicalPath) return assetNotFound();
 
     const typeError = kind === "local_image" ? this.readImageTypeError(canonicalPath) : null;
 

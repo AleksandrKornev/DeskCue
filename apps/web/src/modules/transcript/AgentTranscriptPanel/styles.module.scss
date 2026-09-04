@@ -158,6 +158,7 @@
 
 .metaRight {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -172,12 +173,22 @@
   padding: 0 10px;
   border-radius: vars.$radius-pill;
   font-size: 0.76rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .sourcePill {
-  background: vars.$color-surface-info;
+  gap: 6px;
+  padding-inline: 2px;
+  background: transparent;
+  color: vars.$color-text-secondary;
+}
+
+.sourcePillIcon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
   color: vars.$color-status-info;
 }
 
@@ -186,15 +197,43 @@
   color: vars.$color-accent-text;
 }
 
+.capability.capabilityReady {
+  gap: 5px;
+  border: 1px solid vars.$color-border-success;
+  border-radius: vars.$radius-pill;
+  color: vars.$color-status-success;
+  background: vars.$color-surface-success;
+}
+
+.capability.capabilityReady::before,
+.nextMessageConnection::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 999px;
+  background: vars.$color-status-running-strong;
+  box-shadow: vars.$shadow-status-running;
+  content: "";
+}
+
 .metaButton {
+  display: inline-grid;
+  place-items: center;
+  width: vars.$control-height-touch;
+  min-width: vars.$control-height-touch;
   min-height: vars.$control-height-touch;
-  padding: 0 10px;
+  padding: 0;
   border: 1px solid vars.$color-border-accent;
   border-radius: vars.$radius-md;
   background: vars.$color-surface-accent;
   color: vars.$color-text-primary;
   font-size: 0.76rem;
   font-weight: 600;
+}
+
+.metaButtonIcon {
+  width: 16px;
+  height: 16px;
 }
 
 .metaButton:hover,
@@ -313,11 +352,25 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
 .nextMessageSubtle {
   margin: 0;
   color: vars.$color-text-muted;
   font-size: 0.8rem;
   line-height: 1.45;
+}
+
+.nextMessageConnection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: vars.$color-text-secondary;
+  font-weight: 600;
 }
 
 @media (max-width: 720px) {
@@ -327,12 +380,16 @@
     padding-inline: 9px;
     border-radius: 10px;
     font-size: 0.68rem;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
+  }
+
+  .sourcePill {
+    padding-inline: 2px;
+    border-radius: 0;
+    background: transparent;
   }
 
   .metaButton {
-    min-height: vars.$control-height-touch;
-    padding-inline: 11px;
     border-color: vars.$color-border-accent;
     border-radius: 10px;
     background: vars.$color-surface-accent;
@@ -385,21 +442,11 @@
     text-align: left;
   }
 
-  .sourcePill {
-    order: 1;
-  }
-
-  .capability {
-    order: 2;
-  }
-
   .metaButton {
-    order: 3;
     margin-left: auto;
   }
 
   .metaRight > span:last-child {
-    order: 4;
     flex-basis: 100%;
     min-height: auto;
     padding: 0;

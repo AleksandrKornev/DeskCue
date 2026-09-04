@@ -1,6 +1,31 @@
 import { assetsApi } from "@api/endpoint/assets/endpoints";
 import type { LocalAssetLinkContext } from "@api/endpoint/assets/types";
 
+function hasSessionAssetScope(context?: LocalAssetLinkContext) {
+  return Boolean(context?.agentSessionId || context?.managedSessionId);
+}
+
+async function resolveLocalAssetActionUrl(
+  assetPath: string,
+  context: LocalAssetLinkContext | undefined,
+  download: boolean,
+  signal?: AbortSignal
+) {
+  if (hasSessionAssetScope(context)) {
+    signal?.throwIfAborted();
+
+    return assetsApi.buildFileUrl(assetPath, { context, download });
+  }
+
+  const ticket = await assetsApi.createLocalAssetLink(assetPath, {
+    context,
+    download,
+    signal
+  });
+
+  return ticket.url;
+}
+
 export async function openLocalAssetInNewTab(
   assetPath: string,
   displayName: string,
@@ -16,13 +41,10 @@ export async function openLocalAssetInNewTab(
   try {
     opened.opener = null;
     opened.document.title = displayName;
-    const ticket = await assetsApi.createLocalAssetLink(assetPath, {
-      context,
-      signal
-    });
+    const url = await resolveLocalAssetActionUrl(assetPath, context, false, signal);
 
     signal?.throwIfAborted();
-    opened.location.href = ticket.url;
+    opened.location.href = url;
   } catch (error) {
     opened.close();
     throw error;
@@ -35,17 +57,13 @@ export async function downloadLocalAsset(
   context?: LocalAssetLinkContext,
   signal?: AbortSignal
 ) {
-  const ticket = await assetsApi.createLocalAssetLink(assetPath, {
-    context,
-    download: true,
-    signal
-  });
+  const url = await resolveLocalAssetActionUrl(assetPath, context, true, signal);
 
   signal?.throwIfAborted();
 
   const anchor = document.createElement("a");
 
-  anchor.href = ticket.url;
+  anchor.href = url;
   anchor.download = displayName;
   anchor.rel = "noreferrer";
   document.body.append(anchor);

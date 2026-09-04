@@ -69,6 +69,7 @@ export type DashboardAgentBrowserViewModel = {
   isAgentSessionLoading: boolean;
   activeTakenOverAgentSession: AgentSessionDetail | null;
   agentTranscriptHasMoreById: Map<string, boolean>;
+  agentTranscriptHistoryIncompleteById: Map<string, boolean>;
   isActiveTakenOverAgentSessionLoading: boolean;
   attachingAgentSessionId: string;
 };

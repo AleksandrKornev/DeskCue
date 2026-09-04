@@ -154,8 +154,9 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
   } = useAgentSessionsPanelState(props);
   const {
     hasLoaded: hasLoadedAttentionAgentSessions,
+    hasMore: hasMoreAttentionAgentSessions,
     sessions: loadedAttentionAgentSessions
-  } = useAttentionAgentSessionSummaries(isCompactViewport && !collapsed);
+  } = useAttentionAgentSessionSummaries(isCompactViewport && !collapsed, selectedSourceId);
 
   const filteredAttentionAgentSessions = useMemo(
     () => selectedSourceId === "all"
@@ -196,10 +197,10 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
     readyForReviewAgentSessionIds
   });
   const {
-    approvalRequestedSourceSessionIds,
+    approvalRequestedSourceSessionKeys,
     attentionSessions,
     effectiveReadyForReviewAgentSessionIds,
-    workIndicatorsBySourceSessionId
+    workIndicatorsBySourceSessionKey
   } = isCompactViewport ? compactAttention : listAttention;
   const shouldShowAttention = !isSourceSwitching && !query.trim() && selectedLocalRuntime === null;
   const attentionPreviewLimit = isMobileViewport
@@ -208,23 +209,24 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
 
   const attentionGroups = useMemo(
     () => buildAttentionSessionGroups({
-      approvalRequestedSourceSessionIds,
+      approvalRequestedSourceSessionKeys,
       readyForReviewAgentSessionIds: effectiveReadyForReviewAgentSessionIds,
       sessions: attentionSessions,
-      workIndicatorsBySourceSessionId
+      workIndicatorsBySourceSessionKey
     }),
     [
-      approvalRequestedSourceSessionIds,
+      approvalRequestedSourceSessionKeys,
       attentionSessions,
       effectiveReadyForReviewAgentSessionIds,
-      workIndicatorsBySourceSessionId
+      workIndicatorsBySourceSessionKey
     ]
   );
 
   const attentionSessionIds = useMemo(
     () => shouldShowAttention
       ? new Set([
-          ...attentionGroups.needsAttention.slice(0, attentionPreviewLimit),
+          ...attentionGroups.approvalRequests.slice(0, attentionPreviewLimit),
+          ...attentionGroups.newResults.slice(0, attentionPreviewLimit),
           ...attentionGroups.activeAgents.slice(0, attentionPreviewLimit)
         ].map((session) => session.id))
       : new Set<string>(),
@@ -305,7 +307,7 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
       totalSessionsCountLabel={selectedSourceSessionsCount}
       attachedSourceSessionKeys={attachedSourceSessionKeys}
       readyForReviewAgentSessionIds={listAttention.effectiveReadyForReviewAgentSessionIds}
-      workIndicatorsBySourceSessionId={listAttention.workIndicatorsBySourceSessionId}
+      workIndicatorsBySourceSessionKey={listAttention.workIndicatorsBySourceSessionKey}
       query={query}
       selectedAgentSessionId={selectedLocalLlmChat ? "" : selectedAgentSessionId}
       selectedLocalLlmChatId={selectedLocalLlmChat?.id}
@@ -327,12 +329,13 @@ export function AgentSessionsPanel(props: AgentSessionsPanelProps) {
 
   const attentionSections = shouldShowAttention ? (
     <AgentSessionsAttention
-      approvalRequestedSourceSessionIds={approvalRequestedSourceSessionIds}
+      approvalRequestedSourceSessionKeys={approvalRequestedSourceSessionKeys}
+      countIsLowerBound={isCompactViewport ? hasMoreAttentionAgentSessions : agentSessionsHasMore}
       readyForReviewAgentSessionIds={effectiveReadyForReviewAgentSessionIds}
       previewLimit={attentionPreviewLimit}
       selectedAgentSessionId={selectedAgentSessionId}
       sessions={attentionSessions}
-      workIndicatorsBySourceSessionId={workIndicatorsBySourceSessionId}
+      workIndicatorsBySourceSessionKey={workIndicatorsBySourceSessionKey}
       onSelectAgentSession={(sessionId) => reviewAndSelectAgentSession(
         sessionId,
         isCompactViewport && layoutMode === "viewport",

@@ -4,6 +4,7 @@ import { assetsApi } from "@api/endpoint/assets/endpoints";
 
 vi.mock("@api/endpoint/assets/endpoints", () => ({
   assetsApi: {
+    buildFileUrl: vi.fn(),
     createLocalAssetLink: vi.fn()
   }
 }));
@@ -14,6 +15,7 @@ import {
 } from "./localAssetActions";
 
 const createLocalAssetLink = vi.mocked(assetsApi.createLocalAssetLink);
+const buildFileUrl = vi.mocked(assetsApi.buildFileUrl);
 
 function createAbortableTicket(signal: AbortSignal) {
   return new Promise<never>((_resolve, reject) => {
@@ -24,11 +26,40 @@ function createAbortableTicket(signal: AbortSignal) {
 }
 
 beforeEach(() => {
+  buildFileUrl.mockReset();
   createLocalAssetLink.mockReset();
   vi.restoreAllMocks();
 });
 
 describe("localAssetActions", () => {
+  it("uses a session-scoped direct URL without minting a broad file ticket", async () => {
+    const close = vi.fn();
+    const popup = {
+      close,
+      document: { title: "" },
+      location: { href: "" },
+      opener: window
+    };
+
+    vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+    buildFileUrl.mockReturnValue("/api/assets/file?agentSessionId=session-1");
+
+    await openLocalAssetInNewTab(
+      "D:/work/report.txt",
+      "report.txt",
+      { agentSessionId: "session-1" }
+    );
+
+    expect(buildFileUrl).toHaveBeenCalledWith("D:/work/report.txt", {
+      context: { agentSessionId: "session-1" },
+      download: false
+    });
+
+    expect(createLocalAssetLink).not.toHaveBeenCalled();
+    expect(popup.location.href).toBe("/api/assets/file?agentSessionId=session-1");
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it("closes a provisional popup when an open request is aborted", async () => {
     const controller = new AbortController();
     const close = vi.fn();

@@ -19,10 +19,12 @@ import { TranscriptDiffList } from "@modules/transcript/RichTranscriptContent/Tr
 
 import {
   isMarkdownLocalImagePath,
+  isMarkdownVideoPath,
   transformTranscriptUrl
 } from "./helpers";
 import { LocalMarkdownAssetLink } from "./LocalMarkdownAssetLink";
 import { LocalMarkdownImage } from "./LocalMarkdownImage";
+import { LocalMarkdownVideo } from "./LocalMarkdownVideo";
 import styles from "./styles.module.scss";
 import type { MarkdownTranscriptPartProps } from "./types";
 
@@ -42,12 +44,36 @@ function MarkdownImageRenderer({
   if (!src) return null;
 
   const localAssetPath = normalizeMarkdownLocalAssetPath(src);
+  const displayName = alt?.trim() || src.split(/[\\/]/u).pop() || src;
 
-  if (!localAssetPath) return <img alt={alt ?? ""} loading="lazy" src={src} />;
+  if (!localAssetPath) {
+    return isMarkdownVideoPath(src) ? (
+      <video
+        aria-label={displayName}
+        className={styles.localVideo}
+        controls
+        playsInline
+        preload="metadata"
+        src={src}
+      />
+    ) : <img alt={alt ?? ""} loading="lazy" src={src} />;
+  }
+
+  if (isMarkdownVideoPath(localAssetPath)) {
+    if (hasInteractiveParent) {
+      return <span className={styles.localLink} title={localAssetPath}>{displayName}</span>;
+    }
+
+    return (
+      <LocalMarkdownVideo
+        assetContext={assetContext}
+        assetPath={localAssetPath}
+        label={displayName}
+      />
+    );
+  }
 
   if (!isMarkdownLocalImagePath(localAssetPath)) {
-    const displayName = alt?.trim() || localAssetPath.split(/[\\/]/u).pop() || localAssetPath;
-
     if (hasInteractiveParent) {
       return <span className={styles.localLink} title={localAssetPath}>{displayName}</span>;
     }
@@ -68,6 +94,7 @@ function MarkdownImageRenderer({
       alt={alt ?? ""}
       assetContext={assetContext}
       assetPath={localAssetPath}
+      interactive={!hasInteractiveParent}
     />
   );
 }

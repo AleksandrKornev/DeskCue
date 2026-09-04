@@ -15,7 +15,7 @@ import type {
 
 import {
   groupDiffPartsByFile,
-  hasOnlyHiddenDiffPlaceholders,
+  hasHiddenDiffPlaceholders,
   readDiffParts
 } from "./agentTranscriptChanges.ts";
 
@@ -94,11 +94,13 @@ function buildConversationActivityLabel(
 
   if (kind === "changes") {
     const diffParts = readDiffParts(entries);
-    if (hasOnlyHiddenDiffPlaceholders(diffParts)) {
+
+    if (hasHiddenDiffPlaceholders(diffParts)) {
       return "Changes";
     }
 
     const diffCount = groupDiffPartsByFile(diffParts).length;
+
     return diffCount === 1 ? "Changes (1)" : `Changes (${diffCount})`;
   }
 
@@ -185,9 +187,11 @@ export function buildConversationActivitiesByKind(
   }
 
   const groupedEntries = new Map<AgentTranscriptActivityKind, AgentTranscriptEntry[]>();
+
   for (const entry of entries) {
     const kind = conversationActivityKindForEntry(entry);
     const groupEntries = groupedEntries.get(kind);
+
     if (groupEntries) {
       groupEntries.push(entry);
     } else {
@@ -247,12 +251,14 @@ export function compactTranscriptViewSourceRefs(
 
 function readTimestamp(value: string) {
   const parsed = new Date(value).getTime();
+
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function sortConversationEntries(entries: AgentTranscriptEntry[]) {
   return [...entries].sort((left, right) => {
     const timeDelta = readTimestamp(left.timestamp) - readTimestamp(right.timestamp);
+
     return timeDelta === 0 ? left.id.localeCompare(right.id) : timeDelta;
   });
 }
@@ -280,8 +286,10 @@ export function mergeConversationActivities(
     AgentTranscriptActivityKind,
     AgentTranscriptActivityGroup[]
   >();
+
   for (const activity of activities) {
     const groupedKindActivities = groupedActivities.get(activity.kind);
+
     if (groupedKindActivities) {
       groupedKindActivities.push(activity);
     } else {
@@ -295,6 +303,7 @@ export function mergeConversationActivities(
       const sourceEntryIds = dedupeStrings(
         groupedKindActivities.flatMap(readConversationActivitySourceEntryIds)
       );
+
       return buildConversationActivityGroup(
         sortConversationEntries(
           groupedKindActivities.flatMap((activity) => activity.entries)
@@ -328,18 +337,18 @@ function sortConversationActivityRun(items: ActivityTimelineItem[]) {
   });
 }
 
+function appendMergedActivityTimelineRun(
+  orderedItems: AgentTranscriptViewItem[],
+  activityRun: ActivityTimelineItem[]
+) {
+  if (activityRun.length === 0) return;
+
+  orderedItems.push(...sortConversationActivityRun(mergeActivityTimelineRun(activityRun)));
+}
+
 export function orderConversationActivityRuns(items: AgentTranscriptViewItem[]) {
   const orderedItems: AgentTranscriptViewItem[] = [];
   let activityRun: ActivityTimelineItem[] = [];
-
-  const flushActivityRun = () => {
-    if (activityRun.length === 0) {
-      return;
-    }
-
-    orderedItems.push(...sortConversationActivityRun(mergeActivityTimelineRun(activityRun)));
-    activityRun = [];
-  };
 
   for (const item of items) {
     if (item.type === "activity") {
@@ -347,10 +356,11 @@ export function orderConversationActivityRuns(items: AgentTranscriptViewItem[]) 
       continue;
     }
 
-    flushActivityRun();
+    appendMergedActivityTimelineRun(orderedItems, activityRun);
+    activityRun = [];
     orderedItems.push(item);
   }
 
-  flushActivityRun();
+  appendMergedActivityTimelineRun(orderedItems, activityRun);
   return orderedItems;
 }

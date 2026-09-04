@@ -29,6 +29,7 @@ const EMBED_SOURCE_CHUNKS = [
   ["/src/modules/dashboard/shell/store/dashboardNavigationStore", "dashboard-navigation"],
   ["/src/modules/dashboard/shell/", "dashboard-shell"],
   ["/src/modules/session/skeleton/", "session-skeleton"],
+  ["/src/modules/transcript/RichTranscriptContent/", "rich-transcript"],
   ["/src/modules/localLlmChats/", "session-workspace"],
   ["/src/modules/transcript/", "session-workspace"],
   ["/src/modules/session/", "session-workspace"],

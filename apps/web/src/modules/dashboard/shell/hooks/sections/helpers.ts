@@ -102,6 +102,7 @@ export function buildManagedSessionShellProps({
     selectedSession: managedSession.selectedSession,
     takenOverAgentSession: route.takenOverAgentSession,
     agentTranscriptHasMoreById: agentBrowser.agentTranscriptHasMoreById,
+    agentTranscriptHistoryIncompleteById: agentBrowser.agentTranscriptHistoryIncompleteById,
     isTakenOverAgentSessionLoading: route.isTakenOverAgentSessionLoading,
     liveUpdatesConnection: managedSession.liveUpdatesConnection,
     activeTab: managedSession.activeTab,

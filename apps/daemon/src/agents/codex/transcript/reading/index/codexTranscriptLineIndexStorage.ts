@@ -25,15 +25,16 @@ type PersistedIndexFile = {
 };
 
 const INDEX_FILE_NAME = "codex-transcript-line-counts.json";
-const INDEX_VERSION = 6;
+const INDEX_VERSION = 13;
 const WRITE_RETRY_DELAYS_MS = [25, 75, 150, 300, 600];
 
 function isSupportedPersistedVersion(version: unknown) {
-  return version === 1 || version === 2 || version === 3 || version === 4 || version === INDEX_VERSION;
+  return version === INDEX_VERSION;
 }
 
 function normalizeLineOffsets(input: unknown, options: { emptyArray?: boolean } = {}) {
   if (!Array.isArray(input)) return undefined;
+
   const offsets = input.filter((value): value is TranscriptLineOffset => Boolean(
     value &&
     typeof value === "object" &&
@@ -42,11 +43,13 @@ function normalizeLineOffsets(input: unknown, options: { emptyArray?: boolean } 
     (value as TranscriptLineOffset).lineIndex >= 0 &&
     (value as TranscriptLineOffset).byteOffset >= 0
   ));
+
   return offsets.length > 0 || options.emptyArray === true ? offsets : undefined;
 }
 
 function normalizeCompactLineSpans(input: unknown) {
   if (!Array.isArray(input)) return undefined;
+
   return input.filter((value): value is TranscriptCompactLineSpan => Boolean(
     value &&
     typeof value === "object" &&
@@ -63,7 +66,9 @@ function normalizeCompactLineSpans(input: unknown) {
 
 function normalizePersistedSnapshot(input: unknown): PersistedSnapshot | null {
   if (!input || typeof input !== "object") return null;
+
   const snapshot = input as Record<string, unknown>;
+
   if (
     typeof snapshot.filePath !== "string" ||
     !Number.isFinite(snapshot.lineBreakCount) ||
@@ -72,6 +77,7 @@ function normalizePersistedSnapshot(input: unknown): PersistedSnapshot | null {
   ) {
     return null;
   }
+
   return {
     filePath: snapshot.filePath,
     chatMessageLineOffsets: normalizeLineOffsets(snapshot.chatMessageLineOffsets),
@@ -96,7 +102,9 @@ function getStoragePath() {
 
 function isRetriableReplaceError(error: unknown) {
   if (!error || typeof error !== "object") return false;
+
   const code = (error as { code?: unknown }).code;
+
   return code === "EPERM" || code === "EBUSY" || code === "EACCES";
 }
 
@@ -107,6 +115,7 @@ async function renameWithRetry(sourcePath: string, targetPath: string) {
       return;
     } catch (error) {
       if (attempt >= WRITE_RETRY_DELAYS_MS.length || !isRetriableReplaceError(error)) throw error;
+
       await new Promise((resolve) => setTimeout(resolve, WRITE_RETRY_DELAYS_MS[attempt] ?? 0));
     }
   }
@@ -127,12 +136,15 @@ export class CodexTranscriptLineIndexStorage {
 
   async load() {
     const storagePath = getStoragePath();
+
     try {
       const raw = await readFile(storagePath, "utf8");
       const parsed = JSON.parse(raw) as Partial<PersistedIndexFile>;
+
       if (!isSupportedPersistedVersion(parsed.version) || !Array.isArray(parsed.snapshots)) {
         return [];
       }
+
       return parsed.snapshots
         .map(normalizePersistedSnapshot)
         .filter((snapshot): snapshot is PersistedSnapshot => snapshot !== null);
@@ -143,6 +155,7 @@ export class CodexTranscriptLineIndexStorage {
           message: error instanceof Error ? error.message : String(error)
         });
       }
+
       return [];
     }
   }
@@ -157,6 +170,7 @@ export class CodexTranscriptLineIndexStorage {
         this.#writePromise = null;
       });
     }
+
     return this.#writePromise;
   }
 
@@ -175,6 +189,7 @@ export class CodexTranscriptLineIndexStorage {
       const snapshots = Array.from(snapshotsByPath.entries())
         .map(([filePath, snapshot]) => ({ ...snapshot, filePath }));
       tempFilePath = join(dirname(storagePath), `codex-transcript-line-counts.${randomUUID()}.tmp`);
+
       await writeFile(
         tempFilePath,
         JSON.stringify({
@@ -184,6 +199,7 @@ export class CodexTranscriptLineIndexStorage {
         } satisfies PersistedIndexFile, null, 2),
         "utf8"
       );
+
       await renameWithRetry(tempFilePath, storagePath);
     } catch (error) {
       logger.warn("Failed to write Codex transcript line count index", {

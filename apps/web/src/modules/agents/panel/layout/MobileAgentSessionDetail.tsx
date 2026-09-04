@@ -72,9 +72,6 @@ export function MobileAgentSessionDetail(props: MobileAgentSessionDetailProps) {
         >
           Back to chats
         </button>
-        <span aria-hidden="true" className={styles.mobileDetailToolbarTitle}>
-          {displayLabel}
-        </span>
       </div>
       {transcriptPanel}
     </section>

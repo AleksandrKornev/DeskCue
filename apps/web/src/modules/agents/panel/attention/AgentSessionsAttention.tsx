@@ -5,45 +5,59 @@ import styles from "./styles.module.scss";
 import type { AgentSessionsAttentionProps } from "./types";
 
 export function AgentSessionsAttention({
-  approvalRequestedSourceSessionIds,
+  approvalRequestedSourceSessionKeys,
+  countIsLowerBound = false,
   readyForReviewAgentSessionIds,
   selectedAgentSessionId,
   sessions,
   previewLimit = ATTENTION_PREVIEW_LIMIT,
-  workIndicatorsBySourceSessionId,
+  workIndicatorsBySourceSessionKey,
   onSelectAgentSession
 }: AgentSessionsAttentionProps) {
-  const { activeAgents, needsAttention } = buildAttentionSessionGroups({
-    approvalRequestedSourceSessionIds,
+  const { activeAgents, approvalRequests, newResults } = buildAttentionSessionGroups({
+    approvalRequestedSourceSessionKeys,
     readyForReviewAgentSessionIds,
     sessions,
-    workIndicatorsBySourceSessionId
+    workIndicatorsBySourceSessionKey
   });
 
-  if (needsAttention.length === 0 && activeAgents.length === 0) {
+  if (approvalRequests.length === 0 && newResults.length === 0 && activeAgents.length === 0) {
     return null;
   }
 
   return (
     <div className={styles.attentionSections}>
       <AttentionSection
-        label="Needs attention"
-        readyForReviewAgentSessionIds={readyForReviewAgentSessionIds}
+        countIsLowerBound={countIsLowerBound}
+        label="Approval required"
         previewLimit={previewLimit}
-        sessions={needsAttention}
+        sessions={approvalRequests}
         selectedAgentSessionId={selectedAgentSessionId}
+        statusLabel="Approval required"
         tone="waiting"
-        workIndicatorsBySourceSessionId={workIndicatorsBySourceSessionId}
+        workIndicatorsBySourceSessionKey={workIndicatorsBySourceSessionKey}
         onSelectAgentSession={onSelectAgentSession}
       />
       <AttentionSection
+        countIsLowerBound={countIsLowerBound}
+        label="New results"
+        previewLimit={previewLimit}
+        sessions={newResults}
+        selectedAgentSessionId={selectedAgentSessionId}
+        statusLabel="New result"
+        tone="review"
+        workIndicatorsBySourceSessionKey={workIndicatorsBySourceSessionKey}
+        onSelectAgentSession={onSelectAgentSession}
+      />
+      <AttentionSection
+        countIsLowerBound={countIsLowerBound}
+        fallbackStatusLabel="Running"
         label="Active agents"
-        readyForReviewAgentSessionIds={readyForReviewAgentSessionIds}
         previewLimit={previewLimit}
         sessions={activeAgents}
         selectedAgentSessionId={selectedAgentSessionId}
         tone="active"
-        workIndicatorsBySourceSessionId={workIndicatorsBySourceSessionId}
+        workIndicatorsBySourceSessionKey={workIndicatorsBySourceSessionKey}
         onSelectAgentSession={onSelectAgentSession}
       />
     </div>

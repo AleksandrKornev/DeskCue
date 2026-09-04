@@ -22,7 +22,7 @@
 }
 
 .reviewTabPanel {
-  padding-top: 12px;
+  padding-top: calc(12px + var(--session-live-nav-extra-reserve, 0px));
 }
 
 .panel {
@@ -32,8 +32,8 @@
   overflow: hidden;
 }
 
-.panel:focus,
-.liveChatPanel:focus {
+.panel:focus-visible,
+.liveChatPanel:focus-visible {
   outline: 2px solid vars.$color-focus-ring;
   outline-offset: -3px;
   box-shadow: vars.$shadow-focus-ring;
@@ -115,6 +115,15 @@
 
   .liveChatPanel {
     overflow: hidden;
+  }
+
+  .liveChatPanel:focus-visible {
+    outline: 0;
+    box-shadow: none;
+  }
+
+  .liveChatPanel:focus-visible :global([data-chat-surface]) {
+    box-shadow: inset 0 0 0 2px vars.$color-focus-ring;
   }
 
   .liveChatPanelBody {

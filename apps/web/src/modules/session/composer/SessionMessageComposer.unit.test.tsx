@@ -8,6 +8,7 @@ import {
 } from "@runtime";
 
 import { SessionMessageComposer } from "./SessionMessageComposer";
+import styles from "./styles.module.scss";
 import type { SessionMessageComposerProps } from "./types";
 
 const requestConfirmation = vi.hoisted(() => vi.fn());
@@ -53,6 +54,13 @@ describe("SessionMessageComposer", () => {
         "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
       )).toBeInTheDocument();
       expect(screen.getByPlaceholderText("Review only")).toBeInTheDocument();
+      fireEvent.keyDown(screen.getByRole("button", { name: "Why input is unavailable" }), {
+        key: "Enter"
+      });
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Control is not shared by this machine. Enable it locally in DeskCue Settings → Connections → DeskCue Cloud."
+      );
+
       expect(screen.queryByRole("button", { name: "Send message" }))
         .not.toBeInTheDocument();
       expect(onSendInput).not.toHaveBeenCalled();
@@ -88,8 +96,8 @@ describe("SessionMessageComposer", () => {
 
     expect(screen.getByRole("textbox", { name: "Next message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-    expect(screen.getByPlaceholderText("Input unavailable")).toBeInTheDocument();
-    expect(screen.getAllByText("Turn active outside DeskCue")).toHaveLength(1);
+    expect(screen.getByPlaceholderText("Turn active outside DeskCue")).toBeInTheDocument();
+    expect(screen.getByText("Turn active outside DeskCue")).toHaveClass(styles.srOnly);
   });
 
   it("normalizes and does not duplicate the same unavailable-input reason", () => {
@@ -101,7 +109,7 @@ describe("SessionMessageComposer", () => {
 
     const field = screen.getByRole("textbox", { name: "Next message" });
 
-    expect(field).toHaveAttribute("placeholder", "Input unavailable");
+    expect(field).toHaveAttribute("placeholder", "This session is not accepting input");
     expect(field).not.toHaveAttribute("title");
     expect(screen.queryByText("This session is not accepting input.")).not.toBeInTheDocument();
     expect(screen.getAllByText("This session is not accepting input")).toHaveLength(1);
@@ -114,8 +122,8 @@ describe("SessionMessageComposer", () => {
       sharedSessionHint: "This turn is running outside DeskCue. Finish or stop it in the controlling client"
     });
 
-    expect(screen.getByPlaceholderText("Input unavailable")).toBeInTheDocument();
-    expect(screen.getAllByText("Turn active outside DeskCue")).toHaveLength(1);
+    expect(screen.getByPlaceholderText("Turn active outside DeskCue")).toBeInTheDocument();
+    expect(screen.getByText("Turn active outside DeskCue")).toHaveClass(styles.srOnly);
     expect(screen.queryByText(/This turn is running outside DeskCue/u)).not.toBeInTheDocument();
   });
 
@@ -126,10 +134,12 @@ describe("SessionMessageComposer", () => {
       liveUpdatesConnection: { lastSyncedAt: null, status: "offline" }
     });
 
-    expect(screen.getByPlaceholderText("Input unavailable")).toBeInTheDocument();
-    expect(screen.getAllByText(
+    expect(screen.getByPlaceholderText(
       "Another Codex client still owns this chat. Close it there, then retry"
-    )).toHaveLength(1);
+    )).toBeInTheDocument();
+    expect(screen.getByText(
+      "Another Codex client still owns this chat. Close it there, then retry"
+    )).toHaveClass(styles.srOnly);
     expect(screen.queryByText(/sending will be available after reconnecting/u)).not.toBeInTheDocument();
   });
 

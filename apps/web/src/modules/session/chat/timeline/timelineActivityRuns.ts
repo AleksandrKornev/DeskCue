@@ -1,6 +1,8 @@
 import {
   buildAgentTranscriptSourceRefsKey,
-  countAgentTranscriptSourceRefs
+  compactAgentTranscriptSourceRefs,
+  countAgentTranscriptSourceRefs,
+  expandAgentTranscriptSourceRanges
 } from "@deskcue/protocol";
 import type {
   ChatTranscriptEntry,
@@ -20,6 +22,7 @@ type ActivityTimelineItem = Extract<ConversationTimelineItem, { type: "activity"
 
 function readTimestamp(value: string) {
   const parsed = new Date(value).getTime();
+
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -42,6 +45,7 @@ function sortConversationActivityRun(
 
 function dedupeEntriesById(entries: ChatTranscriptEntry[]) {
   const entriesById = new Map<string, ChatTranscriptEntry>();
+
   for (const entry of entries) {
     entriesById.set(entry.id, entry);
   }
@@ -73,6 +77,7 @@ function readConversationActivitySourceEntryIds(activity: ConversationActivity) 
 
 function readActivityLabelCount(label: string) {
   const match = label.match(/\((\d+)\)$/);
+
   if (match) {
     return Number(match[1]);
   }
@@ -80,16 +85,38 @@ function readActivityLabelCount(label: string) {
   return label === "Context compressed" || label === "Model changed" ? 1 : null;
 }
 
+function mergeExactActivitySourceRefs(activities: ConversationActivity[]) {
+  const sourceEntryIds: string[] = [];
+
+  for (const activity of activities) {
+    if (activity.sourceEntrySpans?.length) return null;
+
+    const activitySourceEntryIds = [
+      ...(activity.sourceEntryIds ?? []),
+      ...expandAgentTranscriptSourceRanges(activity.sourceEntryRanges)
+    ];
+
+    if (activitySourceEntryIds.length === 0) return null;
+
+    sourceEntryIds.push(...activitySourceEntryIds);
+  }
+
+  return compactAgentTranscriptSourceRefs(sourceEntryIds);
+}
+
 function buildMergedActivityLabel(
   kind: ConversationActivity["kind"],
   activities: ConversationActivity[],
-  sourceEntryCount: number
+  sourceEntryCount: number,
+  hasExactSourceEntryCount: boolean
 ) {
   const labelCounts = activities
     .map((activity) => readActivityLabelCount(activity.label))
     .filter((count): count is number => count !== null);
   const count =
-    labelCounts.length === activities.length
+    hasExactSourceEntryCount && kind !== "changes"
+      ? Math.max(1, sourceEntryCount)
+      : labelCounts.length === activities.length
       ? labelCounts.reduce((sum, value) => sum + value, 0)
       : Math.max(1, sourceEntryCount);
 
@@ -106,6 +133,7 @@ function buildMergedActivityLabel(
   }
 
   const labelPrefix = kind === "tools" ? "Tools" : "Details";
+
   return count === 1 ? `${labelPrefix} (1)` : `${labelPrefix} (${count})`;
 }
 
@@ -113,6 +141,7 @@ function readLatestActivityTimestamp(activities: ConversationActivity[]) {
   const sortedActivities = [...activities].sort(
     (left, right) => readTimestamp(left.timestamp) - readTimestamp(right.timestamp)
   );
+
   return sortedActivities[sortedActivities.length - 1]?.timestamp ??
     activities[0]?.timestamp ??
     new Date(0).toISOString();
@@ -128,10 +157,14 @@ function mergeConversationActivityGroup(
 
   const entries = dedupeEntriesById(activities.flatMap((activity) => activity.entries));
   const entryIds = dedupeStrings(activities.flatMap((activity) => activity.entryIds ?? []));
-  const sourceEntryIds = dedupeStrings(activities.flatMap(readConversationActivitySourceEntryIds));
-  const sourceEntryRanges = activities.flatMap((activity) => activity.sourceEntryRanges ?? []);
-  const sourceEntrySpans = activities.flatMap((activity) => activity.sourceEntrySpans ?? []);
-  const sourceEntryCount = activities.reduce(
+  const exactSourceRefs = mergeExactActivitySourceRefs(activities);
+  const sourceEntryIds = exactSourceRefs?.sourceEntryIds ??
+    dedupeStrings(activities.flatMap(readConversationActivitySourceEntryIds));
+  const sourceEntryRanges = exactSourceRefs?.sourceEntryRanges ??
+    activities.flatMap((activity) => activity.sourceEntryRanges ?? []);
+  const sourceEntrySpans = exactSourceRefs?.sourceEntrySpans ??
+    activities.flatMap((activity) => activity.sourceEntrySpans ?? []);
+  const sourceEntryCount = exactSourceRefs?.sourceEntryCount ?? activities.reduce(
     (count, activity) => count + countAgentTranscriptSourceRefs(activity),
     0
   );
@@ -144,7 +177,12 @@ function mergeConversationActivityGroup(
   return {
     id: `merged:${kind}:${sourceKey}`,
     kind,
-    label: buildMergedActivityLabel(kind, activities, sourceEntryCount),
+    label: buildMergedActivityLabel(
+      kind,
+      activities,
+      sourceEntryCount,
+      exactSourceRefs !== null
+    ),
     timestamp: readLatestActivityTimestamp(activities),
     entries,
     entryIds: entryIds.length > 0 ? entryIds : undefined,
@@ -161,6 +199,7 @@ function mergeConversationActivities(activities: ConversationActivity[]) {
   }
 
   const groups = new Map<ConversationActivity["kind"], ConversationActivity[]>();
+
   for (const activity of activities) {
     groups.set(activity.kind, [...(groups.get(activity.kind) ?? []), activity]);
   }
@@ -178,18 +217,18 @@ function mergeActivityTimelineRun(items: ActivityTimelineItem[]): ActivityTimeli
   }));
 }
 
+function appendActivityTimelineRun(
+  orderedItems: ConversationTimelineItem[],
+  activityRun: ActivityTimelineItem[]
+) {
+  if (activityRun.length === 0) return;
+
+  orderedItems.push(...sortConversationActivityRun(mergeActivityTimelineRun(activityRun)));
+}
+
 export function orderConversationActivityRuns(items: ConversationTimelineItem[]) {
   const orderedItems: ConversationTimelineItem[] = [];
   let activityRun: ActivityTimelineItem[] = [];
-
-  const flushActivityRun = () => {
-    if (activityRun.length === 0) {
-      return;
-    }
-
-    orderedItems.push(...sortConversationActivityRun(mergeActivityTimelineRun(activityRun)));
-    activityRun = [];
-  };
 
   for (const item of items) {
     if (item.type === "activity") {
@@ -197,10 +236,12 @@ export function orderConversationActivityRuns(items: ConversationTimelineItem[])
       continue;
     }
 
-    flushActivityRun();
+    appendActivityTimelineRun(orderedItems, activityRun);
+    activityRun = [];
     orderedItems.push(item);
   }
 
-  flushActivityRun();
+  appendActivityTimelineRun(orderedItems, activityRun);
+
   return orderedItems;
 }

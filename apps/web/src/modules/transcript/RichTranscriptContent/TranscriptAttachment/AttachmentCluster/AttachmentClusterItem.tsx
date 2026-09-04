@@ -4,9 +4,11 @@ import {
   useRef,
   useState
 } from "react";
+import type { KeyboardEvent } from "react";
 
 import { assetsApi } from "@api/endpoint/assets/endpoints";
 import {
+  getAttachmentBadgeLabel,
   getAttachmentDisplayName,
   getAttachmentPreviewKind
 } from "@modules/transcript/RichTranscriptContent/helpers";
@@ -20,17 +22,49 @@ import {
 import styles from "./styles.module.scss";
 import type { AttachmentClusterItemProps } from "./types";
 
+function handleAttachmentClusterItemKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+  const items = event.currentTarget.parentElement
+    ? [...event.currentTarget.parentElement.querySelectorAll<HTMLButtonElement>('[role="radio"]')]
+    : [];
+  const currentIndex = items.indexOf(event.currentTarget);
+  let nextIndex: number | null = null;
+
+  if (currentIndex < 0 || items.length === 0) return;
+
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+    nextIndex = (currentIndex + 1) % items.length;
+  } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+    nextIndex = (currentIndex - 1 + items.length) % items.length;
+  } else if (event.key === "Home") {
+    nextIndex = 0;
+  } else if (event.key === "End") {
+    nextIndex = items.length - 1;
+  }
+
+  if (nextIndex === null) return;
+
+  event.preventDefault();
+  items[nextIndex]?.focus();
+  items[nextIndex]?.click();
+}
+
 export function AttachmentClusterItem({
   assetContext,
   isActive,
+  onBlur,
+  onFocus,
+  onSelect,
   part,
-  onSelect
+  position,
+  total
 }: AttachmentClusterItemProps) {
   const displayName = getAttachmentDisplayName(part);
+  const badgeLabel = getAttachmentBadgeLabel(part);
   const previewKind = getAttachmentPreviewKind(part);
   const previewUrl = getAttachmentPreviewUrl(part);
   const assetContextAgentSessionId = assetContext?.agentSessionId;
   const assetContextManagedSessionId = assetContext?.managedSessionId;
+  const assetContextWorkspaceId = assetContext?.workspaceId;
   const imagePreviewCacheKey = previewUrl
     ? getAttachmentImagePreviewCacheKey({
         assetContext,
@@ -60,10 +94,13 @@ export function AttachmentClusterItem({
 
     let cancelled = false;
     let releaseImagePreview: (() => void) | null = null;
-    const localAssetContext = assetContextAgentSessionId || assetContextManagedSessionId
+    const localAssetContext = assetContextAgentSessionId ||
+      assetContextManagedSessionId ||
+      assetContextWorkspaceId
       ? {
           agentSessionId: assetContextAgentSessionId,
-          managedSessionId: assetContextManagedSessionId
+          managedSessionId: assetContextManagedSessionId,
+          workspaceId: assetContextWorkspaceId
         }
       : undefined;
 
@@ -102,6 +139,7 @@ export function AttachmentClusterItem({
   }, [
     assetContextAgentSessionId,
     assetContextManagedSessionId,
+    assetContextWorkspaceId,
     displayName,
     imagePreviewCacheKey,
     isPreviewNearViewport,
@@ -118,6 +156,7 @@ export function AttachmentClusterItem({
     }
 
     const element = itemRef.current;
+
     if (!element || typeof IntersectionObserver === "undefined") {
       setIsPreviewNearViewport(true);
       return;
@@ -142,11 +181,17 @@ export function AttachmentClusterItem({
 
   return (
     <button
-      aria-label={`Select ${displayName}`}
-      aria-pressed={isActive}
+      aria-checked={isActive}
+      aria-label={`${displayName}, attachment ${position} of ${total}`}
       className={clsx(styles.attachmentGroupItem, isActive && styles.attachmentGroupItemActive)}
+      onBlur={onBlur}
+      onFocus={onFocus}
+      onKeyDown={handleAttachmentClusterItemKeyDown}
       onClick={onSelect}
       ref={itemRef}
+      role="radio"
+      tabIndex={isActive ? 0 : -1}
+      title={part.path ?? part.url ?? displayName}
       type="button"
     >
       {previewKind === "image" && effectivePreviewUrl ? (
@@ -158,7 +203,15 @@ export function AttachmentClusterItem({
           <span className={styles.attachmentGroupSpinner} aria-hidden="true" />
         </span>
       ) : (
-        <span aria-hidden="true" className={styles.attachmentGroupItemBadge} />
+        <span
+          aria-hidden="true"
+          className={clsx(
+            styles.attachmentGroupItemBadge,
+            styles.attachmentGroupItemBadgeLabel
+          )}
+        >
+          {badgeLabel}
+        </span>
       )}
     </button>
   );

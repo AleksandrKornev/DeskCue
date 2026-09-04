@@ -144,7 +144,8 @@ function createManagedSessionArgs(): BuildManagedSessionShellPropsArgs {
     },
     agentBrowser: {
       agentSessions: [],
-      agentTranscriptHasMoreById: new Map([["agent-1", true]])
+      agentTranscriptHasMoreById: new Map([["agent-1", true]]),
+      agentTranscriptHistoryIncompleteById: new Map([["agent-1", true]])
     },
     managedSession: {
       activeTab: "preview",
@@ -228,6 +229,8 @@ describe("section prop builders", () => {
 
     expect(props.agentSessions).toBe(args.agentBrowser.agentSessions);
     expect(props.agentTranscriptHasMoreById).toBe(args.agentBrowser.agentTranscriptHasMoreById);
+    expect(props.agentTranscriptHistoryIncompleteById)
+      .toBe(args.agentBrowser.agentTranscriptHistoryIncompleteById);
     expect(props.onChangePreviewPort).toBe(args.managedSessionActions.setPreviewPort);
     expect(props.onHydrateAgentSessionChanges).toBe(args.agentBrowserActions.hydrateAgentSessionChanges);
     expect(props.onSendInput).toBe(args.routeActions.onSendInput);

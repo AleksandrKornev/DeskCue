@@ -21,6 +21,7 @@ export interface ManagedSessionPanelProps {
   selectedSession: SessionDetail | null;
   takenOverAgentSession: AgentSessionDetail | null;
   agentTranscriptHasMoreById: Map<string, boolean>;
+  agentTranscriptHistoryIncompleteById: Map<string, boolean>;
   isTakenOverAgentSessionLoading: boolean;
   liveUpdatesConnection: LiveUpdatesConnectionState;
   activeTab: SessionTab;
@@ -67,7 +68,7 @@ export interface ManagedSessionPanelProps {
   onChangePreviewNetworkMode: (value: PreviewNetworkMode) => boolean | Promise<boolean>;
   onSetPreview: (event: SubmitEvent<HTMLFormElement>) => Promise<void>;
   onStopPreview: () => boolean | Promise<boolean>;
-  onToggleTools?: () => void;
+  onToggleTools?: (options?: { replace?: boolean }) => void;
 }
 
 export type ManagedSessionSurfaceProps = PropsWithChildren<{

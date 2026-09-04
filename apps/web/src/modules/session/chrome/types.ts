@@ -29,7 +29,7 @@ export interface LiveSessionActionsProps {
   onStopAndExitSession?: () => void | Promise<void>;
   onToggleModelContext?: () => void;
   onOpenDiagnostics?: () => void;
-  onToggleTools?: () => void;
+  onToggleTools?: (options?: { replace?: boolean }) => void;
 }
 
 export type LiveSessionHeaderProps = {

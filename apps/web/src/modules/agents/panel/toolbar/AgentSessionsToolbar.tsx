@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useId, useState } from "react";
+import { useId } from "react";
 
 import type { AgentKind, LocalLlmChatSummary } from "@deskcue/protocol";
 import { AgentRuntimeIcon } from "@components/AgentRuntimeIcon";
@@ -25,12 +25,6 @@ const LOCAL_RUNTIME_ORDER: Record<LocalLlmChatSummary["runtimeId"], number> = {
   ollama: 0,
   "lm-studio": 1
 };
-
-function getHiddenFiltersLabel(hiddenFiltersCount: number): string {
-  return hiddenFiltersCount === 1
-    ? "Show 1 more filter"
-    : `Show ${hiddenFiltersCount} more filters`;
-}
 
 function getVisibleSourceCards(
   sourceCards: SourceCard[],
@@ -101,7 +95,6 @@ export function AgentSessionsToolbar(props: AgentSessionsToolbarProps) {
     onSelectSource
   } = props;
   const searchInputId = useId();
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const visibleSourceCards = getVisibleSourceCards(
     sourceCards,
     selectedSourceId,
@@ -111,17 +104,12 @@ export function AgentSessionsToolbar(props: AgentSessionsToolbarProps) {
     localRuntimeTabs,
     selectedLocalRuntime
   );
-  const hiddenMobileFiltersCount = visibleSourceCards.filter(
-    (source) => source.agentId !== selectedSourceId
-  ).length + visibleLocalRuntimeTabs.filter(
-    (runtime) => runtime.id !== selectedLocalRuntime
-  ).length;
 
   return (
     <div className={styles.toolbar}>
       <div
         aria-label="Filter chats by agent or runtime"
-        className={clsx(styles.sourceStrip, filtersExpanded && styles.sourceStripExpanded)}
+        className={styles.sourceStrip}
         role="group"
       >
         <button
@@ -146,8 +134,7 @@ export function AgentSessionsToolbar(props: AgentSessionsToolbarProps) {
               key={source.id}
               className={clsx(
                 styles.sourceTab,
-                selectedSourceId === source.agentId && styles.sourceTabActive,
-                selectedSourceId !== source.agentId && styles.sourceTabMobileOptional
+                selectedSourceId === source.agentId && styles.sourceTabActive
               )}
               onClick={() => onSelectSource(source.agentId)}
               type="button"
@@ -168,8 +155,7 @@ export function AgentSessionsToolbar(props: AgentSessionsToolbarProps) {
             key={runtime.id}
             className={clsx(
               styles.sourceTab,
-              selectedLocalRuntime === runtime.id && styles.sourceTabActive,
-              selectedLocalRuntime !== runtime.id && styles.sourceTabMobileOptional
+              selectedLocalRuntime === runtime.id && styles.sourceTabActive
             )}
             onClick={() => onSelectLocalRuntime(runtime.id)}
             type="button"
@@ -180,16 +166,6 @@ export function AgentSessionsToolbar(props: AgentSessionsToolbarProps) {
           </button>
         ))}
 
-        {hiddenMobileFiltersCount > 0 ? (
-          <button
-            aria-expanded={filtersExpanded}
-            className={clsx(styles.sourceTab, styles.sourceFilterDisclosure)}
-            onClick={() => setFiltersExpanded((expanded) => !expanded)}
-            type="button"
-          >
-            {filtersExpanded ? "Hide extra filters" : getHiddenFiltersLabel(hiddenMobileFiltersCount)}
-          </button>
-        ) : null}
       </div>
 
       <div className={styles.searchWrap}>

@@ -1,7 +1,7 @@
 import type { AgentSessionsListProps, AgentSessionWorkIndicator } from "@modules/agents/types";
 
 export type AgentSessionListStatusIndicator = AgentSessionWorkIndicator | {
-  label: "Finished";
+  label: "New result";
   tone: "review";
   viewerCount: 0;
   sessionId: string;

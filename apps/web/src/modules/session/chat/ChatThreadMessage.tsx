@@ -26,6 +26,7 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
   assetContext,
   copyFeedback,
   isActivityExpanded,
+  isPrimaryMobileCopyAction,
   item,
   onHydrateActivityGroup,
   onCopyMessage,
@@ -40,11 +41,17 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
   const messageCopyStatus = copyFeedback?.messageId === item.entry.id
     ? copyFeedback.status
     : null;
-  const activityChips = messageActivities.map((activity) => (
+  const copyActionLabel = messageCopyStatus === "copied"
+    ? "Message copied"
+    : messageCopyStatus === "failed"
+      ? "Copy failed"
+      : "Copy message";
+  const activityChips = item.activities.map((activity) => (
     <ChatMessageActivityChip
       key={activity.id}
       activity={activity}
       isExpanded={isActivityExpanded(activity)}
+      messageEntryId={item.entry.id}
       onToggle={() => onToggleActivityGroup(activity)}
     />
   ));
@@ -93,6 +100,7 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
         <ChatInlineActivityFeed
           activities={messageActivities}
           isActivityExpanded={isActivityExpanded}
+          messageEntryId={item.entry.id}
           onHydrateActivity={onHydrateActivityGroup}
           renderActivityEntries={renderActivityEntries}
         />
@@ -110,12 +118,20 @@ export const ChatThreadMessage = memo(function ChatThreadMessage({
           </div>
         ) : null}
         {item.entry.text.trim() ? (
-          <div className={clsx(styles.chatMessageFooter, messageFooterClassByRole[item.role])}>
+          <div
+            className={clsx(
+              styles.chatMessageFooter,
+              messageFooterClassByRole[item.role],
+              !isPrimaryMobileCopyAction && styles.chatMessageFooterMobileSecondary
+            )}
+          >
             <button
               aria-label="Copy message"
               className={styles.chatMessageAction}
+              data-copy-status={messageCopyStatus ?? undefined}
+              data-feedback-label={messageCopyStatus ? copyActionLabel : undefined}
               onClick={() => onCopyMessage(item.entry.id, item.entry.text)}
-              title="Copy message"
+              title={copyActionLabel}
               type="button"
             >
               <CopyIcon

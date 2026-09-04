@@ -2,12 +2,12 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 
 import { AgentRuntimeIcon } from "@components/AgentRuntimeIcon";
+import { getSourceSessionKey } from "@models/agentChatWorkState";
 
 import { ATTENTION_PREVIEW_LIMIT } from "./constants";
 import styles from "./styles.module.scss";
 import type { AttentionSectionProps } from "./types";
 
-const EMPTY_READY_FOR_REVIEW_AGENT_SESSION_IDS = new Set<string>();
 const SOURCE_SESSION_REFERENCE_EDGE_LENGTH = 10;
 const SOURCE_SESSION_REFERENCE_MAX_LENGTH = 24;
 
@@ -47,13 +47,15 @@ function buildSessionReferences(sessions: AttentionSectionProps["sessions"]) {
 }
 
 export function AttentionSection({
+  countIsLowerBound = false,
+  fallbackStatusLabel,
   label,
-  readyForReviewAgentSessionIds = EMPTY_READY_FOR_REVIEW_AGENT_SESSION_IDS,
   previewLimit = ATTENTION_PREVIEW_LIMIT,
   selectedAgentSessionId,
   sessions,
+  statusLabel,
   tone,
-  workIndicatorsBySourceSessionId,
+  workIndicatorsBySourceSessionKey,
   onSelectAgentSession
 }: AttentionSectionProps) {
   const [isExpanded, setIsExpanded] = useState(!selectedAgentSessionId);
@@ -79,7 +81,12 @@ export function AttentionSection({
       >
         <strong>{label}</strong>
         <span className={styles.attentionSectionToggle}>
-          <span className={styles.attentionSectionCount}>{sessions.length}</span>
+          <span
+            aria-label={countIsLowerBound ? `At least ${sessions.length}` : undefined}
+            className={styles.attentionSectionCount}
+          >
+            {sessions.length}{countIsLowerBound ? "+" : null}
+          </span>
           <span aria-hidden="true" className={styles.attentionSectionChevron} />
         </span>
       </button>
@@ -87,7 +94,8 @@ export function AttentionSection({
         <>
           <div className={styles.attentionCards}>
             {previewSessions.map((session) => {
-              const indicator = workIndicatorsBySourceSessionId.get(session.sourceSessionId);
+              const sourceSessionKey = getSourceSessionKey(session.agentId, session.sourceSessionId);
+              const indicator = workIndicatorsBySourceSessionKey.get(sourceSessionKey ?? "");
 
               return (
                 <button
@@ -102,9 +110,7 @@ export function AttentionSection({
                 >
                   <span className={styles.attentionCardStatus}>
                     <span aria-hidden="true" className={styles.attentionCardDot} />
-                    {readyForReviewAgentSessionIds.has(session.id)
-                      ? "Ready for review"
-                      : indicator?.label ?? label}
+                    {statusLabel ?? indicator?.label ?? fallbackStatusLabel ?? label}
                   </span>
                   <strong className={styles.attentionCardTitle}>{session.title}</strong>
                   <span className={styles.attentionCardContext}>
@@ -131,7 +137,9 @@ export function AttentionSection({
           </div>
           {sessions.length > previewSessions.length ? (
             <p className={styles.attentionSectionMore}>
-              +{sessions.length - previewSessions.length} more in the list
+              {countIsLowerBound ? null : "+"}
+              {sessions.length - previewSessions.length}{countIsLowerBound ? "+" : null}
+              {" more in Recent work"}
             </p>
           ) : null}
         </>

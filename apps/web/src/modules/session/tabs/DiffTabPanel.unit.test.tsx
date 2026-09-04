@@ -71,6 +71,167 @@ describe("DiffTabPanel", () => {
     expect(screen.queryByText("Agent-reported file changes will appear here.")).not.toBeInTheDocument();
   });
 
+  it("does not present compact transcript placeholders as changed files", () => {
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: [],
+          diff: "",
+          isDirty: false,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffDetailsUnavailable
+        sourceDiffParts={[{
+          additions: 0,
+          changeType: "unknown",
+          deletions: 0,
+          filePath: null,
+          text: "[diff hidden in live view]",
+          title: "Changes",
+          type: "diff"
+        }]}
+      />
+    );
+
+    expect(screen.queryByText("Reported in chat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Changed 1 file")).not.toBeInTheDocument();
+    expect(screen.getByText("Working tree is clean")).toBeInTheDocument();
+  });
+
+  it("explains unavailable compact change details for a source chat", () => {
+    render(
+      <DiffTabPanel
+        git={null}
+        showWorkspaceGit={false}
+        sourceDiffParts={[{
+          additions: 0,
+          changeType: "unknown",
+          deletions: 0,
+          filePath: null,
+          text: "[diff hidden in live view]",
+          title: "Changes",
+          type: "diff"
+        }]}
+      />
+    );
+
+    expect(screen.getByText("Change details are not loaded in this view.")).toBeInTheDocument();
+    expect(screen.queryByText("Agent-reported file changes will appear here.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Changed 1 file")).not.toBeInTheDocument();
+  });
+
+  it("places exact chat evidence after workspace changes in a collapsed disclosure", () => {
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: ["src/workspace.ts"],
+          diff: [
+            "diff --git a/src/workspace.ts b/src/workspace.ts",
+            "--- a/src/workspace.ts",
+            "+++ b/src/workspace.ts",
+            "@@ -1 +1 @@",
+            "-const ready = false;",
+            "+const ready = true;"
+          ].join("\n"),
+          isDirty: true,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffParts={[{
+          additions: 1,
+          changeType: "update",
+          deletions: 0,
+          filePath: "src/reported.ts",
+          text: "+const reported = true;",
+          title: "src/reported.ts",
+          type: "diff"
+        }]}
+      />
+    );
+
+    const workspaceHeading = screen.getByRole("heading", { name: "1 workspace change" });
+    const disclosureSummary = screen.getByText("Reported in chat").closest("summary");
+    const disclosure = disclosureSummary?.closest("details");
+
+    expect(disclosureSummary).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(workspaceHeading.compareDocumentPosition(disclosureSummary!))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByText("1 file")).toBeInTheDocument();
+
+    fireEvent.click(disclosureSummary!);
+
+    expect(disclosure).toHaveAttribute("open");
+    expect(screen.getByTitle("src/reported.ts")).toBeVisible();
+  });
+
+  it("marks incomplete chat evidence as partial", () => {
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: [],
+          diff: "",
+          isDirty: false,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffDetailsUnavailable
+        sourceDiffParts={[{
+          additions: 1,
+          changeType: "update",
+          deletions: 0,
+          filePath: "src/reported.ts",
+          text: "+const reported = true;",
+          title: "src/reported.ts",
+          type: "diff"
+        }]}
+      />
+    );
+
+    const disclosureSummary = screen.getByText("Reported in chat").closest("summary");
+
+    expect(disclosureSummary).toHaveTextContent("Partial");
+    fireEvent.click(disclosureSummary!);
+    expect(screen.getByText("Some reported change details are not loaded in this view.")).toBeVisible();
+  });
+
+  it("discloses hidden generated chat changes without presenting a fake file", () => {
+    render(
+      <DiffTabPanel
+        git={{
+          branch: "main",
+          changedFiles: [],
+          diff: "",
+          isDirty: false,
+          isGitRepo: true,
+          lastUpdatedAt: "2026-08-07T10:00:00.000Z"
+        }}
+        sourceDiffDetailsUnavailable
+        sourceDiffParts={[{
+          additions: 1,
+          changeType: "add",
+          deletions: 0,
+          filePath: "dist/generated.js",
+          text: "+generated",
+          title: "dist/generated.js",
+          type: "diff"
+        }]}
+      />
+    );
+
+    const disclosureSummary = screen.getByText("Reported in chat").closest("summary");
+
+    expect(disclosureSummary).toHaveTextContent("1 hidden change");
+    expect(disclosureSummary).toHaveTextContent("Partial");
+    fireEvent.click(disclosureSummary!);
+    expect(screen.getByText("1 generated or temporary change hidden")).toBeVisible();
+    expect(screen.queryByTitle("dist/generated.js")).not.toBeInTheDocument();
+  });
+
   it("reviews one selected workspace patch and opens the same file", () => {
     const onOpenFile = vi.fn();
 

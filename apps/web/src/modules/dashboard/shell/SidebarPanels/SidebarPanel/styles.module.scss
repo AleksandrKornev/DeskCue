@@ -48,10 +48,11 @@
 }
 
 .secondarySubtitle {
-  max-width: 28ch;
+  max-width: 36ch;
   margin-top: 4px;
   color: vars.$color-text-muted;
   font-size: 0.86rem;
+  text-wrap: balance;
 }
 
 .secondaryBody {

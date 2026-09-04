@@ -1,11 +1,12 @@
 import type { AgentSessionSummary } from "@deskcue/protocol";
+import { getSourceSessionKey } from "@models/agentChatWorkState";
 import type { AgentSessionWorkIndicator } from "@modules/agents/types";
 
 type BuildAttentionSessionGroupsArgs = {
-  approvalRequestedSourceSessionIds: ReadonlySet<string>;
+  approvalRequestedSourceSessionKeys: ReadonlySet<string>;
   readyForReviewAgentSessionIds: ReadonlySet<string>;
   sessions: AgentSessionSummary[];
-  workIndicatorsBySourceSessionId: ReadonlyMap<string, AgentSessionWorkIndicator>;
+  workIndicatorsBySourceSessionKey: ReadonlyMap<string, AgentSessionWorkIndicator>;
 };
 
 export function isAgentSessionReviewed(session: AgentSessionSummary) {
@@ -20,24 +21,36 @@ export function isAgentSessionReviewed(session: AgentSessionSummary) {
 }
 
 export function buildAttentionSessionGroups({
-  approvalRequestedSourceSessionIds,
+  approvalRequestedSourceSessionKeys,
   readyForReviewAgentSessionIds,
   sessions,
-  workIndicatorsBySourceSessionId
+  workIndicatorsBySourceSessionKey
 }: BuildAttentionSessionGroupsArgs) {
-  const needsAttention = sessions.filter((session) =>
-    approvalRequestedSourceSessionIds.has(session.sourceSessionId) ||
-    readyForReviewAgentSessionIds.has(session.id)
+  const approvalRequests = sessions.filter((session) =>
+    approvalRequestedSourceSessionKeys.has(
+      getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+    )
   );
-  const needsAttentionIds = new Set(needsAttention.map((session) => session.id));
+  const approvalRequestIds = new Set(approvalRequests.map((session) => session.id));
+  const newResults = sessions.filter(
+    (session) =>
+      !approvalRequestIds.has(session.id) &&
+      readyForReviewAgentSessionIds.has(session.id)
+  );
+  const attentionIds = new Set([
+    ...approvalRequests.map((session) => session.id),
+    ...newResults.map((session) => session.id)
+  ]);
   const activeAgents = sessions.filter(
     (session) =>
-      !needsAttentionIds.has(session.id) &&
+      !attentionIds.has(session.id) &&
       (
-        workIndicatorsBySourceSessionId.get(session.sourceSessionId)?.tone === "active" ||
+        workIndicatorsBySourceSessionKey.get(
+          getSourceSessionKey(session.agentId, session.sourceSessionId) ?? ""
+        )?.tone === "active" ||
         session.workState === "running"
       )
   );
 
-  return { activeAgents, needsAttention };
+  return { activeAgents, approvalRequests, newResults };
 }

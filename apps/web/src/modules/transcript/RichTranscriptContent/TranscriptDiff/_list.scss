@@ -72,10 +72,10 @@
   border: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   background: rgba(255, 255, 255, 0.035);
-  color: #c9dcff;
+  color: vars.$color-text-secondary;
   font: inherit;
   font-size: 0.86rem;
-  font-weight: 800;
+  font-weight: 600;
   text-align: center;
   display: inline-flex;
   align-items: center;
@@ -154,7 +154,7 @@
   min-width: 0;
   max-width: 100%;
   color: vars.$color-text-primary;
-  font-weight: 800;
+  font-weight: 600;
   overflow: hidden;
   overflow-wrap: normal;
   text-overflow: ellipsis;
@@ -244,4 +244,3 @@
   color: rgba(255, 255, 255, 0.42);
   user-select: none;
 }
-

@@ -58,7 +58,7 @@ $chat-toolbar-min-height: 46px;
   z-index: 24;
   padding-inline: 0;
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  background: #131418;
+  background: vars.$color-surface-app;
 }
 
 .chatWorkspaceEmbedded .chatComposerShell {
@@ -77,6 +77,7 @@ $chat-toolbar-min-height: 46px;
     min-height: clamp(520px, 72dvh, 860px);
     height: clamp(520px, 72dvh, 860px);
     grid-template-rows: minmax(0, 1fr) auto;
+    border: 0;
   }
 
   .chatWorkspaceStickyComposer {
@@ -86,15 +87,16 @@ $chat-toolbar-min-height: 46px;
   .chatWorkspaceStickyComposer .chatSurface {
     position: fixed;
     z-index: 1;
-    top: max(var(--chat-toolbar-height, 0px), $chat-toolbar-min-height);
+    top: calc(
+      max(var(--chat-toolbar-height, 0px), $chat-toolbar-min-height) +
+      var(--session-live-nav-extra-reserve, 0px)
+    );
     right: 0;
     bottom: max(var(--chat-composer-height, 0px), $chat-composer-min-height-mobile);
     left: 0;
     margin: 0;
     width: auto;
     max-width: none;
-    border-right: 0;
-    border-left: 0;
     border-radius: 0;
     min-height: 0;
     height: auto;
@@ -114,7 +116,7 @@ $chat-toolbar-min-height: 46px;
     transform: none;
     min-height: $chat-composer-min-height-mobile;
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: linear-gradient(180deg, rgba(19, 20, 24, 0), #131418 40%);
+    background: linear-gradient(180deg, rgba(20, 21, 23, 0), vars.$color-surface-app 40%);
   }
 
   .chatComposerShell > * {
@@ -131,7 +133,7 @@ $chat-toolbar-min-height: 46px;
   }
 
   .chatWorkspaceEmbedded .chatSurface {
-    top: 0;
+    top: var(--session-live-nav-extra-reserve, 0px);
   }
 
   .chatWorkspaceEmbedded .chatComposerShell {

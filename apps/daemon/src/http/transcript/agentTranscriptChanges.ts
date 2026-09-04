@@ -4,6 +4,7 @@ import type {
   AgentTranscriptEntry,
   TranscriptPart
 } from "@deskcue/protocol";
+import { isCanonicalCompactDiffPlaceholderPart } from "@deskcue/protocol";
 
 export type DiffPart = Extract<TranscriptPart, { type: "diff" }>;
 
@@ -42,6 +43,7 @@ function getDiffPartStats(part: DiffPart) {
 function getDiffDisplayPath(part: DiffPart) {
   if (part.changeType === "move") {
     const moveTarget = part.title.replace(/^Moved\s+/, "").trim();
+
     if (moveTarget) {
       return moveTarget;
     }
@@ -50,11 +52,24 @@ function getDiffDisplayPath(part: DiffPart) {
   return part.filePath ?? part.title;
 }
 
+export function isHiddenDiffPlaceholder(part: DiffPart) {
+  return isCanonicalCompactDiffPlaceholderPart(part);
+}
+
 export function groupDiffPartsByFile(parts: DiffPart[]): AgentTranscriptChangesFile[] {
   const groups: AgentTranscriptChangesFile[] = [];
   const groupIndexByPath = new Map<string, number>();
+  const seenParts = new Set<string>();
 
   for (const part of parts) {
+    if (isHiddenDiffPlaceholder(part)) continue;
+
+    const partKey = JSON.stringify([part.filePath, part.changeType, part.title, part.text]);
+
+    if (seenParts.has(partKey)) continue;
+
+    seenParts.add(partKey);
+
     const displayPath = getDiffDisplayPath(part);
     const stats = getDiffPartStats(part);
     const groupIndex = groupIndexByPath.get(displayPath);
@@ -72,7 +87,9 @@ export function groupDiffPartsByFile(parts: DiffPart[]): AgentTranscriptChangesF
     }
 
     const group = groups[groupIndex];
+
     group.additions += stats.additions;
+
     group.deletions += stats.deletions;
     group.changeType = part.changeType;
     group.parts.push(part);
@@ -93,6 +110,7 @@ export function buildTranscriptChangesResponseFromEntries(
   entries: AgentTranscriptEntry[]
 ): AgentTranscriptChangesResponse | null {
   const diffParts = readDiffParts(entries);
+
   return diffParts.length === 0
     ? null
     : {
@@ -102,10 +120,6 @@ export function buildTranscriptChangesResponseFromEntries(
       };
 }
 
-export function hasOnlyHiddenDiffPlaceholders(parts: DiffPart[]) {
-  return parts.length > 0 && parts.every((part) =>
-    part.title === "Changes" &&
-    part.filePath === null &&
-    part.text === "[diff hidden in live view]"
-  );
+export function hasHiddenDiffPlaceholders(parts: DiffPart[]) {
+  return parts.some(isHiddenDiffPlaceholder);
 }

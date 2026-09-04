@@ -4,7 +4,8 @@ import {
   useId,
   useLayoutEffect,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from "react";
 import type {
   Dispatch,
@@ -16,6 +17,7 @@ import type {
 } from "react";
 
 import MoreIcon from "@assets/images/icon-more-horizontal.svg?react";
+import { Modal } from "@components/Modal";
 import { ConfirmDialog } from "@components/ModalDialog";
 import { getDeskCueRuntime } from "@runtime";
 
@@ -24,6 +26,9 @@ import type { LiveSessionActionsProps } from "./types";
 
 type MenuFocusRequest = "first" | "last";
 type BooleanStateSetter = Dispatch<SetStateAction<boolean>>;
+
+const MOBILE_ACTION_SHEET_MEDIA_QUERY = "(max-width: 720px)";
+const COMPACT_SESSION_ACTIONS_MEDIA_QUERY = "(max-width: 900px), (max-height: 640px)";
 
 type StopSessionOptions = {
   isMountedRef: MutableRefObject<boolean>;
@@ -48,6 +53,54 @@ class UtilityMenuOutsidePointerListener {
       this.setShowUtilityMenu(false);
     }
   };
+}
+
+function readMobileActionSheetViewport() {
+  return typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(MOBILE_ACTION_SHEET_MEDIA_QUERY).matches;
+}
+
+function subscribeToMobileActionSheetViewport(handleChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+
+  const mediaQuery = window.matchMedia(MOBILE_ACTION_SHEET_MEDIA_QUERY);
+
+  mediaQuery.addEventListener("change", handleChange);
+
+  return () => mediaQuery.removeEventListener("change", handleChange);
+}
+
+function useMobileActionSheetViewport() {
+  return useSyncExternalStore(
+    subscribeToMobileActionSheetViewport,
+    readMobileActionSheetViewport,
+    () => false
+  );
+}
+
+function readCompactSessionActionsViewport() {
+  return typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(COMPACT_SESSION_ACTIONS_MEDIA_QUERY).matches;
+}
+
+function subscribeToCompactSessionActionsViewport(handleChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+
+  const mediaQuery = window.matchMedia(COMPACT_SESSION_ACTIONS_MEDIA_QUERY);
+
+  mediaQuery.addEventListener("change", handleChange);
+
+  return () => mediaQuery.removeEventListener("change", handleChange);
+}
+
+function useCompactSessionActionsViewport() {
+  return useSyncExternalStore(
+    subscribeToCompactSessionActionsViewport,
+    readCompactSessionActionsViewport,
+    () => false
+  );
 }
 
 function requestStopSession({
@@ -158,6 +211,7 @@ function handleUtilityMenuKeyDown(
   event: ReactKeyboardEvent<HTMLDivElement>,
   utilityMenuPopoverRef: RefObject<HTMLDivElement | null>,
   utilityMenuTriggerRef: RefObject<HTMLButtonElement | null>,
+  closeOnTab: boolean,
   setShowUtilityMenu: BooleanStateSetter
 ) {
   const menu = utilityMenuPopoverRef.current;
@@ -173,7 +227,7 @@ function handleUtilityMenuKeyDown(
   }
 
   if (event.key === "Tab") {
-    setShowUtilityMenu(false);
+    if (closeOnTab) setShowUtilityMenu(false);
     return;
   }
 
@@ -189,7 +243,7 @@ function handleUtilityMenuKeyDown(
   }
 }
 
-function handleUtilityMenuClickCapture(
+function handleUtilityMenuClick(
   event: ReactMouseEvent<HTMLDivElement>,
   utilityMenuTriggerRef: RefObject<HTMLButtonElement | null>,
   setShowUtilityMenu: BooleanStateSetter
@@ -219,6 +273,9 @@ export function LiveSessionActions({
 }: LiveSessionActionsProps) {
   const features = getDeskCueRuntime().features;
   const externalHostProcessControlsEnabled = features.externalHostProcessControls;
+  const isMobileActionSheet = useMobileActionSheetViewport();
+  const compactSessionActionsViewport = useCompactSessionActionsViewport();
+  const isCompactSessionActions = compact || compactSessionActionsViewport;
   const [showUtilityMenu, setShowUtilityMenu] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [showStopConfirmDialog, setShowStopConfirmDialog] = useState(false);
@@ -228,14 +285,20 @@ export function LiveSessionActions({
   const utilityMenuRef = useRef<HTMLDivElement | null>(null);
   const utilityMenuPopoverRef = useRef<HTMLDivElement | null>(null);
   const utilityMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const lastFocusedDesktopActionRef = useRef(false);
+  const lastFocusedDesktopStopRef = useRef(false);
   const menuFocusRequestRef = useRef<MenuFocusRequest>("first");
+  const mobileActionSheetRef = useRef(isMobileActionSheet);
+  const previousCompactSessionActionsRef = useRef(isCompactSessionActions);
   const isMountedRef = useRef(true);
 
   const shouldPutStopInMenu =
-    externalHostProcessControlsEnabled && compact && sessionStatus === "running";
+    externalHostProcessControlsEnabled && isCompactSessionActions && sessionStatus === "running";
+  const showDesktopStop =
+    externalHostProcessControlsEnabled && sessionStatus === "running" && !shouldPutStopInMenu;
+  const previousDesktopStopVisibleRef = useRef(showDesktopStop);
   const hasUtilityActions = Boolean(
-    compact ||
-      shouldPutStopInMenu ||
+    shouldPutStopInMenu ||
       (externalHostProcessControlsEnabled && canStopExternalClaudeBackground) ||
       onToggleModelContext ||
       onOpenDiagnostics ||
@@ -243,12 +306,88 @@ export function LiveSessionActions({
       extraMenuItem
   );
 
+  const utilityMenuItems = (
+    <>
+      {extraMenuItem}
+      {onToggleModelContext ? (
+        <button
+          className={styles.actionMenuItem}
+          onClick={() => {
+            setShowUtilityMenu(false);
+            onToggleModelContext();
+          }}
+          role="menuitem"
+          tabIndex={-1}
+          type="button"
+        >
+          Model & runtime
+        </button>
+      ) : null}
+      {onToggleTools ? (
+        <button
+          className={styles.actionMenuItem}
+          onClick={() => {
+            setShowUtilityMenu(false);
+            onToggleTools({ replace: isMobileActionSheet });
+          }}
+          role="menuitem"
+          tabIndex={-1}
+          type="button"
+        >
+          {showTools ? "Hide tools" : "Tools"}
+        </button>
+      ) : null}
+      {onOpenDiagnostics ? (
+        <button
+          className={styles.actionMenuItem}
+          onClick={() => {
+            setShowUtilityMenu(false);
+            onOpenDiagnostics();
+          }}
+          role="menuitem"
+          tabIndex={-1}
+          type="button"
+        >
+          Diagnostics
+        </button>
+      ) : null}
+      {externalHostProcessControlsEnabled && canStopExternalClaudeBackground && onStopExternalClaudeBackground ? (
+        <button
+          className={clsx(styles.actionMenuItem, styles.actionMenuItemDanger)}
+          onClick={() => {
+            setShowUtilityMenu(false);
+            onStopExternalClaudeBackground();
+          }}
+          role="menuitem"
+          tabIndex={-1}
+          type="button"
+        >
+          Stop Claude background job
+        </button>
+      ) : null}
+      {shouldPutStopInMenu ? (
+        <button
+          className={clsx(styles.actionMenuItem, styles.actionMenuItemDanger)}
+          disabled={isStopping}
+          onClick={() => {
+            setShowUtilityMenu(false);
+            setShowStopConfirmDialog(true);
+          }}
+          role="menuitem"
+          tabIndex={-1}
+          type="button"
+        >
+          {isStopping ? "Stopping..." : "Stop session"}
+        </button>
+      ) : null}
+    </>
+  );
   const utilityMenu = hasUtilityActions ? (
       <div className={styles.actionMenu} ref={utilityMenuRef}>
         <button
           aria-controls={showUtilityMenu ? utilityMenuId : undefined}
           aria-expanded={showUtilityMenu}
-          aria-haspopup="menu"
+          aria-haspopup={isMobileActionSheet ? "dialog" : "menu"}
           aria-label="More actions"
           className={clsx(
             styles.ghostButton,
@@ -265,6 +404,10 @@ export function LiveSessionActions({
           onKeyDown={(event) => {
             handleUtilityMenuTriggerKeyDown(event, menuFocusRequestRef, setShowUtilityMenu);
           }}
+          onFocus={() => {
+            lastFocusedDesktopActionRef.current = false;
+            lastFocusedDesktopStopRef.current = false;
+          }}
           id={utilityMenuTriggerId}
           ref={utilityMenuTriggerRef}
           type="button"
@@ -272,15 +415,15 @@ export function LiveSessionActions({
           <MoreIcon className={styles.iconUtilitySvg} aria-hidden="true" focusable="false" />
         </button>
 
-        {showUtilityMenu ? (
+        {showUtilityMenu && !isMobileActionSheet ? (
           <div
             className={styles.actionMenuPopover}
             id={utilityMenuId}
             aria-labelledby={utilityMenuTriggerId}
             ref={utilityMenuPopoverRef}
             role="menu"
-            onClickCapture={(event) => {
-              handleUtilityMenuClickCapture(
+            onClick={(event) => {
+              handleUtilityMenuClick(
                 event,
                 utilityMenuTriggerRef,
                 setShowUtilityMenu
@@ -291,96 +434,12 @@ export function LiveSessionActions({
                 event,
                 utilityMenuPopoverRef,
                 utilityMenuTriggerRef,
+                true,
                 setShowUtilityMenu
               );
             }}
           >
-            {compact ? (
-              <button
-                className={styles.actionMenuItem}
-                onClick={() => {
-                  setShowUtilityMenu(false);
-                  onExitSession();
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                type="button"
-              >
-                Back to chats
-              </button>
-            ) : null}
-            {shouldPutStopInMenu ? (
-              <button
-                className={clsx(styles.actionMenuItem, styles.actionMenuItemDanger)}
-                disabled={isStopping}
-                onClick={() => {
-                  setShowUtilityMenu(false);
-                  setShowStopConfirmDialog(true);
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                type="button"
-              >
-                {isStopping ? "Stopping..." : "Stop session"}
-              </button>
-            ) : null}
-            {externalHostProcessControlsEnabled && canStopExternalClaudeBackground && onStopExternalClaudeBackground ? (
-              <button
-                className={clsx(styles.actionMenuItem, styles.actionMenuItemDanger)}
-                onClick={() => {
-                  setShowUtilityMenu(false);
-                  onStopExternalClaudeBackground();
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                type="button"
-              >
-                Stop Claude background job
-              </button>
-            ) : null}
-            {onToggleModelContext ? (
-              <button
-                className={styles.actionMenuItem}
-                onClick={() => {
-                  setShowUtilityMenu(false);
-                  onToggleModelContext();
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                type="button"
-              >
-                Model & runtime
-              </button>
-            ) : null}
-            {onOpenDiagnostics ? (
-              <button
-                className={styles.actionMenuItem}
-                onClick={() => {
-                  setShowUtilityMenu(false);
-                  onOpenDiagnostics();
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                type="button"
-              >
-                Diagnostics
-              </button>
-            ) : null}
-            {onToggleTools ? (
-              <button
-                className={styles.actionMenuItem}
-                onClick={() => {
-                  setShowUtilityMenu(false);
-                  onToggleTools();
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                type="button"
-              >
-                {showTools ? "Hide tools" : "Tools"}
-              </button>
-            ) : null}
-            {extraMenuItem}
+            {utilityMenuItems}
           </div>
         ) : null}
       </div>
@@ -410,9 +469,7 @@ export function LiveSessionActions({
   });
 
   useEffect(() => {
-    if (!showUtilityMenu) {
-      return;
-    }
+    if (!showUtilityMenu || isMobileActionSheet) return;
 
     const listener = new UtilityMenuOutsidePointerListener(
       utilityMenuRef,
@@ -424,7 +481,38 @@ export function LiveSessionActions({
     return () => {
       window.removeEventListener("mousedown", listener.handlePointerDown);
     };
-  }, [showUtilityMenu]);
+  }, [isMobileActionSheet, showUtilityMenu]);
+
+  useLayoutEffect(() => {
+    if (mobileActionSheetRef.current === isMobileActionSheet) return;
+
+    mobileActionSheetRef.current = isMobileActionSheet;
+
+    if (!showUtilityMenu) return;
+
+    setShowUtilityMenu(false);
+    utilityMenuTriggerRef.current?.focus();
+  }, [isMobileActionSheet, showUtilityMenu]);
+
+  useLayoutEffect(() => {
+    const wasCompact = previousCompactSessionActionsRef.current;
+    const wasDesktopStopVisible = previousDesktopStopVisibleRef.current;
+    const compactedFocusedDesktopAction = !wasCompact &&
+      isCompactSessionActions &&
+      lastFocusedDesktopActionRef.current;
+    const removedFocusedDesktopStop = wasDesktopStopVisible &&
+      !showDesktopStop &&
+      lastFocusedDesktopStopRef.current;
+
+    previousCompactSessionActionsRef.current = isCompactSessionActions;
+    previousDesktopStopVisibleRef.current = showDesktopStop;
+
+    if ((!compactedFocusedDesktopAction && !removedFocusedDesktopStop) || document.activeElement !== document.body) return;
+
+    lastFocusedDesktopActionRef.current = false;
+    lastFocusedDesktopStopRef.current = false;
+    utilityMenuTriggerRef.current?.focus();
+  }, [isCompactSessionActions, showDesktopStop]);
 
   useEffect(() => {
     if (!showStopConfirmDialog) {
@@ -436,20 +524,35 @@ export function LiveSessionActions({
 
   return (
     <>
-      <div className={clsx(styles.actions, compact && styles.actionsCompactRow)}>
-        {!compact ? (
+      <div className={clsx(styles.actions, isCompactSessionActions && styles.actionsCompactRow)}>
+        {!isCompactSessionActions ? (
           <button
             className={styles.ghostButton}
+            onBlur={() => {
+              lastFocusedDesktopActionRef.current = false;
+              lastFocusedDesktopStopRef.current = false;
+            }}
             onClick={onExitSession}
+            onFocus={() => {
+              lastFocusedDesktopActionRef.current = true;
+              lastFocusedDesktopStopRef.current = false;
+            }}
             type="button"
           >
             Back
           </button>
         ) : null}
-        {externalHostProcessControlsEnabled && sessionStatus === "running" && !shouldPutStopInMenu ? (
+        {showDesktopStop ? (
           <button
-            className={clsx(styles.dangerButton, compact && styles.dangerButtonCompact)}
+            className={clsx(
+              styles.dangerButton,
+              isCompactSessionActions && styles.dangerButtonCompact
+            )}
             disabled={isStopping}
+            onBlur={() => {
+              lastFocusedDesktopActionRef.current = false;
+              lastFocusedDesktopStopRef.current = false;
+            }}
             onClick={() => {
               requestStopSession({
                 isMountedRef,
@@ -459,6 +562,10 @@ export function LiveSessionActions({
                 setShowStopConfirmDialog
               });
             }}
+            onFocus={() => {
+              lastFocusedDesktopActionRef.current = true;
+              lastFocusedDesktopStopRef.current = true;
+            }}
             type="button"
           >
             {isStopping ? "Stopping..." : "Stop"}
@@ -466,6 +573,36 @@ export function LiveSessionActions({
         ) : null}
         {utilityMenu}
       </div>
+      <Modal
+        bodyClassName={styles.actionSheetBody}
+        closeLabel="Close session actions"
+        closeOnHistoryBack
+        isOpen={showUtilityMenu && isMobileActionSheet}
+        title="Session actions"
+        onClose={() => setShowUtilityMenu(false)}
+      >
+        <div
+          aria-label="More actions"
+          className={styles.actionSheetMenu}
+          id={utilityMenuId}
+          ref={utilityMenuPopoverRef}
+          role="menu"
+          onClick={(event) => {
+            handleUtilityMenuClick(event, utilityMenuTriggerRef, setShowUtilityMenu);
+          }}
+          onKeyDown={(event) => {
+            handleUtilityMenuKeyDown(
+              event,
+              utilityMenuPopoverRef,
+              utilityMenuTriggerRef,
+              false,
+              setShowUtilityMenu
+            );
+          }}
+        >
+          {utilityMenuItems}
+        </div>
+      </Modal>
       <ConfirmDialog
         confirmLabel="Stop session"
         confirmingLabel="Stopping..."

@@ -566,6 +566,10 @@ export function LocalLlmManagedSessionPanel({
           adapter.agentSession.id,
           !historyWindowFull && hasMoreLocalLlmHistory(adapter.detail)
         ]])}
+        agentTranscriptHistoryIncompleteById={new Map([[
+          adapter.agentSession.id,
+          hasMoreLocalLlmHistory(adapter.detail)
+        ]])}
         canSendInputWhenReadOnly
         hasWorkspaceFiles={Boolean(adapter.detail.workspace)}
         hasPreview={Boolean(adapter.detail.workspace || adapter.detail.preview?.active)}

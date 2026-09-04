@@ -250,6 +250,41 @@
   background: vars.$color-surface-control-subtle;
 }
 
+.chatComposerReviewOnly.chatComposerMinimal .reviewOnlyField {
+  min-height: 76px;
+  padding-right: 76px;
+  padding-block: 15px;
+  border-radius: 16px;
+  background: vars.$color-surface-control-subtle;
+}
+
+.chatComposerReviewOnly .chatComposerInputWrap > span {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  width: auto;
+}
+
+.reviewOnlyDisclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: vars.$control-height-touch;
+  min-width: vars.$control-height-touch;
+  height: vars.$control-height-touch;
+  border: 1px solid vars.$color-border-subtle;
+  border-radius: 12px;
+  background: vars.$color-surface-control-subtle;
+  color: vars.$color-text-secondary;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.reviewOnlyDisclosure:focus-visible {
+  border-color: vars.$color-focus-ring;
+  box-shadow: vars.$shadow-focus-ring;
+}
+
 .chatComposerMinimal:not(.chatComposerFieldFocused) .sendButtonInside {
   right: 14px;
   bottom: 12px;

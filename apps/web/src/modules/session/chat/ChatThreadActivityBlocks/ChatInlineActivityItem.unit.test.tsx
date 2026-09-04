@@ -47,7 +47,27 @@ describe("ChatInlineActivityItem", () => {
       />
     );
 
+    expect(screen.getByRole("button", { name: /tools/i })).not.toHaveAttribute("aria-controls");
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+
+  it("keeps an unbroken activity label in a shrinkable wrapping slot", () => {
+    const activity = createActivity();
+
+    activity.label = "tool/" + "very-long-unbroken-segment".repeat(12);
+
+    const { container } = render(
+      <ChatInlineActivityItem
+        activity={activity}
+        isExpanded={false}
+        onHydrate={vi.fn()}
+        onToggle={vi.fn()}
+        renderActivityEntries={() => null}
+      />
+    );
+
+    expect(container.querySelector(`.${styles.chatInlineActivityLabelText}`))
+      .toHaveTextContent(activity.label);
   });
 
   it("uses a bounded scroll region only when it owns Activity scrolling", () => {

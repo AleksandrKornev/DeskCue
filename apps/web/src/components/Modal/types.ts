@@ -15,6 +15,7 @@ export type ModalProps = {
   restoreFocusOnClose?: boolean;
   size?: ModalSize;
   title: ReactNode;
+  titleClassName?: string;
   titleId?: string;
   onClose: () => void;
 };

@@ -155,6 +155,11 @@ export function readWorkspaceFileHistoryTarget(state: unknown) {
   if (
     (value.kind !== "directory" && value.kind !== "file") ||
     typeof value.path !== "string" ||
+    (value.returnDepth !== undefined && (
+      typeof value.returnDepth !== "number" ||
+      !Number.isInteger(value.returnDepth) ||
+      value.returnDepth < 1
+    )) ||
     typeof value.workspaceId !== "string"
   ) return null;
   return value as WorkspaceFileHistoryTarget;

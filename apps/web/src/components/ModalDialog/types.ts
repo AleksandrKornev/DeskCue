@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { ModalProps, ModalSize } from "@components/Modal";
 
 export type ModalDialogProps = Omit<ModalProps, "footer" | "size"> & {
+  actionsLayout?: "equal" | "weighted";
   actions?: ReactNode;
   size?: ModalSize;
 };

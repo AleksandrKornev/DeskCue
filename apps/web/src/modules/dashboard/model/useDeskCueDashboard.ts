@@ -107,6 +107,7 @@ export function useDeskCueDashboard(options?: {
 
   const {
     agentTranscriptHasMoreById,
+    agentTranscriptHistoryIncompleteById,
     hydrateAgentSessionChanges,
     hydrateAgentSessionTranscriptEntries,
     loadMoreAgentSessionTranscript
@@ -423,6 +424,7 @@ export function useDeskCueDashboard(options?: {
     isAgentSessionLoading,
     activeTakenOverAgentSession,
     agentTranscriptHasMoreById,
+    agentTranscriptHistoryIncompleteById,
     isActiveTakenOverAgentSessionLoading,
     attachingAgentSessionId
   };

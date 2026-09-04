@@ -240,6 +240,8 @@ export function useManagedSessionReplyState({
     effectiveIsWaitingForChatReply,
     effectiveShellWaitingPrompt,
     hasCompletedManagedPrompt,
+    hasCompletedManagedPromptWithFinalReply:
+      hasCompletedManagedPrompt && hasCurrentWaitingPromptAssistantReply,
     inputUnavailableLabel,
     isExternalSourceTurn,
     isPromptQueued,

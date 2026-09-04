@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { assetsApi } from "@api/endpoint/assets/endpoints";
 import { workspacesApi } from "@api/endpoint/workspaces/endpoints";
@@ -38,6 +38,62 @@ const readFile = vi.mocked(workspacesApi.readFile);
 const getTicketBlob = vi.mocked(assetsApi.getTicketBlob);
 const downloadAsset = vi.mocked(downloadLocalAsset);
 const openAsset = vi.mocked(openLocalAssetInNewTab);
+const scrollCurrentBreadcrumbIntoView = vi.fn();
+const resizeObserverCallbacks: ResizeObserverCallback[] = [];
+const disconnectResizeObserver = vi.fn();
+
+class TestResizeObserver implements ResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    resizeObserverCallbacks.push(callback);
+  }
+
+  disconnect() {
+    disconnectResizeObserver();
+  }
+
+  observe() {}
+  unobserve() {}
+}
+
+function createFilesMatchMediaController(initialCompact: boolean) {
+  let compact = initialCompact;
+  const listeners = new Map<string, Set<EventListener>>();
+  const matchMedia = vi.fn((query: string) => {
+    const queryListeners = listeners.get(query) ?? new Set<EventListener>();
+
+    listeners.set(query, queryListeners);
+
+    return {
+      addEventListener: vi.fn((_type: string, listener: EventListener) => {
+        queryListeners.add(listener);
+      }),
+      get matches() {
+        return compact;
+      },
+      media: query,
+      removeEventListener: vi.fn((_type: string, listener: EventListener) => {
+        queryListeners.delete(listener);
+      })
+    } as unknown as MediaQueryList;
+  });
+
+  return {
+    matchMedia,
+    setCompact(nextCompact: boolean) {
+      compact = nextCompact;
+      listeners.forEach((queryListeners) => {
+        const event = new Event("change");
+
+        Object.defineProperty(event, "matches", { value: nextCompact });
+        queryListeners.forEach((listener) => listener(event));
+      });
+    }
+  };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function FilesTabPanelHistoryHarness() {
   const [requestedPath, setRequestedPath] = useState("");
@@ -60,18 +116,28 @@ describe("FilesTabPanel", () => {
     expect(buildWorkspaceFileLineNumberWidth(10_000)).toBe("6ch");
   });
 
-  it("keeps Cloud image previews within the remote asset envelope", () => {
-    expect(readWorkspaceImagePreviewMaxBytes("cloud-machine")).toBeLessThan(4 * 1024 * 1024);
+  it("loads Cloud image previews through bounded remote asset chunks", () => {
+    expect(readWorkspaceImagePreviewMaxBytes("cloud-machine")).toBe(MAX_WORKSPACE_IMAGE_PREVIEW_BYTES);
     expect(readWorkspaceImagePreviewMaxBytes("local")).toBe(MAX_WORKSPACE_IMAGE_PREVIEW_BYTES);
   });
 
   beforeEach(() => {
     window.history.replaceState({}, "", "/");
+    vi.spyOn(window.history, "go").mockImplementation(() => undefined);
     listFiles.mockReset();
     readFile.mockReset();
     getTicketBlob.mockReset();
     downloadAsset.mockReset();
+    disconnectResizeObserver.mockReset();
     openAsset.mockReset();
+    resizeObserverCallbacks.length = 0;
+    scrollCurrentBreadcrumbIntoView.mockReset();
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollCurrentBreadcrumbIntoView
+    });
+
     getTicketBlob.mockResolvedValue(new Blob(["image"], { type: "image/png" }));
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
@@ -116,7 +182,7 @@ describe("FilesTabPanel", () => {
     });
   });
 
-  it("offers file actions before opening a read-only preview", async () => {
+  it("opens a read-only preview directly with its file actions", async () => {
     render(
       <FilesTabPanel
         changedFiles={["README.md"]}
@@ -137,30 +203,199 @@ describe("FilesTabPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "File README.md (changed)" }));
 
-    expect(screen.getByRole("dialog", { name: "README.md" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Preview" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download" })).toBeInTheDocument();
-    expect(readFile).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
-
     expect(await screen.findByText("# DeskCue")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "File actions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open file" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download file" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "← Files" })).toHaveFocus());
     expect(readFile).toHaveBeenCalledTimes(1);
     expect(readFile.mock.calls[0]?.slice(0, 2)).toEqual(["workspace-1", "README.md"]);
     expect(readFile.mock.calls[0]?.[2]?.signal).toBeInstanceOf(AbortSignal);
+    expect(screen.getByText("DeskCue · 14 B · 1 line")).toBeInTheDocument();
     const search = screen.getByRole("searchbox", { name: "Filter files in this folder" });
+    const toolbar = search.closest("header");
 
     expect(search).toHaveAttribute("name", "workspace-file-filter");
-
+    expect(toolbar).toHaveClass(styles.filesToolbarViewingFile);
     expect(search.parentElement?.parentElement).toHaveClass(styles.filesFiltersViewingFile);
 
     fireEvent.click(screen.getByRole("button", { name: "← Files" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "File README.md (changed)" }))
       .toHaveFocus());
+    expect(toolbar).not.toHaveClass(styles.filesToolbarViewingFile);
     expect(search.parentElement?.parentElement).not.toHaveClass(styles.filesFiltersViewingFile);
     expect(screen.getByRole("button", { name: "Changed 1" })).toBeInTheDocument();
+  });
+
+  it("keeps a zero line count in empty text-file metadata", async () => {
+    readFile.mockResolvedValueOnce({
+      binary: false,
+      content: "",
+      modifiedAt: "2026-08-07T09:00:00.000Z",
+      path: "README.md",
+      sizeBytes: 0,
+      truncated: false,
+      workspaceId: "workspace-1"
+    });
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+
+    expect(await screen.findByText("DeskCue · 0 B · 0 lines")).toBeInTheDocument();
+  });
+
+  it("keeps the workspace name in a compact-height desktop toolbar", async () => {
+    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+      addEventListener: vi.fn(),
+      matches: query.includes("max-height: 640px"),
+      media: query,
+      removeEventListener: vi.fn()
+    }) as unknown as MediaQueryList));
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    expect(screen.getByLabelText("Workspace path")).toHaveTextContent("DeskCue");
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+
+    await waitFor(() => expect(screen.getByLabelText("File preview")).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "← Files" })).not.toBeInTheDocument();
+  });
+
+  it("moves focus from the disappearing mobile Back to the desktop preview", async () => {
+    const media = createFilesMatchMediaController(true);
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "← Files" }))
+      .toHaveFocus());
+    const fileViewer = screen.getByLabelText("File preview");
+
+    fileViewer.scrollTop = 32;
+    act(() => media.setCompact(false));
+
+    expect(screen.queryByRole("button", { name: "← Files" })).not.toBeInTheDocument();
+    expect(fileViewer).toHaveFocus();
+    expect(fileViewer.scrollTop).toBe(0);
+  });
+
+  it("moves focus from desktop navigation hidden by a compact file preview to mobile Back", async () => {
+    const media = createFilesMatchMediaController(false);
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+    await waitFor(() => expect(screen.getByLabelText("File preview")).toHaveFocus());
+
+    screen.getByRole("searchbox", { name: "Filter files in this folder" }).focus();
+    act(() => media.setCompact(true));
+
+    expect(screen.getByRole("button", { name: "← Files" })).toHaveFocus();
+  });
+
+  it("moves focus from the desktop file list hidden by a compact file preview to mobile Back", async () => {
+    const media = createFilesMatchMediaController(false);
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    const fileRow = await screen.findByRole("button", { name: "File README.md" });
+
+    fireEvent.click(fileRow);
+    await waitFor(() => expect(screen.getByLabelText("File preview")).toHaveFocus());
+
+    fileRow.focus();
+    act(() => media.setCompact(true));
+
+    expect(screen.getByRole("button", { name: "← Files" })).toHaveFocus();
+  });
+
+  it("keeps the focused mobile file header anchored through in-breakpoint resize", async () => {
+    const media = createFilesMatchMediaController(true);
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "← Files" })).toHaveFocus());
+
+    const fileViewer = screen.getByLabelText("File preview");
+
+    screen.getByRole("button", { name: "← Files" }).focus();
+    fileViewer.scrollTop = 32;
+    act(() => resizeObserverCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+
+    expect(fileViewer.scrollTop).toBe(0);
+
+    screen.getByRole("button", { name: "Open file" }).focus();
+    await act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
+    fileViewer.scrollTop = 24;
+    act(() => resizeObserverCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+
+    expect(fileViewer.scrollTop).toBe(24);
+
+    const fileContents = screen.getByLabelText("File contents");
+
+    fileContents.focus();
+    await act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
+    fileViewer.scrollTop = 24;
+    act(() => resizeObserverCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+
+    expect(fileViewer.scrollTop).toBe(24);
+  });
+
+  it("preserves mobile Back focus ownership through its resize unmount", async () => {
+    const media = createFilesMatchMediaController(true);
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+
+    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "← Files" })).toHaveFocus());
+
+    const backButton = screen.getByRole("button", { name: "← Files" });
+
+    fireEvent.blur(backButton, { relatedTarget: document.body });
+
+    act(() => media.setCompact(false));
+
+    expect(screen.queryByRole("button", { name: "← Files" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("File preview")).toHaveFocus();
+  });
+
+  it("does not move focus after mobile Back released it before resize", async () => {
+    const media = createFilesMatchMediaController(true);
+
+    vi.stubGlobal("matchMedia", media.matchMedia);
+
+    render(
+      <>
+        <button type="button">Outside action</button>
+        <FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />
+      </>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "← Files" }))
+      .toHaveFocus());
+
+    const outsideAction = screen.getByRole("button", { name: "Outside action" });
+
+    outsideAction.focus();
+    act(() => media.setCompact(false));
+
+    expect(outsideAction).toHaveFocus();
   });
 
   it("keeps mobile file-preview failures recoverable without exposing transport details", async () => {
@@ -177,11 +412,14 @@ describe("FilesTabPanel", () => {
     const fileRow = await screen.findByRole("button", { name: "File README.md" });
 
     fireEvent.click(fileRow);
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByRole("alert", { name: "File preview unavailable" }))
       .toHaveTextContent("Check the daemon connection and try again");
     expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
+    expect(screen.getByText("DeskCue · Preview unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "File actions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open file" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download file" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry file" })).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry file" }));
@@ -217,7 +455,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     fireEvent.click(await screen.findByRole("button", { name: "Retry file" }));
 
     expect(await screen.findByRole("alert", { name: "File preview unavailable" }))
@@ -243,7 +480,6 @@ describe("FilesTabPanel", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     fireEvent.click(await screen.findByRole("button", { name: "Retry file" }));
 
     const outsideAction = screen.getByRole("button", { name: "Outside action" });
@@ -278,7 +514,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     fireEvent.click(await screen.findByRole("button", { name: "Retry file" }));
     fireEvent.pointerDown(screen.getByRole("status", { name: "Retrying file preview" }));
 
@@ -310,7 +545,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     fireEvent.click(await screen.findByRole("button", { name: "Retry file" }));
     fireEvent.click(screen.getByRole("button", { name: "← Files" }));
 
@@ -346,7 +580,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     fireEvent.click(await screen.findByRole("button", { name: "Retry file" }));
     fireEvent(window, new PopStateEvent("popstate", { state: {} }));
 
@@ -386,7 +619,6 @@ describe("FilesTabPanel", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     const outsideAction = screen.getByRole("button", { name: "Outside action" });
 
@@ -419,7 +651,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     fireEvent.pointerDown(screen.getByLabelText("File preview"));
 
     act(() => {
@@ -444,11 +675,14 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     const backButton = screen.getByRole("button", { name: "← Files" });
 
     expect(screen.getByText("Loading file…")).toBeInTheDocument();
+    expect(screen.getByText("DeskCue · Loading preview…")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "File actions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open file" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download file" })).toBeInTheDocument();
     expect(backButton).toHaveFocus();
     expect(readFile.mock.calls[0]?.[2]?.signal?.aborted).toBe(false);
 
@@ -465,7 +699,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     listFiles.mockRejectedValueOnce(new Error("Could not reload folder"));
 
@@ -532,7 +765,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     listFiles.mockRejectedValueOnce(new Error("Could not reload folder"));
 
@@ -570,7 +802,6 @@ describe("FilesTabPanel", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     listFiles.mockRejectedValueOnce(new Error("Could not reload folder"));
     fireEvent.click(screen.getByRole("button", { name: "← Files" }));
@@ -619,7 +850,6 @@ describe("FilesTabPanel", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     listFiles.mockRejectedValueOnce(new Error("Could not reload folder"));
     fireEvent.click(screen.getByRole("button", { name: "← Files" }));
@@ -675,7 +905,6 @@ describe("FilesTabPanel", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
 
     listFiles.mockReturnValueOnce(new Promise((resolve) => {
@@ -713,7 +942,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     expect(screen.getByRole("status", { name: "README.md preview loaded." })).toBeInTheDocument();
     expect(screen.getByLabelText("File preview")).not.toHaveAttribute("aria-live");
@@ -745,7 +973,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     listFiles.mockRejectedValueOnce(new Error("Could not reload folder"));
 
@@ -760,7 +987,6 @@ describe("FilesTabPanel", () => {
     expect(screen.getByRole("button", { name: "Retrying…" })).toHaveFocus();
     expect(screen.getByRole("status", { name: "Reloading folder" })).toHaveTextContent("Reloading folder…");
     fireEvent.click(screen.getByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
 
     await act(async () => {
@@ -806,8 +1032,9 @@ describe("FilesTabPanel", () => {
     const fileRow = await screen.findByRole("button", { name: "File README.md" });
 
     fireEvent.click(fileRow);
+    await screen.findByText("# DeskCue");
 
-    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open file" }));
 
     await waitFor(() => expect(openAsset).toHaveBeenCalledWith(
       "README.md",
@@ -815,10 +1042,8 @@ describe("FilesTabPanel", () => {
       { workspaceId: "workspace-1" },
       expect.any(AbortSignal)
     ));
-    expect(readFile).not.toHaveBeenCalled();
-
-    fireEvent.click(fileRow);
-    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(readFile).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Download file" }));
 
     await waitFor(() => expect(downloadAsset).toHaveBeenCalledWith(
       "README.md",
@@ -826,10 +1051,11 @@ describe("FilesTabPanel", () => {
       { workspaceId: "workspace-1" },
       expect.any(AbortSignal)
     ));
-    expect(readFile).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Download file" })).toBeEnabled());
+    expect(readFile).toHaveBeenCalledTimes(1);
   });
 
-  it("does not let a stale file action close or disable a newer dialog", async () => {
+  it("aborts a pending file action when the user leaves the preview", async () => {
     let finishOpen = () => {};
     let requestSignal: AbortSignal | undefined;
 
@@ -837,51 +1063,25 @@ describe("FilesTabPanel", () => {
       requestSignal = signal;
       finishOpen = resolve;
     }));
-    listFiles.mockResolvedValue({
-      entries: [
-        {
-          kind: "file",
-          modifiedAt: "2026-08-07T09:00:00.000Z",
-          name: "README.md",
-          path: "README.md",
-          readable: true,
-          sizeBytes: 14
-        },
-        {
-          kind: "file",
-          modifiedAt: "2026-08-07T09:00:00.000Z",
-          name: "CHANGELOG.md",
-          path: "CHANGELOG.md",
-          readable: true,
-          sizeBytes: 20
-        }
-      ],
-      hasMore: false,
-      nextCursor: null,
-      path: "",
-      workspaceId: "workspace-1"
-    });
-
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Open" }));
-    fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
-    fireEvent.click(screen.getByRole("button", { name: "File CHANGELOG.md" }));
+    await screen.findByText("# DeskCue");
+    fireEvent.click(screen.getByRole("button", { name: "Open file" }));
+    fireEvent.click(screen.getByRole("button", { name: "← Files" }));
 
     expect(requestSignal?.aborted).toBe(true);
-    expect(screen.getByRole("dialog", { name: "CHANGELOG.md" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open" })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "File README.md" })).toHaveFocus());
 
     await act(async () => {
       finishOpen();
       await Promise.resolve();
     });
 
-    expect(screen.getByRole("dialog", { name: "CHANGELOG.md" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "File actions" })).not.toBeInTheDocument();
   });
 
-  it("closes a stale file action when browser history changes the Files target", async () => {
+  it("closes a file preview when browser history changes the Files target", async () => {
     listFiles.mockImplementation((_workspaceId, options) => Promise.resolve({
       entries: options?.path === "src"
         ? [{
@@ -909,7 +1109,7 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    expect(screen.getByRole("dialog", { name: "README.md" })).toBeInTheDocument();
+    expect(await screen.findByText("# DeskCue")).toBeInTheDocument();
 
     fireEvent(window, new PopStateEvent("popstate", { state: {
       deskCueWorkspaceFileBrowser: {
@@ -919,9 +1119,8 @@ describe("FilesTabPanel", () => {
       }
     } }));
 
-    expect(screen.queryByRole("dialog", { name: "README.md" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Preview" })).not.toBeInTheDocument();
-    expect(readFile).not.toHaveBeenCalled();
+    expect(screen.queryByRole("group", { name: "File actions" })).not.toBeInTheDocument();
+    expect(readFile).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("button", { name: "File nested.txt" })).toBeInTheDocument();
   });
 
@@ -929,7 +1128,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
 
     fireEvent.click(screen.getByRole("button", { name: "Open full-screen file view" }));
@@ -973,7 +1171,6 @@ describe("FilesTabPanel", () => {
     const layout = fileRow.closest(`.${styles.filesLayout}`);
 
     fireEvent.click(fileRow);
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     fireEvent.click(screen.getByRole("button", { name: "Open full-screen file view" }));
 
@@ -995,7 +1192,6 @@ describe("FilesTabPanel", () => {
     const layout = fileRow.closest(`.${styles.filesLayout}`);
 
     fireEvent.click(fileRow);
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("# DeskCue");
     const fileHistoryState = {
       deskCueWorkspaceFileBrowser: {
@@ -1020,7 +1216,6 @@ describe("FilesTabPanel", () => {
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File README.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     const sourceLine = await screen.findByText("# DeskCue");
     const content = sourceLine.closest("pre");
     const wrapButton = screen.getByRole("button", { name: "Enable line wrapping" });
@@ -1074,21 +1269,58 @@ describe("FilesTabPanel", () => {
       });
     });
 
-    render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
+    const { container } = render(
+      <FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />
+    );
 
-    const upButton = screen.getByRole("button", { name: "Go to parent folder" });
+    const rootUpButton = screen.getByRole("button", { name: "Already at workspace root" });
 
-    expect(upButton).toBeDisabled();
+    expect(rootUpButton).toBeDisabled();
 
     fireEvent.click(await screen.findByRole("button", { name: "Folder src" }));
-    await waitFor(() => expect(upButton).toBeEnabled());
+    const upButton = await screen.findByRole("button", { name: "Go to parent folder" });
+
+    expect(upButton).toBeEnabled();
+    expect(screen.getByText("src")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("src")).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "src" })).not.toBeInTheDocument();
+    expect(scrollCurrentBreadcrumbIntoView).toHaveBeenLastCalledWith({
+      block: "nearest",
+      inline: "nearest"
+    });
+
     fireEvent.click(upButton);
 
     await waitFor(() => expect(listFiles).toHaveBeenLastCalledWith(
       "workspace-1",
       expect.objectContaining({ path: "" })
     ));
-    expect(upButton).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Already at workspace root" })).toBeDisabled();
+    expect(container.querySelector('[aria-current="page"]')).toHaveFocus();
+  });
+
+  it("reveals the current breadcrumb after resize without stealing focus", async () => {
+    const { unmount } = render(
+      <FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Folder src" }));
+    await screen.findByRole("button", { name: "Go to parent folder" });
+
+    const search = screen.getByRole("searchbox", { name: "Filter files in this folder" });
+    const revealCount = scrollCurrentBreadcrumbIntoView.mock.calls.length;
+
+    search.focus();
+    act(() => resizeObserverCallbacks.at(-1)?.([], {} as ResizeObserver));
+
+    expect(scrollCurrentBreadcrumbIntoView).toHaveBeenCalledTimes(revealCount + 1);
+    expect(search).toHaveFocus();
+
+    const disconnectCount = disconnectResizeObserver.mock.calls.length;
+
+    expect(disconnectCount).toBeGreaterThan(0);
+    unmount();
+    expect(disconnectResizeObserver.mock.calls.length).toBeGreaterThan(disconnectCount);
   });
 
   it("does not expose a browser when the chat has no workspace", () => {
@@ -1120,8 +1352,13 @@ describe("FilesTabPanel", () => {
       name: "Symbolic link outside, unavailable"
     });
 
-    expect(link).toBeDisabled();
+    expect(link).toHaveAttribute("aria-disabled", "true");
     expect(link).toHaveAttribute("title", "This entry cannot be opened from DeskCue.");
+
+    link.focus();
+    expect(link).toHaveFocus();
+    fireEvent.click(link);
+    expect(readFile).not.toHaveBeenCalled();
   });
 
   it("renders a bounded raster preview through a workspace-scoped ticket", async () => {
@@ -1151,7 +1388,6 @@ describe("FilesTabPanel", () => {
 
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
     fireEvent.click(await screen.findByRole("button", { name: "File image.png" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     const image = await screen.findByRole("img", { name: "Preview of image.png" });
 
@@ -1197,7 +1433,6 @@ describe("FilesTabPanel", () => {
     const view = render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
 
     fireEvent.click(await screen.findByRole("button", { name: "File image.png" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await waitFor(() => expect(getTicketBlob).toHaveBeenCalledTimes(1));
     const options = getTicketBlob.mock.calls[0]?.[2];
 
@@ -1233,7 +1468,6 @@ describe("FilesTabPanel", () => {
 
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
     fireEvent.click(await screen.findByRole("button", { name: "File archive.zip" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByText("Binary file")).toBeInTheDocument();
     expect(getTicketBlob).not.toHaveBeenCalled();
@@ -1271,7 +1505,6 @@ describe("FilesTabPanel", () => {
 
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
     fireEvent.click(await screen.findByRole("button", { name: "File image.png" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to preview image");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -1313,7 +1546,6 @@ describe("FilesTabPanel", () => {
 
     render(<FilesTabPanel workspaceId="workspace-1" workspaceName="DeskCue" />);
     fireEvent.click(await screen.findByRole("button", { name: "File huge.png" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByText("Image preview is limited to 25 MB")).toBeInTheDocument();
     expect(getTicketBlob).not.toHaveBeenCalled();

@@ -5,11 +5,14 @@ import {
   CLOUD_REMOTE_READ_MAX_REQUEST_BYTES,
   REMOTE_CONTROL_CHUNK_BYTES,
   REMOTE_CONTROL_MAX_REQUEST_BYTES,
+  parseCloudRemoteReadOperationInput,
   parseRemoteControlOperationInput
 } from "@deskcue/protocol/cloud";
 import type {
   CloudRelayClientFrame,
   CloudRemoteReadOperation,
+  CloudRemoteReadOperationInput,
+  CloudRemoteReadOperationInputMap,
   CloudRemoteReadRequestFrame,
   RemoteControlOperation,
   RemoteControlRequestFrame
@@ -44,6 +47,58 @@ const DEFAULT_SHUTDOWN_GRACE_MS = 1_000;
 
 function isWorkspaceFilesOperation(operation: CloudRemoteReadOperation) {
   return operation === "workspace.files.list" || operation === "workspace.files.read";
+}
+
+function isAssetTicketOperation(operation: CloudRemoteReadOperation) {
+  return operation === "assets.ticket.create" || operation === "assets.ticket.read";
+}
+
+function isSessionScopedAssetFileRead(
+  input: CloudRemoteReadOperationInput
+) {
+  const assetInput = input as CloudRemoteReadOperationInputMap["assets.file.read"];
+
+  return Boolean(assetInput.agentSessionId || assetInput.managedSessionId);
+}
+
+function requiresRemoteFilesCapability(
+  operation: CloudRemoteReadOperation,
+  input?: CloudRemoteReadOperationInput
+) {
+  if (isWorkspaceFilesOperation(operation) || isAssetTicketOperation(operation)) return true;
+  if (operation !== "assets.file.read") return false;
+
+  return input ? !isSessionScopedAssetFileRead(input) : null;
+}
+
+function hasRemoteReadCapability<TConnection extends object>(
+  context: RequestContext<TConnection>,
+  operation: CloudRemoteReadOperation,
+  input?: CloudRemoteReadOperationInput
+) {
+  const requiresFiles = requiresRemoteFilesCapability(operation, input);
+
+  if (requiresFiles === true) {
+    return context.profile.remoteFilesEnabled && context.filesNegotiated === true;
+  }
+
+  if (requiresFiles === false) {
+    return context.profile.remoteReadEnabled && context.negotiated;
+  }
+
+  return (
+    (context.profile.remoteReadEnabled && context.negotiated) ||
+    (context.profile.remoteFilesEnabled && context.filesNegotiated === true)
+  );
+}
+
+function remoteReadCapabilityError(
+  operation: CloudRemoteReadOperation,
+  input?: CloudRemoteReadOperationInput
+) {
+  return requiresRemoteFilesCapability(operation, input)
+    ? "remote files capability was not negotiated"
+    : "remote read capability was not negotiated";
 }
 
 function isPreviewControlOperation(operation: RemoteControlOperation) {
@@ -87,62 +142,74 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
   ) {
     if (this.closed) return;
     if (this.options.store.readActiveProfile()?.state !== "connected") return;
+
     if (frame.type === "remote.read.request.start") {
-      const workspaceFilesOperation = isWorkspaceFilesOperation(frame.operation);
       const previewOperation = frame.operation === "preview.candidates";
       const authorized = previewOperation
         ? context.profile.remotePreviewEnabled && context.previewNegotiated === true
-        : workspaceFilesOperation
-          ? context.profile.remoteFilesEnabled && context.filesNegotiated === true
-          : context.profile.remoteReadEnabled && context.negotiated;
+        : hasRemoteReadCapability(context, frame.operation);
       if (!authorized) {
         this.options.closeConnection(
           context.connection,
           1008,
           previewOperation
             ? "remote preview capability was not negotiated"
-            : workspaceFilesOperation
-            ? "remote files capability was not negotiated"
-            : "remote read capability was not negotiated"
+            : remoteReadCapabilityError(frame.operation)
         );
+
         return;
       }
+
       this.startRead(context.connection, frame);
       return;
     }
+
     const pending = this.pendingReads.get(frame.requestId);
+
     if (!pending) return;
+
     if (frame.type === "remote.read.request.chunk") {
       if (frame.index >= pending.chunkCount || pending.chunks[frame.index]) {
         this.rejectPendingRead(context.connection, frame.requestId, "invalid remote read chunks");
         return;
       }
+
       const chunk = Buffer.from(frame.data, "base64");
+
       if (chunk.byteLength > CLOUD_REMOTE_READ_CHUNK_BYTES) {
         this.rejectPendingRead(
           context.connection,
           frame.requestId,
           "invalid remote read chunk size"
         );
+
         return;
       }
+
       pending.chunks[frame.index] = chunk;
       return;
     }
+
     clearTimeout(pending.expiryTimer);
     this.pendingReads.delete(frame.requestId);
     if (frame.bodySha256 !== pending.bodySha256 || pending.chunks.some((chunk) => !chunk)) {
       this.options.closeConnection(context.connection, 1008, "incomplete remote read request");
       return;
     }
+
     const body = Buffer.concat(pending.chunks as Buffer[]);
+
     if (!hasExpectedBody(body, pending.bodyBytes, pending.bodySha256, CLOUD_REMOTE_READ_MAX_REQUEST_BYTES)) {
       this.options.closeConnection(context.connection, 1008, "invalid remote read request digest");
       return;
     }
-    let input: unknown;
+
+    let input: CloudRemoteReadOperationInput;
     try {
-      input = JSON.parse(body.toString("utf8")) as unknown;
+      input = parseCloudRemoteReadOperationInput(
+        pending.operation,
+        JSON.parse(body.toString("utf8")) as unknown
+      );
     } catch {
       this.sendReadResult(context.connection, frame.requestId, {
         status: 400,
@@ -150,6 +217,18 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
+    if (pending.operation === "assets.file.read" &&
+        !hasRemoteReadCapability(context, pending.operation, input)) {
+      this.options.closeConnection(
+        context.connection,
+        1008,
+        remoteReadCapabilityError(pending.operation, input)
+      );
+
+      return;
+    }
+
     if (Date.parse(pending.deadlineAt) <= Date.now()) {
       this.sendReadResult(context.connection, frame.requestId, {
         status: 504,
@@ -157,6 +236,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
     this.trackOperation(
       this.options.readExecutor.execute(
         pending.operation,
@@ -164,11 +244,13 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
         this.shutdownController.signal
       ).then((result) => {
         if (this.closed) return;
+
         if (this.options.isCurrentConnection(context.connection, context.profile.id)) {
           this.sendReadResult(context.connection, frame.requestId, result);
         }
       }).catch(() => {
         if (this.closed) return;
+
         if (this.options.isCurrentConnection(context.connection, context.profile.id)) {
           this.sendReadResult(context.connection, frame.requestId, {
             status: 500,
@@ -184,14 +266,17 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
     frame: RemoteControlRequestFrame
   ) {
     if (this.closed) return;
+
     if (!context.profile.remoteControlEnabled || !context.negotiated) {
       this.options.closeConnection(
         context.connection,
         1008,
         "remote control capability was not negotiated"
       );
+
       return;
     }
+
     if (frame.type === "remote.control.request.start" &&
         isPreviewControlOperation(frame.operation) &&
         (!context.profile.remotePreviewEnabled || context.previewNegotiated !== true)) {
@@ -200,15 +285,21 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
         1008,
         "remote preview capability was not negotiated"
       );
+
       return;
     }
+
     if (this.options.store.readActiveProfile()?.state !== "connected") return;
+
     if (frame.type === "remote.control.request.start") {
       this.startControl(context.connection, frame);
       return;
     }
+
     const pending = this.pendingControls.get(frame.requestId);
+
     if (!pending) return;
+
     if (frame.type === "remote.control.request.chunk") {
       if (frame.index >= pending.chunkCount || pending.chunks[frame.index]) {
         this.rejectPendingControl(
@@ -216,31 +307,40 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
           frame.requestId,
           "invalid remote control chunks"
         );
+
         return;
       }
+
       const chunk = Buffer.from(frame.data, "base64");
+
       if (chunk.byteLength > REMOTE_CONTROL_CHUNK_BYTES) {
         this.rejectPendingControl(
           context.connection,
           frame.requestId,
           "invalid remote control chunk size"
         );
+
         return;
       }
+
       pending.chunks[frame.index] = chunk;
       return;
     }
+
     clearTimeout(pending.expiryTimer);
     this.pendingControls.delete(frame.requestId);
     if (frame.bodySha256 !== pending.bodySha256 || pending.chunks.some((chunk) => !chunk)) {
       this.options.closeConnection(context.connection, 1008, "incomplete remote control request");
       return;
     }
+
     const body = Buffer.concat(pending.chunks as Buffer[]);
+
     if (!hasExpectedBody(body, pending.bodyBytes, pending.bodySha256, REMOTE_CONTROL_MAX_REQUEST_BYTES)) {
       this.options.closeConnection(context.connection, 1008, "invalid remote control request digest");
       return;
     }
+
     let input: Record<string, unknown>;
     try {
       input = parseRemoteControlOperationInput(
@@ -254,6 +354,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
     if (Date.parse(pending.deadlineAt) <= Date.now()) {
       this.sendControlResult(context.connection, frame.requestId, {
         status: 504,
@@ -261,6 +362,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
     const inputSha256 = createHash("sha256")
       .update(`${pending.operation}\n${canonicalCloudJson(input)}`)
       .digest("hex");
@@ -279,6 +381,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
     if (reservation.kind === "conflict") {
       this.sendControlResult(context.connection, frame.requestId, {
         status: 409,
@@ -286,6 +389,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
     if (reservation.kind === "ambiguous") {
       this.sendControlResult(context.connection, frame.requestId, {
         status: 409,
@@ -293,6 +397,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
     if (reservation.kind === "replay") {
       this.sendControlResult(context.connection, frame.requestId, {
         status: reservation.status,
@@ -300,6 +405,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       });
       return;
     }
+
     this.trackOperation(
       this.options.controlExecutor.execute(
         pending.operation,
@@ -307,6 +413,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
         this.shutdownController.signal
       ).then((result) => {
         if (this.closed) return;
+
         if (!isDefinitiveControlResult(result)) {
           // Once the loopback request has been dispatched, a timeout or server
           // failure cannot prove that the local side effect did not happen.
@@ -318,8 +425,10 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
               body: { error: "remote_control_outcome_unknown" }
             });
           }
+
           return;
         }
+
         this.options.store.completeControlCommand({
           profileId: context.profile.id,
           commandId: pending.commandId,
@@ -333,6 +442,7 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
         // A durable pending receipt deliberately remains ambiguous. Retrying an
         // input after an unknown local outcome could execute it twice.
         if (this.closed) return;
+
         if (this.options.isCurrentConnection(context.connection, context.profile.id)) {
           this.sendControlResult(context.connection, frame.requestId, {
             status: 409,
@@ -352,15 +462,19 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
 
   async close() {
     if (this.closed) return;
+
     this.closed = true;
     this.clearPending();
     this.shutdownController.abort();
     const operations = [...this.activeOperations];
+
     if (operations.length === 0) return;
+
     let graceTimer: NodeJS.Timeout | undefined;
     const graceElapsed = new Promise<void>((resolve) => {
       graceTimer = setTimeout(resolve, this.shutdownGraceMs);
     });
+
     await Promise.race([Promise.allSettled(operations), graceElapsed]);
     if (graceTimer) clearTimeout(graceTimer);
   }
@@ -374,13 +488,16 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       this.options.closeConnection(connection, 1008, "remote read capacity exceeded");
       return;
     }
+
     const expiryTimer = setTimeout(() => {
       if (!this.pendingReads.delete(frame.requestId)) return;
+
       this.sendReadResult(connection, frame.requestId, {
         status: 504,
         body: { error: "remote_read_expired" }
       });
     }, boundedDeadline(frame.deadlineAt, CLOUD_REMOTE_READ_MAX_PENDING_MS));
+
     expiryTimer.unref?.();
     this.pendingReads.set(frame.requestId, {
       operation: frame.operation,
@@ -402,13 +519,16 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
       this.options.closeConnection(connection, 1008, "remote control capacity exceeded");
       return;
     }
+
     const expiryTimer = setTimeout(() => {
       if (!this.pendingControls.delete(frame.requestId)) return;
+
       this.sendControlResult(connection, frame.requestId, {
         status: 504,
         body: { error: "remote_control_expired" }
       });
     }, boundedDeadline(frame.deadlineAt, CLOUD_REMOTE_CONTROL_MAX_PENDING_MS));
+
     expiryTimer.unref?.();
     this.pendingControls.set(frame.requestId, {
       operation: frame.operation,
@@ -424,14 +544,18 @@ export class CloudRemoteRequestHandler<TConnection extends object> {
 
   private rejectPendingRead(connection: TConnection, requestId: string, reason: string) {
     const pending = this.pendingReads.get(requestId);
+
     if (pending) clearTimeout(pending.expiryTimer);
+
     this.pendingReads.delete(requestId);
     this.options.closeConnection(connection, 1008, reason);
   }
 
   private rejectPendingControl(connection: TConnection, requestId: string, reason: string) {
     const pending = this.pendingControls.get(requestId);
+
     if (pending) clearTimeout(pending.expiryTimer);
+
     this.pendingControls.delete(requestId);
     this.options.closeConnection(connection, 1008, reason);
   }

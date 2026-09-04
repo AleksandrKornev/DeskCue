@@ -130,10 +130,7 @@ describe("AgentSessionsMobileLayout", () => {
     });
 
     expect(screen.getByRole("heading", { name: "Build release" })).toBeInTheDocument();
-    expect(screen.getByText("Build release", { selector: "span" })).toHaveAttribute(
-      "aria-hidden",
-      "true"
-    );
+    expect(screen.queryByText("Build release", { selector: "span" })).not.toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: "Back to chats" })).toHaveFocus();
   });

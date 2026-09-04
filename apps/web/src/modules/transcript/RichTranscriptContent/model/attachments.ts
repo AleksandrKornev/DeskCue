@@ -2,6 +2,7 @@ import type {
   AttachmentPart,
   AttachmentPreviewKind
 } from "@modules/transcript/RichTranscriptContent/types";
+export { normalizeMarkdownLocalAssetPath } from "@deskcue/protocol/markdown";
 
 const IMAGE_EXTENSIONS = new Set([
   "png",
@@ -14,7 +15,33 @@ const IMAGE_EXTENSIONS = new Set([
   "avif"
 ]);
 
+const VIDEO_EXTENSIONS = new Set([
+  "mp4",
+  "m4v",
+  "mov",
+  "webm",
+  "ogv"
+]);
+
+const AUDIO_EXTENSIONS = new Set([
+  "aac",
+  "flac",
+  "m4a",
+  "mp3",
+  "oga",
+  "ogg",
+  "opus",
+  "wav",
+  "weba"
+]);
+
 const TEXT_PREVIEW_EXTENSIONS = new Set([
+  "c",
+  "cc",
+  "clj",
+  "cljs",
+  "cpp",
+  "cs",
   "txt",
   "md",
   "markdown",
@@ -32,12 +59,89 @@ const TEXT_PREVIEW_EXTENSIONS = new Set([
   "jsx",
   "css",
   "html",
+  "go",
+  "graphql",
+  "h",
+  "hpp",
+  "java",
+  "kt",
+  "kts",
+  "lua",
   "py",
+  "rb",
+  "rs",
   "sh",
+  "sql",
   "ps1",
+  "svelte",
+  "swift",
   "toml",
-  "ini"
+  "ini",
+  "vue"
 ]);
+
+const BINARY_PREVIEW_EXTENSIONS = new Set([
+  "7z",
+  "bin",
+  "bz2",
+  "db",
+  "dll",
+  "dmg",
+  "doc",
+  "docx",
+  "eot",
+  "exe",
+  "gz",
+  "ico",
+  "iso",
+  "msi",
+  "otf",
+  "ppt",
+  "pptx",
+  "rar",
+  "sqlite",
+  "sqlite3",
+  "tar",
+  "ttf",
+  "wasm",
+  "woff",
+  "woff2",
+  "xls",
+  "xlsx",
+  "xz",
+  "zip"
+]);
+
+const TEXT_PREVIEW_FILE_NAMES = new Set([
+  ".editorconfig",
+  ".gitattributes",
+  ".gitignore",
+  "dockerfile",
+  "license",
+  "makefile",
+  "readme"
+]);
+
+function isSensitiveTextFileName(fileName: string) {
+  return [".netrc", ".npmrc", ".pypirc"].includes(fileName);
+}
+
+function isEnvironmentTextFileName(fileName: string) {
+  return fileName.startsWith(".env");
+}
+
+function getAssetFileName(value: string) {
+  return value.split(/[?#]/u, 1)[0]?.split(/[\\/]/u).pop()?.trim() ?? "";
+}
+
+function getAssetExtension(value: string) {
+  const fileName = getAssetFileName(value);
+  const dotIndex = fileName.lastIndexOf(".");
+
+  if (dotIndex <= 0) return "";
+
+  return fileName.slice(dotIndex + 1).toLowerCase();
+}
 
 export function getAttachmentDisplayName(part: AttachmentPart) {
   const candidate = part.path ?? part.url ?? part.label;
@@ -47,33 +151,38 @@ export function getAttachmentDisplayName(part: AttachmentPart) {
 }
 
 export function getAttachmentExtension(part: AttachmentPart) {
-  const candidate = (part.path ?? part.url ?? "").split(/[?#]/)[0];
-  const normalized = candidate.split(/[\\/]/).pop() ?? "";
-  const dotIndex = normalized.lastIndexOf(".");
+  return getAssetExtension(part.path ?? part.url ?? "");
+}
 
-  if (dotIndex < 0) {
-    return "";
-  }
+export function getLocalAssetPreviewKind(assetPath: string): AttachmentPreviewKind {
+  const extension = getAssetExtension(assetPath);
+  const fileName = getAssetFileName(assetPath).toLowerCase();
 
-  return normalized.slice(dotIndex + 1).toLowerCase();
+  if (isSensitiveTextFileName(fileName)) return "none";
+  if (isEnvironmentTextFileName(fileName)) return "text";
+  if (IMAGE_EXTENSIONS.has(extension)) return "image";
+  if (VIDEO_EXTENSIONS.has(extension)) return "video";
+  if (AUDIO_EXTENSIONS.has(extension)) return "audio";
+  if (extension === "pdf") return "pdf";
+  if (TEXT_PREVIEW_EXTENSIONS.has(extension) || TEXT_PREVIEW_FILE_NAMES.has(fileName)) return "text";
+
+  return "none";
+}
+
+export function shouldProbeLocalAssetAsText(assetPath: string) {
+  const extension = getAssetExtension(assetPath);
+  const fileName = getAssetFileName(assetPath).toLowerCase();
+
+  if (!fileName || isSensitiveTextFileName(fileName)) return false;
+
+  return !BINARY_PREVIEW_EXTENSIONS.has(extension);
 }
 
 export function getAttachmentPreviewKind(part: AttachmentPart): AttachmentPreviewKind {
-  const extension = getAttachmentExtension(part);
+  if (part.path) return getLocalAssetPreviewKind(part.path);
+  if (part.kind === "image" || part.kind === "local-image") return "image";
 
-  if (part.kind === "image" || part.kind === "local-image" || IMAGE_EXTENSIONS.has(extension)) {
-    return "image";
-  }
-
-  if (extension === "pdf") {
-    return "pdf";
-  }
-
-  if (TEXT_PREVIEW_EXTENSIONS.has(extension)) {
-    return "text";
-  }
-
-  return "none";
+  return getLocalAssetPreviewKind(part.url ?? "");
 }
 
 export function getAttachmentSemanticLabel(
@@ -101,6 +210,9 @@ export function getAttachmentSemanticLabel(
 
     return `${localPrefix}image`;
   }
+
+  if (previewKind === "video") return `${localPrefix}video`;
+  if (previewKind === "audio") return `${localPrefix}audio`;
 
   if (previewKind === "pdf") {
     return `${localPrefix}PDF document`;
@@ -158,42 +270,14 @@ export function getAttachmentBadgeLabel(part: AttachmentPart) {
   return part.kind === "image" || part.kind === "local-image" ? "IMG" : "FILE";
 }
 
-function stripWindowsSourcePosition(value: string) {
-  return value.replace(/^(.*\.[^\\/:]+):\d+(?::\d+)?$/u, "$1");
+function stripLocalAssetUrlSuffix(value: string) {
+  return value.split(/[?#]/u, 1)[0] ?? value;
 }
 
-function decodeLocalAssetPath(value: string) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
+export function isMarkdownLocalImagePath(value: string) {
+  return getLocalAssetPreviewKind(stripLocalAssetUrlSuffix(value)) === "image";
 }
 
-export function normalizeMarkdownLocalAssetPath(value: string) {
-  if (!value) {
-    return null;
-  }
-
-  if (/^file:\/\/\/[A-Za-z]:\//.test(value)) {
-    return stripWindowsSourcePosition(decodeLocalAssetPath(value.replace(/^file:\/\/\//, "")));
-  }
-
-  if (/^file:\/\//.test(value)) {
-    return decodeLocalAssetPath(value.replace(/^file:\/\//, ""));
-  }
-
-  if (/^\/[A-Za-z]:[\\/]/.test(value)) {
-    return stripWindowsSourcePosition(value.slice(1));
-  }
-
-  if (/^[A-Za-z]:[\\/]/.test(value)) {
-    return stripWindowsSourcePosition(value);
-  }
-
-  if (/^\/[^/]/.test(value)) {
-    return value;
-  }
-
-  return null;
+export function isMarkdownVideoPath(value: string) {
+  return getLocalAssetPreviewKind(stripLocalAssetUrlSuffix(value)) === "video";
 }

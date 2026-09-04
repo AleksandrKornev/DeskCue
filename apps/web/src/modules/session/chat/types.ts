@@ -15,6 +15,8 @@ export type CopyFeedback = {
   status: "copied" | "failed";
 } | null;
 
+export type ReplyOutcome = "completed" | "failed" | "interrupted" | null;
+
 /**
  * A short-lived, client-side presentation of a DeskCue-owned interrupt.
  *
@@ -87,6 +89,8 @@ export type ManagedSessionChatThreadProps = {
   copyFeedback: CopyFeedback;
   hiddenConversationItemCount: number;
   isLoadingMoreHistory: boolean;
+  replyOutcome: ReplyOutcome;
+  sessionKey: string;
   showScrollToLatest: boolean;
   state: ManagedSessionChatThreadState;
   threadRef: RefObject<HTMLDivElement | null>;
@@ -113,6 +117,7 @@ export type ChatThreadMessageProps = Pick<
   | "onToggleActivityGroup"
   | "renderActivityEntries"
 > & {
+  isPrimaryMobileCopyAction: boolean;
   item: ConversationMessageItem;
 };
 

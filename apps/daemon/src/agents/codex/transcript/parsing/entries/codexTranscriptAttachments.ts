@@ -12,15 +12,6 @@ const IMAGE_EXTENSIONS = new Set([
   ".svg",
   ".avif"
 ]);
-const ATTACHMENT_PREVIEWABLE_EXTENSIONS = new Set([
-  ...IMAGE_EXTENSIONS,
-  ".mp4",
-  ".mov",
-  ".webm",
-  ".m4v",
-  ".avi",
-  ".pdf"
-]);
 
 function isAbsolutePathLike(value: string) {
   return /^[A-Za-z]:[\\/]/.test(value) || /^\/[^/]/.test(value);
@@ -50,24 +41,6 @@ function extractMentionedFilesFromWrapper(text: string) {
     .map((line) => line.trim())
     .map(extractAbsolutePathFromWrapperLine)
     .filter((line): line is string => Boolean(line));
-}
-
-function normalizeMarkdownLocalAssetPath(value: string) {
-  if (!value) return null;
-
-  const decodedValue = decodeURIComponent(value.trim());
-
-  if (/^file:\/\/\/[A-Za-z]:\//.test(decodedValue)) {
-    return decodedValue.replace(/^file:\/\/\//, "");
-  }
-
-  if (/^file:\/\//.test(decodedValue)) {
-    return decodedValue.replace(/^file:\/\//, "");
-  }
-
-  if (/^\/[A-Za-z]:[\\/]/.test(decodedValue)) return decodedValue.slice(1);
-
-  return isAbsolutePathLike(decodedValue) ? decodedValue : null;
 }
 
 function isImagePathLike(value: string) {
@@ -145,37 +118,6 @@ export function buildUserMessageParts(
   return parts;
 }
 
-function isPreviewableAttachmentPath(value: string) {
-  return ATTACHMENT_PREVIEWABLE_EXTENSIONS.has(path.extname(value).toLowerCase());
-}
-
-function extractLocalAssetPartsFromMarkdown(text: string) {
-  const parts: TranscriptPart[] = [];
-  const seenPaths = new Set<string>();
-  const markdownLinkPattern = /!?\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
-
-  for (const match of text.matchAll(markdownLinkPattern)) {
-    const normalizedPath = normalizeMarkdownLocalAssetPath(match[1] ?? "");
-
-    if (!normalizedPath || !isPreviewableAttachmentPath(normalizedPath)) continue;
-
-    const dedupeKey = normalizedPath.toLowerCase();
-
-    if (seenPaths.has(dedupeKey)) continue;
-
-    seenPaths.add(dedupeKey);
-    parts.push({
-      type: "attachment",
-      kind: isImagePathLike(normalizedPath) ? "local-image" : "local-file",
-      label: `Attachment ${seenPaths.size}`,
-      url: null,
-      path: normalizedPath
-    });
-  }
-
-  return parts;
-}
-
 export function buildAssistantMessageParts(text: string) {
   if (!text) return undefined;
 
@@ -184,6 +126,5 @@ export function buildAssistantMessageParts(text: string) {
       type: "markdown",
       text
     } satisfies TranscriptPart,
-    ...extractLocalAssetPartsFromMarkdown(text)
   ];
 }

@@ -24,25 +24,30 @@ function createSession(
   } as AgentSessionSummary;
 }
 
-it("groups approval and review work together without repeating it as active", () => {
+it("separates approvals, new results, and active work without duplication", () => {
   const approval = createSession("approval", "source-approval", "running");
   const review = createSession("review", "source-review", "idle");
   const active = createSession("active", "source-active", "running");
 
   render(
     <AgentSessionsAttention
-      approvalRequestedSourceSessionIds={new Set([approval.sourceSessionId])}
-      readyForReviewAgentSessionIds={new Set([review.id])}
+      approvalRequestedSourceSessionKeys={new Set([`${approval.agentId}:${approval.sourceSessionId}`])}
+      readyForReviewAgentSessionIds={new Set([approval.id, review.id])}
       selectedAgentSessionId=""
       sessions={[approval, review, active]}
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onSelectAgentSession={vi.fn()}
     />
   );
 
-  expect(screen.getByRole("button", { name: /Needs attention\s*2/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Approval required\s*1/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /New results\s*1/ })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Active agents\s*1/ })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Finished/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Approval required\s*Session approval/ }))
+    .toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /New result\s*Session review/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Running\s*Session active/ })).toBeInTheDocument();
   expect(screen.getAllByText("Session approval")).toHaveLength(1);
   expect(screen.getAllByText("Session review")).toHaveLength(1);
   expect(screen.getAllByText("Session active")).toHaveLength(1);
@@ -54,19 +59,67 @@ it("shows one preview per group when the mobile preview limit is requested", () 
 
   render(
     <AgentSessionsAttention
-      approvalRequestedSourceSessionIds={new Set()}
+      approvalRequestedSourceSessionKeys={new Set()}
       previewLimit={1}
       readyForReviewAgentSessionIds={new Set([first.id, second.id])}
       selectedAgentSessionId=""
       sessions={[first, second]}
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onSelectAgentSession={vi.fn()}
     />
   );
 
   expect(screen.getByText("Session first-review")).toBeInTheDocument();
   expect(screen.queryByText("Session second-review")).not.toBeInTheDocument();
-  expect(screen.getByText("+1 more in the list")).toBeInTheDocument();
+  expect(screen.getByText("+1 more in Recent work")).toBeInTheDocument();
+});
+
+it("marks bounded group counts as lower bounds", () => {
+  const first = createSession("first-review", "source-first-review", "idle");
+  const second = createSession("second-review", "source-second-review", "idle");
+
+  render(
+    <AgentSessionsAttention
+      approvalRequestedSourceSessionKeys={new Set()}
+      countIsLowerBound
+      previewLimit={1}
+      readyForReviewAgentSessionIds={new Set([first.id, second.id])}
+      selectedAgentSessionId=""
+      sessions={[first, second]}
+      workIndicatorsBySourceSessionKey={new Map()}
+      onSelectAgentSession={vi.fn()}
+    />
+  );
+
+  expect(screen.getByRole("button", { name: /New results\s*At least 2/ })).toBeInTheDocument();
+  expect(screen.getByText("2+")).toBeInTheDocument();
+  expect(screen.getByText("1+ more in Recent work")).toBeInTheDocument();
+});
+
+it("keeps a precise active work indicator ahead of the Running fallback", () => {
+  const session = createSession("waiting", "source-waiting", "running");
+
+  render(
+    <AgentSessionsAttention
+      approvalRequestedSourceSessionKeys={new Set()}
+      readyForReviewAgentSessionIds={new Set()}
+      selectedAgentSessionId=""
+      sessions={[session]}
+      workIndicatorsBySourceSessionKey={new Map([[
+        `${session.agentId}:${session.sourceSessionId}`,
+        {
+          label: "Waiting",
+          sessionId: "managed-session",
+          tone: "waiting",
+          viewerCount: 0
+        }
+      ]])}
+      onSelectAgentSession={vi.fn()}
+    />
+  );
+
+  expect(screen.getByRole("button", { name: /Waiting\s*Session waiting/ })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Running\s*Session waiting/ })).not.toBeInTheDocument();
 });
 
 it("visibly disambiguates attention cards with otherwise identical copy", () => {
@@ -82,11 +135,11 @@ it("visibly disambiguates attention cards with otherwise identical copy", () => 
 
   render(
     <AgentSessionsAttention
-      approvalRequestedSourceSessionIds={new Set()}
+      approvalRequestedSourceSessionKeys={new Set()}
       readyForReviewAgentSessionIds={new Set([first.id, second.id])}
       selectedAgentSessionId=""
       sessions={[first, second]}
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onSelectAgentSession={vi.fn()}
     />
   );
@@ -112,11 +165,11 @@ it("keeps visible names distinct when source ids share the same suffix", () => {
 
   render(
     <AgentSessionsAttention
-      approvalRequestedSourceSessionIds={new Set()}
+      approvalRequestedSourceSessionKeys={new Set()}
       readyForReviewAgentSessionIds={new Set([first.id, second.id])}
       selectedAgentSessionId=""
       sessions={[first, second]}
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onSelectAgentSession={vi.fn()}
     />
   );
@@ -149,11 +202,11 @@ it("bounds long colliding references while keeping the rendered cards distinct",
 
   render(
     <AgentSessionsAttention
-      approvalRequestedSourceSessionIds={new Set()}
+      approvalRequestedSourceSessionKeys={new Set()}
       readyForReviewAgentSessionIds={new Set([first.id, second.id])}
       selectedAgentSessionId=""
       sessions={[first, second]}
-      workIndicatorsBySourceSessionId={new Map()}
+      workIndicatorsBySourceSessionKey={new Map()}
       onSelectAgentSession={vi.fn()}
     />
   );
@@ -176,10 +229,10 @@ it("bounds long colliding references while keeping the rendered cards distinct",
 it("collapses attention details after a chat is selected", async () => {
   const session = createSession("review", "source-review", "idle");
   const props = {
-    approvalRequestedSourceSessionIds: new Set<string>(),
+    approvalRequestedSourceSessionKeys: new Set<string>(),
     readyForReviewAgentSessionIds: new Set([session.id]),
     sessions: [session],
-    workIndicatorsBySourceSessionId: new Map(),
+    workIndicatorsBySourceSessionKey: new Map(),
     onSelectAgentSession: vi.fn()
   };
 
@@ -192,7 +245,7 @@ it("collapses attention details after a chat is selected", async () => {
   rerender(<AgentSessionsAttention {...props} selectedAgentSessionId={session.id} />);
 
   await waitFor(() => {
-    expect(screen.getByRole("button", { name: /Needs attention\s*1/ }))
+    expect(screen.getByRole("button", { name: /New results\s*1/ }))
       .toHaveAttribute("aria-expanded", "false");
   });
 

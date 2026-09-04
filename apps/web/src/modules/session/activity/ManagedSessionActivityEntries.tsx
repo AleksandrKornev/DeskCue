@@ -8,6 +8,7 @@ import type { ManagedSessionActivityEntriesProps } from "./types";
 import { useProgressiveActivityEntryWindow } from "./useProgressiveActivityEntryWindow";
 
 export function ManagedSessionActivityEntries({
+  assetContext,
   deferEntryRender = false,
   entries,
   entryLimit,
@@ -31,6 +32,7 @@ export function ManagedSessionActivityEntries({
         : nextRenderableEntries
     };
   }, [entries, entryLimit, hideCompactEntries]);
+
   const shouldRenderProgressively =
     deferEntryRender && targetEntries.length > PROGRESSIVE_RENDER_THRESHOLD;
   const targetEntrySignature = useMemo(
@@ -39,6 +41,7 @@ export function ManagedSessionActivityEntries({
       : "",
     [shouldRenderProgressively, targetEntries]
   );
+
   const progressiveWindow = useProgressiveActivityEntryWindow({
     entrySignature: targetEntrySignature,
     enabled: shouldRenderProgressively,
@@ -58,7 +61,9 @@ export function ManagedSessionActivityEntries({
       {shouldShowError ? (
         <div className={styles.activityEntryNotice}>{errorLabel}</div>
       ) : null}
-      {visibleEntries.length > 0 ? <ActivityEntryList entries={visibleEntries} /> : null}
+      {visibleEntries.length > 0 ? (
+        <ActivityEntryList assetContext={assetContext} entries={visibleEntries} />
+      ) : null}
       {hideCompactEntries &&
       !hasDeferredEntries &&
       !errorLabel &&

@@ -209,7 +209,7 @@ export function ManualSessionChrome({
         activeTab={activeTab}
         ariaLabel="Session sections"
         idPrefix={navigationIdPrefix}
-        mobileLayout="scroll"
+        mobileLayout="fill"
         options={getSessionTabsForCapabilities(navigationCapabilities).map((tab) => ({
           key: tab.key,
           label: getSessionTabLabel(tab, navigationCapabilities)
