@@ -187,10 +187,10 @@ reconciled on the next Host start; a still-valid staged installer remains
 retryable rather than being executed automatically.
 
 The installed Host defaults to stable and beta manifests under the DeskCue
-GitHub Release `latest/download` path. No manifests or installer assets are
-published yet, so the default feed cannot currently complete an update. Do not
-bypass Host coordination by running the private installer `/UPDATE` mode
-manually.
+GitHub Release `latest/download` path. The stable feed is published starting
+with `v0.2.0`; the beta endpoint remains unavailable because GitHub excludes
+prereleases from `releases/latest`. Do not bypass Host coordination by running
+the private installer `/UPDATE` mode manually.
 
 A failed SQLite migration remains governed by the transactional migration and
 backup procedure below. DeskCue must not silently start an older daemon against

@@ -91,6 +91,10 @@ DeskCueSetup-<version>-win-x64.exe.sha256
 DeskCueSetup-<version>-win-x64.exe.build-manifest.json
 ```
 
+The build manifest is local provenance evidence and records absolute builder
+paths. Do not attach it unchanged to a public release. Public release assets are
+the installer, its `.sha256` file and the channel-specific update manifest.
+
 Compilation copies the payload, installer script and icon below one unique
 private session directory, recursively removes inherited write access, probes
 write, deletion and parent-level rename attempts, and verifies the exact inputs
@@ -137,8 +141,8 @@ update and uninstall it first asks the running tray to exit and uses the private
 authenticated Host IPC through the packaged CLI to shut down the Host. A normal
 update must still arrive through the updater, which checks active-work policy
 before passing `/UPDATE`. A normal installer-over-install is refused. Until a
-release feed is configured for this developer preview, the supported manual
-replacement path is to close DeskCue, uninstall it, and run the new installer;
-the separate `%LOCALAPPDATA%\DeskCue` data directory remains intact. `/UPDATE`
-is a trusted integration switch for an already-authorized updater handoff, not
-an authorization boundary by itself.
+locally built candidate is available through a configured release feed, its
+supported manual replacement path is to close DeskCue, uninstall it, and run
+the new installer; the separate `%LOCALAPPDATA%\DeskCue` data directory remains
+intact. `/UPDATE` is a trusted integration switch for an already-authorized
+updater handoff, not an authorization boundary by itself.

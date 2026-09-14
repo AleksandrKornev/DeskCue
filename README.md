@@ -88,17 +88,17 @@ access through DeskCue Cloud is optional.
 
 ## Project status
 
-DeskCue is a source-installed public alpha. Windows and Ubuntu are the currently
-tested platforms; macOS has not been fully verified yet. The current focus is
-simple: make the local review-and-control loop reliable for one developer.
+DeskCue is a public alpha available from source. Windows and Ubuntu are the
+currently tested source platforms; macOS has not been fully verified yet. The
+current focus is simple: make the local review-and-control loop reliable for
+one developer.
 
-The repository also contains a Windows x64 distribution preview: a supervising
-Host, a command-line client, a native tray application, an allowlisted payload
-builder, and an unsigned Inno Setup installer. A locally built artifact has
-passed the current 14-scenario isolated installer smoke and three independent
-static/operational reviews. No Windows installer or update feed is published
-yet. See [Installation](./docs/installation.md) for the exact artifact and
-validation boundaries.
+Starting with `v0.2.0`, GitHub Releases also provides an unsigned Windows x64
+installer with a supervising Host, command-line client, native tray application
+and bundled runtime. The stable release includes an HTTPS manifest for manual
+update checks and installs; the Host verifies the exact installer size and
+SHA-256 before handoff. See [Installation](./docs/installation.md) for the
+artifact, commands and current validation boundaries.
 
 ## Requirements
 
@@ -112,10 +112,10 @@ DeskCue installs prebuilt PTY and SQLite binaries for the supported Node/OS/CPU
 matrix. See [Installation](./docs/installation.md) for platform notes and
 troubleshooting.
 
-A locally built Windows installer bundles its own Node.js runtime and the
-self-contained tray application, so those runtimes are not end-user
-prerequisites. Building that installer has stricter tool requirements described
-in the installation guide.
+The Windows installer bundles its own Node.js runtime and the self-contained
+tray application, so those runtimes are not end-user prerequisites. Building
+that installer has stricter tool requirements described in the installation
+guide.
 
 ## Development
 
@@ -239,16 +239,18 @@ tooling/     Distribution and workspace-only verification tools
 
 ## Known limitations
 
-- Windows x64 installer sources are present and an unsigned local candidate has
-  passed isolated clean-install, CLI lifecycle, in-place update, rollback,
-  PATH/autostart cleanup and uninstall checks. Validation ran on the build
-  workstation rather than a clean VM. The interactive installer wizard has not
-  received a visual/accessibility review, and no Windows installer is published
-  yet
+- The published Windows x64 installer is unsigned. Its implementation passed
+  isolated clean-install, CLI lifecycle, in-place update, rollback,
+  PATH/autostart cleanup and uninstall checks on the build workstation rather
+  than a clean VM. The exact dependency-only release rebuild additionally
+  passed payload integrity, same-version update and cold-start health checks,
+  but the complete isolated suite was not rerun against that rebuild. The
+  interactive installer wizard has not received a visual/accessibility review
 - Installed Windows Hosts support explicit update check/apply and CLI-managed
   tray autostart. Updates are never checked or installed in the background,
-  but no update manifest or installer assets are published yet. Source-checkout
-  Hosts intentionally report update and autostart as unavailable
+  and the stable feed is available starting with `v0.2.0`. The beta feed is not
+  published. Source-checkout Hosts intentionally report update and autostart as
+  unavailable
 - There is no packaged Linux/macOS or container distribution yet
 - Codex and Claude Code prompt delivery is designed to survive a graceful
   daemon restart. Ambiguous crash outcomes are reconciled from native

@@ -106,9 +106,9 @@ stops and the daemon log contains `SQLite schema migration failed` with the
 database path and backup path when available.
 
 The Windows updater, daemon readiness gate and Host integration are checked in,
-but no release manifest or installer asset is published yet. The private Inno
-`/UPDATE` mode is not a supported direct upgrade path. Every packaged update
-must:
+and the stable release feed is available starting with `v0.2.0`. The private
+Inno `/UPDATE` mode is not a supported direct upgrade path. Every packaged
+update must:
 
 1. start only after an explicit CLI or confirmed tray action;
 2. begin the daemon's update drain and reject active managed sessions,
