@@ -21,3 +21,6 @@ tokens*.json
 .env.*
 !.env.example
 .deskcue-data/
+.tmp/
+apps/tray/**/bin/
+apps/tray/**/obj/

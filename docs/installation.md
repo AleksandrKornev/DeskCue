@@ -1,7 +1,8 @@
 # Installation
 
-DeskCue is currently distributed as a source-checkout alpha. Packaged installers
-and container images are not available yet.
+The supported public-alpha installation remains a source checkout. The
+repository also includes a developer-preview, unsigned Windows x64 installer,
+but neither that installer nor an update feed is published yet.
 
 ## Requirements
 
@@ -22,6 +23,12 @@ Clean install and production-start smoke checks currently pass on Windows and
 Ubuntu Linux. The dependency set includes macOS x64 and arm64 binaries, but a
 real macOS runtime smoke check is still required before macOS can be listed as
 a tested platform for the public alpha.
+
+These requirements apply to the source checkout. A Windows packaged build
+includes its own Node.js runtime and does not require Node.js, npm, a C/C++
+toolchain, Python, or the .NET runtime on the destination machine. Git remains
+optional there: DeskCue starts without it, while branch and diff features are
+disabled.
 
 ## Source checkout
 
@@ -47,6 +54,180 @@ npm run dev
 If Git is unavailable, DeskCue can run from an extracted source archive, but
 branch and Git diff features are disabled.
 
+## Windows x64 Packaged Build Preview
+
+The checked-in packaging path currently targets Windows 10 or newer on x64. It
+contains:
+
+- a Node.js Host that owns daemon start, stop, restart, readiness and bounded
+  crash recovery;
+- the `deskcue` command-line client;
+- a self-contained .NET 10 WinForms tray application with no window or webview;
+- an allowlisted payload builder with native SQLite and PTY smoke probes;
+- an unsigned Inno Setup 7.1.0 installer definition.
+
+Building it requires Windows x64, Node.js `24.14.0`, npm 10 or newer, the .NET
+10 SDK, and Inno Setup 7.1.0. From a clean source checkout:
+
+```powershell
+npm install
+dotnet publish apps/tray/DeskCue.Tray/DeskCue.Tray.csproj -c Release -r win-x64 --self-contained true
+node --test tooling/windows-installer/payload-lib.test.mjs
+node tooling/windows-installer/build-payload.mjs `
+  --dotnet-runtime-version 10.0.12 `
+  --dotnet-license "<Microsoft.NETCore.App.Runtime.win-x64>\LICENSE.TXT" `
+  --dotnet-notices "<Microsoft.NETCore.App.Runtime.win-x64>\THIRD-PARTY-NOTICES.TXT" `
+  --windowsdesktop-license "<Microsoft.WindowsDesktop.App.Runtime.win-x64>\LICENSE"
+node tooling/windows-installer/verify-payload.mjs
+pwsh -File tooling/windows-installer/compile-installer.ps1
+```
+
+The payload builder downloads the official Windows x64 Node.js `24.14.0`
+archive when needed and verifies its pinned SHA-256 before extracting it. It
+copies compiled output and the production dependency closure through an
+explicit allowlist; repository `.env` files, local data, databases, logs,
+credentials, tests and foreign native architectures are rejected.
+
+The expected local outputs are:
+
+```text
+tooling/windows-installer/dist/installer/DeskCueSetup-<version>-win-x64.exe
+tooling/windows-installer/dist/installer/DeskCueSetup-<version>-win-x64.exe.sha256
+```
+
+The current locally verified installer candidate is the following unsigned
+artifact. Later development builds may replace the local `dist` path before
+completing the same verification:
+
+```text
+File:            tooling/windows-installer/dist/installer/DeskCueSetup-0.2.0-win-x64.exe
+Size:            75,304,916 bytes
+SHA-256:         4bc4544bf84303407263100d1725ccbe2deff894d363e7aadf4fab007f01ebce
+File version:    0.2.0.0
+Product version: 0.2.0
+```
+
+The build manifest SHA-256 is
+`ff97556585a072ba4078b53de16cf3a4006df75ab48865f13a78c31a934c1399`.
+The 756,720-byte, 3,994-file payload manifest SHA-256 is
+`592f98e118fde0533849386ce3c1e17a8e17c8cf19a7ecb7a76bec073527cbcc`.
+The exact artifact passed payload verification and a real per-user
+uninstall/install cycle on the build machine. The cycle preserved the existing
+DeskCue SQLite file byte-for-byte, installed all 3,994 payload files with no
+missing, size-mismatched or hash-mismatched files, and passed installed CLI
+startup, status, log and doctor checks.
+
+The earlier 14-scenario isolated installer smoke suite has not yet been rerun
+against this exact artifact. The check did not use a separate clean Windows VM,
+exercise a published update feed, or visually and interactively review the
+native wizard and its accessibility. This is a locally verified developer
+preview, not a published DeskCue installer.
+
+### Installer Behavior
+
+The installer is per-user and does not request administrator rights. It uses:
+
+```text
+Program files: %LOCALAPPDATA%\Programs\DeskCue
+DeskCue data:  %LOCALAPPDATA%\DeskCue\data
+CLI PATH:      %LOCALAPPDATA%\Programs\DeskCue\bin
+```
+
+It creates a DeskCue Start-menu shortcut and initializes one current-user
+startup entry for `DeskCue.Tray.exe` on a fresh install. An update preserves a
+user-disabled startup preference. Setup discloses that it adds the CLI directory
+to the user PATH and that a new terminal is required. Uninstall removes program
+files, shortcuts, the exact owned startup value and only a PATH segment that the
+installer recorded as its own; a matching pre-existing PATH segment is
+preserved.
+
+The uninstall confirmation and finish message both disclose that
+`%LOCALAPPDATA%\DeskCue` is deliberately preserved. Delete that directory
+manually only when you also intend to remove all DeskCue data. If exact PATH or
+startup-value cleanup cannot be confirmed, uninstall keeps the installation for
+retry instead of removing program files and losing its ownership record.
+
+After installation, open a new terminal before using the updated user PATH.
+The implemented lifecycle and diagnostic commands are:
+
+```text
+deskcue start
+deskcue stop
+deskcue restart
+deskcue status
+deskcue open
+deskcue logs
+deskcue doctor
+deskcue version
+```
+
+Use `--json` for machine-readable output, `deskcue logs --follow` to follow the
+daemon log, and `deskcue open --print` to print the dashboard URL without
+opening a browser. `deskcue status` reports Host and daemon versions, Host start
+time, the current update phase, autostart state and any active recovery or busy
+reason. It exits with `1` for a degraded runtime or failed update operation and
+with `3` when the Host or daemon is inactive. The Host persists whether the
+daemon was requested to run; `deskcue stop` stops the daemon, not the tray or
+Host.
+
+The tray provides Open, Start, Stop, Restart, Pair a phone, Open
+logs, startup preference and Exit tray. Exiting the tray does not stop the
+Host. Update actions are capability-gated; installed Windows Hosts support them,
+while source-checkout Hosts intentionally do not.
+
+Installed Windows builds also support:
+
+```text
+deskcue update --check
+deskcue update
+deskcue update --channel beta
+deskcue autostart status
+deskcue autostart enable
+deskcue autostart disable
+```
+
+`deskcue update --check` is read-only. `deskcue update` is an explicit request
+to check, download, verify and install an available update; the tray asks for
+confirmation before sending the equivalent install request. Neither surface
+checks nor installs updates in the background. Source-checkout mode reports both
+update and autostart capabilities as unavailable.
+
+The installed Host reads `update-manifest-v1.json` for stable and
+`update-manifest-v1-beta.json` for beta from the DeskCue GitHub Release
+`latest/download` assets. `DESKCUE_UPDATE_MANIFEST_URL` can override the
+manifest URL for controlled deployments and accepts `{channel}` as a
+placeholder. No manifest or installer assets are published yet, so the default
+feed cannot currently complete an update.
+
+Do not invoke the installer's private `/UPDATE` mode directly. The supported
+path begins with `deskcue update` or the tray so the Host can reject active
+work, create a consistent database backup and verify the installer before
+handoff.
+
+For unattended testing, a fresh install accepts:
+
+```text
+DeskCueSetup-<version>-win-x64.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=autostart
+```
+
+Pass `/TASKS=""` on a fresh silent install to leave autostart disabled. Update
+mode ignores this fresh-install task and preserves the current preference.
+
+Silent uninstall uses:
+
+```text
+%LOCALAPPDATA%\Programs\DeskCue\unins000.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+```
+
+The installer never uses `taskkill` against arbitrary `node.exe` processes. It
+asks the tray and authenticated Host to shut down and refuses to replace an
+existing installation through the ordinary fresh-install path.
+
+For a manual replacement when no published Host-coordinated update is
+available, uninstall DeskCue and then run the new installer. The uninstaller
+keeps `%LOCALAPPDATA%\DeskCue`, so the reinstall reuses the retained data unless
+you explicitly delete that directory.
+
 ## Local data
 
 The default source-checkout data directory is `.deskcue-data/` in the repository
@@ -59,12 +240,22 @@ DESKCUE_DATA_DIR=/path/to/deskcue-data
 Use `.env.local` for persistent local configuration. Never commit that file.
 See [Environment Configuration](./environment.md).
 
+Installed mode uses `%LOCALAPPDATA%\DeskCue\data` by default and does not load
+`.env.local` or `.env` from the install directory or current working directory.
+An explicit `DESKCUE_DATA_DIR` still takes precedence for controlled testing
+and advanced deployments.
+
 ## Access from another device
 
 Authentication is enabled by default. Open Settings > Connections on the host and
 create a one-time pairing link for the target browser or phone. Each browser
 receives a separate revocable device credential; the daemon stores only its
 hash.
+
+Windows may show a Firewall prompt when the daemon first listens for LAN access.
+DeskCue setup does not add, accept or remove firewall rules. Grant
+private-network access only if you want to reach DeskCue from another device;
+the final installer smoke did not display or interact with that prompt.
 
 The daemon listens on the trusted LAN by default. Set `DESKCUE_PUBLIC_HOST` when
 automatic address detection is not appropriate. When using the Vite dashboard,
@@ -76,15 +267,29 @@ not expose the source-checkout daemon directly to the public internet.
 
 ## Diagnostics
 
+From a source checkout:
+
 ```bash
 npm run doctor
 ```
 
+From an installed Windows build:
+
+```powershell
+deskcue doctor
+```
+
 The doctor command is read-only. It reports configured storage, recent daemon
-diagnostics, and migration recovery information without printing credentials.
+diagnostics, installation mode, component version alignment, update health and
+migration recovery information without printing credentials. Exit code `0`
+means no failed checks were found, `1` means an issue requires attention, and
+`3` means the Host or daemon is inactive. Warnings and individual checks are
+available under `data.health` with `--json`; the compact component snapshot is
+under `data.runtime`.
 
 ## Removing local data
 
-Stop DeskCue, then remove `.deskcue-data/` or the configured
-`DESKCUE_DATA_DIR`. This deletes DeskCue history, settings, access-device hashes,
-logs, and local chat data.
+Stop DeskCue, then remove `.deskcue-data/`, `%LOCALAPPDATA%\DeskCue`, or the
+configured `DESKCUE_DATA_DIR` as appropriate. This is separate from uninstall
+and deletes DeskCue history, settings, access-device hashes, logs, backups,
+updater state and local chat data.

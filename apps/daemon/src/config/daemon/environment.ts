@@ -16,6 +16,10 @@ import {
 import { readConfiguredAgentDataRoots, readConfiguredRuntimeEndpoints } from "./runtime.ts";
 import type { ConfiguredAgentDataRoots, ConfiguredRuntimeEndpoints } from "./runtime.ts";
 import {
+  getPackagedDataRootPath,
+  isPackagedMode
+} from "../packagedMode.ts";
+import {
   getDefaultDataRootPath,
   getDefaultLegacyLocalChatLibraryPath,
   getLegacyDaemonDataRootPath,
@@ -106,16 +110,20 @@ function isNodeTestRuntime() {
 function readPreviewProxyPort(daemonPort: number) {
   const fallbackPort = daemonPort < 65_535 ? daemonPort + 1 : DEFAULT_DAEMON_PORT + 1;
   const configuredPort = readPositiveIntegerEnv("DESKCUE_PREVIEW_PROXY_PORT", fallbackPort);
+
   return configuredPort <= 65_535 && configuredPort !== daemonPort
     ? configuredPort
     : fallbackPort;
 }
 
 export function resolveDaemonConfigPaths(): DaemonConfigPaths {
-  const defaultDataRootPath = isNodeTestRuntime()
-    ? join(os.tmpdir(), `deskcue-daemon-node-test-${process.pid}`)
-    : getDefaultDataRootPath();
-  const dataRootPath = readOptionalStringEnv("DESKCUE_DATA_DIR") ?? defaultDataRootPath;
+  const configuredDataRootPath = readOptionalStringEnv("DESKCUE_DATA_DIR");
+  const defaultDataRootPath = isPackagedMode()
+    ? getPackagedDataRootPath()
+    : isNodeTestRuntime()
+      ? join(os.tmpdir(), `deskcue-daemon-node-test-${process.pid}`)
+      : getDefaultDataRootPath();
+  const dataRootPath = configuredDataRootPath ?? defaultDataRootPath;
   const configuredLocalChatLibraryPath = readOptionalStringEnv(
     "DESKCUE_LOCAL_CHAT_LIBRARY_DIR"
   );
@@ -164,6 +172,7 @@ export function readDaemonConfigEnvironment(paths: DaemonConfigPaths): DaemonCon
     },
     storageMaxMb: 50
   };
+
   const authRequired = readOptionalBooleanEnv("DESKCUE_AUTH_REQUIRED");
   const publicHost = readOptionalStringEnv("DESKCUE_PUBLIC_HOST");
   const allowedOrigins = readOptionalListEnv("DESKCUE_ALLOWED_ORIGINS");

@@ -2,6 +2,8 @@ import { config } from "dotenv";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isPackagedCli } from "./paths.ts";
+
 const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(cliRoot, "../..");
 
@@ -10,6 +12,8 @@ function uniquePaths(filePaths: string[]) {
 }
 
 export function loadCliEnvFiles() {
+  if (isPackagedCli()) return;
+
   config({
     override: false,
     path: uniquePaths([

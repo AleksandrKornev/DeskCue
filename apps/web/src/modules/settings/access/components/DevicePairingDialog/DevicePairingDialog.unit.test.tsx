@@ -19,14 +19,14 @@ describe("DevicePairingDialog", () => {
         activePairingWebUrl="http://127.0.0.1:4100/connect/pair-code"
         isCustomPairingOrigin={false}
         isSavedPairingOrigin={false}
-        pairingHostChoice="generated"
+        pairingHostChoice="custom"
         pairingHostOptions={[]}
         pairingLink={{
           daemonUrl: "http://127.0.0.1:4100",
           pairCode: "pair-code",
           webUrl: "http://127.0.0.1:4100/connect/pair-code"
         }}
-        pairingLinkOrigin=""
+        pairingLinkOrigin="http://127.0.0.1:4100"
         onClose={vi.fn()}
         onCopyPairingLink={vi.fn()}
         onManagePairingHosts={vi.fn()}
@@ -41,5 +41,9 @@ describe("DevicePairingDialog", () => {
       .toBeInTheDocument();
     expect(screen.queryByText(/from Security|address in Access/))
       .not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Connection address" }))
+      .toHaveAccessibleDescription(/Select saved addresses from Connections/);
+    expect(screen.getByRole("textbox", { name: "Custom connection address" }))
+      .toHaveAccessibleDescription(/Select saved addresses from Connections/);
   });
 });

@@ -92,7 +92,17 @@ DeskCue is a source-installed public alpha. Windows and Ubuntu are the currently
 tested platforms; macOS has not been fully verified yet. The current focus is
 simple: make the local review-and-control loop reliable for one developer.
 
+The repository also contains a Windows x64 distribution preview: a supervising
+Host, a command-line client, a native tray application, an allowlisted payload
+builder, and an unsigned Inno Setup installer. A locally built artifact has
+passed the current 14-scenario isolated installer smoke and three independent
+static/operational reviews. No Windows installer or update feed is published
+yet. See [Installation](./docs/installation.md) for the exact artifact and
+validation boundaries.
+
 ## Requirements
+
+For a source checkout:
 
 - Node.js `22.22` or newer within `22.x`, or Node.js `24.x`
 - npm `10+`
@@ -101,6 +111,11 @@ simple: make the local review-and-control loop reliable for one developer.
 DeskCue installs prebuilt PTY and SQLite binaries for the supported Node/OS/CPU
 matrix. See [Installation](./docs/installation.md) for platform notes and
 troubleshooting.
+
+A locally built Windows installer bundles its own Node.js runtime and the
+self-contained tray application, so those runtimes are not end-user
+prerequisites. Building that installer has stricter tool requirements described
+in the installation guide.
 
 ## Development
 
@@ -193,14 +208,19 @@ directly to the public internet.
 
 ```text
 apps/
-  cli/       Diagnostics and command-line entrypoint
+  cli/       Host lifecycle, diagnostics, logs, and command-line entrypoint
   daemon/    Local API, process control, storage, and preview relay
+  host/      Packaged daemon supervisor and local control endpoint
+  tray/      Native Windows tray application
   web/       React dashboard
 packages/
   adapters/  Runtime adapter contracts and metadata
+  host-control/ Local authenticated Host IPC contract
   protocol/  Shared wire contracts
+  update/    Manual updater manifest, download, and installer handoff core
 docs/        Public architecture, setup, and security documentation
 examples/    Local smoke-test helpers
+tooling/     Distribution and workspace-only verification tools
 ```
 
 ## Documentation
@@ -219,7 +239,17 @@ examples/    Local smoke-test helpers
 
 ## Known limitations
 
-- There is no packaged installer or container distribution yet
+- Windows x64 installer sources are present and an unsigned local candidate has
+  passed isolated clean-install, CLI lifecycle, in-place update, rollback,
+  PATH/autostart cleanup and uninstall checks. Validation ran on the build
+  workstation rather than a clean VM. The interactive installer wizard has not
+  received a visual/accessibility review, and no Windows installer is published
+  yet
+- Installed Windows Hosts support explicit update check/apply and CLI-managed
+  tray autostart. Updates are never checked or installed in the background,
+  but no update manifest or installer assets are published yet. Source-checkout
+  Hosts intentionally report update and autostart as unavailable
+- There is no packaged Linux/macOS or container distribution yet
 - Codex and Claude Code prompt delivery is designed to survive a graceful
   daemon restart. Ambiguous crash outcomes are reconciled from native
   transcripts and are never resent automatically

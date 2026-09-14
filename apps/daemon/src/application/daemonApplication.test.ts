@@ -1,7 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { closeDaemonApplicationResources } from "./daemonApplication.ts";
+import {
+  closeDaemonApplicationResources,
+  createIdempotentDaemonApplicationClose
+} from "./daemonApplication.ts";
+
+test("daemon application close reuses the same drain operation", async () => {
+  let closeCount = 0;
+  let finishClose!: () => void;
+  const closeFinished = new Promise<void>((resolve) => {
+    finishClose = resolve;
+  });
+  const close = createIdempotentDaemonApplicationClose(async () => {
+    closeCount += 1;
+    await closeFinished;
+  });
+
+  const first = close();
+  const second = close();
+
+  assert.equal(first, second);
+  assert.equal(closeCount, 1);
+  finishClose();
+  await Promise.all([first, second]);
+  assert.equal(close(), first);
+});
 
 test("application resource rollback closes every partially created owner", async () => {
   const closed = new Set<string>();

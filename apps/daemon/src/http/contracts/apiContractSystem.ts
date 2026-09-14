@@ -2,6 +2,7 @@ import type { ApiContractRoute } from "./apiContractTypes.ts";
 
 export const systemBootstrapApiContract: ApiContractRoute[] = [
   { method: "GET", path: "/api/health", successStatuses: [200] },
+  { method: "GET", path: "/api/cli/status", successStatuses: [200] },
   { method: "GET", path: "/api/overview", successStatuses: [200] }
 ];
 

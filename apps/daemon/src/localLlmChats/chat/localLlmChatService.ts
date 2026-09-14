@@ -10,6 +10,7 @@ import type {
 } from "@deskcue/protocol";
 import { AppError } from "#application/errors";
 import type { DaemonEventBus } from "#application/ports";
+import type { UpdateAdmissionPort } from "#application/update/updateAdmission";
 
 import { LocalLlmActionApprovalFlow } from "./localLlmActionApprovalFlow.ts";
 import { LocalLlmChatCommandScheduler } from "./localLlmChatCommandScheduler.ts";
@@ -73,7 +74,8 @@ export class LocalLlmChatService {
     toolExecutor = new LocalLlmToolExecutor(),
     events?: DaemonEventBus,
     private readonly lmStudioReadiness?: LocalLlmModelReadinessProbe,
-    generationCapacity: LocalLlmGenerationCapacityOptions = {}
+    generationCapacity: LocalLlmGenerationCapacityOptions = {},
+    private readonly updateAdmission?: UpdateAdmissionPort
   ) {
     const runtimeAdapters = new HttpLocalLlmRuntimeAdapterRegistry();
     const chatTransport = transport ?? new HttpLocalLlmChatTransport(runtimeAdapters);
@@ -121,7 +123,15 @@ export class LocalLlmChatService {
     return this.generations.hasAnyActive();
   }
 
+  getActiveGenerationCount() {
+    return this.generations.countActive();
+  }
+
   async createChat(input: CreateLocalLlmChatInput) {
+    return this.runMutation(() => this.createChatAdmitted(input));
+  }
+
+  private async createChatAdmitted(input: CreateLocalLlmChatInput) {
     await this.recoveryPromise;
     if (!input.model.trim()) throw new AppError("invalid_input", "Choose a local model before starting a chat.");
 
@@ -271,6 +281,12 @@ export class LocalLlmChatService {
   }
 
   async importLmStudioDesktopChat(input: { content: string; model: string; sourceFileName: string }) {
+    return this.runMutation(() => this.importLmStudioDesktopChatAdmitted(input));
+  }
+
+  private async importLmStudioDesktopChatAdmitted(
+    input: { content: string; model: string; sourceFileName: string }
+  ) {
     await this.recoveryPromise;
     if (!input.model.trim()) throw new AppError("invalid_input", "Choose a local model before importing a chat.");
 
@@ -431,6 +447,10 @@ export class LocalLlmChatService {
   }
 
   async interrupt(chatId: string) {
+    return this.runMutation(() => this.interruptAdmitted(chatId));
+  }
+
+  private async interruptAdmitted(chatId: string) {
     await this.recoveryPromise;
     await this.commandScheduler.cancelStartingGeneration(chatId);
     await this.generations.interrupt(chatId);
@@ -442,7 +462,13 @@ export class LocalLlmChatService {
     kind: ReservedLocalLlmChatCommand["kind"],
     command: (reservation: ReservedLocalLlmChatCommand) => Promise<T>
   ) {
-    return this.commandScheduler.run(chatId, kind, command);
+    return this.runMutation(() => this.commandScheduler.run(chatId, kind, command));
+  }
+
+  private runMutation<T>(operation: () => Promise<T>) {
+    return this.updateAdmission
+      ? this.updateAdmission.run("local_llm", operation)
+      : operation();
   }
 
   close() {

@@ -4,6 +4,7 @@ import express from "express";
 import type { SessionDetail, SessionSummary } from "@deskcue/protocol";
 import { accessDeviceStore, bindProductionAccessDeviceStore } from "#access/accessDevices";
 import { createDaemonApplication } from "#application/daemonApplication";
+import type { DaemonApplication } from "#application/daemonApplication";
 import { daemonConfig } from "#config/daemonConfig";
 import { errorHandler } from "#http/middleware/errorHandler";
 import { installJsonBodyParsers } from "#http/middleware/jsonBodyParsers";
@@ -40,6 +41,7 @@ import {
 
 export type DaemonServerController = {
   baseUrl: string;
+  beginUpdateDrain: () => ReturnType<DaemonApplication["beginUpdateDrain"]>;
   close: () => Promise<void>;
   port: number;
 };
@@ -51,22 +53,27 @@ function createRealtimeClose(
 ) {
   return (callback: () => void) => {
     const closes: Array<Promise<void>> = [previewProxy.close()];
+
     if (liveUpdates) {
       closes.push(new Promise<void>((resolve) => liveUpdates.close(resolve)));
     }
+
     if (previewServer?.listening) {
       closes.push(new Promise<void>((resolve) => {
         previewServer.close(() => resolve());
         previewServer.closeIdleConnections();
       }));
     }
+
     void Promise.allSettled(closes).then(() => callback());
   };
 }
 
 function createPreviewProxyApp(previewProxy: PreviewProxyController) {
   const app = express();
+
   app.use(requestLogger);
+
   previewProxy.installProxyRoutes(app);
   app.use(errorHandler);
   return app;
@@ -74,7 +81,45 @@ function createPreviewProxyApp(previewProxy: PreviewProxyController) {
 
 function readServerPort(server: import("node:http").Server) {
   const address = server.address();
+
   return typeof address === "object" && address ? address.port : null;
+}
+
+function decorateSessionWithViewerCount<T extends SessionSummary | SessionDetail>(
+  liveUpdates: LiveUpdatesController | null,
+  session: T
+): T {
+  const viewerCount = liveUpdates?.getViewerCountForSession(session.id) ?? 0;
+
+  return {
+    ...session,
+    viewerCount,
+    canSendInput: session.canSendInput,
+    inputBlockedReason: session.inputBlockedReason ?? null
+  };
+}
+
+function closeCloudIngress(application: DaemonApplication) {
+  return application.cloud.close();
+}
+
+export function installUpdateAdmissionMiddleware(
+  app: express.Express,
+  application: DaemonApplication
+) {
+  app.use((request, _response, next) => {
+    if (request.method === "GET" || request.method === "HEAD" || request.method === "OPTIONS") {
+      next();
+      return;
+    }
+
+    try {
+      application.assertUpdateAdmissionOpen();
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
 }
 
 function closeDaemonServer({
@@ -123,12 +168,14 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
   let previewServer: import("node:http").Server | null = null;
 
   app.use(cors(createCorsOptions()));
+
   app.use("/api", (_request, response, next) => {
     response.setHeader("Cache-Control", "no-store");
     response.setHeader("Pragma", "no-cache");
     response.setHeader("Expires", "0");
     next();
   });
+
   app.use(requestLogger);
   app.use(requireAccessToken);
   const sqliteContext = getProductionSqliteDatabaseContext(daemonConfig.databaseFilePath);
@@ -150,6 +197,7 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
   const resolvePreviewTarget = createPreviewTargetResolver(application);
 
   application.cloud.configurePreviewTargetResolver(resolvePreviewTarget);
+  installUpdateAdmissionMiddleware(app, application);
 
   previewProxy = new PreviewProxyController({
     previewProxyPort: daemonConfig.previewProxyPort,
@@ -161,17 +209,6 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
   installJsonBodyParsers(app);
   previewProxy.installTicketRoute(app);
 
-  const decorateSession = <T extends SessionSummary | SessionDetail>(session: T): T => {
-    const viewerCount = liveUpdates?.getViewerCountForSession(session.id) ?? 0;
-
-    return {
-      ...session,
-      viewerCount,
-      canSendInput: session.canSendInput,
-      inputBlockedReason: session.inputBlockedReason ?? null
-    };
-  };
-
   let server: import("node:http").Server | null = null;
   let disposeShutdownHandlers: (() => void) | null = null;
   let disposeProcessErrorHandlers: (() => void) | null = null;
@@ -180,7 +217,7 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
   try {
     installHttpRoutes(app, {
       application,
-      decorateSession,
+      decorateSession: (session) => decorateSessionWithViewerCount(liveUpdates, session),
       pushNotifications
     });
     app.get("/ws", (_request, response) => {
@@ -188,6 +225,7 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
         .status(426)
         .json({ error: "WebSocket upgrade required for /ws." });
     });
+
     installWebAppRoutes(app);
     app.use(errorHandler);
 
@@ -196,6 +234,7 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
       await closeApplication();
       return null;
     }
+
     previewServer = await listenWithRetry(
       createPreviewProxyApp(previewProxy),
       daemonConfig.previewProxyPort
@@ -203,10 +242,11 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
     if (!previewServer) {
       throw new Error("DeskCue Preview proxy could not start on its configured port.");
     }
+
     liveUpdates = createRealtimeThenStartCloudIngress({
       createRealtime: () => createLiveUpdates({
         application,
-        decorateSession,
+        decorateSession: (session) => decorateSessionWithViewerCount(liveUpdates, session),
         server: server!
       }),
       server,
@@ -215,18 +255,18 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
       },
       startCloudIngress: () => application.cloud.start()
     });
+
     previewProxy.attach(previewServer);
 
     const closeRealtime = createRealtimeClose(liveUpdates, previewProxy, previewServer);
-    const closeIngress = () => application.cloud.close();
-
     const shutdown = createShutdownHandler({
       closeApplication,
-      closeIngress,
+      closeIngress: () => closeCloudIngress(application),
       closeRealtime,
       flushLogs: flushLogger,
       server
     });
+
     disposeHttpServerErrorHandler = registerHttpServerErrorHandler(server, shutdown);
     disposeShutdownHandlers = registerShutdownHandlers(shutdown);
     disposeProcessErrorHandlers = registerProcessErrorHandlers(shutdown);
@@ -240,7 +280,7 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
     ]);
     const close = createControllerClose(() => closeDaemonServer({
       closeApplication,
-      closeIngress,
+      closeIngress: () => closeCloudIngress(application),
       closeRealtime: createRealtimeClose(runningLiveUpdates, previewProxy, previewServer),
       server: runningServer
     }), disposeProcessHandlers);
@@ -248,6 +288,10 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
 
     return {
       baseUrl: `http://127.0.0.1:${port}`,
+      beginUpdateDrain: () => application.beginUpdateDrain(async () => {
+        await application.close();
+        await pushNotifications.close();
+      }),
       close,
       port
     };
@@ -277,6 +321,7 @@ export async function startDaemonServer(): Promise<DaemonServerController | null
         "Daemon server startup failed and its rollback was incomplete."
       );
     }
+
     throw startupError;
   }
 }

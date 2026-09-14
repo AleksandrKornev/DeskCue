@@ -45,7 +45,7 @@
   min-width: 0;
 }
 
-.pairingOriginField span {
+.pairingOriginField > label {
   color: vars.$color-text-secondary;
   font-size: 0.72rem;
   font-weight: 800;

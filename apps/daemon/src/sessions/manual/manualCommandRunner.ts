@@ -60,6 +60,38 @@ type RunManualCommandOptions = {
   maxActiveCommands?: number;
 };
 
+class ManualCommandAdmission {
+  private released = false;
+
+  constructor(private readonly onRelease: () => void) {}
+
+  release() {
+    if (this.released) return;
+
+    this.released = true;
+    this.onRelease();
+  }
+}
+
+class ManualCommandResultLatch {
+  private settled = false;
+  private startedTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly resolve: (result: ManualCommandResult) => void) {}
+
+  setStartedTimer(timer: ReturnType<typeof setTimeout>) {
+    this.startedTimer = timer;
+  }
+
+  finish(result: ManualCommandResult) {
+    if (this.settled) return;
+
+    this.settled = true;
+    if (this.startedTimer) clearTimeout(this.startedTimer);
+    this.resolve(result);
+  }
+}
+
 function terminateManualCommandProcessTree(
   command: ActiveManualCommand,
   options: {
@@ -89,6 +121,7 @@ function normalizePositiveInteger(value: number | undefined, fallback: number) {
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -105,12 +138,15 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
 async function validateWorkingDirectory(cwd: string): Promise<string | null> {
   try {
     const directory = await stat(cwd);
+
     if (!directory.isDirectory()) {
       return `Working directory is not a directory: ${cwd}`;
     }
+
     return null;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
     return `Working directory is not available: ${message}`;
   }
 }
@@ -149,24 +185,28 @@ export class ManualCommandRunner {
 
   constructor(private readonly options: RunManualCommandOptions = {}) {}
 
+  getActiveCommandCount() {
+    return this.activeCommands.size;
+  }
+
   async run(command: string, cwd: string): Promise<ManualCommandResult> {
     if (this.closed) {
       throw new Error("Manual command runner is closed.");
     }
+
     const maxActiveCommands = normalizePositiveInteger(
       this.options.maxActiveCommands,
       DEFAULT_MANUAL_COMMAND_CONCURRENCY
     );
+
     if (this.admittedCount >= maxActiveCommands) {
       throw new ManualCommandCapacityError(maxActiveCommands);
     }
+
     this.admittedCount += 1;
-    let admissionReleased = false;
-    const releaseAdmission = () => {
-      if (admissionReleased) return;
-      admissionReleased = true;
+    const admission = new ManualCommandAdmission(() => {
       this.admittedCount = Math.max(0, this.admittedCount - 1);
-    };
+    });
 
     const options = this.options;
     const now = options.now ?? Date.now;
@@ -174,8 +214,9 @@ export class ManualCommandRunner {
     const workingDirectoryError = await (
       options.validateWorkingDirectory ?? validateWorkingDirectory
     )(cwd);
+
     if (workingDirectoryError) {
-      releaseAdmission();
+      admission.release();
       return finishedResult({
         ok: false,
         pid: null,
@@ -184,8 +225,9 @@ export class ManualCommandRunner {
         now
       });
     }
+
     if (this.closed) {
-      releaseAdmission();
+      admission.release();
       throw new Error("Manual command runner is closed.");
     }
 
@@ -193,22 +235,9 @@ export class ManualCommandRunner {
     const startGraceMs = options.startGraceMs ?? DEFAULT_MANUAL_COMMAND_START_GRACE_MS;
 
     return new Promise((resolve) => {
-      let settled = false;
       let child: ManualCommandChild;
       let activeCommand: ActiveManualCommand;
-      let startedTimer: ReturnType<typeof setTimeout> | null = null;
-
-      const finish = (result: ManualCommandResult) => {
-        if (settled) {
-          return;
-        }
-
-        settled = true;
-        if (startedTimer) {
-          clearTimeout(startedTimer);
-        }
-        resolve(result);
-      };
+      const resultLatch = new ManualCommandResultLatch(resolve);
 
       try {
         child = spawnCommand(command, [], {
@@ -219,8 +248,8 @@ export class ManualCommandRunner {
           windowsHide: true
         });
       } catch (error) {
-        releaseAdmission();
-        finish(
+        admission.release();
+        resultLatch.finish(
           finishedResult({
             ok: false,
             pid: null,
@@ -229,6 +258,7 @@ export class ManualCommandRunner {
             now
           })
         );
+
         return;
       }
 
@@ -237,15 +267,18 @@ export class ManualCommandRunner {
       const exited = new Promise<void>((resolveExit) => {
         resolveExited = resolveExit;
       });
+
       activeCommand = {
         child,
         exited,
         hasExited: () => childExited,
         pid: normalizeOwnedProcessId(child.pid)
       };
+
       this.activeCommands.add(activeCommand);
-      startedTimer = setTimeout(() => {
-        finish({
+
+      resultLatch.setStartedTimer(setTimeout(() => {
+        resultLatch.finish({
           status: "started",
           ok: true,
           exitCode: null,
@@ -256,14 +289,14 @@ export class ManualCommandRunner {
           durationMs: now() - startedAt,
           truncated: false
         });
-      }, startGraceMs);
+      }, startGraceMs));
 
       child.once("error", (error) => {
         childExited = true;
         this.activeCommands.delete(activeCommand);
         resolveExited();
-        releaseAdmission();
-        finish(
+        admission.release();
+        resultLatch.finish(
           finishedResult({
             ok: false,
             pid: child.pid ?? null,
@@ -278,8 +311,8 @@ export class ManualCommandRunner {
         childExited = true;
         this.activeCommands.delete(activeCommand);
         resolveExited();
-        releaseAdmission();
-        finish({
+        admission.release();
+        resultLatch.finish({
           status: "finished",
           ok: code === 0,
           exitCode: code,
@@ -298,6 +331,7 @@ export class ManualCommandRunner {
     if (this.closePromise) {
       return this.closePromise;
     }
+
     this.closed = true;
 
     const activeCommands = [...this.activeCommands];

@@ -1,6 +1,6 @@
 {
   "name": "@deskcue/cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "bin": {
@@ -18,6 +18,7 @@
     "verify:build-output": "node --input-type=module -e \"import { readdirSync } from 'node:fs'; const files = readdirSync('dist', { recursive: true }); const tests = files.filter((file) => typeof file === 'string' && /(?:^|[\\\\/]).+\\.test\\.[^.]+$/.test(file)); if (tests.length) throw new Error('Production dist contains test files: ' + tests.join(', '));\""
   },
   "dependencies": {
+    "@deskcue/host-control": "file:../../packages/host-control",
     "@deskcue/protocol": "file:../../packages/protocol",
     "dotenv": "^17.4.2"
   },

@@ -16,21 +16,27 @@ const OLD_STATE_ARTIFACT_MAX_FILES_PER_KIND = 2;
 function readStateArtifactKind(fileName: string) {
   const name = basename(fileName);
   const sourceAgentIndexName = basename(daemonConfig.agentSessionIndexFilePath);
+
   if (
     name.startsWith(`${sourceAgentIndexName}.`) &&
     /^\d+\.[^.]+\.tmp$/.test(name.slice(sourceAgentIndexName.length + 1))
   ) {
     return "source-agent-index-tmp";
   }
+
   if (/^state\.[^.]+\.tmp$/.test(name)) return "state-tmp";
+
   if (/^codex-transcript-line-counts\.[^.]+\.tmp$/.test(name)) {
     return "codex-transcript-index-tmp";
   }
+
   if (/^agent-session-turn-states\.[^.]+\.tmp$/.test(name)) {
     return "agent-session-turn-state-tmp";
   }
+
   if (/^state\.corrupt-.*\.json$/.test(name)) return "state-corrupt";
-  if (/^deskcue\.sqlite\.backup-v/.test(name)) return "sqlite-backup";
+  if (/^deskcue\.sqlite\.backup-(?:update-|v)/.test(name)) return "sqlite-backup";
+
   return null;
 }
 
@@ -38,12 +44,14 @@ export function pruneOldStateArtifacts(dataDir: string) {
   if (!existsSync(dataDir)) {
     return;
   }
+
   const now = Date.now();
   const candidates = readdirSync(dataDir, { withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => {
       const filePath = join(dataDir, entry.name);
       const stats = statSync(filePath);
+
       return {
         filePath,
         kind: readStateArtifactKind(entry.name),
@@ -54,15 +62,19 @@ export function pruneOldStateArtifacts(dataDir: string) {
     .filter((entry) => entry.kind !== null);
 
   const byKind = new Map<string, typeof candidates>();
+
   for (const candidate of candidates) {
     const kind = candidate.kind ?? "unknown";
+
     byKind.set(kind, [...(byKind.get(kind) ?? []), candidate]);
   }
 
   let prunedFiles = 0;
   let prunedBytes = 0;
+
   for (const entries of byKind.values()) {
     const sorted = entries.sort((left, right) => right.mtimeMs - left.mtimeMs);
+
     for (const [index, entry] of sorted.entries()) {
       const maxAgeMs = entry.kind?.endsWith("-tmp")
         ? ORPHAN_TEMP_ARTIFACT_MAX_AGE_MS
@@ -73,6 +85,7 @@ export function pruneOldStateArtifacts(dataDir: string) {
       ) {
         continue;
       }
+
       rmSync(entry.filePath, { force: true });
       prunedFiles += 1;
       prunedBytes += entry.sizeBytes;

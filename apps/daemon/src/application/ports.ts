@@ -35,6 +35,7 @@ export type WorkspaceBackend = {
 
 export type ManualCommandRunnerPort = {
   close: () => Promise<void>;
+  getActiveCommandCount?: () => number;
   run: (command: string, cwd: string) => Promise<ManualCommandResult>;
 };
 

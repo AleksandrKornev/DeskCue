@@ -2,7 +2,12 @@ import type express from "express";
 
 import type { SessionSummary } from "@deskcue/protocol";
 import type { DaemonApplication } from "#application/daemonApplication";
+import { listRuntimes } from "#runtimeDiagnostics/runtimes";
 
+import {
+  buildCliStatusSnapshot,
+  CLI_STATUS_AGENT_SESSION_LIMIT
+} from "./cliStatusSnapshot.ts";
 import { isTrustedLoopbackBrowserRequest } from "../../../hostClient.ts";
 import { setRequestMetrics } from "../../../middleware/requestLogger.ts";
 import type { DecorateSession } from "../../../types.ts";
@@ -12,6 +17,7 @@ const DEFAULT_OVERVIEW_SESSION_LIMIT = 16;
 type InstallOverviewRoutesOptions = {
   application: DaemonApplication;
   decorateSession: DecorateSession;
+  listRuntimes?: typeof listRuntimes;
 };
 
 function limitOverviewSessions(sessions: SessionSummary[], limit: number) {
@@ -45,6 +51,7 @@ function readSessionLimit(value: unknown) {
   }
 
   const parsed = Number.parseInt(value, 10);
+
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return DEFAULT_OVERVIEW_SESSION_LIMIT;
   }
@@ -54,8 +61,32 @@ function readSessionLimit(value: unknown) {
 
 export function installOverviewRoutes(
   app: express.Express,
-  { application, decorateSession }: InstallOverviewRoutesOptions
+  { application, decorateSession, listRuntimes: listRuntimesForRoute = listRuntimes }: InstallOverviewRoutesOptions
 ) {
+  app.get("/api/cli/status", async (_request, response, next) => {
+    try {
+      const [agentSessionPage, localChats, runtimes] = await Promise.all([
+        application.sourceAgentSessions.listRecentSessionPage(CLI_STATUS_AGENT_SESSION_LIMIT, true, {
+          includeSubagents: false
+        }),
+        application.localLlmChats.listChats(),
+        listRuntimesForRoute()
+      ]);
+
+      response.json(buildCliStatusSnapshot({
+        agentChatCount: agentSessionPage.totalCount,
+        agentChatCountExact: agentSessionPage.totalCountExact,
+        agentSessions: agentSessionPage.sessions,
+        agentSourceCounts: agentSessionPage.sourceCounts,
+        localChats,
+        managedSessions: application.managedSessions.listSessions(),
+        runtimes
+      }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/overview", async (request, response, next) => {
     try {
       await application.managedSessions.syncReplyStatesForRunningAttachedSessions();
@@ -64,6 +95,7 @@ export function installOverviewRoutes(
         .listSessions()
         .map((session) => stripSessionSummaryGitDetails(decorateSession(session)));
       const limitedSessions = limitOverviewSessions(sessions, sessionLimit);
+
       setRequestMetrics(response, {
         endpoint: "dashboard.overview",
         managedSessionCount: sessions.length,
