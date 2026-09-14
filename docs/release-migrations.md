@@ -54,9 +54,44 @@ npm run dev --workspace @deskcue/daemon
 Verify health, pairing, workspace registration, generic command start/input,
 git refresh, preview port update, daemon logs and final session status.
 
+For a Windows packaged candidate, also verify the distribution from its built
+payload rather than from TypeScript source or the Vite development server:
+
+1. build and test the self-contained Windows tray;
+2. run `node --test tooling/windows-installer/payload-lib.test.mjs`;
+3. assemble the allowlisted payload under Node.js `24.14.0` and require both
+   `better-sqlite3` and `@lydell/node-pty` through its bundled runtime;
+4. compile the unsigned Inno Setup artifact and record its SHA-256;
+5. install silently into a clean per-user test profile and verify both the
+   default autostart choice and explicit opt-out;
+6. exercise `deskcue start`, `status`, `open --print`, `logs`, `restart`,
+   `stop` and `doctor` from a fresh terminal;
+7. confirm direct installer-over-install is rejected without interrupting the
+   running Host;
+8. verify failure rollback and Host recovery before any destructive copy;
+9. exercise a coordinated update and confirm data plus a user-disabled
+   autostart preference are preserved;
+10. uninstall while DeskCue is running, confirm program integration is removed,
+    and confirm that `%LOCALAPPDATA%\DeskCue` was preserved.
+
+The current unsigned Windows x64 artifact passed 14/14 isolated installer
+scenarios, 55/55 recorded observations and three independent
+static/operational reviews. Coverage includes the checklist above, partial
+committed and uncommitted recovery, registry-cleanup fail-closed retention and
+retry, and pre-existing PATH preservation. Payload and tray provenance were
+bound to the exact tested artifact, but that binding is not a reproducible-build
+proof.
+
+The smoke used explicit isolated paths on the build workstation rather than a
+separate clean Windows VM. The native installer's interactive visual and
+accessibility behavior remains unreviewed. Every release candidate must repeat
+the full checklist for its exact built payload; do not promote a new artifact
+merely because source-level tests passed.
+
 ## User Upgrade Flow
 
-Users do not run migration commands manually. On first startup after upgrade:
+Source-checkout users do not run migration commands manually. On first startup
+after updating their checkout:
 
 1. The daemon opens `deskcue.sqlite`
 2. It rejects unsupported future schema versions before creating migration
@@ -70,12 +105,40 @@ If all steps pass, the daemon continues normally. If a migration fails, startup
 stops and the daemon log contains `SQLite schema migration failed` with the
 database path and backup path when available.
 
+The Windows updater, daemon readiness gate and Host integration are checked in,
+but no release manifest or installer asset is published yet. The private Inno
+`/UPDATE` mode is not a supported direct upgrade path. Every packaged update
+must:
+
+1. start only after an explicit CLI or confirmed tray action;
+2. begin the daemon's update drain and reject active managed sessions,
+   source-agent turns, local-model generations, manual commands and LM Studio
+   operations;
+3. create a consistent `deskcue.sqlite.backup-update-...` snapshot;
+4. download and stage only through the bounded HTTPS/host allowlist policy;
+5. verify the staged installer's size and SHA-256 again;
+6. shut down the managed daemon without killing unrelated Node processes;
+7. launch the installer detached, then let the Host exit while the installer
+   coordinates the remaining tray and Host shutdown;
+8. reconcile interrupted state or the installed version on the next Host start.
+
+Updates must not be checked or installed in the background. Do not automatically
+roll back to an older daemon after a newer daemon may have committed a schema
+migration: the older build can correctly reject that future schema. Use the
+migration backup and recovery procedure instead.
+
 ## Failure Support
 
 Ask the user to run:
 
 ```bash
 npm run doctor
+```
+
+For an installed Windows build, use:
+
+```powershell
+deskcue doctor
 ```
 
 The doctor command is read-only. It reports the daemon database file, log file,

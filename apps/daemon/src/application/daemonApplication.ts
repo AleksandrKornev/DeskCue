@@ -18,9 +18,16 @@ import { ManagedSessionService } from "./managedSessionService.ts";
 import { ManualCommandService } from "./manualCommands/manualCommandService.ts";
 import type { DaemonEventBus as DaemonEventBusPort } from "./ports.ts";
 import { SourceAgentSessionService } from "./sourceAgentSessionService.ts";
+import { UpdateAdmission } from "./update/updateAdmission.ts";
+import { UpdateReadinessCoordinator } from "./update/updateReadinessCoordinator.ts";
+import type { UpdateDrainResult } from "./update/updateReadinessCoordinator.ts";
 import { WorkspaceService } from "./workspaceService.ts";
 
 export type DaemonApplication = {
+  assertUpdateAdmissionOpen: () => void;
+  beginUpdateDrain: (
+    quiesceDatabaseWriters: () => Promise<void>
+  ) => Promise<UpdateDrainResult>;
   close: () => Promise<void>;
   cloud: CloudConnectorService;
   events: DaemonEventBusPort;
@@ -29,9 +36,19 @@ export type DaemonApplication = {
   localLlmChats: LocalLlmChatService;
   lmStudioRuntime: LmStudioRuntimeCoordinator;
   sourceAgentSessions: SourceAgentSessionService;
+  isUpdateDraining: () => boolean;
   workspaceFiles: WorkspaceFileService;
   workspaces: WorkspaceService;
 };
+
+export function createIdempotentDaemonApplicationClose(closeResources: () => Promise<void>) {
+  let closePromise: Promise<void> | null = null;
+
+  return () => {
+    closePromise ??= closeResources();
+    return closePromise;
+  };
+}
 
 export async function closeDaemonApplicationResources({
   agentSessionReviews,
@@ -107,6 +124,7 @@ export async function createDaemonApplication(
 ): Promise<DaemonApplication> {
   const events = new DaemonEventBus();
   const discovery = new LocalSourceAgentSessionDiscovery();
+  const updateAdmission = new UpdateAdmission();
   let store: DeskCueStore | null = null;
   let agentSessionReviews: SqliteAgentSessionReviewStore | null = null;
   let storageMaintenance: ReturnType<typeof startStorageMaintenanceScheduler> | null = null;
@@ -122,9 +140,9 @@ export async function createDaemonApplication(
     const workspaces = new WorkspaceService(store);
     const workspaceFiles = new WorkspaceFileService(workspaces);
 
-    manualCommands = new ManualCommandService(workspaces, new ManualCommandRunner());
+    manualCommands = new ManualCommandService(workspaces, new ManualCommandRunner(), updateAdmission);
 
-    lmStudioRuntime = new LmStudioRuntimeCoordinator();
+    lmStudioRuntime = new LmStudioRuntimeCoordinator({ updateAdmission });
     localLlmChats = new LocalLlmChatService(
       new LocalLlmChatLibrary(daemonConfig.localChatLibraryPath, {
         quotaBytes: daemonConfig.localChatLibraryQuotaBytes
@@ -139,16 +157,31 @@ export async function createDaemonApplication(
       {
         maxConcurrentGenerations: daemonConfig.localLlmMaxConcurrentGenerations,
         queueCapacity: daemonConfig.localLlmGenerationQueueCapacity
-      }
+      },
+      updateAdmission
     );
     sourceAgentSessions = new SourceAgentSessionService(
       store,
       discovery,
       workspaces,
       agentSessionReviews,
-      events
+      events,
+      {},
+      updateAdmission
     );
-    const managedSessions = new ManagedSessionService(store, sourceAgentSessions);
+    const managedSessions = new ManagedSessionService(store, sourceAgentSessions, updateAdmission);
+    const updateReadiness = new UpdateReadinessCoordinator(
+      updateAdmission,
+      {
+        countActiveLocalLlmGenerations: () => localLlmChats!.getActiveGenerationCount(),
+        countActiveLmStudioOperations: () => lmStudioRuntime!.getActiveOperationCount(),
+        countActiveManagedSessions: () =>
+          managedSessions.listSessions().filter((session) => session.status === "running").length,
+        countActiveManualCommands: () => manualCommands!.getActiveCommandCount(),
+        countActiveSourceAgentTurns: () => sourceAgentSessions!.countActiveTurnsForUpdate()
+      },
+      sqliteContext
+    );
 
     cloud = new CloudConnectorService(sqliteContext, events, {
       listLocalLlmChats: () => localLlmChats!.listChats(),
@@ -160,19 +193,23 @@ export async function createDaemonApplication(
         !localLlmChats?.hasActiveGenerations() &&
         !store?.listSessions().some((session) => session.status === "running")
     });
+    const close = createIdempotentDaemonApplicationClose(() => closeDaemonApplicationResources({
+      agentSessionReviews,
+      cloud,
+      discovery,
+      localLlmChats,
+      lmStudioRuntime,
+      manualCommands,
+      sourceAgentSessions,
+      storageMaintenance,
+      store
+    }));
 
     return {
-      close: () => closeDaemonApplicationResources({
-        agentSessionReviews,
-        cloud,
-        discovery,
-        localLlmChats,
-        lmStudioRuntime,
-        manualCommands,
-        sourceAgentSessions,
-        storageMaintenance,
-        store
-      }),
+      assertUpdateAdmissionOpen: () => updateAdmission.assertOpen(),
+      beginUpdateDrain: (quiesceDatabaseWriters) =>
+        updateReadiness.beginUpdateDrain(quiesceDatabaseWriters),
+      close,
       cloud,
       events,
       managedSessions,
@@ -180,6 +217,7 @@ export async function createDaemonApplication(
       localLlmChats,
       lmStudioRuntime,
       sourceAgentSessions,
+      isUpdateDraining: () => updateAdmission.isDraining(),
       workspaceFiles,
       workspaces
     };

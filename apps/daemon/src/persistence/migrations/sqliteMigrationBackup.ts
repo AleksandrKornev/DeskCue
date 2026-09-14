@@ -10,6 +10,12 @@ type CreatePreMigrationBackupOptions = {
   targetVersion: number;
 };
 
+type CreateConsistentSqliteBackupOptions = {
+  database: Database.Database;
+  databaseFilePath?: string;
+  label: string;
+};
+
 function isEmptyDatabase(database: Database.Database) {
   const row = database
     .prepare(`
@@ -28,17 +34,17 @@ function formatBackupTimestamp(date: Date) {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
-export function createPreMigrationBackup({
-  currentVersion,
+function createConsistentSqliteBackup({
   database,
   databaseFilePath,
-  targetVersion
-}: CreatePreMigrationBackupOptions) {
+  label
+}: CreateConsistentSqliteBackupOptions) {
   if (!databaseFilePath || !existsSync(databaseFilePath) || isEmptyDatabase(database)) {
     return null;
   }
 
-  const backupPath = `${databaseFilePath}.backup-v${currentVersion}-to-v${targetVersion}-${formatBackupTimestamp(new Date())}-${randomUUID()}`;
+  const backupPath = `${databaseFilePath}.backup-${label}-${formatBackupTimestamp(new Date())}-${randomUUID()}`;
+
   mkdirSync(dirname(backupPath), {
     recursive: true
   });
@@ -48,4 +54,23 @@ export function createPreMigrationBackup({
   database.prepare("VACUUM INTO ?").run(backupPath);
 
   return backupPath;
+}
+
+export function createPreUpdateBackup(
+  options: Omit<CreateConsistentSqliteBackupOptions, "label">
+) {
+  return createConsistentSqliteBackup({ ...options, label: "update" });
+}
+
+export function createPreMigrationBackup({
+  currentVersion,
+  database,
+  databaseFilePath,
+  targetVersion
+}: CreatePreMigrationBackupOptions) {
+  return createConsistentSqliteBackup({
+    database,
+    databaseFilePath,
+    label: `v${currentVersion}-to-v${targetVersion}`
+  });
 }

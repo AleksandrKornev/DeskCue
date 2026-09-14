@@ -1,0 +1,23 @@
+{
+  "name": "@deskcue/host",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { force: true, recursive: true });\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@deskcue/host-control": "file:../../packages/host-control",
+    "@deskcue/update": "file:../../packages/update",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3"
+  }
+}

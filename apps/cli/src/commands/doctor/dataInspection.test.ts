@@ -9,6 +9,7 @@ import { listDatabaseBackups, readRecentMigrationFailures } from "./dataInspecti
 test("doctor stats only the bounded newest database backup set", async () => {
   const directory = await mkdtemp(join(tmpdir(), "deskcue-doctor-backups-"));
   const databaseFile = join(directory, "deskcue.sqlite");
+
   try {
     for (let index = 1; index <= 8; index += 1) {
       await writeFile(`${databaseFile}.backup-${String(index).padStart(2, "0")}`, `${index}`);
@@ -33,6 +34,7 @@ test("doctor stats only the bounded newest database backup set", async () => {
 test("doctor reads recent migration failures from a bounded log tail", async () => {
   const directory = await mkdtemp(join(tmpdir(), "deskcue-doctor-tail-"));
   const logFile = join(directory, "daemon.jsonl");
+
   try {
     const oldRecord = JSON.stringify({
       message: "SQLite schema migration failed",
@@ -44,12 +46,40 @@ test("doctor reads recent migration failures from a bounded log tail", async () 
       timestamp: "2026-08-06T00:00:00.000Z"
     });
     const filler = `${"x".repeat(1024)}\n`.repeat(1_100);
+
     await writeFile(logFile, `${oldRecord}\n${filler}${recentRecord}\n`, "utf8");
 
     const failures = readRecentMigrationFailures(logFile);
 
     assert.equal(failures.length, 1);
     assert.equal(failures[0]?.detail, "recent failure");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("doctor ignores a migration failure followed by a matching successful migration", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "deskcue-doctor-recovered-migration-"));
+  const logFile = join(directory, "daemon.jsonl");
+  const databaseFile = join(directory, "deskcue.sqlite");
+
+  try {
+    const records = [
+      {
+        context: { databaseFile, message: "first attempt failed", toVersion: 2 },
+        message: "SQLite schema migration failed",
+        timestamp: "2026-09-14T00:00:00.000Z"
+      },
+      {
+        context: { databaseFile, toVersion: 2 },
+        message: "SQLite schema migrated",
+        timestamp: "2026-09-14T00:01:00.000Z"
+      }
+    ];
+
+    await writeFile(logFile, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8");
+
+    assert.deepEqual(readRecentMigrationFailures(logFile), []);
   } finally {
     await rm(directory, { force: true, recursive: true });
   }

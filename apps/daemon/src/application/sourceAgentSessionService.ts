@@ -20,6 +20,7 @@ import type {
   SourceAgentSessionBackend,
   SourceAgentSessionDiscovery
 } from "./ports.ts";
+import type { UpdateAdmissionPort } from "./update/updateAdmission.ts";
 import type { WorkspaceService } from "./workspaceService.ts";
 
 const noopReviews: AgentSessionReviewStore = {
@@ -98,7 +99,8 @@ export class SourceAgentSessionService {
     private readonly workspaces: WorkspaceService,
     private readonly reviews: AgentSessionReviewStore = noopReviews,
     private readonly events: DaemonEventBus = noopEvents,
-    options: SourceAgentSessionServiceOptions = {}
+    options: SourceAgentSessionServiceOptions = {},
+    private readonly updateAdmission?: UpdateAdmissionPort
   ) {
     this.concurrency = readPositiveInteger(
       options.concurrency,
@@ -133,6 +135,16 @@ export class SourceAgentSessionService {
 
   readIndexStats() {
     return this.discovery.readIndexStats();
+  }
+
+  async countActiveTurnsForUpdate() {
+    const sessions = await this.discovery.listRecentSessions(
+      10_000,
+      this.workspaces.listWorkspaces(),
+      { force: true, includeLiveMetadata: true }
+    );
+
+    return sessions.filter((session) => session.workState === "running").length;
   }
 
   async listRecentSessions(
@@ -383,14 +395,20 @@ export class SourceAgentSessionService {
   }
 
   resumeAgentSession(agentSession: AgentSessionSummary, prompt?: string): Promise<SessionDetail> {
-    return this.backend.resumeAgentSession(agentSession, prompt);
+    return this.runMutation(() => this.backend.resumeAgentSession(agentSession, prompt));
   }
 
   resumeCodexSession(
     codexSession: CodexSessionSummary | CodexSessionDetail,
     prompt?: string
   ): Promise<SessionDetail> {
-    return this.backend.resumeCodexSession(codexSession, prompt);
+    return this.runMutation(() => this.backend.resumeCodexSession(codexSession, prompt));
+  }
+
+  private runMutation<T>(operation: () => Promise<T>) {
+    return this.updateAdmission
+      ? this.updateAdmission.run("source_agent", operation)
+      : operation();
   }
 
   private createReadCompletion<T>(key: string, promise: Promise<T>) {

@@ -22,6 +22,7 @@ import {
   validateCreateSessionInput,
   validatePreviewPort
 } from "./serviceValidation.ts";
+import type { UpdateAdmissionPort } from "./update/updateAdmission.ts";
 
 export class ManagedSessionService {
   private readonly interrupts: ManagedSessionInterruptCoordinator;
@@ -29,7 +30,8 @@ export class ManagedSessionService {
 
   constructor(
     private readonly backend: ManagedSessionBackend,
-    discovery: ManagedSourceAgentSessionDiscovery
+    discovery: ManagedSourceAgentSessionDiscovery,
+    private readonly updateAdmission?: UpdateAdmissionPort
   ) {
     this.interrupts = new ManagedSessionInterruptCoordinator(backend, discovery);
     this.replyStateSync = new ManagedSessionReplyStateSynchronizer(backend, discovery);
@@ -44,25 +46,31 @@ export class ManagedSessionService {
   }
 
   startSession(input: CreateSessionInput): Promise<SessionDetail> {
-    return this.backend.startSession(validateCreateSessionInput(input));
+    return this.runMutation(() => this.backend.startSession(validateCreateSessionInput(input)));
   }
 
   async sendInput(sessionId: string, input: string): Promise<SessionDetail> {
-    const normalizedSessionId = requireNonEmptyString(sessionId, "sessionId");
-    const session = await this.backend.sendInput(
-      normalizedSessionId,
-      requireNonEmptyString(input, "input")
-    );
+    return this.runMutation(async () => {
+      const normalizedSessionId = requireNonEmptyString(sessionId, "sessionId");
+      const session = await this.backend.sendInput(
+        normalizedSessionId,
+        requireNonEmptyString(input, "input")
+      );
 
-    return this.replyStateSync.startQueuedCodexPromptIfReady(normalizedSessionId, session);
+      return this.replyStateSync.startQueuedCodexPromptIfReady(normalizedSessionId, session);
+    });
   }
 
   stopSession(sessionId: string): Promise<SessionDetail> {
-    return this.backend.stopSession(requireNonEmptyString(sessionId, "sessionId"));
+    return this.runMutation(() =>
+      this.backend.stopSession(requireNonEmptyString(sessionId, "sessionId"))
+    );
   }
 
   interruptSession(sessionId: string): Promise<SessionDetail> {
-    return this.interrupts.interruptSession(requireNonEmptyString(sessionId, "sessionId"));
+    return this.runMutation(() =>
+      this.interrupts.interruptSession(requireNonEmptyString(sessionId, "sessionId"))
+    );
   }
 
   getExternalClaudeBackgroundStopCapability(
@@ -74,8 +82,8 @@ export class ManagedSessionService {
   }
 
   stopExternalClaudeBackground(sessionId: string): Promise<SessionDetail> {
-    return this.backend.stopExternalClaudeBackground(
-      requireNonEmptyString(sessionId, "sessionId")
+    return this.runMutation(() =>
+      this.backend.stopExternalClaudeBackground(requireNonEmptyString(sessionId, "sessionId"))
     );
   }
 
@@ -88,14 +96,14 @@ export class ManagedSessionService {
   }
 
   interruptExternalDesktopSession(sessionId: string): Promise<SessionDetail> {
-    return this.interrupts.interruptExternalDesktopSession(
-      requireNonEmptyString(sessionId, "sessionId")
+    return this.runMutation(() =>
+      this.interrupts.interruptExternalDesktopSession(requireNonEmptyString(sessionId, "sessionId"))
     );
   }
 
   openExternalCodexDesktopChat(sessionId: string): Promise<void> {
-    return this.interrupts.openExternalCodexDesktopChat(
-      requireNonEmptyString(sessionId, "sessionId")
+    return this.runMutation(() =>
+      this.interrupts.openExternalCodexDesktopChat(requireNonEmptyString(sessionId, "sessionId"))
     );
   }
 
@@ -109,9 +117,11 @@ export class ManagedSessionService {
     sessionId: string,
     target: ExternalForceStopTarget
   ): Promise<SessionDetail> {
-    return this.interrupts.forceStopExternalProcess(
-      requireNonEmptyString(sessionId, "sessionId"),
-      target
+    return this.runMutation(() =>
+      this.interrupts.forceStopExternalProcess(
+        requireNonEmptyString(sessionId, "sessionId"),
+        target
+      )
     );
   }
 
@@ -120,10 +130,12 @@ export class ManagedSessionService {
     port: number | null,
     networkMode?: PreviewNetworkMode
   ): Promise<SessionDetail> {
-    return this.backend.setPreviewPort(
-      requireNonEmptyString(sessionId, "sessionId"),
-      validatePreviewPort(port),
-      networkMode
+    return this.runMutation(() =>
+      this.backend.setPreviewPort(
+        requireNonEmptyString(sessionId, "sessionId"),
+        validatePreviewPort(port),
+        networkMode
+      )
     );
   }
 
@@ -131,9 +143,11 @@ export class ManagedSessionService {
     sessionId: string,
     payload: CapturePreviewArtifactPayload
   ): Promise<SessionDetail> {
-    return this.backend.capturePreviewArtifact(
-      requireNonEmptyString(sessionId, "sessionId"),
-      payload
+    return this.runMutation(() =>
+      this.backend.capturePreviewArtifact(
+        requireNonEmptyString(sessionId, "sessionId"),
+        payload
+      )
     );
   }
 
@@ -141,14 +155,24 @@ export class ManagedSessionService {
     sessionId: string,
     options?: ManagedSessionGitRefreshOptions
   ): Promise<SessionDetail> {
-    return this.backend.refreshSessionGit(requireNonEmptyString(sessionId, "sessionId"), options);
+    return this.runMutation(() =>
+      this.backend.refreshSessionGit(requireNonEmptyString(sessionId, "sessionId"), options)
+    );
   }
 
   syncReplyStatesForRunningAttachedSessions(): Promise<void> {
-    return this.replyStateSync.syncOverview();
+    return this.runMutation(() => this.replyStateSync.syncOverview());
   }
 
   syncReplyStateForSession(sessionId: string): Promise<SessionDetail | null> {
-    return this.replyStateSync.syncSession(requireNonEmptyString(sessionId, "sessionId"));
+    return this.runMutation(() =>
+      this.replyStateSync.syncSession(requireNonEmptyString(sessionId, "sessionId"))
+    );
+  }
+
+  private runMutation<T>(operation: () => Promise<T>) {
+    return this.updateAdmission
+      ? this.updateAdmission.run("managed_session", operation)
+      : operation();
   }
 }

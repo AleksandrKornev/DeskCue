@@ -1,20 +1,16 @@
 #!/usr/bin/env node
 
-import { printDoctorReport } from "./commands/doctor.ts";
-import { printStartHelp, printUsage } from "./commands/help.ts";
 import { loadCliEnvFiles } from "./envFiles.ts";
+import { runCli } from "./runCli.ts";
 
 loadCliEnvFiles();
 
-const [, , command = "help"] = process.argv;
+const abortController = new AbortController();
 
-switch (command) {
-  case "start":
-    printStartHelp();
-    break;
-  case "doctor":
-    printDoctorReport();
-    break;
-  default:
-    printUsage();
-}
+process.once("SIGINT", () => abortController.abort());
+
+process.once("SIGTERM", () => abortController.abort());
+
+process.exitCode = await runCli(process.argv.slice(2), {
+  signal: abortController.signal
+});

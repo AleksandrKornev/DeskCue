@@ -1,8 +1,9 @@
 # Distribution
 
-DeskCue is currently distributed as a source-checkout alpha. This page describes
-the supported path for early users and the constraints that must be solved
-before packaged releases.
+DeskCue is currently published as a source-checkout alpha. The repository also
+contains an unsigned Windows x64 distribution preview. This page distinguishes
+the supported public path from locally verified packaging components that have
+not yet been published or validated as a public release.
 
 ## Source-Checkout Alpha
 
@@ -67,6 +68,13 @@ Chat, Changes, Files, Preview, follow-up input and interrupt. When a release
 changes the SQLite schema, also follow the
 [Release and Migration Playbook](./release-migrations.md).
 
+The Windows distribution adds separate gates. A candidate must publish and test
+the tray, run the installer payload contract tests, assemble the payload with
+the exact bundled Node.js version, load its native SQLite and PTY modules, build
+the installer, then exercise clean install, Host/CLI lifecycle, uninstall and
+data preservation. Those checks are not substitutes for the repository and MCP
+Chrome DevTools gates.
+
 ## Release Versioning
 
 DeskCue uses one fixed version for the root project and every private npm
@@ -94,23 +102,86 @@ explicitly.
 Treat Docker Compose as future packaging work, not the current recommended
 alpha install path.
 
-## Packaged Installer Status
+## Windows Distribution Preview
 
-A packaged desktop installer is future work. Before shipping one, DeskCue needs:
+The following pieces are implemented in the repository:
 
-- a clean daemon start/stop lifecycle;
-- upgrade testing around SQLite migrations;
-- a user-facing recovery path for failed migrations;
-- platform-specific signing and update decisions
+- a singleton per-user Host with authenticated local IPC, persistent desired
+  daemon state, readiness reporting, graceful stop/restart and bounded crash
+  recovery;
+- a managed daemon entrypoint that shuts down when its Host disconnects;
+- CLI lifecycle, status, browser-open, bounded/followed logs, read-only doctor
+  and machine-readable JSON output;
+- a native, self-contained Windows x64 tray application whose menu is projected
+  from Host capabilities;
+- an allowlisted payload builder that bundles Node.js `24.14.0`, production
+  application output and only the Windows x64 native dependencies;
+- an unsigned, per-user Inno Setup installer definition and SHA-256 output;
+- an updater library with strict manifests, HTTPS host allowlisting, bounded
+  downloads, SHA-256 and size verification, durable staging state and an
+  explicit installer handoff;
+- a daemon update-readiness drain that rejects new mutations, reports active
+  work and creates a consistent pre-update SQLite backup;
+- installed Windows Host integration for explicit update check/apply, including
+  drain recovery, daemon shutdown and detached Inno installer launch;
+- installed Windows Host integration for exact current-user tray autostart
+  read/enable/disable through the CLI.
 
-Installer and portable builds should set a stable data directory with one
-environment variable:
+The current unsigned Windows x64 artifact passed 14/14 isolated installer
+scenarios, 55/55 recorded observations and three independent
+static/operational reviews. Coverage includes clean install, CLI lifecycle,
+direct-overinstall rejection, pre/post-copy rollback, partial recovery,
+same-version update, PATH/autostart ownership and fail-closed retry behavior,
+and uninstall. Payload and tray provenance were bound to the exact tested
+artifact, but that binding is not a reproducible-build proof.
 
-```bash
-DESKCUE_DATA_DIR=/path/to/deskcue-data
+The smoke used explicit isolated paths on the build workstation rather than a
+separate clean Windows VM, and the native installer's interactive visual and
+accessibility behavior remains unreviewed. Publishing stable/beta manifests
+and their matching release installers at the checked-in GitHub Release
+endpoints also remains before calling public packaged updates supported.
+
+There is no background update timer or automatic install. In installed Windows
+mode, `deskcue update --check` only checks; `deskcue update` explicitly requests
+check, download and apply. The tray asks for confirmation before apply. Source
+mode intentionally reports update and autostart capabilities as unavailable.
+
+The default stable feed is
+`update-manifest-v1.json`, and beta uses
+`update-manifest-v1-beta.json`, both under the GitHub Release
+`latest/download` path. The feed contract is active in the Host, but those
+assets have not been published yet, so there is no installable public update.
+
+The installer preview is intentionally unsigned and x64-only. Signing is
+deferred. The Host updater accepts installed Windows x64 and arm64 targets, but
+no arm64 payload or installer is built in this scope. There is no WinGet
+package, `npx` bootstrap or `install.sh`; packaged Linux/macOS builds, other
+package-manager channels and container distribution are outside this scope.
+
+Private, uniquely owned compile and updater snapshots narrow pathname races,
+but Node/CreateProcess cannot launch a Windows executable from an already
+verified handle. A malicious process running as the same Windows user could
+still race replacement of a verified path before launch. The updater therefore
+does not claim to be a security boundary against a compromised same-user
+account.
+
+The installer contract is:
+
+```text
+Artifact:      DeskCueSetup-<version>-win-x64.exe
+Install root:  %LOCALAPPDATA%\Programs\DeskCue
+Data root:     %LOCALAPPDATA%\DeskCue\data
+CLI PATH:      %LOCALAPPDATA%\Programs\DeskCue\bin
+Autostart:     HKCU\Software\Microsoft\Windows\CurrentVersion\Run\DeskCue
 ```
 
-Unless more specific variables are set, the daemon stores `deskcue.sqlite`,
-legacy `state.json` import data and `logs/daemon.jsonl` under that directory.
-Paired device token hashes are stored in SQLite. Source-checkout development
-still defaults to `.deskcue-data/` in the DeskCue repository root.
+Program replacement and data lifetime are separate. Uninstall removes the
+installed application, its exact owned autostart value and an installer-owned
+PATH segment, but preserves both a pre-existing matching PATH segment and
+`%LOCALAPPDATA%\DeskCue`. If registry cleanup cannot be confirmed, uninstall
+retains the program and ownership marker for retry. Source-checkout development
+continues to use the repository-local `.deskcue-data/` directory unless
+`DESKCUE_DATA_DIR` is set.
+
+See [Installation](./installation.md) for the exact build commands and current
+limitations, and [Recovery Notes](./recovery.md) for data recovery.

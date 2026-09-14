@@ -56,14 +56,16 @@ export function DevicePairingDialog({
           Copy device link
         </button>
       </div>
-      <label className={styles.pairingOriginField}>
-        <span>Connection address</span>
+      <div className={styles.pairingOriginField}>
+        <label htmlFor="pairing-connection-address">Connection address</label>
         <select
+          aria-describedby="pairing-connection-address-help"
           id="pairing-connection-address"
           name="pairingConnectionAddress"
           value={pairingHostChoice}
           onChange={(event) => {
             const nextValue = event.target.value;
+
             onPairingHostChoiceChange(nextValue);
 
             if (nextValue !== "custom") {
@@ -79,6 +81,8 @@ export function DevicePairingDialog({
           <option value="custom">Custom one-off address</option>
         </select>
         <input
+          aria-describedby="pairing-connection-address-help"
+          aria-label="Custom connection address"
           disabled={pairingHostChoice !== "custom"}
           id="pairing-custom-address"
           name="pairingCustomAddress"
@@ -89,11 +93,11 @@ export function DevicePairingDialog({
           }}
           placeholder="https://deskcue.example.com or http://<your-lan-ip>:4100"
         />
-        <small>
+        <small id="pairing-connection-address-help">
           Select saved addresses from Connections, or use custom for a one-time LAN IP,
           domain, VPN name, or proxy URL.
         </small>
-      </label>
+      </div>
       <PairingQrCode value={activePairingWebUrl} />
       <div
         className={clsx(

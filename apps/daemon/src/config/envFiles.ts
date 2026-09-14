@@ -2,6 +2,8 @@ import { config } from "dotenv";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isPackagedMode } from "./packagedMode.ts";
+
 const daemonRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const repoRoot = resolve(daemonRoot, "../..");
 
@@ -18,6 +20,8 @@ export function loadEnvFiles(filePaths: string[]) {
 }
 
 export function loadDaemonEnvFiles() {
+  if (isPackagedMode()) return;
+
   loadEnvFiles([
     join(repoRoot, ".env.local"),
     join(repoRoot, ".env"),

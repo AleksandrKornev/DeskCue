@@ -1,5 +1,7 @@
 import type { SettingsTab, SettingsTabOption } from "./types";
 
+export const OPEN_PHONE_PAIRING_ACTION = "pair-device";
+
 export const settingsTabs: SettingsTabOption[] = [
   {
     key: "access",
@@ -33,4 +35,16 @@ export function resolveSettingsTab(value: string | null): SettingsTab | null {
   }
 
   return isSettingsTab(value) ? value : null;
+}
+
+export function consumeOpenPhonePairingAction(searchParams: URLSearchParams) {
+  if (searchParams.get("action") !== OPEN_PHONE_PAIRING_ACTION) return null;
+
+  const next = new URLSearchParams(searchParams);
+
+  next.set("tab", "access");
+
+  next.delete("action");
+
+  return next;
 }

@@ -110,6 +110,7 @@ async function directoryBytes(directoryPath: string): Promise<number> {
   const sizes = await Promise.all(
     entries.map(async (entry) => {
       const entryPath = join(directoryPath, entry.name);
+
       if (entry.isDirectory()) {
         return directoryBytes(entryPath);
       }
@@ -125,6 +126,7 @@ test("scheduled storage maintenance runs in an isolated worker", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-maintenance-worker-"));
   const databasePath = join(tempDir, "state.sqlite");
   const storage = new DeskCueSqliteStateStorage(databasePath);
+
   storage.close();
 
   try {
@@ -149,6 +151,7 @@ test("manual full storage maintenance compacts in an isolated worker", async () 
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-maintenance-full-worker-"));
   const databasePath = join(tempDir, "state.sqlite");
   const storage = new DeskCueSqliteStateStorage(databasePath);
+
   storage.close();
 
   try {
@@ -170,8 +173,10 @@ test("lightweight maintenance skips automatic vacuum when runtime is not quiesce
   const tempDir = await mkdtemp(join(tmpdir(), "deskcue-maintenance-"));
   const databasePath = join(tempDir, "state.sqlite");
   const storage = new DeskCueSqliteStateStorage(databasePath);
+
   storage.close();
   const database = new Database(databasePath);
+
   database.exec(`
     CREATE TABLE maintenance_probe (payload BLOB);
     INSERT INTO maintenance_probe (payload) VALUES (zeroblob(1048576));
@@ -182,6 +187,7 @@ test("lightweight maintenance skips automatic vacuum when runtime is not quiesce
 
   try {
     const before = readStorageMaintenanceStats(databasePath);
+
     assert.equal(before.database.freeBytes >= 64 * 1024, true);
 
     const result = runLightweightStorageMaintenance(
@@ -210,6 +216,7 @@ test("storage maintenance reports and prunes duplicate read-only attached sessio
   try {
     storage = new DeskCueSqliteStateStorage(databasePath);
     const workspace = workspaceSummary();
+
     await storage.save({
       version: 1,
       workspaces: [workspace],
@@ -240,11 +247,14 @@ test("storage maintenance reports and prunes duplicate read-only attached sessio
         })
       ]
     });
+
     storage.close();
     storage = null;
 
     const before = readStorageMaintenanceStats(databasePath);
+
     assert.equal(before.sessions.duplicateAttachedGroups, 1);
+
     assert.equal(before.sessions.duplicateAttachedSessions, 1);
 
     const result = runStorageMaintenance({
@@ -260,6 +270,7 @@ test("storage maintenance reports and prunes duplicate read-only attached sessio
       readonly: true
     });
     const ids = database.prepare("SELECT id FROM sessions ORDER BY id").all() as Array<{ id: string }>;
+
     database.close();
 
     assert.deepEqual(ids.map((row) => row.id), [
@@ -284,6 +295,7 @@ test("storage maintenance retains terminal cards for seven days and caps their c
   try {
     storage = new DeskCueSqliteStateStorage(databasePath);
     const workspace = workspaceSummary();
+
     await storage.save({
       version: 1,
       workspaces: [workspace],
@@ -315,6 +327,7 @@ test("storage maintenance retains terminal cards for seven days and caps their c
         })
       ]
     });
+
     storage.close();
     storage = null;
 
@@ -331,7 +344,9 @@ test("storage maintenance retains terminal cards for seven days and caps their c
     assert.equal(result.deletedTerminalSessions, 2);
     const database = new Database(databasePath, { readonly: true });
     const ids = database.prepare("SELECT id FROM sessions ORDER BY id").all() as Array<{ id: string }>;
+
     database.close();
+
     assert.deepEqual(ids.map((row) => row.id), [
       "running",
       "terminal-newest",
@@ -359,6 +374,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
         id, session_id, adapter_id, prompt_text, phase, requested_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?)`
     );
+
     insert.run(
       "old-completed",
       "session-1",
@@ -368,6 +384,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
       "2026-05-01T00:00:00.000Z",
       "2026-05-01T00:00:00.000Z"
     );
+
     insert.run(
       "recent-interrupted",
       "session-1",
@@ -377,6 +394,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
       "2026-07-10T00:00:00.000Z",
       "2026-07-10T00:00:00.000Z"
     );
+
     insert.run(
       "old-active",
       "session-1",
@@ -386,6 +404,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
       "2026-05-01T00:00:00.000Z",
       "2026-05-01T00:00:00.000Z"
     );
+
     insert.run(
       "old-outcome-unknown",
       "session-2",
@@ -395,6 +414,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
       "2026-05-01T00:00:00.000Z",
       "2026-05-01T00:00:00.000Z"
     );
+
     insert.run(
       "old-not-sent",
       "session-3",
@@ -404,6 +424,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
       "2026-05-01T00:00:00.000Z",
       "2026-05-01T00:00:00.000Z"
     );
+
     insert.run(
       "old-observed",
       "session-4",
@@ -413,6 +434,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
       "2026-05-01T00:00:00.000Z",
       "2026-05-01T00:00:00.000Z"
     );
+
     database.close();
 
     runStorageMaintenance({
@@ -428,6 +450,7 @@ test("storage maintenance prunes only old terminal prompt journal entries", asyn
       .prepare("SELECT id FROM prompt_delivery_journal ORDER BY id")
       .all() as Array<{ id: string }>;
     verificationDatabase.close();
+
     assert.deepEqual(ids.map((row) => row.id), [
       "old-active",
       "old-not-sent",
@@ -455,6 +478,7 @@ test("storage maintenance prunes expired and used access recovery codes", async 
         id, code_hash, created_at, expires_at, used_at
       ) VALUES (?, ?, ?, ?, ?)
     `);
+
     insert.run("expired", "hash-expired", "2026-08-01T00:00:00.000Z", "2026-08-02T00:00:00.000Z", null);
     insert.run("used", "hash-used", "2026-08-01T00:00:00.000Z", "2026-08-10T00:00:00.000Z", "2026-08-03T00:00:00.000Z");
     insert.run("active", "hash-active", "2026-08-01T00:00:00.000Z", "2026-08-10T00:00:00.000Z", null);
@@ -473,6 +497,7 @@ test("storage maintenance prunes expired and used access recovery codes", async 
       .prepare("SELECT id FROM access_recovery_codes ORDER BY id")
       .all() as Array<{ id: string }>;
     verificationDatabase.close();
+
     assert.deepEqual(ids.map((row) => row.id), ["active"]);
   } finally {
     storage?.close();
@@ -494,6 +519,7 @@ test("storage maintenance prunes agent session reviews older than ninety days", 
       `INSERT INTO agent_session_reviews (agent_session_id, reviewed_at, updated_at)
        VALUES (?, ?, ?)`
     );
+
     insert.run("old", "2026-03-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z");
     insert.run("recent", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z");
     database.close();
@@ -511,6 +537,7 @@ test("storage maintenance prunes agent session reviews older than ninety days", 
       .prepare("SELECT agent_session_id AS id FROM agent_session_reviews ORDER BY id")
       .all() as Array<{ id: string }>;
     verificationDatabase.close();
+
     assert.deepEqual(ids.map((row) => row.id), ["recent"]);
   } finally {
     storage?.close();
@@ -527,6 +554,7 @@ test("manual storage cleanup removes every terminal card and DeskCue log", async
   try {
     storage = new DeskCueSqliteStateStorage(databasePath);
     const workspace = workspaceSummary();
+
     await storage.save({
       version: 1,
       workspaces: [workspace],
@@ -536,6 +564,7 @@ test("manual storage cleanup removes every terminal card and DeskCue log", async
         sessionDetail(workspace.id, { id: "running", status: "running" })
       ]
     });
+
     storage.close();
     storage = null;
     await mkdir(logDirectory, { recursive: true });
@@ -556,7 +585,9 @@ test("manual storage cleanup removes every terminal card and DeskCue log", async
     assert.deepEqual(await readdir(logDirectory), ["daemon.jsonl"]);
     const database = new Database(databasePath, { readonly: true });
     const ids = database.prepare("SELECT id FROM sessions ORDER BY id").all() as Array<{ id: string }>;
+
     database.close();
+
     assert.deepEqual(ids.map((row) => row.id), ["running"]);
   } finally {
     storage?.close();
@@ -579,41 +610,51 @@ test("storage stats keep the local model chat library separate from service stor
     const beforeFirstChat = readStorageMaintenanceStats(databasePath, {
       localChatLibraryPath
     });
+
     assert.deepEqual(beforeFirstChat.localChats, {
       path: localChatLibraryPath,
       bytes: 0,
       chatCount: 0
     });
+
     await assert.rejects(stat(localChatLibraryPath));
 
     const chatPath = join(localChatLibraryPath, "local-chat-1");
+
     await mkdir(chatPath, { recursive: true });
+
     await writeFile(join(chatPath, "chat.json"), "{}");
     await writeFile(join(chatPath, "messages.jsonl"), "{\"role\":\"user\"}\n");
 
     const afterFirstChat = readStorageMaintenanceStats(databasePath, {
       localChatLibraryPath
     });
+
     assert.equal(afterFirstChat.localChats.path, localChatLibraryPath);
     assert.equal(afterFirstChat.localChats.chatCount, 1);
     assert.ok(afterFirstChat.localChats.bytes > 0);
     assert.ok(afterFirstChat.database.totalBytes > 0);
 
     const archivedChatPath = join(localChatLibraryPath, "archive", "local-chat-archived");
+
     await mkdir(archivedChatPath, { recursive: true });
+
     await writeFile(join(archivedChatPath, "chat.json"), "{}");
     const afterArchivedChat = readStorageMaintenanceStats(databasePath, {
       localChatLibraryPath
     });
+
     assert.equal(afterArchivedChat.localChats.chatCount, 2);
 
     await writeFile(`${databasePath}.backup-v0-to-v1-2026-08-03T00-00-00-000Z`, "backup");
+    await writeFile(`${databasePath}.backup-update-2026-09-13T00-00-00-000Z`, "update-backup");
     const afterMigrationBackup = readStorageMaintenanceStats(databasePath, {
       localChatLibraryPath
     });
+
     assert.deepEqual(afterMigrationBackup.migrationBackups, {
-      bytes: Buffer.byteLength("backup"),
-      count: 1
+      bytes: Buffer.byteLength("backup") + Buffer.byteLength("update-backup"),
+      count: 2
     });
     assert.equal(
       afterMigrationBackup.database.serviceUsageBytes,
@@ -621,8 +662,14 @@ test("storage stats keep the local model chat library separate from service stor
     );
 
     const cleanup = clearMigrationBackups(databasePath);
-    assert.equal(cleanup.deletedBackups, 1);
-    assert.equal(cleanup.deletedBytes, Buffer.byteLength("backup"));
+
+    assert.equal(cleanup.deletedBackups, 2);
+
+    assert.equal(
+      cleanup.deletedBytes,
+      Buffer.byteLength("backup") + Buffer.byteLength("update-backup")
+    );
+
     assert.deepEqual(cleanup.after.migrationBackups, {
       bytes: 0,
       count: 0
@@ -648,6 +695,7 @@ test("storage maintenance prunes old revoked access devices", async () => {
     storage = null;
 
     const database = new Database(databasePath);
+
     database.prepare(`
       INSERT INTO access_devices (
         id, token_hash, label, user_agent, created_at, last_seen_at, last_ip, revoked_at
@@ -717,6 +765,7 @@ test("storage maintenance prunes old attached shells conservatively", async () =
   try {
     storage = new DeskCueSqliteStateStorage(databasePath);
     const workspace = workspaceSummary();
+
     await storage.save({
       version: 1,
       workspaces: [workspace],
@@ -751,6 +800,7 @@ test("storage maintenance prunes old attached shells conservatively", async () =
         })
       ]
     });
+
     storage.close();
     storage = null;
 
@@ -772,6 +822,7 @@ test("storage maintenance prunes old attached shells conservatively", async () =
       readonly: true
     });
     const ids = database.prepare("SELECT id FROM sessions ORDER BY id").all() as Array<{ id: string }>;
+
     database.close();
 
     assert.deepEqual(ids.map((row) => row.id), [
@@ -800,6 +851,7 @@ test("storage maintenance compacts inactive attached session payloads for the da
       id: "attached-newest",
       lastActivityAt: "2026-07-15T12:00:00.000Z"
     });
+
     await storage.save({
       version: 1,
       workspaces: [workspace],
@@ -821,6 +873,7 @@ test("storage maintenance compacts inactive attached session payloads for the da
         })
       ]
     });
+
     storage.close();
     storage = null;
 
@@ -849,6 +902,7 @@ test("storage maintenance compacts inactive attached session payloads for the da
       id: string;
       json: string;
     }>;
+
     database.close();
     const sessions = new Map(rows.map((row) => [row.id, JSON.parse(row.json) as SessionDetail]));
 
@@ -856,7 +910,9 @@ test("storage maintenance compacts inactive attached session payloads for the da
     const middleStored = sessions.get("attached-middle");
     const oldestStored = sessions.get("attached-oldest");
     const manualStored = sessions.get("manual-history");
+
     assert.ok(newestStored);
+
     assert.ok(middleStored);
     assert.ok(oldestStored);
     assert.ok(manualStored);
@@ -888,6 +944,7 @@ test("storage maintenance compacts old finished local session details but keeps 
       id: "managed-newest",
       lastActivityAt: "2026-07-15T12:00:00.000Z"
     });
+
     await storage.save({
       version: 1,
       workspaces: [workspace],
@@ -903,6 +960,7 @@ test("storage maintenance compacts old finished local session details but keeps 
         newest
       ]
     });
+
     storage.close();
     storage = null;
 
@@ -930,13 +988,16 @@ test("storage maintenance compacts old finished local session details but keeps 
       id: string;
       json: string;
     }>;
+
     database.close();
     const sessions = new Map(rows.map((row) => [row.id, JSON.parse(row.json) as SessionDetail]));
 
     const newestStored = sessions.get("managed-newest");
     const middleStored = sessions.get("managed-middle");
     const oldestStored = sessions.get("managed-oldest");
+
     assert.ok(newestStored);
+
     assert.ok(middleStored);
     assert.ok(oldestStored);
     assert.equal(newestStored.logs.length, 1);
@@ -969,6 +1030,7 @@ test("storage maintenance normalizes daemon log retention", async () => {
     await mkdir(logDir, {
       recursive: true
     });
+
     await writeFile(join(logDir, "daemon.jsonl"), "x".repeat(6 * 1024 * 1024));
     await writeFile(join(logDir, "daemon.jsonl.1"), "x".repeat(6 * 1024 * 1024));
     await writeFile(join(logDir, "daemon.jsonl.2"), "small");
@@ -1006,6 +1068,7 @@ test("automatic storage maintenance prunes oldest daemon logs to stay within the
     await mkdir(logDir, {
       recursive: true
     });
+
     await writeFile(join(logDir, "daemon.jsonl"), "current".repeat(700_000));
     await writeFile(join(logDir, "daemon.jsonl.1"), "newer".repeat(700_000));
     await writeFile(join(logDir, "daemon.jsonl.2"), "older".repeat(700_000));
@@ -1043,6 +1106,7 @@ test("storage maintenance reports size and duplicate warnings", async () => {
   try {
     storage = new DeskCueSqliteStateStorage(databasePath);
     const workspace = workspaceSummary();
+
     await storage.save({
       version: 1,
       workspaces: [workspace],
@@ -1061,6 +1125,7 @@ test("storage maintenance reports size and duplicate warnings", async () => {
         })
       ]
     });
+
     storage.close();
     storage = null;
 
@@ -1078,6 +1143,7 @@ test("storage maintenance reports size and duplicate warnings", async () => {
       forcedWarningResult.before.warnings.some((warning) => warning.code === "storage.size"),
       true
     );
+
     assert.equal(
       forcedWarningResult.before.warnings.some(
         (warning) => warning.code === "sessions.duplicate-attached"

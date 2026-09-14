@@ -22,9 +22,11 @@ export function readDataDirectoryBytes(directoryPath: string): number {
 
   return readdirSync(directoryPath, { withFileTypes: true }).reduce((total, entry) => {
     const entryPath = join(directoryPath, entry.name);
+
     if (entry.isDirectory()) {
       return total + readDataDirectoryBytes(entryPath);
     }
+
     return entry.isFile() ? total + readFileSize(entryPath) : total;
   }, 0);
 }
@@ -56,6 +58,7 @@ export function readLocalChatLibraryStats(localChatLibraryPath: string) {
 
 export function readLogBytes(dataDirectory: string) {
   const logDirectory = join(dataDirectory, "logs");
+
   if (!existsSync(logDirectory)) {
     return 0;
   }
@@ -71,12 +74,13 @@ export function listMigrationBackupFiles(dataDirectory: string) {
   }
 
   return readdirSync(dataDirectory, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && /^deskcue\.sqlite\.backup-v/.test(entry.name))
+    .filter((entry) => entry.isFile() && /^deskcue\.sqlite\.backup-(?:update-|v)/.test(entry.name))
     .map((entry) => join(dataDirectory, entry.name));
 }
 
 export function readMigrationBackupStats(dataDirectory: string) {
   const backups = listMigrationBackupFiles(dataDirectory);
+
   return {
     bytes: backups.reduce((total, backupPath) => total + readFileSize(backupPath), 0),
     count: backups.length
@@ -86,9 +90,11 @@ export function readMigrationBackupStats(dataDirectory: string) {
 export function clearMigrationBackupFiles(dataDirectory: string) {
   const backups = listMigrationBackupFiles(dataDirectory);
   const deletedBytes = backups.reduce((total, backupPath) => total + readFileSize(backupPath), 0);
+
   for (const backupPath of backups) {
     rmSync(backupPath, { force: true });
   }
+
   return {
     deletedBackups: backups.length,
     deletedBytes
@@ -97,18 +103,23 @@ export function clearMigrationBackupFiles(dataDirectory: string) {
 
 export function clearDaemonLogs(dataDirectory: string) {
   const logDirectory = join(dataDirectory, "logs");
+
   if (!existsSync(logDirectory)) {
     return { clearedBytes: 0, deletedFiles: 0 };
   }
 
   let clearedBytes = 0;
   let deletedFiles = 0;
+
   for (const fileName of readdirSync(logDirectory)) {
     if (!fileName.startsWith("daemon.jsonl")) {
       continue;
     }
+
     const filePath = join(logDirectory, fileName);
+
     clearedBytes += readFileSize(filePath);
+
     if (fileName === "daemon.jsonl") {
       truncateSync(filePath, 0);
     } else {
@@ -116,15 +127,19 @@ export function clearDaemonLogs(dataDirectory: string) {
       deletedFiles += 1;
     }
   }
+
   return { clearedBytes, deletedFiles };
 }
 
 export function readPositiveIntegerEnv(name: string, defaultValue: number) {
   const rawValue = process.env[name];
+
   if (!rawValue) {
     return defaultValue;
   }
+
   const parsed = Number(rawValue);
+
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
@@ -149,21 +164,26 @@ function rotateCurrentLogFile(logFilePath: string, maxFiles: number) {
     rmSync(logFilePath, { force: true });
     return;
   }
+
   for (let index = maxFiles - 1; index >= 1; index -= 1) {
     const source = `${logFilePath}.${index}`;
     const target = `${logFilePath}.${index + 1}`;
+
     if (existsSync(source)) {
       renameSync(source, target);
     }
   }
+
   if (existsSync(`${logFilePath}.${maxFiles}`)) {
     rmSync(`${logFilePath}.${maxFiles}`, { force: true });
   }
+
   renameSync(logFilePath, `${logFilePath}.1`);
 }
 
 export function pruneDaemonLogFiles(dataDirectory: string, storageMaxBytes: number) {
   const logDirectory = join(dataDirectory, "logs");
+
   if (!existsSync(logDirectory)) {
     return 0;
   }
@@ -178,8 +198,10 @@ export function pruneDaemonLogFiles(dataDirectory: string, storageMaxBytes: numb
     if (!fileName.startsWith("daemon.jsonl.")) {
       continue;
     }
+
     const suffix = Number(fileName.slice("daemon.jsonl.".length));
     const filePath = join(logDirectory, fileName);
+
     if (
       !Number.isInteger(suffix) ||
       suffix > maxFiles ||
@@ -198,8 +220,10 @@ export function pruneDaemonLogFiles(dataDirectory: string, storageMaxBytes: numb
     if (readDataDirectoryBytes(dataDirectory) <= storageMaxBytes) {
       break;
     }
+
     rmSync(join(logDirectory, fileName), { force: true });
     deletedFiles += 1;
   }
+
   return deletedFiles;
 }

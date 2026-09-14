@@ -1,8 +1,9 @@
 # DeskCue Recovery Notes
 
-This page covers local recovery steps for the source-checkout public alpha.
+This page covers local recovery steps for the source-checkout public alpha and
+the developer-preview Windows packaged build.
 
-DeskCue keeps daemon state in:
+The source checkout keeps daemon state in:
 
 ```text
 .deskcue-data/service/deskcue.sqlite
@@ -13,6 +14,43 @@ Daemon operational logs are written to:
 ```text
 .deskcue-data/service/logs/daemon.jsonl
 ```
+
+Installed Windows mode uses:
+
+```text
+%LOCALAPPDATA%\DeskCue\data\service\deskcue.sqlite
+%LOCALAPPDATA%\DeskCue\data\service\logs\daemon.jsonl
+```
+
+The install directory and data directory have independent lifetimes. Removing
+or reinstalling `%LOCALAPPDATA%\Programs\DeskCue` must not remove
+`%LOCALAPPDATA%\DeskCue`.
+
+If uninstall reports that it could not remove the exact DeskCue PATH or
+autostart registry value, fix the current-user registry access problem and run
+the uninstaller again. It intentionally retains program files and its PATH
+ownership marker for a safe retry. A PATH segment that existed before DeskCue
+installation is not owned by the installer and is preserved.
+
+## Host and Daemon Recovery
+
+In installed mode, the Host owns the daemon lifecycle and persists whether the
+daemon was requested to run. Use the public CLI instead of killing `node.exe`:
+
+```powershell
+deskcue status
+deskcue logs --lines 200
+deskcue restart
+```
+
+The Host performs bounded automatic restart attempts after an unexpected daemon
+exit. If they are exhausted, `deskcue status` reports a degraded state and the
+last error. `deskcue stop` stops only the daemon. Exiting the tray also leaves
+the Host and daemon lifecycle unchanged.
+
+The Host control endpoint is per-user and authenticated by a token stored under
+the DeskCue service data directory. Do not delete that token while the Host is
+running or connect directly to the private endpoint; use `deskcue` or the tray.
 
 ## In-flight prompt delivery
 
@@ -81,6 +119,12 @@ Run the read-only doctor command first:
 npm run doctor
 ```
 
+For an installed Windows build, run:
+
+```powershell
+deskcue doctor
+```
+
 Use its output to confirm the database file, the daemon log file, recent backup
 files and the most recent `SQLite schema migration failed` entry. The command
 does not restore, delete or rewrite data.
@@ -105,8 +149,52 @@ Copy-Item ".\deskcue.sqlite.backup-v0-to-v1-2026-06-24T08-00-00-000Z" .\deskcue.
 
 Replace the backup filename with the exact `backupPath` from the daemon log.
 
-Do not delete `.deskcue-data` as a first recovery step. It contains the local
-session history, paired device token hashes, daemon logs and migration backups.
+For installed Windows mode, first set the service directory explicitly:
+
+```powershell
+$deskCueServiceDir = Join-Path $env:LOCALAPPDATA "DeskCue\data\service"
+Set-Location -LiteralPath $deskCueServiceDir
+Copy-Item -LiteralPath ".\deskcue.sqlite" -Destination ".\deskcue.sqlite.failed"
+Copy-Item -LiteralPath ".\deskcue.sqlite.backup-v0-to-v1-2026-06-24T08-00-00-000Z" -Destination ".\deskcue.sqlite"
+```
+
+Use the exact backup name reported by `deskcue doctor`. Update-readiness
+backups use `deskcue.sqlite.backup-update-...`; migration backups retain the
+`backup-v<from>-to-v<to>-...` form.
+
+Do not delete `.deskcue-data` or `%LOCALAPPDATA%\DeskCue` as a first recovery
+step. They contain local session history, paired device token hashes, daemon
+logs, updater state and backups.
+
+## Packaged Update Recovery
+
+Packaged update check and apply are manual Host operations. DeskCue never starts
+them on a timer. `deskcue update --check` does not stage or install an artifact;
+`deskcue update` or a confirmed tray action starts the apply flow.
+
+The daemon update-readiness gate refuses to drain while managed sessions,
+source-agent turns, local-model generations, manual commands, or LM Studio
+operations are active. A successful drain creates a consistent SQLite backup
+and holds mutation admission closed while the Host downloads and stages the
+installer. The updater validates its size and SHA-256 during download and again
+immediately before launch.
+
+After verification, the Host stops the managed daemon, launches the Inno
+installer detached, and exits. If preparation, download, verification, daemon
+shutdown or installer launch fails, the Host cancels the drain and restores the
+requested daemon state. Interrupted check, download and apply states are
+reconciled on the next Host start; a still-valid staged installer remains
+retryable rather than being executed automatically.
+
+The installed Host defaults to stable and beta manifests under the DeskCue
+GitHub Release `latest/download` path. No manifests or installer assets are
+published yet, so the default feed cannot currently complete an update. Do not
+bypass Host coordination by running the private installer `/UPDATE` mode
+manually.
+
+A failed SQLite migration remains governed by the transactional migration and
+backup procedure below. DeskCue must not silently start an older daemon against
+a database already opened by a newer schema.
 
 ## Future Schema Version
 

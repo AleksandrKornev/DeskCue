@@ -14,13 +14,23 @@ const HTTP_ROUTE_SOURCE_NAMES = [
   "routes/system"
 ];
 
+function getRouteIndex(contractRouteOrder: Map<string, number>, routeKey: string) {
+  const index = contractRouteOrder.get(routeKey);
+
+  if (index === undefined) {
+    throw new Error(`${routeKey} route not found in daemon API contract`);
+  }
+
+  return index;
+}
+
 test("daemon API contract preserves route order and response metadata", () => {
-  assert.equal(daemonApiContract.length, 109);
+  assert.equal(daemonApiContract.length, 110);
   assert.equal(
     createHash("sha256")
       .update(JSON.stringify(daemonApiContract))
       .digest("hex"),
-    "0224e9a30f771df3629dea47facca37f503842216cfda3272de6503a71a410cb"
+    "cb0c546112f10e64fedb968381fcf39ff95b7279dbddff0401e24784c397c8e5"
   );
 
   const contractRouteMap = new Map(
@@ -33,7 +43,9 @@ test("daemon API contract preserves route order and response metadata", () => {
   const assertRoute = (method: string, path: string, successStatuses: number[]) => {
     const routeKey = `${method} ${path}`;
     const route = contractRouteMap.get(routeKey);
+
     assert.equal(route !== undefined, true, routeKey);
+
     assert.deepEqual(route, {
       method,
       path,
@@ -42,22 +54,14 @@ test("daemon API contract preserves route order and response metadata", () => {
   };
 
   const assertOrder = (firstKey: string, secondKey: string) => {
-    const getRouteIndex = (routeKey: string): number => {
-      const index = contractRouteOrder.get(routeKey);
-      if (index === undefined) {
-        throw new Error(`${routeKey} route not found in daemon API contract`);
-      }
-
-      return index;
-    };
-
-    const firstIndex = getRouteIndex(firstKey);
-    const secondIndex = getRouteIndex(secondKey);
+    const firstIndex = getRouteIndex(contractRouteOrder, firstKey);
+    const secondIndex = getRouteIndex(contractRouteOrder, secondKey);
 
     assert.ok(firstIndex < secondIndex, `${firstKey} should come before ${secondKey}`);
   };
 
   assertRoute("GET", "/api/health", [200]);
+  assertRoute("GET", "/api/cli/status", [200]);
   assertRoute("GET", "/api/workspaces", [200]);
   assertRoute("POST", "/api/workspaces/pick", [200, 201]);
   assertRoute("GET", "/api/workspaces/:workspaceId/files", [200]);
@@ -89,6 +93,7 @@ async function readRouteSourceFiles(directoryPath: string): Promise<string[]> {
 
   for (const entry of entries) {
     const entryPath = path.join(directoryPath, entry.name);
+
     if (entry.isDirectory()) {
       filePaths.push(...(await readRouteSourceFiles(entryPath)));
     } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
@@ -114,6 +119,7 @@ async function readDeclaredRoutes() {
 
     for (const filePath of filePaths) {
       const source = await readFile(filePath, "utf-8");
+
       for (const match of source.matchAll(/app\.(get|post|put|patch|delete)\(\s*"([^"]+)"/g)) {
         routes.add(`${match[1].toUpperCase()} ${match[2]}`);
       }
