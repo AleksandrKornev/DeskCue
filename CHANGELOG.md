@@ -7,6 +7,41 @@ releases.
 
 ## Unreleased
 
+## 0.2.0 - 2026-09-15
+
+### Added
+
+- Added an unsigned per-user Windows x64 installer with a supervising Host,
+  native tray, bundled runtime, CLI shim, autostart support and preserved user
+  data
+- Added Host-managed lifecycle, diagnostics and manual update flows through
+  `deskcue start`, `stop`, `restart`, `status`, `logs`, `doctor`, `update` and
+  `autostart`
+- Added bounded, verified update downloads with stable and beta manifest
+  channels, update-readiness draining, database backup, rollback and recovery
+- Added in-chat subagent discovery and navigation without placing subagent
+  sessions in the main recent-chat list
+
+### Changed
+
+- Made session status, waiting, interruption and completion states more
+  truthful across Codex, Claude Code and local runtimes
+- Improved the mobile control room, session navigation, file and diff review,
+  attachment previews, modal focus order and narrow-screen accessibility
+- Made tray phone pairing open the browser pairing dialog and clarified local
+  access, Cloud connection and runtime diagnostics
+- Expanded CLI status with live Host, daemon, runtime and chat information and
+  made logs bounded by default with explicit follow and full-export modes
+
+### Fixed
+
+- Hardened prompt ownership, resume, reconnect, interrupt and recovery paths so
+  stale source state cannot replace or misreport an active turn
+- Hardened transcript parsing, asset access, Preview proxying, Git operations,
+  process ownership and update handoff boundaries
+- Updated audited dependencies so both production and full dependency audits
+  report no known vulnerabilities at release time
+
 ## 0.1.1 - 2026-08-20
 
 ### Fixed

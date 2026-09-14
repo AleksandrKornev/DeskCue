@@ -1,9 +1,9 @@
 # Distribution
 
-DeskCue is currently published as a source-checkout alpha. The repository also
-contains an unsigned Windows x64 distribution preview. This page distinguishes
-the supported public path from locally verified packaging components that have
-not yet been published or validated as a public release.
+DeskCue is published as a source-checkout alpha. Starting with `v0.2.0`, GitHub
+Releases also provides an unsigned Windows x64 distribution with a stable
+manual-update feed. This page distinguishes the supported public paths from
+packaging components that remain locally verified previews.
 
 ## Source-Checkout Alpha
 
@@ -91,6 +91,13 @@ merged, tag the resulting `main` commit as `v<version>` and publish the tag.
 Package-specific independent versions can be introduced later if DeskCue starts
 publishing npm packages separately.
 
+For a Windows release, create the GitHub Release as a draft first. Upload the
+installer, its `.sha256` file and the matching stable update manifest, then
+verify their names, sizes and hashes through the GitHub API before publishing
+the release. Do not publish a release while its `latest/download` feed is
+incomplete. The builder-local `.build-manifest.json` contains absolute paths
+and is not a public release asset.
+
 ## Docker Compose Status
 
 Docker Compose is not the default distribution path yet. The daemon controls
@@ -102,7 +109,7 @@ explicitly.
 Treat Docker Compose as future packaging work, not the current recommended
 alpha install path.
 
-## Windows Distribution Preview
+## Windows Distribution Alpha
 
 The following pieces are implemented in the repository:
 
@@ -127,34 +134,37 @@ The following pieces are implemented in the repository:
 - installed Windows Host integration for exact current-user tray autostart
   read/enable/disable through the CLI.
 
-The current unsigned Windows x64 artifact passed 14/14 isolated installer
-scenarios, 55/55 recorded observations and three independent
-static/operational reviews. Coverage includes clean install, CLI lifecycle,
-direct-overinstall rejection, pre/post-copy rollback, partial recovery,
-same-version update, PATH/autostart ownership and fail-closed retry behavior,
-and uninstall. Payload and tray provenance were bound to the exact tested
-artifact, but that binding is not a reproducible-build proof.
+The Windows x64 implementation passed 14/14 isolated installer scenarios,
+55/55 recorded observations and three independent static/operational reviews.
+Coverage includes clean install, CLI lifecycle, direct-overinstall rejection,
+pre/post-copy rollback, partial recovery, same-version update, PATH/autostart
+ownership and fail-closed retry behavior, and uninstall. The final `v0.2.0`
+artifact was also installed over the previous candidate, matched all 4,003
+payload entries by size and SHA-256, preserved the existing chat store, and
+passed installed Host, daemon, CLI and doctor checks. Payload and tray
+provenance are bound to the exact artifact, but that binding is not a
+reproducible-build proof.
 
 The smoke used explicit isolated paths on the build workstation rather than a
 separate clean Windows VM, and the native installer's interactive visual and
-accessibility behavior remains unreviewed. Publishing stable/beta manifests
-and their matching release installers at the checked-in GitHub Release
-endpoints also remains before calling public packaged updates supported.
+accessibility behavior remains unreviewed. The stable `v0.2.0` manifest and its
+matching installer are published together; the beta feed has no public
+artifact yet.
 
 There is no background update timer or automatic install. In installed Windows
 mode, `deskcue update --check` only checks; `deskcue update` explicitly requests
 check, download and apply. The tray asks for confirmation before apply. Source
 mode intentionally reports update and autostart capabilities as unavailable.
 
-The default stable feed is
-`update-manifest-v1.json`, and beta uses
-`update-manifest-v1-beta.json`, both under the GitHub Release
-`latest/download` path. The feed contract is active in the Host, but those
-assets have not been published yet, so there is no installable public update.
+The default stable feed is `update-manifest-v1.json`, and beta uses
+`update-manifest-v1-beta.json`, both under the GitHub Release `latest/download`
+path. The stable feed is available starting with `v0.2.0`; the beta endpoint is
+currently unavailable. GitHub excludes prereleases from `releases/latest`, so
+a beta publication mechanism must be defined before publishing that channel.
 
-The installer preview is intentionally unsigned and x64-only. Signing is
-deferred. The Host updater accepts installed Windows x64 and arm64 targets, but
-no arm64 payload or installer is built in this scope. There is no WinGet
+The installer is intentionally unsigned and x64-only. Signing is deferred. The
+Host updater accepts installed Windows x64 and arm64 targets, but no arm64
+payload or installer is built in this scope. There is no WinGet
 package, `npx` bootstrap or `install.sh`; packaged Linux/macOS builds, other
 package-manager channels and container distribution are outside this scope.
 

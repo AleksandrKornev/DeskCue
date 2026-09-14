@@ -276,7 +276,9 @@ Set `DESKCUE_E2E_SESSION_ID` as well when the target chat is opened through a
 managed session route. The long scenario does not submit prompts and does not
 stop sessions.
 
-A packaged installer, Docker Compose file, and release artifact flow are still future work.
+An unsigned Windows x64 installer is published through GitHub Releases. Docker
+Compose, packaged Linux and macOS builds, and additional package-manager
+channels remain future work.
 
 ## Current Design Constraints
 

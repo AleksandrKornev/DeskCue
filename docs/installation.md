@@ -1,8 +1,8 @@
 # Installation
 
-The supported public-alpha installation remains a source checkout. The
-repository also includes a developer-preview, unsigned Windows x64 installer,
-but neither that installer nor an update feed is published yet.
+The public alpha can be installed from a source checkout. Starting with
+`v0.2.0`, GitHub Releases also provides an unsigned Windows x64 installer and a
+stable feed for explicit update checks and installs.
 
 ## Requirements
 
@@ -95,33 +95,33 @@ tooling/windows-installer/dist/installer/DeskCueSetup-<version>-win-x64.exe
 tooling/windows-installer/dist/installer/DeskCueSetup-<version>-win-x64.exe.sha256
 ```
 
-The current locally verified installer candidate is the following unsigned
-artifact. Later development builds may replace the local `dist` path before
-completing the same verification:
+The `v0.2.0` Windows release uses the following unsigned artifact:
 
 ```text
 File:            tooling/windows-installer/dist/installer/DeskCueSetup-0.2.0-win-x64.exe
-Size:            75,304,916 bytes
-SHA-256:         4bc4544bf84303407263100d1725ccbe2deff894d363e7aadf4fab007f01ebce
+Size:            75,308,275 bytes
+SHA-256:         e04d4aef89e4b249ad6db82ec464079ceb27dcfc5d6d62d8ae662195378b707a
 File version:    0.2.0.0
 Product version: 0.2.0
 ```
 
-The build manifest SHA-256 is
-`ff97556585a072ba4078b53de16cf3a4006df75ab48865f13a78c31a934c1399`.
-The 756,720-byte, 3,994-file payload manifest SHA-256 is
-`592f98e118fde0533849386ce3c1e17a8e17c8cf19a7ecb7a76bec073527cbcc`.
-The exact artifact passed payload verification and a real per-user
-uninstall/install cycle on the build machine. The cycle preserved the existing
-DeskCue SQLite file byte-for-byte, installed all 3,994 payload files with no
-missing, size-mismatched or hash-mismatched files, and passed installed CLI
-startup, status, log and doctor checks.
+The local build manifest SHA-256 is
+`86b475b3da087de717f094fd369d97e9aaa9319cd6a38ec3ba4198c263df6115`.
+It contains builder-local absolute paths and is retained as local provenance
+evidence rather than published as a release asset. The 758,565-byte, 4,003-file
+payload manifest SHA-256 is
+`98bd72e41099482dc2a40af47a9dd63db8f1eefa27e451ce875c525cc3782944`.
 
-The earlier 14-scenario isolated installer smoke suite has not yet been rerun
-against this exact artifact. The check did not use a separate clean Windows VM,
-exercise a published update feed, or visually and interactively review the
-native wizard and its accessibility. This is a locally verified developer
-preview, not a published DeskCue installer.
+The exact artifact passed payload verification and a real per-user update over
+the previous `0.2.0` candidate. All 4,003 installed payload entries matched by
+size and SHA-256, the existing non-empty chat store remained available, and a
+cold Host/daemon restart finished healthy with CLI status and doctor checks
+passing.
+
+The earlier 14-scenario isolated installer smoke suite has not been rerun
+against this exact dependency-only rebuild. The check did not use a separate
+clean Windows VM or visually and interactively review the native wizard and its
+accessibility. These remain boundaries of the public-alpha installer.
 
 ### Installer Behavior
 
@@ -196,8 +196,10 @@ The installed Host reads `update-manifest-v1.json` for stable and
 `update-manifest-v1-beta.json` for beta from the DeskCue GitHub Release
 `latest/download` assets. `DESKCUE_UPDATE_MANIFEST_URL` can override the
 manifest URL for controlled deployments and accepts `{channel}` as a
-placeholder. No manifest or installer assets are published yet, so the default
-feed cannot currently complete an update.
+placeholder. The stable feed is published with `v0.2.0`; the beta feed remains
+unavailable because GitHub excludes prereleases from `releases/latest`. A
+separate beta publication mechanism must be defined before that channel is
+published.
 
 Do not invoke the installer's private `/UPDATE` mode directly. The supported
 path begins with `deskcue update` or the tray so the Host can reject active
