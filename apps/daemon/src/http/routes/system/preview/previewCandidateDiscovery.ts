@@ -2,7 +2,10 @@ import http from "node:http";
 
 import type { PreviewCandidate } from "@deskcue/protocol";
 
-import { PREVIEW_LOOPBACK_HOSTNAME } from "./previewLoopback.ts";
+import {
+  PREVIEW_LOOPBACK_CONNECT_OPTIONS,
+  PREVIEW_LOOPBACK_HOSTNAME
+} from "./previewLoopback.ts";
 
 export const COMMON_PREVIEW_PORTS = [3000, 4173, 4200, 5173, 5174, 8000, 8080] as const;
 const PREVIEW_PROBE_TIMEOUT_MS = 600;
@@ -24,13 +27,8 @@ function delay(durationMs: number) {
 
 export function probePreviewPort(port: number) {
   return new Promise<boolean>((resolve) => {
-    let settled = false;
-    const finish = (healthy: boolean) => {
-      if (settled) return;
-      settled = true;
-      resolve(healthy);
-    };
     const request = http.request({
+      ...PREVIEW_LOOPBACK_CONNECT_OPTIONS,
       headers: { accept: "text/html,*/*;q=0.1" },
       host: PREVIEW_LOOPBACK_HOSTNAME,
       method: "HEAD",
@@ -39,13 +37,16 @@ export function probePreviewPort(port: number) {
       timeout: PREVIEW_PROBE_TIMEOUT_MS
     }, (response) => {
       response.resume();
-      finish(true);
+      resolve(true);
     });
-    request.once("error", () => finish(false));
+
+    request.once("error", () => resolve(false));
+
     request.once("timeout", () => {
       request.destroy();
-      finish(false);
+      resolve(false);
     });
+
     request.end();
   });
 }
@@ -61,10 +62,14 @@ export async function waitForPreviewPort(
   }: PreviewReadinessOptions = {}
 ) {
   const deadline = now() + Math.max(0, timeoutMs);
+
   while (true) {
     if (await probe(port)) return true;
+
     const remainingMs = deadline - now();
+
     if (remainingMs <= 0) return false;
+
     await wait(Math.min(Math.max(1, retryDelayMs), remainingMs));
   }
 }
@@ -92,6 +97,7 @@ export async function discoverPreviewCandidates({
     async () => {
       while (cursor < candidates.length) {
         const port = candidates[cursor++];
+
         if (await probe(port)) healthy.add(port);
       }
     }
