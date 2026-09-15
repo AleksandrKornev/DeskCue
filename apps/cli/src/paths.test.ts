@@ -32,17 +32,22 @@ test("packaged CLI uses the stable per-user data root", () => {
   const previousDataDir = process.env.DESKCUE_DATA_DIR;
   const previousLocalAppData = process.env.LOCALAPPDATA;
   const previousMode = process.env.DESKCUE_DISTRIBUTION_MODE;
+  const previousXdgDataHome = process.env.XDG_DATA_HOME;
 
   try {
-    const localAppData = join(tmpdir(), "DeskCue Test Local App Data");
+    const dataHome = join(tmpdir(), "DeskCue Test User Data");
 
     process.env.DESKCUE_DISTRIBUTION_MODE = "installed";
 
-    process.env.LOCALAPPDATA = localAppData;
+    process.env.LOCALAPPDATA = dataHome;
+    process.env.XDG_DATA_HOME = dataHome;
     delete process.env.DESKCUE_DATA_DIR;
 
     assert.equal(isPackagedCli(), true);
-    assert.equal(resolveCliDataRoot(), join(localAppData, "DeskCue", "data"));
+    assert.equal(
+      resolveCliDataRoot(),
+      join(dataHome, process.platform === "linux" ? "deskcue" : "DeskCue", "data")
+    );
   } finally {
     if (previousDataDir === undefined) delete process.env.DESKCUE_DATA_DIR;
     else process.env.DESKCUE_DATA_DIR = previousDataDir;
@@ -50,6 +55,8 @@ test("packaged CLI uses the stable per-user data root", () => {
     else process.env.LOCALAPPDATA = previousLocalAppData;
     if (previousMode === undefined) delete process.env.DESKCUE_DISTRIBUTION_MODE;
     else process.env.DESKCUE_DISTRIBUTION_MODE = previousMode;
+    if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+    else process.env.XDG_DATA_HOME = previousXdgDataHome;
   }
 });
 

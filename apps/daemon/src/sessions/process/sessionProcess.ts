@@ -136,10 +136,11 @@ export function createSessionPty(
   spawnSpec?: SessionSpawnSpec
 ): RunningChild {
   const env = buildSessionEnvironment(extraEnv, true);
+  const terminalName = normalizeTerminalEnv(env.TERM);
 
   if (spawnSpec) {
     return spawnPty(spawnSpec.file, spawnSpec.args, {
-      name: "xterm-color",
+      name: terminalName,
       cols: 120,
       rows: 30,
       cwd,
@@ -153,7 +154,7 @@ export function createSessionPty(
     const shell = env.COMSPEC || "C:\\Windows\\System32\\cmd.exe";
     const wrapperPath = createWindowsCommandWrapper(command);
     const child = spawnPty(shell, ["/d", "/c", wrapperPath], {
-      name: "xterm-color",
+      name: terminalName,
       cols: 120,
       rows: 30,
       cwd,
@@ -172,7 +173,7 @@ export function createSessionPty(
   const shell = env.SHELL || "/bin/bash";
 
   return spawnPty(shell, ["-lc", command], {
-    name: "xterm-color",
+    name: terminalName,
     cols: 120,
     rows: 30,
     cwd,

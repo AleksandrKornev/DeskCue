@@ -14,6 +14,7 @@ import type { CloudPreviewHeader } from "@deskcue/protocol/cloud";
 import { PreviewCookieJar } from "#http/routes/system/preview/egress/previewCookieJar";
 import { buildPreviewEgressPath } from "#http/routes/system/preview/egress/previewEgressTarget";
 import { resolvePreviewWebSocketTargetUrls } from "#http/routes/system/preview/egress/previewWebSocketTarget";
+import { resolvePreviewConnectionOptions } from "#http/routes/system/preview/previewLoopback";
 import { PREVIEW_PROXY_LIMITS } from "#http/routes/system/preview/previewProxyLimits";
 import { waitForPreviewSocketConnect } from "#http/routes/system/preview/previewSocketConnectDeadline";
 import {
@@ -184,12 +185,12 @@ export class CloudPreviewProxyTransport {
         ? this.cookieJar.read(request.owner, request.viewerKey, request.targetUrl)
         : undefined;
       const upstream = transport.request(request.targetUrl, {
+        ...resolvePreviewConnectionOptions(request.targetUrl, request.egress, request.lookup),
         headers: buildPreviewRequestHeaders(inputHeaders, request.targetUrl, {
           cookie,
           forwardAuthorization:
             !request.stripAuthorization && !isDeskCueAuthorization(inputHeaders.authorization)
         }),
-        lookup: request.lookup,
         maxHeaderSize: 32 * 1024,
         method: request.method,
         timeout: PREVIEW_PROXY_LIMITS.idleTimeoutMs
@@ -255,6 +256,7 @@ export class CloudPreviewProxyTransport {
       ? this.cookieJar.read(request.owner, request.viewerKey, httpUrl)
       : undefined;
     const socket = new WebSocket(websocketUrl, request.protocols, {
+      ...resolvePreviewConnectionOptions(websocketUrl, request.egress, request.lookup),
       followRedirects: false,
       headers: buildPreviewRequestHeaders(inputHeaders, httpUrl, {
         cookie,
@@ -262,7 +264,6 @@ export class CloudPreviewProxyTransport {
           !request.stripAuthorization && !isDeskCueAuthorization(inputHeaders.authorization)
       }),
       handshakeTimeout: PREVIEW_PROXY_LIMITS.connectTimeoutMs,
-      lookup: request.lookup,
       maxPayload: CLOUD_PREVIEW_WS_MAX_MESSAGE_BYTES,
       origin: httpUrl.origin,
       perMessageDeflate: false

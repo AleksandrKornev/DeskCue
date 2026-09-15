@@ -12,14 +12,14 @@ import test from "node:test";
 
 import { loadCodexDiscoveryFromPaths } from "./codexDiscovery.ts";
 
-async function writeCodexSessionFile(filePath: string, sessionId: string) {
+async function writeCodexSessionFile(filePath: string, sessionId: string, workspacePath: string) {
   await writeFile(
     filePath,
     JSON.stringify({
       type: "session_meta",
       payload: {
         id: sessionId,
-        cwd: "D:\\work\\repo"
+        cwd: workspacePath
       }
     }),
     "utf8"
@@ -32,6 +32,7 @@ test("discovers Codex sessions by merging index and session metadata files", asy
   const nestedDir = path.join(sessionsRoot, "2026", "06");
   const sessionIndexPath = path.join(tempDir, "session_index.jsonl");
   const sessionFilePath = path.join(nestedDir, "session-a.jsonl");
+  const workspacePath = path.join(tempDir, "workspaces", "repo");
 
   await mkdir(nestedDir, { recursive: true });
   await writeFile(
@@ -49,6 +50,7 @@ test("discovers Codex sessions by merging index and session metadata files", asy
     ].join("\n"),
     "utf8"
   );
+
   await writeFile(
     sessionFilePath,
     [
@@ -56,7 +58,7 @@ test("discovers Codex sessions by merging index and session metadata files", asy
         type: "session_meta",
         payload: {
           id: "session-a",
-          cwd: "D:\\work\\repo",
+          cwd: workspacePath,
           originator: "codex_cli_rs",
           cli_version: "0.1.0",
           source: "codex"
@@ -86,6 +88,7 @@ test("discovers Codex sessions by merging index and session metadata files", asy
     assert.equal(discovery.summaries[0]?.id, "session-a");
     assert.equal(discovery.summaries[0]?.threadName, "Indexed title");
     assert.equal(discovery.summaries[0]?.model, null);
+    assert.equal(discovery.summaries[0]?.workspacePath, workspacePath);
     assert.equal(discovery.summaries[0]?.workspaceName, "repo");
     assert.equal(discovery.filesById.get("session-a"), sessionFilePath);
   } finally {
@@ -100,6 +103,7 @@ test("uses the fresh session file timestamp when Codex index updated_at is stale
   const sessionIndexPath = path.join(tempDir, "session_index.jsonl");
   const olderSessionFilePath = path.join(nestedDir, "session-old.jsonl");
   const freshSessionFilePath = path.join(nestedDir, "session-fresh.jsonl");
+  const workspacePath = path.join(tempDir, "workspaces", "repo");
 
   await mkdir(nestedDir, { recursive: true });
   await writeFile(
@@ -119,13 +123,14 @@ test("uses the fresh session file timestamp when Codex index updated_at is stale
     "utf8"
   );
 
-  await writeCodexSessionFile(freshSessionFilePath, "session-fresh");
-  await writeCodexSessionFile(olderSessionFilePath, "session-old");
+  await writeCodexSessionFile(freshSessionFilePath, "session-fresh", workspacePath);
+  await writeCodexSessionFile(olderSessionFilePath, "session-old", workspacePath);
   await utimes(
     freshSessionFilePath,
     new Date("2026-07-01T17:55:17.985Z"),
     new Date("2026-07-01T17:55:17.985Z")
   );
+
   await utimes(
     olderSessionFilePath,
     new Date("2026-06-29T10:26:14.170Z"),
@@ -152,6 +157,7 @@ test("discovers Codex sessions with long metadata lines", async () => {
   const nestedDir = path.join(sessionsRoot, "2026", "07");
   const sessionIndexPath = path.join(tempDir, "session_index.jsonl");
   const sessionFilePath = path.join(nestedDir, "session-long-meta.jsonl");
+  const workspacePath = path.join(tempDir, "workspaces", "repo");
 
   await mkdir(nestedDir, { recursive: true });
   await writeFile(sessionIndexPath, "", "utf8");
@@ -162,7 +168,7 @@ test("discovers Codex sessions with long metadata lines", async () => {
         type: "session_meta",
         payload: {
           id: "session-long-meta",
-          cwd: "D:\\work\\repo",
+          cwd: workspacePath,
           base_instructions: {
             text: "x".repeat(12 * 1024)
           }

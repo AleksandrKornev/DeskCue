@@ -11,12 +11,15 @@ on:
 
 jobs:
   checks:
-    # better-sqlite3 may compile from source for some Node versions. Pin to
-    # Windows 2022 until node-gyp reliably detects the Windows 2025 VS toolchain.
-    runs-on: windows-2022
+    # Keep Windows on 2022 until node-gyp reliably detects the Windows 2025 VS
+    # toolchain; Ubuntu validates the second supported source platform.
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os:
+          - windows-2022
+          - ubuntu-22.04
         node-version:
           - 24.x
 

@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 
 import { resolveHostLaunchSpec } from "@deskcue/host-control";
 
@@ -10,6 +11,13 @@ export type LaunchHost = () => Promise<void>;
 
 const HOST_START_TIMEOUT_MS = 15_000;
 const HOST_START_RETRY_MS = 200;
+const execFileAsync = promisify(execFile);
+
+type LaunchDetachedHostOptions = {
+  env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform;
+  startSystemdService?: () => Promise<void>;
+};
 
 function delay(durationMs: number) {
   return new Promise((resolve) => {
@@ -21,7 +29,21 @@ function createHostStartTimeoutError() {
   return new Error("DeskCue Host startup timed out before the control endpoint became ready.");
 }
 
-export function launchDetachedHost(): Promise<void> {
+async function startDeskCueSystemdService() {
+  await execFileAsync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
+  await execFileAsync("systemctl", ["--user", "start", "deskcue-host.service"], {
+    encoding: "utf8"
+  });
+}
+
+export function launchDetachedHost(options: LaunchDetachedHostOptions = {}): Promise<void> {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+
+  if (platform === "linux" && env.DESKCUE_HOST_LAUNCH_MODE === "systemd-user") {
+    return (options.startSystemdService ?? startDeskCueSystemdService)();
+  }
+
   const spec = resolveHostLaunchSpec();
 
   return new Promise((resolve, reject) => {

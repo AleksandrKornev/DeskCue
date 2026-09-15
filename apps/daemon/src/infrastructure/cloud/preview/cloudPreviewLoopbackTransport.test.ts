@@ -31,6 +31,41 @@ function readAddress(server: import("node:http").Server) {
   return address;
 }
 
+test("egress hostnames fail closed when their pinned lookup is missing", async () => {
+  let reachedLoopback = false;
+  const server = createServer((_request, response) => {
+    reachedLoopback = true;
+    response.end("unexpected");
+  });
+
+  await listen(server);
+  const address = readAddress(server);
+  const targetUrl = new URL(`http://public.example.invalid:${address.port}/`);
+
+  try {
+    await assert.rejects(executeCloudPreviewLoopbackHttp({
+      body: Buffer.alloc(0),
+      headers: [],
+      method: "GET",
+      owner: { id: "session-1", kind: "session" },
+      pathAndQuery: "/",
+      signal: new AbortController().signal,
+      target: {
+        networkMode: "deskcue-host",
+        origin: `http://localhost:${address.port}`,
+        port: address.port
+      },
+      targetUrl,
+      viewerKey: "abcdefghijklmnopqrstuvwx",
+      egress: true,
+      stripAuthorization: true
+    }), /missing its pinned lookup/u);
+    assert.equal(reachedLoopback, false);
+  } finally {
+    await close(server);
+  }
+});
+
 test("loopback HTTP exposes response chunks without waiting for upstream completion and cancels its reader", async () => {
   let readerCancelled = false;
   const server = createServer((_request, response) => {

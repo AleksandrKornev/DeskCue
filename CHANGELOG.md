@@ -7,6 +7,21 @@ releases.
 
 ## Unreleased
 
+### Added
+
+- Added self-contained Linux x64 and arm64 release builders for standalone
+  archives and Debian packages
+- Added per-user Linux installation, systemd Host lifecycle, autostart and
+  verified standalone update handoff with rollback
+- Added a native Windows/Linux release matrix that creates one strict update
+  manifest, complete SHA-256 checksums and a draft GitHub Release
+
+### Changed
+
+- Extended installed data paths, Host startup and update artifact selection
+  across Windows and glibc Linux
+- Added Ubuntu 22.04 to the canonical repository CI matrix
+
 ## 0.2.0 - 2026-09-15
 
 ### Added

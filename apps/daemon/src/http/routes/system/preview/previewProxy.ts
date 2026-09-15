@@ -23,6 +23,7 @@ import {
 import type { PreviewEgressResolver } from "./egress/previewEgressTarget.ts";
 import { resolvePreviewWebSocketTargetUrls } from "./egress/previewWebSocketTarget.ts";
 import { discoverPreviewCandidates, waitForPreviewPort } from "./previewCandidateDiscovery.ts";
+import { resolvePreviewConnectionOptions } from "./previewLoopback.ts";
 import { PREVIEW_PROXY_LIMITS } from "./previewProxyLimits.ts";
 import type {
   PreviewConfiguredPortReader,
@@ -452,6 +453,7 @@ export class PreviewProxyController {
     const protocols = readWebSocketProtocols(request.headers["sec-websocket-protocol"]);
     const { httpUrl, websocketUrl } = resolvePreviewWebSocketTargetUrls(context.targetUrl);
     const upstream = new WebSocket(websocketUrl, protocols, {
+      ...resolvePreviewConnectionOptions(websocketUrl, context.egress, context.lookup),
       handshakeTimeout: PREVIEW_PROXY_LIMITS.connectTimeoutMs,
       headers: buildPreviewRequestHeaders(request.headers, httpUrl, {
         cookie: context.egress
@@ -461,7 +463,6 @@ export class PreviewProxyController {
           !previewEgressMustStripAuthorization(request.url) &&
           !isDeskCueAuthorization(request.headers.authorization)
       }),
-      lookup: context.lookup,
       maxPayload: PREVIEW_PROXY_LIMITS.maxWebSocketMessageBytes,
       origin: context.egress ? httpUrl.origin : target.origin
     });

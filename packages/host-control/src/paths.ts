@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, openSync, readFileSync, writeFileSync, closeSync } from "node:fs";
 import os from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, posix, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export type HostControlPaths = {
@@ -42,10 +42,19 @@ export function resolveDeskCueDataRoot(options: DataRootOptions = {}) {
   const distributionMode = readOptionalEnv(env, "DESKCUE_DISTRIBUTION_MODE");
 
   if (distributionMode === "installed") {
-    const localAppData = readOptionalEnv(env, "LOCALAPPDATA") ??
-      join(options.homeDir ?? os.homedir(), "AppData", "Local");
+    const targetPlatform = options.platform ?? process.platform;
 
-    return resolve(localAppData, "DeskCue", "data");
+    if (targetPlatform === "linux") {
+      const dataHome = readOptionalEnv(env, "XDG_DATA_HOME") ??
+        posix.join(options.homeDir ?? os.homedir(), ".local", "share");
+
+      return posix.resolve(dataHome, "deskcue", "data");
+    }
+
+    const localAppData = readOptionalEnv(env, "LOCALAPPDATA") ??
+      win32.join(options.homeDir ?? os.homedir(), "AppData", "Local");
+
+    return win32.resolve(localAppData, "DeskCue", "data");
   }
 
   if (options.cwd) return resolve(options.cwd, ".deskcue-data");

@@ -18,7 +18,8 @@ import type {
   UpdateArchitecture,
   UpdateArtifact,
   UpdateChannel,
-  UpdateManifest
+  UpdateManifest,
+  UpdatePlatform
 } from "./manifest.ts";
 import {
   cleanupUpdateStageArtifacts,
@@ -55,6 +56,7 @@ export type UpdateManagerOptions = {
   maxManifestBytes?: number;
   manifestInactivityTimeoutMs?: number;
   now?: () => Date;
+  platform: UpdatePlatform;
   requestTimeoutMs: number;
   stageDirectory: string;
   stateStore: FileUpdateStateStore;
@@ -76,19 +78,26 @@ function decodeManifest(bytes: Uint8Array) {
   }
 }
 
-function stagedInstallerName(version: string, architecture: UpdateArchitecture) {
-  return `DeskCueSetup-${version}-win-${architecture}.exe`;
+function stagedArtifactName(
+  version: string,
+  platform: UpdatePlatform,
+  architecture: UpdateArchitecture
+) {
+  return platform === "win32"
+    ? `DeskCueSetup-${version}-win-${architecture}.exe`
+    : `deskcue-${version}-linux-${architecture}.tar.gz`;
 }
 
 function preservedStageInstallerPaths(
   state: UpdateState,
   stageDirectory: string,
+  platform: UpdatePlatform,
   architecture: UpdateArchitecture
 ) {
   const paths = state.stagedPath ? [state.stagedPath] : [];
 
   if (state.targetVersion && /^[0-9A-Za-z.+-]+$/.test(state.targetVersion)) {
-    paths.push(join(stageDirectory, stagedInstallerName(state.targetVersion, architecture)));
+    paths.push(join(stageDirectory, stagedArtifactName(state.targetVersion, platform, architecture)));
   }
 
   return paths;
@@ -214,7 +223,7 @@ export class UpdateManager {
 
         if (
           state.artifact.architecture !== this.options.architecture ||
-          state.artifact.platform !== "win32" ||
+          state.artifact.platform !== this.options.platform ||
           state.totalBytes !== state.artifact.sizeBytes ||
           compareUpdateVersions(state.targetVersion, this.options.currentVersion) <= 0
         ) {
@@ -224,7 +233,7 @@ export class UpdateManager {
         assertAllowedUpdateUrl(state.artifact.url, this.options.allowedHosts);
         const destinationPath = join(
           this.options.stageDirectory,
-          stagedInstallerName(state.targetVersion, this.options.architecture)
+          stagedArtifactName(state.targetVersion, this.options.platform, this.options.architecture)
         );
 
         await rm(`${destinationPath}.part`, { force: true });
@@ -304,7 +313,7 @@ export class UpdateManager {
 
         const selectedArtifact = selectUpdateArtifact(
           manifest,
-          "win32",
+          this.options.platform,
           this.options.architecture
         );
         const maxArtifactBytes = this.options.maxArtifactBytes ?? DEFAULT_UPDATE_ARTIFACT_MAX_BYTES;
@@ -387,8 +396,9 @@ export class UpdateManager {
         await mkdir(this.options.stageDirectory, { recursive: true });
         const destinationPath = join(
           this.options.stageDirectory,
-          stagedInstallerName(
+          stagedArtifactName(
             available.targetVersion,
+            this.options.platform,
             this.options.architecture
           )
         );
@@ -465,7 +475,7 @@ export class UpdateManager {
   }
 
   async prepareApply(
-    arguments_: readonly string[] = WINDOWS_INNO_UPDATE_ARGUMENTS
+    arguments_: readonly string[] = this.options.platform === "win32" ? WINDOWS_INNO_UPDATE_ARGUMENTS : []
   ): Promise<InstallerApplyHandoff> {
     if (this.activeOperation) {
       throw new UpdateError("operation_in_progress", "Another update operation is already in progress.");
@@ -520,6 +530,7 @@ export class UpdateManager {
       preserveInstallerPaths: preservedStageInstallerPaths(
         state,
         this.options.stageDirectory,
+        this.options.platform,
         this.options.architecture
       ),
       stageDirectory: this.options.stageDirectory

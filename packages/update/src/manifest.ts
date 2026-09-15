@@ -5,7 +5,7 @@ export const UPDATE_SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 export type UpdateArchitecture = "arm64" | "x64";
 export type UpdateChannel = "beta" | "stable";
-export type UpdatePlatform = "win32";
+export type UpdatePlatform = "linux" | "win32";
 
 export type UpdateArtifact = {
   architecture: UpdateArchitecture;
@@ -134,8 +134,8 @@ export function parseUpdateArtifact(value: unknown): UpdateArtifact {
 
   assertExactKeys(artifact, ARTIFACT_KEYS, "Update artifact");
 
-  if (artifact.platform !== "win32") {
-    throw new UpdateError("invalid_manifest", "Update artifact platform must be win32.");
+  if (artifact.platform !== "win32" && artifact.platform !== "linux") {
+    throw new UpdateError("invalid_manifest", "Update artifact platform is unsupported.");
   }
 
   if (artifact.architecture !== "x64" && artifact.architecture !== "arm64") {

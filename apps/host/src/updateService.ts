@@ -4,6 +4,7 @@ import type { HostStatus } from "@deskcue/host-control";
 import {
   createInitialUpdateState,
   FileUpdateStateStore,
+  launchLinuxArchiveApplyHandoff,
   launchInstallerApplyHandoff,
   UpdateManager
 } from "@deskcue/update";
@@ -12,6 +13,7 @@ import type {
   UpdateArchitecture,
   UpdateChannel,
   UpdateManagerOptions,
+  UpdatePlatform,
   UpdateState
 } from "@deskcue/update";
 
@@ -73,6 +75,16 @@ function resolveArchitecture(architecture: NodeJS.Architecture): UpdateArchitect
   return null;
 }
 
+function resolvePlatform(platform: NodeJS.Platform): UpdatePlatform | null {
+  if (platform === "win32" || platform === "linux") return platform;
+
+  return null;
+}
+
+function resolveLinuxInstallRoot(env: NodeJS.ProcessEnv) {
+  return env.DESKCUE_INSTALL_DIR?.trim() || null;
+}
+
 function resolveManifestUrl(env: NodeJS.ProcessEnv, channel: UpdateChannel) {
   const configured = env.DESKCUE_UPDATE_MANIFEST_URL?.trim();
 
@@ -111,6 +123,7 @@ export class HostUpdateService {
   private readonly defaultChannel: UpdateChannel;
   private readonly env: NodeJS.ProcessEnv;
   private readonly launchInstaller: typeof launchInstallerApplyHandoff;
+  private readonly platform: UpdatePlatform | null;
   private manager: UpdateManagerLike | null = null;
   private managerChannel: UpdateChannel | null = null;
   private state: UpdateState | null = null;
@@ -119,12 +132,25 @@ export class HostUpdateService {
   constructor(private readonly options: HostUpdateServiceOptions) {
     this.env = options.env ?? process.env;
     this.architecture = resolveArchitecture(options.architecture ?? process.arch);
+    this.platform = resolvePlatform(options.platform ?? process.platform);
     this.createManager = options.createManager ?? ((managerOptions) => new UpdateManager(managerOptions));
     this.defaultChannel = parseChannel(this.env.DESKCUE_UPDATE_CHANNEL, "stable");
-    this.launchInstaller = options.launchInstaller ?? launchInstallerApplyHandoff;
-    this.supported = (options.platform ?? process.platform) === "win32" &&
-      this.architecture !== null &&
-      this.env.DESKCUE_DISTRIBUTION_MODE === "installed";
+    this.launchInstaller = options.launchInstaller ?? (
+      this.platform === "linux"
+        ? (handoff) => launchLinuxArchiveApplyHandoff(handoff, {
+            installRootPath: resolveLinuxInstallRoot(this.env) ?? "",
+            platform: this.platform ?? undefined
+          })
+        : launchInstallerApplyHandoff
+    );
+    const installedMode = this.env.DESKCUE_DISTRIBUTION_MODE === "installed";
+    const linuxStandalone = this.platform === "linux" &&
+      this.env.DESKCUE_UPDATE_APPLY_MODE === "linux-standalone" &&
+      resolveLinuxInstallRoot(this.env) !== null;
+
+    this.supported = installedMode && this.architecture !== null && (
+      this.platform === "win32" || linuxStandalone
+    );
   }
 
   get status(): HostStatus["update"] {
@@ -241,15 +267,25 @@ export class HostUpdateService {
   private assertSupported() {
     if (this.supported) return;
 
+    if (this.platform === "linux" && this.env.DESKCUE_UPDATE_APPLY_MODE === "external") {
+      throw new HostOperationError(
+        "update_unsupported",
+        "This Debian installation is updated outside DeskCue; repeat the Debian install command from the installation guide or use sudo dpkg -i with a newer package."
+      );
+    }
+
     throw new HostOperationError(
       "update_unsupported",
-      "DeskCue updates are supported only by installed Windows x64 and arm64 builds."
+      "DeskCue self-updates are available in installed Windows builds and standalone Linux builds."
     );
   }
 
   private ensureManager(channel: UpdateChannel) {
     if (this.manager && this.managerChannel === channel) return this.manager;
-    if (!this.architecture) throw new HostOperationError("update_unsupported", "Update architecture is unsupported.");
+
+    if (!this.architecture || !this.platform) {
+      throw new HostOperationError("update_unsupported", "Update target is unsupported.");
+    }
 
     const manifestUrl = resolveManifestUrl(this.env, channel);
     const stateStore = new FileUpdateStateStore(
@@ -267,6 +303,7 @@ export class HostUpdateService {
       channel,
       currentVersion: this.options.currentVersion,
       manifestUrl,
+      platform: this.platform,
       requestTimeoutMs: DEFAULT_UPDATE_REQUEST_TIMEOUT_MS,
       stageDirectory: join(this.options.dataRootPath, "service", "updates", "staged"),
       stateStore

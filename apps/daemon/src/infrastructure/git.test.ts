@@ -277,6 +277,7 @@ test("buildGitSnapshot composes an unborn staged and unstaged file as one final 
 
   try {
     await execFileAsync("git", ["init"], { cwd });
+    await execFileAsync("git", ["config", "core.filemode", "false"], { cwd });
     await writeFile(join(cwd, "данные.txt"), "staged\n", "utf8");
     await updateIndexFromWorktree(cwd, "данные.txt");
     await execFileAsync("git", ["update-index", "--chmod=+x", "данные.txt"], { cwd });

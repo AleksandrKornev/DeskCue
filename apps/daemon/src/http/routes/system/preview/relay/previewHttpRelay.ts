@@ -21,6 +21,7 @@ import {
 } from "./previewProxyHeaders.ts";
 import { PreviewCookieJar } from "../egress/previewCookieJar.ts";
 import { buildPreviewEgressPath, readPreviewEgressUrl } from "../egress/previewEgressTarget.ts";
+import { resolvePreviewConnectionOptions } from "../previewLoopback.ts";
 import { PREVIEW_PROXY_LIMITS } from "../previewProxyLimits.ts";
 import { waitForPreviewSocketConnect } from "../previewSocketConnectDeadline.ts";
 import type { PreviewOwner, ResolvedPreviewTarget } from "../previewTargetResolver.ts";
@@ -154,13 +155,13 @@ export class PreviewHttpRelay {
       : undefined;
     const transport = context.targetUrl.protocol === "https:" ? https : http;
     const upstreamRequest = transport.request(context.targetUrl, {
+      ...resolvePreviewConnectionOptions(context.targetUrl, context.egress, context.lookup),
       headers: buildPreviewRequestHeaders(request.headers, context.targetUrl, {
         cookie,
         forwardAuthorization:
           !context.stripAuthorization &&
           !isDeskCueAuthorization(request.headers.authorization)
       }),
-      lookup: context.lookup,
       maxHeaderSize: 32 * 1024,
       method: request.method,
       timeout: PREVIEW_PROXY_LIMITS.idleTimeoutMs

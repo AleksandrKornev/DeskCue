@@ -7,7 +7,8 @@ test("resolves the installed tray beside the packaged app directory", () => {
   assert.equal(
     resolveTrayExecutablePath({
       env: {},
-      hostEntryPath: "C:\\Program Files\\DeskCue\\app\\apps\\host\\dist\\index.js"
+      hostEntryPath: "C:\\Program Files\\DeskCue\\app\\apps\\host\\dist\\index.js",
+      platform: "win32"
     }),
     "C:\\Program Files\\DeskCue\\DeskCue.Tray.exe"
   );
@@ -67,4 +68,37 @@ test("keeps autostart unsupported outside installed Windows builds", () => {
   });
 
   assert.deepEqual(service.status, { enabled: null, supported: false });
+});
+
+test("reads and changes installed Linux systemd user autostart", async () => {
+  const calls: string[][] = [];
+  let enabled = false;
+  const service = new HostAutostartService({
+    env: { DESKCUE_DISTRIBUTION_MODE: "installed", DESKCUE_HOST_LAUNCH_MODE: "systemd-user" },
+    platform: "linux",
+    runSystemctl: async (arguments_) => {
+      calls.push(arguments_);
+      if (arguments_[1] === "is-enabled") {
+        if (!enabled) throw Object.assign(new Error("disabled"), { code: 1 });
+
+        return { stdout: "enabled\n" };
+      }
+
+      enabled = arguments_[1] === "enable";
+      return { stdout: "" };
+    }
+  });
+
+  assert.deepEqual(await service.refresh(), { enabled: false, supported: true });
+  assert.deepEqual(await service.setEnabled(true), { enabled: true, supported: true });
+  assert.deepEqual(await service.refresh(), { enabled: true, supported: true });
+  assert.deepEqual(await service.setEnabled(false), { enabled: false, supported: true });
+  assert.deepEqual(calls, [
+    ["--user", "is-enabled", "deskcue-host.service"],
+    ["--user", "daemon-reload"],
+    ["--user", "enable", "deskcue-host.service"],
+    ["--user", "is-enabled", "deskcue-host.service"],
+    ["--user", "daemon-reload"],
+    ["--user", "disable", "deskcue-host.service"]
+  ]);
 });
