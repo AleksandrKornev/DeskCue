@@ -7,7 +7,8 @@ test("resolves the installed tray beside the packaged app directory", () => {
   assert.equal(
     resolveTrayExecutablePath({
       env: {},
-      hostEntryPath: "C:\\Program Files\\DeskCue\\app\\apps\\host\\dist\\index.js"
+      hostEntryPath: "C:\\Program Files\\DeskCue\\app\\apps\\host\\dist\\index.js",
+      platform: "win32"
     }),
     "C:\\Program Files\\DeskCue\\DeskCue.Tray.exe"
   );

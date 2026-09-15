@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join, posix, win32 } from "node:path";
 import { promisify } from "node:util";
 
 import type { HostStatus } from "@deskcue/host-control";
@@ -94,13 +94,16 @@ function toSystemdAutostartError(error: unknown) {
 export function resolveTrayExecutablePath({
   env = process.env,
   hostEntryPath = process.argv[1],
+  platform = process.platform,
   trayExecutablePath
-}: Pick<HostAutostartServiceOptions, "env" | "hostEntryPath" | "trayExecutablePath"> = {}) {
-  if (trayExecutablePath) return resolve(trayExecutablePath);
-  if (env.DESKCUE_TRAY_EXECUTABLE?.trim()) return resolve(env.DESKCUE_TRAY_EXECUTABLE.trim());
-  if (env.DESKCUE_INSTALL_DIR?.trim()) return resolve(env.DESKCUE_INSTALL_DIR.trim(), "DeskCue.Tray.exe");
+}: Pick<HostAutostartServiceOptions, "env" | "hostEntryPath" | "platform" | "trayExecutablePath"> = {}) {
+  const pathApi = platform === "win32" ? win32 : posix;
 
-  return resolve(dirname(hostEntryPath), "../../../..", "DeskCue.Tray.exe");
+  if (trayExecutablePath) return pathApi.resolve(trayExecutablePath);
+  if (env.DESKCUE_TRAY_EXECUTABLE?.trim()) return pathApi.resolve(env.DESKCUE_TRAY_EXECUTABLE.trim());
+  if (env.DESKCUE_INSTALL_DIR?.trim()) return pathApi.resolve(env.DESKCUE_INSTALL_DIR.trim(), "DeskCue.Tray.exe");
+
+  return pathApi.resolve(pathApi.dirname(hostEntryPath), "../../../..", "DeskCue.Tray.exe");
 }
 
 export class HostAutostartService {
@@ -115,7 +118,7 @@ export class HostAutostartService {
   constructor(options: HostAutostartServiceOptions = {}) {
     const env = options.env ?? process.env;
     const platform = options.platform ?? process.platform;
-    const trayExecutablePath = resolveTrayExecutablePath({ ...options, env });
+    const trayExecutablePath = resolveTrayExecutablePath({ ...options, env, platform });
     const installedMode = env.DESKCUE_DISTRIBUTION_MODE === "installed";
 
     if (trayExecutablePath.includes('"')) throw new Error("DeskCue tray path cannot contain a quote.");
