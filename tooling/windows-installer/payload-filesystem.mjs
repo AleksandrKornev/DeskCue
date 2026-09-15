@@ -37,6 +37,7 @@ function assertExistingPathChainIsSafe(repositoryRoot, directoryPath) {
   const canonicalRepositoryRoot = canonicalPath(repositoryRoot);
   const relativeDirectoryPath = relative(repositoryRoot, directoryPath);
   let currentPath = repositoryRoot;
+  let expectedCanonicalPath = canonicalRepositoryRoot;
 
   if (!lstatSync(repositoryRoot).isDirectory() || lstatSync(repositoryRoot).isSymbolicLink()) {
     throw new Error(`Repository root must be a real directory, not a reparse link: ${repositoryRoot}`);
@@ -44,6 +45,7 @@ function assertExistingPathChainIsSafe(repositoryRoot, directoryPath) {
 
   for (const segment of relativeDirectoryPath.split(sep).filter(Boolean)) {
     currentPath = join(currentPath, segment);
+    expectedCanonicalPath = join(expectedCanonicalPath, segment);
     if (!existsSync(currentPath)) break;
 
     const currentStats = lstatSync(currentPath);
@@ -55,7 +57,7 @@ function assertExistingPathChainIsSafe(repositoryRoot, directoryPath) {
     if (!isWithin(canonicalRepositoryRoot, canonicalCurrentPath)) {
       throw new Error(`Refusing to traverse a reparse path outside the repository: ${currentPath}`);
     }
-    if (relative(resolve(currentPath), canonicalCurrentPath) !== "") {
+    if (relative(expectedCanonicalPath, canonicalCurrentPath) !== "") {
       throw new Error(`Refusing to traverse a reparse path: ${currentPath}`);
     }
   }

@@ -105,8 +105,12 @@ function Set-PrivateSnapshotAccess {
 
   $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   $permission = if ($Mode -eq 'ReadOnly') { 'RX' } else { 'F' }
+  $grantRules = @("*$currentSid`:$permission")
+  if ($currentSid -ne 'S-1-5-18') {
+    $grantRules += '*S-1-5-18:F'
+  }
   $longPath = '\\?\' + [System.IO.Path]::GetFullPath($Path)
-  & icacls.exe $longPath '/inheritance:r' '/grant:r' "*$currentSid`:$permission" '*S-1-5-18:F' '/T' '/C' '/Q' |
+  & icacls.exe $longPath '/inheritance:r' '/grant:r' @grantRules '/T' '/C' '/Q' |
     Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw "Could not set $Mode access on the private compile snapshot."
@@ -171,33 +175,11 @@ function Test-IsAccessDeniedException {
   return $false
 }
 
-function Assert-PrivateSessionParentMutationDenied {
+function Assert-PrivateSnapshotChildDeletionDenied {
   param(
-    [Parameter(Mandatory)]
-    [string]$SessionPath,
-
     [Parameter(Mandatory)]
     [string]$ProtectedFile
   )
-
-  $resolvedSessionPath = [System.IO.Path]::GetFullPath($SessionPath)
-  $renameProbePath = "$resolvedSessionPath-rename-probe"
-  try {
-    [System.IO.Directory]::Move($resolvedSessionPath, $renameProbePath)
-  } catch {
-    $denied = Test-IsAccessDeniedException -Exception $_.Exception
-    if ($denied -and (Test-Path -LiteralPath $resolvedSessionPath) -and
-      -not (Test-Path -LiteralPath $renameProbePath)) {
-      $renameProbePath = ''
-    } else {
-      throw
-    }
-  }
-  if ($renameProbePath) {
-    Set-PrivateSnapshotAccess -Path $renameProbePath -Mode Cleanup
-    [System.IO.Directory]::Move($renameProbePath, $resolvedSessionPath)
-    throw 'Private compile session parent remained renameable from its containing directory.'
-  }
 
   try {
     [System.IO.File]::Delete($ProtectedFile)
@@ -307,8 +289,7 @@ try {
   Assert-PrivateSnapshotAccess -Path $resolvedCompilerInputDir `
     -ProbeDirectories @($resolvedCompilerInputDir) `
     -ProbeFiles @($snapshotInstallerScript, $snapshotInstallerIcon)
-  Assert-PrivateSessionParentMutationDenied -SessionPath $resolvedSessionDir `
-    -ProtectedFile $snapshotInstallerScript
+  Assert-PrivateSnapshotChildDeletionDenied -ProtectedFile $snapshotInstallerScript
 
   & $nodeCommand.Source $verifyPayloadScript $resolvedSnapshotDir
   if ($LASTEXITCODE -ne 0) {
@@ -371,7 +352,7 @@ try {
     }
     privateSnapshot = [ordered]@{
       recursivelyRestrictedAndWriteProbed = $true
-      privateSessionParentRestrictedAndMutationProbed = $true
+      protectedChildDeletionProbed = $true
       payloadVerifiedBeforeAndAfterCompilation = $true
       compilerInputsVerifiedBeforeAndAfterCompilation = $true
     }

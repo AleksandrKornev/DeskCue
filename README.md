@@ -40,7 +40,7 @@ then open DeskCue from the Start menu or run `deskcue open` in a new terminal.
 
 ### Linux x64 and arm64
 
-Once `v0.2.1` or a newer release is published, install the per-user standalone
+Once `v0.2.2` or a newer release is published, install the per-user standalone
 build with:
 
 ```bash
@@ -119,7 +119,7 @@ update checks and installs; the Host verifies the exact installer size and
 SHA-256 before handoff. See [Installation](./docs/installation.md) for the
 artifact, commands and current validation boundaries.
 
-The `v0.2.1` release candidate adds glibc Linux x64/arm64 standalone archives
+The `v0.2.2` release candidate adds glibc Linux x64/arm64 standalone archives
 and Debian packages. They become a published install path only after the tagged
 artifacts pass the release smoke gates. The standalone installation includes the
 Host, CLI, browser dashboard, `systemd --user` lifecycle and explicit

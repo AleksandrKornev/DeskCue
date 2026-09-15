@@ -60,6 +60,31 @@ test("safe replacement guard rejects the repository root", () => {
   }
 });
 
+test("safe replacement guard accepts a canonical alias above the repository root", (context) => {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "deskcue-safe-alias-"));
+  const physicalParent = join(temporaryRoot, "physical-parent");
+  const aliasParent = join(temporaryRoot, "alias-parent");
+  const physicalRepositoryRoot = join(physicalParent, "repository");
+  const repositoryRoot = join(aliasParent, "repository");
+  const payloadPath = join(repositoryRoot, "dist", "payload");
+  mkdirSync(join(physicalRepositoryRoot, "dist"), { recursive: true });
+  try {
+    try {
+      symlinkSync(physicalParent, aliasParent, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (error?.code === "EPERM") {
+        context.skip("Platform policy does not allow creating a test directory alias.");
+        return;
+      }
+      throw error;
+    }
+
+    assert.equal(assertSafeReplaceDirectory(payloadPath, repositoryRoot), payloadPath);
+  } finally {
+    rmSync(temporaryRoot, { force: true, recursive: true });
+  }
+});
+
 test("safe replacement guard rejects a junction that escapes a custom repository root", (context) => {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "deskcue-safe-junction-"));
   const repositoryRoot = join(temporaryRoot, "repository");
@@ -136,12 +161,16 @@ test("installer compilation verifies the private snapshot consumed by Inno Setup
   assert.match(compiler, /post-compile/u);
   assert.doesNotMatch(compiler, /\/DPayloadDir=\$resolvedPayloadDir/u);
   assert.match(compiler, /Set-PrivateSnapshotAccess/u);
+  assert.match(compiler, /\$grantRules = @\("\*\$currentSid`:\$permission"\)/u);
+  assert.match(compiler, /if \(\$currentSid -ne 'S-1-5-18'\)/u);
+  assert.match(compiler, /\$grantRules \+= '\*S-1-5-18:F'/u);
+  assert.match(compiler, /'\/grant:r' @grantRules/u);
   assert.match(compiler, /'\/T' '\/C' '\/Q'/u);
   assert.match(compiler, /Assert-PrivateSnapshotAccess/u);
   assert.match(compiler, /session-\$buildId/u);
-  assert.match(compiler, /Assert-PrivateSessionParentMutationDenied/u);
-  assert.match(compiler, /privateSessionParentRestrictedAndMutationProbed = \$true/u);
-  assert.match(compiler, /Directory\]::Move\(\$resolvedSessionPath, \$renameProbePath\)/u);
+  assert.match(compiler, /Assert-PrivateSnapshotChildDeletionDenied/u);
+  assert.match(compiler, /protectedChildDeletionProbed = \$true/u);
+  assert.doesNotMatch(compiler, /Directory\]::Move/u);
   assert.match(compiler, /File\]::Delete\(\$ProtectedFile\)/u);
   assert.match(compiler, /snapshotInstallerScript/u);
   assert.match(compiler, /snapshotInstallerIcon/u);

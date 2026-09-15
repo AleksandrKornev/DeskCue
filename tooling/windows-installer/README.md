@@ -58,10 +58,11 @@ per-file manifest.
 
 Payload assembly rejects symbolic links, junctions and other escaping reparse
 paths instead of dereferencing them. Destructive replacement is limited to a
-canonically contained payload directory whose existing parent chain contains no
-reparse point. The manifest records every C#, project and `Assets/` source hash
-beside the exact tray executable and refuses a published executable older than
-those inputs. This is a bounded freshness/provenance check, not proof that the
+canonically contained payload directory whose existing chain below the trusted
+canonical repository root contains no reparse point. The manifest records every
+C#, project and `Assets/` source hash beside the exact tray executable and
+refuses a published executable older than those inputs. This is a bounded
+freshness/provenance check, not proof that the
 executable was produced from those sources: the canonical tray publish must
 still be performed and reviewed as a separate release step.
 
@@ -97,8 +98,8 @@ the installer, its `.sha256` file and the channel-specific update manifest.
 
 Compilation copies the payload, installer script and icon below one unique
 private session directory, recursively removes inherited write access, probes
-write, deletion and parent-level rename attempts, and verifies the exact inputs
-immediately before and after ISCC.
+directory/file writes and protected-child deletion, and verifies the exact
+inputs immediately before and after ISCC.
 The build manifest binds those consumed snapshots, the payload manifest and the
 exact ISCC binary/version to the resulting Setup hash. The staged installer is
 published only after the post-compile checks. This bounds accidental or

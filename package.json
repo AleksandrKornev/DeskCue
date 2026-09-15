@@ -1,6 +1,6 @@
 {
   "name": "deskcue",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Local-first control panel for CLI AI agents.",
   "license": "Apache-2.0",
@@ -50,7 +50,7 @@
     "version:check": "node scripts/check-workspace-versions.mjs",
     "smoke:daemon": "npm run build:packages && node scripts/smoke-daemon.mjs",
     "smoke:web": "npm run build:packages && node scripts/smoke-web.mjs",
-    "test:distribution": "node --test tooling/distribution/*.test.mjs tooling/linux-package/*.test.mjs",
+    "test:distribution": "node --test tooling/distribution/*.test.mjs tooling/linux-package/*.test.mjs tooling/windows-installer/*.test.mjs",
     "build:linux-package": "node tooling/linux-package/build-packages.mjs",
     "prepare": "husky"
   },
