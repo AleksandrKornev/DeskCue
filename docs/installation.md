@@ -2,7 +2,7 @@
 
 The public alpha can be installed from a source checkout. Starting with
 `v0.2.0`, GitHub Releases also provides an unsigned Windows x64 installer and a
-stable feed for explicit update checks and installs. The `v0.2.2` release
+stable feed for explicit update checks and installs. The `v0.2.3` release
 candidate adds glibc Linux x64/arm64 standalone archives and Debian packages;
 they are not a published install path until the tagged artifacts pass the
 release smoke gates.
@@ -261,7 +261,7 @@ User service:  ~/.config/systemd/user/deskcue-host.service
 Data:          ${XDG_DATA_HOME:-~/.local/share}/deskcue/data
 ```
 
-Install `v0.2.2` or a newer release with:
+Install `v0.2.3` or a newer release with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AleksandrKornev/DeskCue/main/install.sh | sh
