@@ -9,7 +9,7 @@ namespace DeskCue.Tray.Tests;
 public sealed class ApplicationIdentityTests
 {
     private const string ExpectedIconResourceName = "DeskCue.Tray.Assets.deskcue.ico";
-    private static readonly Version ExpectedAssemblyVersion = new(0, 2, 0, 0);
+    private static readonly Version ExpectedAssemblyVersion = new(0, 2, 1, 0);
 
     [Fact]
     public void TrayAssemblyUsesDeskCueProductAndVersionIdentity()
@@ -18,8 +18,8 @@ public sealed class ApplicationIdentityTests
         var versionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
 
         Assert.Equal(ExpectedAssemblyVersion, assembly.GetName().Version);
-        Assert.Equal("0.2.0.0", versionInfo.FileVersion);
-        Assert.Equal("0.2.0", versionInfo.ProductVersion);
+        Assert.Equal("0.2.1.0", versionInfo.FileVersion);
+        Assert.Equal("0.2.1", versionInfo.ProductVersion);
         Assert.Equal("DeskCue", versionInfo.ProductName);
         Assert.Equal("DeskCue Tray", versionInfo.FileDescription);
     }

@@ -7,6 +7,8 @@ releases.
 
 ## Unreleased
 
+## 0.2.1 - 2026-09-15
+
 ### Added
 
 - Added self-contained Linux x64 and arm64 release builders for standalone
@@ -20,7 +22,16 @@ releases.
 
 - Extended installed data paths, Host startup and update artifact selection
   across Windows and glibc Linux
-- Added Ubuntu 22.04 to the canonical repository CI matrix
+- Extended the canonical repository CI matrix to Ubuntu 22.04
+- Extended the unified version check to validate tray metadata
+- Added tray identity and behavior tests to the Windows distribution build gate
+
+### Fixed
+
+- Made source discovery, static assets, Git metadata, PTY startup and autostart
+  handling portable across supported Windows and Linux environments
+- Made local Preview resolve dual-stack loopback targets while preserving the
+  pinned, fail-closed outbound connection boundary
 
 ## 0.2.0 - 2026-09-15
 
