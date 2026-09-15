@@ -22,6 +22,9 @@ $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $scriptRoot '..\..')).Pa
 $expectedIsccVersion = '7.1.0'
 $installerScriptSource = Join-Path $scriptRoot 'DeskCue.iss'
 $installerIconSource = Join-Path $repositoryRoot 'apps\tray\DeskCue.Tray\Assets\deskcue.ico'
+$privateSnapshotAccessScript = Join-Path $scriptRoot 'private-snapshot-access.ps1'
+
+. $privateSnapshotAccessScript
 
 if (-not $Version) {
   $Version = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'package.json') -Raw | ConvertFrom-Json).version
@@ -91,106 +94,6 @@ if (-not $IsccPath -or -not (Test-Path -LiteralPath $IsccPath -PathType Leaf)) {
 $actualIsccVersion = (& $IsccPath --version | Select-Object -First 1).Trim()
 if ($actualIsccVersion -ne $expectedIsccVersion) {
   throw "ISCC.exe version '$actualIsccVersion' does not match required version '$expectedIsccVersion'."
-}
-
-function Set-PrivateSnapshotAccess {
-  param(
-    [Parameter(Mandatory)]
-    [string]$Path,
-
-    [Parameter(Mandatory)]
-    [ValidateSet('ReadOnly', 'Cleanup')]
-    [string]$Mode
-  )
-
-  $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  $permission = if ($Mode -eq 'ReadOnly') { 'RX' } else { 'F' }
-  $grantRules = @("*$currentSid`:$permission")
-  if ($currentSid -ne 'S-1-5-18') {
-    $grantRules += '*S-1-5-18:F'
-  }
-  $longPath = '\\?\' + [System.IO.Path]::GetFullPath($Path)
-  & icacls.exe $longPath '/inheritance:r' '/grant:r' @grantRules '/T' '/C' '/Q' |
-    Out-Null
-  if ($LASTEXITCODE -ne 0) {
-    throw "Could not set $Mode access on the private compile snapshot."
-  }
-}
-
-function Assert-PrivateSnapshotAccess {
-  param(
-    [Parameter(Mandatory)]
-    [string]$Path,
-
-    [Parameter(Mandatory)]
-    [string[]]$ProbeDirectories,
-
-    [Parameter()]
-    [string[]]$ProbeFiles = @()
-  )
-
-  $longPath = '\\?\' + [System.IO.Path]::GetFullPath($Path)
-  & icacls.exe $longPath '/verify' '/T' '/C' '/Q' | Out-Null
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Private compile snapshot ACL verification failed.'
-  }
-
-  foreach ($probeDirectory in $ProbeDirectories) {
-    $probePath = Join-Path $probeDirectory '.deskcue-write-probe'
-    try {
-      [System.IO.File]::WriteAllText($probePath, 'write access must be denied')
-      Remove-Item -LiteralPath $probePath -Force -ErrorAction SilentlyContinue
-      throw "Private compile snapshot directory remained writable: $probeDirectory"
-    } catch [System.UnauthorizedAccessException] {
-      if (Test-Path -LiteralPath $probePath) {
-        throw "Private compile snapshot write probe left a file behind: $probePath"
-      }
-    }
-  }
-
-  foreach ($probeFile in $ProbeFiles) {
-    try {
-      $stream = [System.IO.File]::Open($probeFile, 'Open', 'Write', 'None')
-      $stream.Dispose()
-      throw "Private compile snapshot file remained writable: $probeFile"
-    } catch [System.UnauthorizedAccessException] {
-      continue
-    }
-  }
-}
-
-function Test-IsAccessDeniedException {
-  param(
-    [Parameter(Mandatory)]
-    [System.Exception]$Exception
-  )
-
-  $current = $Exception
-  while ($null -ne $current) {
-    if (($current -is [System.UnauthorizedAccessException]) -or ($current.HResult -eq -2147024891)) {
-      return $true
-    }
-    $current = $current.InnerException
-  }
-  return $false
-}
-
-function Assert-PrivateSnapshotChildDeletionDenied {
-  param(
-    [Parameter(Mandatory)]
-    [string]$ProtectedFile
-  )
-
-  try {
-    [System.IO.File]::Delete($ProtectedFile)
-  } catch {
-    $denied = Test-IsAccessDeniedException -Exception $_.Exception
-    if ($denied -and (Test-Path -LiteralPath $ProtectedFile -PathType Leaf)) {
-      return
-    }
-    throw
-  }
-  throw "Private compile session allowed deletion of a protected child: $ProtectedFile"
 }
 
 function Get-FileBinding {

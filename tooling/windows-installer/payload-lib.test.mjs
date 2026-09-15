@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -18,6 +20,38 @@ import {
   verifyPayloadManifest,
   writeDeskCueCommandShim
 } from "./payload-lib.mjs";
+
+const privateSnapshotAccessScript = fileURLToPath(new URL("./private-snapshot-access.ps1", import.meta.url));
+
+function quotePowerShellLiteral(value) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function runPrivateSnapshotAccessCommand(statements) {
+  const command = [`. ${quotePowerShellLiteral(privateSnapshotAccessScript)}`, ...statements].join("; ");
+  return spawnSync("pwsh.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], {
+    encoding: "utf8"
+  });
+}
+
+function setPrivateSnapshotAccess(path, mode) {
+  return runPrivateSnapshotAccessCommand([
+    `Set-PrivateSnapshotAccess -Path ${quotePowerShellLiteral(path)} -Mode ${mode}`
+  ]);
+}
+
+function verifyPrivateSnapshotAccess(path, probeDirectory, protectedFile) {
+  return runPrivateSnapshotAccessCommand([
+    `Assert-PrivateSnapshotAccess -Path ${quotePowerShellLiteral(path)} ` +
+      `-ProbeDirectories @(${quotePowerShellLiteral(probeDirectory)}) ` +
+      `-ProbeFiles @(${quotePowerShellLiteral(protectedFile)})`,
+    `Assert-PrivateSnapshotChildDeletionDenied -ProtectedFile ${quotePowerShellLiteral(protectedFile)}`
+  ]);
+}
+
+function isWindowsAccessDenied(error) {
+  return error instanceof Error && "code" in error && (error.code === "EACCES" || error.code === "EPERM");
+}
 
 test("pins an exact Node release and archive digest", () => {
   assert.equal(WINDOWS_INSTALLER_NODE_VERSION, "24.14.0");
@@ -149,6 +183,7 @@ test("custom repository roots also bound the temporary Node extraction directory
 
 test("installer compilation verifies the private snapshot consumed by Inno Setup", () => {
   const compiler = readFileSync(new URL("./compile-installer.ps1", import.meta.url), "utf8");
+  const access = readFileSync(new URL("./private-snapshot-access.ps1", import.meta.url), "utf8");
   const snapshotIndex = compiler.indexOf("compile-snapshot.mjs");
   const verificationIndex = compiler.indexOf("$resolvedSnapshotDir");
   const compilerIndex = compiler.indexOf("& $IsccPath @arguments");
@@ -160,18 +195,21 @@ test("installer compilation verifies the private snapshot consumed by Inno Setup
   assert.match(compiler, /PayloadDir=\$resolvedSnapshotDir/u);
   assert.match(compiler, /post-compile/u);
   assert.doesNotMatch(compiler, /\/DPayloadDir=\$resolvedPayloadDir/u);
-  assert.match(compiler, /Set-PrivateSnapshotAccess/u);
-  assert.match(compiler, /\$grantRules = @\("\*\$currentSid`:\$permission"\)/u);
-  assert.match(compiler, /if \(\$currentSid -ne 'S-1-5-18'\)/u);
-  assert.match(compiler, /\$grantRules \+= '\*S-1-5-18:F'/u);
-  assert.match(compiler, /'\/grant:r' @grantRules/u);
-  assert.match(compiler, /'\/T' '\/C' '\/Q'/u);
-  assert.match(compiler, /Assert-PrivateSnapshotAccess/u);
+  assert.match(compiler, /private-snapshot-access\.ps1/u);
+  assert.match(access, /function Set-PrivateSnapshotAccess/u);
+  assert.match(access, /function New-PrivateSnapshotSecurity/u);
+  assert.match(access, /FileSystemRights\]::ReadAndExecute/u);
+  assert.match(access, /FileSystemRights\]::FullControl/u);
+  assert.match(access, /SecurityIdentifier\]::new\('S-1-5-18'\)/u);
+  assert.match(access, /SetAccessRuleProtection\(\$true, \$false\)/u);
+  assert.match(access, /Get-ChildItem[^\n]+-Recurse/u);
+  assert.match(access, /FileSystemAclExtensions\]::SetAccessControl/u);
+  assert.match(access, /Assert-PrivateSnapshotAccess/u);
   assert.match(compiler, /session-\$buildId/u);
-  assert.match(compiler, /Assert-PrivateSnapshotChildDeletionDenied/u);
+  assert.match(access, /Assert-PrivateSnapshotChildDeletionDenied/u);
   assert.match(compiler, /protectedChildDeletionProbed = \$true/u);
   assert.doesNotMatch(compiler, /Directory\]::Move/u);
-  assert.match(compiler, /File\]::Delete\(\$ProtectedFile\)/u);
+  assert.match(access, /File\]::Delete\(\$ProtectedFile\)/u);
   assert.match(compiler, /snapshotInstallerScript/u);
   assert.match(compiler, /snapshotInstallerIcon/u);
   assert.match(compiler, /DeskCueIconFile=\$snapshotInstallerIcon/u);
@@ -179,6 +217,43 @@ test("installer compilation verifies the private snapshot consumed by Inno Setup
   assert.match(compiler, /\.build-manifest\.json/u);
   assert.doesNotMatch(compiler, /\$installerScriptSource\s*\)/u);
 });
+
+test(
+  "private snapshot ACL overrides a separate enabled group write grant",
+  { skip: process.platform !== "win32" },
+  () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), "deskcue-snapshot-acl-"));
+    const nestedDirectory = join(temporaryRoot, "payload", "nested");
+    const protectedFile = join(nestedDirectory, "input.txt");
+    mkdirSync(nestedDirectory, { recursive: true });
+    writeFileSync(protectedFile, "verified payload", "utf8");
+
+    const authenticatedUsersGrant = spawnSync(
+      "icacls.exe",
+      [temporaryRoot, "/grant:r", "*S-1-5-11:(OI)(CI)(F)", "/T", "/C", "/Q"],
+      { encoding: "utf8" }
+    );
+    assert.equal(authenticatedUsersGrant.status, 0, authenticatedUsersGrant.stderr || authenticatedUsersGrant.stdout);
+    const baselineWrite = join(nestedDirectory, "baseline-write.txt");
+    writeFileSync(baselineWrite, "group grant is effective", "utf8");
+    rmSync(baselineWrite);
+
+    try {
+      const restrict = setPrivateSnapshotAccess(temporaryRoot, "ReadOnly");
+      assert.equal(restrict.status, 0, restrict.stderr || restrict.stdout);
+      const verify = verifyPrivateSnapshotAccess(temporaryRoot, nestedDirectory, protectedFile);
+      assert.equal(verify.status, 0, verify.stderr || verify.stdout);
+      assert.equal(readFileSync(protectedFile, "utf8"), "verified payload");
+      assert.throws(() => writeFileSync(protectedFile, "changed", "utf8"), isWindowsAccessDenied);
+      assert.throws(() => writeFileSync(join(nestedDirectory, "new.txt"), "new", "utf8"), isWindowsAccessDenied);
+      assert.throws(() => rmSync(protectedFile), isWindowsAccessDenied);
+    } finally {
+      const cleanup = setPrivateSnapshotAccess(temporaryRoot, "Cleanup");
+      assert.equal(cleanup.status, 0, cleanup.stderr || cleanup.stdout);
+      rmSync(temporaryRoot, { force: true, recursive: true });
+    }
+  }
+);
 
 test("command shim always launches the bundled runtime and preserves arguments", () => {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "deskcue-payload-shim-"));

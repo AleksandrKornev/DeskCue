@@ -7,7 +7,22 @@ releases.
 
 ## Unreleased
 
+## 0.2.4 - 2026-09-16
+
+### Fixed
+
+- Made the private Windows installer replace every private-snapshot item DACL
+  with bounded read access for the build identity and, when distinct, full
+  access for LocalSystem, including on elevated runners with separate writable
+  group grants
+- Added a real Windows ACL regression test for reading, writing, creating and
+  deleting files through the restricted snapshot
+
 ## 0.2.3 - 2026-09-16
+
+This source tag was not published as a packaged GitHub Release. The v0.2.4
+release candidate supersedes it pending successful tagged distribution
+validation.
 
 ### Fixed
 
@@ -16,9 +31,8 @@ releases.
 
 ## 0.2.2 - 2026-09-15
 
-This source tag was not published as a packaged GitHub Release. The v0.2.3
-release candidate supersedes it pending successful tagged distribution
-validation.
+This source tag was not published as a packaged GitHub Release. It was
+superseded by the v0.2.3 source tag, which was also not packaged.
 
 ### Fixed
 
