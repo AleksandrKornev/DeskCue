@@ -40,6 +40,24 @@ test("installed data root is stable and independent of cwd", () => {
   assert.match(first, /DeskCue[\\/]data$/);
 });
 
+test("installed Linux data follows XDG data home without depending on cwd", () => {
+  const first = resolveDeskCueDataRoot({
+    cwd: "/one",
+    env: { DESKCUE_DISTRIBUTION_MODE: "installed", XDG_DATA_HOME: "/home/user/custom-data" },
+    homeDir: "/home/user",
+    platform: "linux"
+  });
+  const second = resolveDeskCueDataRoot({
+    cwd: "/two",
+    env: { DESKCUE_DISTRIBUTION_MODE: "installed" },
+    homeDir: "/home/user",
+    platform: "linux"
+  });
+
+  assert.equal(first, "/home/user/custom-data/deskcue/data");
+  assert.equal(second, "/home/user/.local/share/deskcue/data");
+});
+
 test("source data root is stable when callers run from different workspace package directories", () => {
   const first = resolveDeskCueDataRoot({
     env: {},

@@ -124,6 +124,7 @@ test("uses the bounded GitHub release feed and exposes package state", async () 
     "github.com",
     "release-assets.githubusercontent.com"
   ]);
+  assert.equal(capturedManagerOptions[0]?.platform, "win32");
 });
 
 test("stages available updates before preparing and launching the installer", async () => {
@@ -185,6 +186,53 @@ test("does not advertise package updates in source mode", () => {
   });
 
   assert.equal(service.supported, false);
+});
+
+test("supports standalone Linux updates and selects Linux artifacts", async () => {
+  const manager = new FakeUpdateManager();
+  const capturedManagerOptions: UpdateManagerOptions[] = [];
+  const service = new HostUpdateService({
+    architecture: "arm64",
+    createManager: (options) => {
+      capturedManagerOptions.push(options);
+      return manager;
+    },
+    currentVersion: "0.1.1",
+    dataRootPath: "/home/user/.local/share/deskcue/data",
+    env: {
+      DESKCUE_DISTRIBUTION_MODE: "installed",
+      DESKCUE_INSTALL_DIR: "/home/user/.local/lib/deskcue",
+      DESKCUE_UPDATE_APPLY_MODE: "linux-standalone"
+    },
+    launchInstaller: async (handoff) => ({ pid: 42, targetVersion: handoff.targetVersion }),
+    platform: "linux"
+  });
+
+  await service.initialize();
+
+  assert.equal(service.supported, true);
+  assert.equal(capturedManagerOptions[0]?.architecture, "arm64");
+  assert.equal(capturedManagerOptions[0]?.platform, "linux");
+});
+
+test("keeps self-update disabled for package-manager-owned Linux installs", async () => {
+  const service = new HostUpdateService({
+    architecture: "x64",
+    currentVersion: "0.1.1",
+    dataRootPath: "/var/lib/deskcue",
+    env: {
+      DESKCUE_DISTRIBUTION_MODE: "installed",
+      DESKCUE_INSTALL_DIR: "/usr/lib/deskcue",
+      DESKCUE_UPDATE_APPLY_MODE: "external"
+    },
+    platform: "linux"
+  });
+
+  assert.equal(service.supported, false);
+  await assert.rejects(
+    service.check(),
+    /repeat the Debian install command/u
+  );
 });
 
 test("selects a distinct default manifest for the beta channel", async () => {

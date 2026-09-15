@@ -19,7 +19,7 @@ test("command help explains defaults and important side effects", () => {
   assert.match(formatCommandHelp("open"), /start the Host and daemon/iu);
   assert.match(formatCommandHelp("stop"), /Host remains running; this command does not exit the tray/u);
   assert.match(formatCommandHelp("doctor"), /read-only/u);
-  assert.match(formatCommandHelp("autostart"), /installed Windows builds/u);
+  assert.match(formatCommandHelp("autostart"), /installed Windows and Linux builds/u);
   assert.match(formatCommandHelp("host"), /Internal installer coordination command/u);
 });
 

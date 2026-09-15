@@ -9,6 +9,7 @@ import { HostOperationError } from "./hostOperationError.ts";
 
 const AUTOSTART_REGISTRY_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const AUTOSTART_VALUE_NAME = "DeskCue";
+const LINUX_AUTOSTART_SERVICE = "deskcue-host.service";
 const WINDOWS_REGISTRY_EXECUTABLE = join(
   process.env.SystemRoot?.trim() || process.env.WINDIR?.trim() || "C:\\Windows",
   "System32",
@@ -18,12 +19,15 @@ const execFileAsync = promisify(execFile);
 
 type RegistryResult = { stdout: string };
 type RunRegistry = (arguments_: string[]) => Promise<RegistryResult>;
+type SystemctlResult = { stdout: string };
+type RunSystemctl = (arguments_: string[]) => Promise<SystemctlResult>;
 
 type HostAutostartServiceOptions = {
   env?: NodeJS.ProcessEnv;
   hostEntryPath?: string;
   platform?: NodeJS.Platform;
   runRegistry?: RunRegistry;
+  runSystemctl?: RunSystemctl;
   trayExecutablePath?: string;
 };
 
@@ -33,6 +37,14 @@ function createRegistryRunner(): RunRegistry {
       encoding: "utf8",
       windowsHide: true
     });
+
+    return { stdout: result.stdout };
+  };
+}
+
+function createSystemctlRunner(): RunSystemctl {
+  return async (arguments_) => {
+    const result = await execFileAsync("systemctl", arguments_, { encoding: "utf8" });
 
     return { stdout: result.stdout };
   };
@@ -57,12 +69,25 @@ function isMissingRegistryValue(error: unknown) {
   return (error as { code?: unknown } | null)?.code === 1;
 }
 
+function isDisabledSystemdUnit(error: unknown) {
+  return (error as { code?: unknown } | null)?.code === 1;
+}
+
 function toAutostartError(error: unknown) {
   if (error instanceof HostOperationError) return error;
 
   return new HostOperationError(
     "autostart_registry_failed",
     `Windows could not update DeskCue autostart: ${error instanceof Error ? error.message : String(error)}`
+  );
+}
+
+function toSystemdAutostartError(error: unknown) {
+  if (error instanceof HostOperationError) return error;
+
+  return new HostOperationError(
+    "autostart_systemd_failed",
+    `Linux could not update DeskCue autostart: ${error instanceof Error ? error.message : String(error)}`
   );
 }
 
@@ -82,7 +107,9 @@ export class HostAutostartService {
   private configuredValue: ConfiguredRegistryValue | null = null;
   private enabled: boolean | null = null;
   private readonly expectedCommand: string;
+  private readonly platform: NodeJS.Platform;
   private readonly runRegistry: RunRegistry;
+  private readonly runSystemctl: RunSystemctl;
   readonly supported: boolean;
 
   constructor(options: HostAutostartServiceOptions = {}) {
@@ -94,8 +121,15 @@ export class HostAutostartService {
     if (trayExecutablePath.includes('"')) throw new Error("DeskCue tray path cannot contain a quote.");
 
     this.expectedCommand = `"${trayExecutablePath}" --autostart`;
+    this.platform = platform;
     this.runRegistry = options.runRegistry ?? createRegistryRunner();
-    this.supported = platform === "win32" && (Boolean(options.runRegistry) || (installedMode && existsSync(trayExecutablePath)));
+    this.runSystemctl = options.runSystemctl ?? createSystemctlRunner();
+    this.supported = installedMode && (
+      (platform === "win32" && (Boolean(options.runRegistry) || existsSync(trayExecutablePath))) ||
+      (platform === "linux" && (
+        Boolean(options.runSystemctl) || env.DESKCUE_HOST_LAUNCH_MODE === "systemd-user"
+      ))
+    );
   }
 
   get status(): HostStatus["autostart"] {
@@ -107,6 +141,8 @@ export class HostAutostartService {
 
   async refresh() {
     this.assertSupported();
+
+    if (this.platform === "linux") return this.refreshSystemd();
 
     try {
       const result = await this.runRegistry([
@@ -131,6 +167,8 @@ export class HostAutostartService {
 
   async setEnabled(enabled: boolean) {
     this.assertSupported();
+    if (this.platform === "linux") return this.setSystemdEnabled(enabled);
+
     await this.refresh();
 
     if (this.configuredValue && !this.enabled) {
@@ -185,7 +223,34 @@ export class HostAutostartService {
 
     throw new HostOperationError(
       "autostart_unsupported",
-      "DeskCue tray autostart is available only in an installed Windows build."
+      "DeskCue autostart is available only in supported installed Windows and Linux builds."
     );
+  }
+
+  private async refreshSystemd() {
+    try {
+      const result = await this.runSystemctl(["--user", "is-enabled", LINUX_AUTOSTART_SERVICE]);
+
+      this.enabled = result.stdout.trim() === "enabled";
+    } catch (error) {
+      if (!isDisabledSystemdUnit(error)) throw toSystemdAutostartError(error);
+
+      this.enabled = false;
+    }
+
+    return this.status;
+  }
+
+  private async setSystemdEnabled(enabled: boolean) {
+    try {
+      await this.runSystemctl(["--user", "daemon-reload"]);
+      await this.runSystemctl(["--user", enabled ? "enable" : "disable", LINUX_AUTOSTART_SERVICE]);
+    } catch (error) {
+      throw toSystemdAutostartError(error);
+    }
+
+    this.enabled = enabled;
+
+    return this.status;
   }
 }

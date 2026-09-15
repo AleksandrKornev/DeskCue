@@ -89,7 +89,7 @@ export class HostRuntime {
     const autostartAllowed = this.autostart.supported && lifecycleAllowed;
     const autostartReason = autostartAllowed
       ? null
-      : lifecycleBlockReason ?? "Autostart is available only in installed Windows builds.";
+      : lifecycleBlockReason ?? "Autostart is unavailable in this DeskCue installation.";
     const daemonRestartAllowed = lifecycleAllowed && (daemon.state === "running" || daemon.state === "degraded");
     const daemonStartAllowed = lifecycleAllowed && !this.daemon.hasActiveChild &&
       (daemon.state === "stopped" || daemon.state === "degraded");
@@ -101,7 +101,7 @@ export class HostRuntime {
     const updateCheckAllowed = this.update.supported && !updateBusy && !this.shutdownRequested;
     const updateUnavailableReason = this.update.supported
       ? lifecycleBlockReason
-      : "Updates are available only in installed Windows builds.";
+      : "Self-updates are unavailable in this DeskCue installation.";
 
     return {
       autostart: this.autostart.status,

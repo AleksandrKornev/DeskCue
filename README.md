@@ -32,7 +32,27 @@ already have. It is not an LLM provider, model host, or cloud IDE.
 
 ## Quick start
 
-Clone the repository and start the production dashboard:
+### Windows x64
+
+Download the unsigned installer from the
+[latest GitHub Release](https://github.com/AleksandrKornev/DeskCue/releases/latest),
+then open DeskCue from the Start menu or run `deskcue open` in a new terminal.
+
+### Linux x64 and arm64
+
+Beginning with the next release that includes Linux assets, install the
+per-user standalone build with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AleksandrKornev/DeskCue/main/install.sh | sh
+```
+
+The installer registers the DeskCue Host as a `systemd --user` service and
+places `deskcue` in `~/.local/bin`. It does not require a system Node.js.
+
+### Run from source
+
+For development or platforms without a packaged release:
 
 ```bash
 git clone https://github.com/AleksandrKornev/DeskCue.git
@@ -88,10 +108,9 @@ access through DeskCue Cloud is optional.
 
 ## Project status
 
-DeskCue is a public alpha available from source. Windows and Ubuntu are the
-currently tested source platforms; macOS has not been fully verified yet. The
-current focus is simple: make the local review-and-control loop reliable for
-one developer.
+DeskCue is a public alpha. Windows and Ubuntu are the currently tested
+platforms; macOS has not been fully verified yet. The current focus is simple:
+make the local review-and-control loop reliable for one developer.
 
 Starting with `v0.2.0`, GitHub Releases also provides an unsigned Windows x64
 installer with a supervising Host, command-line client, native tray application
@@ -99,6 +118,10 @@ and bundled runtime. The stable release includes an HTTPS manifest for manual
 update checks and installs; the Host verifies the exact installer size and
 SHA-256 before handoff. See [Installation](./docs/installation.md) for the
 artifact, commands and current validation boundaries.
+
+The repository now also contains native Linux x64/arm64 standalone and Debian
+package builders. These artifacts become a supported install path only after a
+tagged release has passed the Linux install, lifecycle and update smoke gates.
 
 ## Requirements
 
@@ -112,10 +135,9 @@ DeskCue installs prebuilt PTY and SQLite binaries for the supported Node/OS/CPU
 matrix. See [Installation](./docs/installation.md) for platform notes and
 troubleshooting.
 
-The Windows installer bundles its own Node.js runtime and the self-contained
-tray application, so those runtimes are not end-user prerequisites. Building
-that installer has stricter tool requirements described in the installation
-guide.
+Packaged Windows and Linux builds bundle Node.js. The Windows installer also
+bundles its self-contained tray application. Building distribution artifacts
+has stricter tool requirements described in the installation guide.
 
 ## Development
 
@@ -251,7 +273,8 @@ tooling/     Distribution and workspace-only verification tools
   and the stable feed is available starting with `v0.2.0`. The beta feed is not
   published. Source-checkout Hosts intentionally report update and autostart as
   unavailable
-- There is no packaged Linux/macOS or container distribution yet
+- Linux packages are release candidates; there is no packaged macOS or
+  container distribution yet
 - Codex and Claude Code prompt delivery is designed to survive a graceful
   daemon restart. Ambiguous crash outcomes are reconciled from native
   transcripts and are never resent automatically

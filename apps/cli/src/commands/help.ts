@@ -14,14 +14,14 @@ type CommandHelp = {
 
 const commandHelp: Record<CliCommand, CommandHelp> = {
   autostart: {
-    listSummary: "Read or change tray startup at sign-in.",
+    listSummary: "Read or change DeskCue startup at sign-in.",
     notes: [
-      "Available only in installed Windows builds.",
-      "This controls current-user tray startup and starts the local Host when needed.",
+      "Available in installed Windows and Linux builds.",
+      "Windows starts the tray; Linux enables the systemd user Host service.",
       "The Host may restore the requested daemon state."
     ],
     options: ["  --json  Emit machine-readable output"],
-    summary: "Read or change whether the DeskCue tray starts at sign-in.",
+    summary: "Read or change whether DeskCue starts at sign-in.",
     usage: "deskcue autostart <enable|disable|status> [--json]"
   },
   doctor: {

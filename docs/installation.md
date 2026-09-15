@@ -2,7 +2,9 @@
 
 The public alpha can be installed from a source checkout. Starting with
 `v0.2.0`, GitHub Releases also provides an unsigned Windows x64 installer and a
-stable feed for explicit update checks and installs.
+stable feed for explicit update checks and installs. The repository also
+contains Linux x64/arm64 packaging for a future tagged release; do not claim a
+Linux package is published until its release smoke has passed.
 
 ## Requirements
 
@@ -172,10 +174,11 @@ Host.
 
 The tray provides Open, Start, Stop, Restart, Pair a phone, Open
 logs, startup preference and Exit tray. Exiting the tray does not stop the
-Host. Update actions are capability-gated; installed Windows Hosts support them,
-while source-checkout Hosts intentionally do not.
+Host. Update actions are capability-gated; installed Windows and standalone
+Linux Hosts support them, while Debian packages and source checkouts leave
+program replacement external.
 
-Installed Windows builds also support:
+Installed Windows and standalone Linux builds also support:
 
 ```text
 deskcue update --check
@@ -230,6 +233,114 @@ available, uninstall DeskCue and then run the new installer. The uninstaller
 keeps `%LOCALAPPDATA%\DeskCue`, so the reinstall reuses the retained data unless
 you explicitly delete that directory.
 
+## Linux Packaged Build
+
+The Linux distribution targets glibc-based x64 and arm64 systems. Ubuntu 22.04+
+and Debian 12+ are the initial support baseline. Alpine and other musl-based
+distributions remain outside the supported matrix.
+
+The installer requires `curl`, `sha256sum`, `tar` and a working per-user systemd
+session. The Debian method additionally requires `sudo` and `dpkg`. Packaged
+builds include Node.js; a system Node.js installation is not required.
+
+Each architecture produces:
+
+```text
+deskcue-<version>-linux-<x64|arm64>.tar.gz
+deskcue_<version>_<amd64|arm64>.deb
+```
+
+The standalone archive is the primary local-first installation. It installs
+without root under:
+
+```text
+Program files: ~/.local/lib/deskcue
+CLI link:      ~/.local/bin/deskcue
+User service:  ~/.config/systemd/user/deskcue-host.service
+Data:          ${XDG_DATA_HOME:-~/.local/share}/deskcue/data
+```
+
+Install the latest release containing Linux artifacts with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AleksandrKornev/DeskCue/main/install.sh | sh
+```
+
+The script detects x64/arm64, downloads a versioned artifact and the release
+checksum set, verifies SHA-256, validates the payload target, atomically
+replaces a recognized previous installation, and enables the Host through
+`systemd --user`. An update preserves a disabled or stopped service preference.
+The installer requires an exact DeskCue ownership marker and refuses to replace
+an unrecognized program directory, CLI link or user-service file. It also
+refuses to mix standalone and Debian installations; remove the existing method
+before switching package ownership.
+
+Install the Debian package explicitly with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AleksandrKornev/DeskCue/main/install.sh | \
+  sh -s -- --method deb
+```
+
+The Debian package is owned by `dpkg`, so DeskCue does not overwrite it through
+its self-updater. Rerun the command above to download and install a newer release
+asset, or download that `.deb` and run `sudo dpkg -i <file>`. No APT repository
+is provided yet. Debian updates preserve disabled/stopped user-service
+preferences. The standalone package supports explicit `deskcue update`; its
+update worker rechecks the downloaded archive, waits for the Host to exit, swaps
+the program directory and owned user-service file, restarts systemd, verifies
+the expected Host and daemon version across consecutive health probes, and
+restores both the previous directory and unit if the new Host does not remain
+ready.
+The worker runs as a separate transient user unit, so Host shutdown does not
+terminate it. Diagnose a failed handoff with
+`journalctl --user -u 'deskcue-update-*' -n 100 --no-pager`; if both the update
+and restored version fail their health checks, the journal names the retained
+failed-payload directory.
+
+The Linux package has no tray yet. The Host service, CLI and browser dashboard
+are complete without one; a Linux tray remains a separate optional desktop
+integration because server, SSH and some desktop environments do not expose a
+system tray.
+
+Build both package formats on a native matching Linux runner with Node.js
+`24.14.0`, npm 10+, `tar` and `dpkg-deb`:
+
+```bash
+npm ci
+npm run test:distribution
+npm run build:linux-package -- --arch x64
+```
+
+Use `--arch arm64` on an arm64 runner. Cross-architecture assembly is rejected
+because bundled Node, SQLite and PTY binaries must match the runner target.
+
+### Remove a Linux package
+
+For a standalone installation, disable the service and remove only the owned
+program, CLI link and unit:
+
+```bash
+systemctl --user disable --now deskcue-host.service
+rm ~/.local/bin/deskcue
+rm "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/deskcue-host.service"
+rm -rf ~/.local/lib/deskcue
+systemctl --user daemon-reload
+```
+
+For a Debian installation, disable the current user's service before removing
+the package:
+
+```bash
+systemctl --user disable --now deskcue-host.service
+sudo dpkg --remove deskcue
+systemctl --user daemon-reload
+```
+
+Both paths preserve `${XDG_DATA_HOME:-~/.local/share}/deskcue/data`. Remove that
+directory separately only when you intend to delete chats, settings, logs and
+paired-device state.
+
 ## Local data
 
 The default source-checkout data directory is `.deskcue-data/` in the repository
@@ -242,10 +353,11 @@ DESKCUE_DATA_DIR=/path/to/deskcue-data
 Use `.env.local` for persistent local configuration. Never commit that file.
 See [Environment Configuration](./environment.md).
 
-Installed mode uses `%LOCALAPPDATA%\DeskCue\data` by default and does not load
-`.env.local` or `.env` from the install directory or current working directory.
-An explicit `DESKCUE_DATA_DIR` still takes precedence for controlled testing
-and advanced deployments.
+Installed mode does not load `.env.local` or `.env` from the install directory
+or current working directory. Windows uses `%LOCALAPPDATA%\DeskCue\data`; Linux
+uses `${XDG_DATA_HOME:-~/.local/share}/deskcue/data`. An explicit
+`DESKCUE_DATA_DIR` still takes precedence for controlled testing and advanced
+deployments.
 
 ## Access from another device
 
@@ -275,7 +387,7 @@ From a source checkout:
 npm run doctor
 ```
 
-From an installed Windows build:
+From an installed Windows or Linux build:
 
 ```powershell
 deskcue doctor

@@ -5,6 +5,10 @@ Releases also provides an unsigned Windows x64 distribution with a stable
 manual-update feed. This page distinguishes the supported public paths from
 packaging components that remain locally verified previews.
 
+The repository now builds glibc Linux x64/arm64 standalone archives and Debian
+packages. They remain release candidates until a tagged artifact passes clean
+install, Host lifecycle, update and rollback smoke on the matching architecture.
+
 ## Source-Checkout Alpha
 
 Requirements:
@@ -162,11 +166,12 @@ path. The stable feed is available starting with `v0.2.0`; the beta endpoint is
 currently unavailable. GitHub excludes prereleases from `releases/latest`, so
 a beta publication mechanism must be defined before publishing that channel.
 
-The installer is intentionally unsigned and x64-only. Signing is deferred. The
-Host updater accepts installed Windows x64 and arm64 targets, but no arm64
-payload or installer is built in this scope. There is no WinGet
-package, `npx` bootstrap or `install.sh`; packaged Linux/macOS builds, other
-package-manager channels and container distribution are outside this scope.
+The Windows installer is intentionally unsigned and x64-only. Signing is
+deferred. The Host updater accepts installed Windows x64 and arm64 targets, but
+no Windows arm64 payload or installer is built in this scope. Linux x64/arm64
+standalone and Debian packaging plus `install.sh` are implemented as release
+candidates. There is no WinGet package, `npx` bootstrap, packaged macOS build or
+container distribution yet.
 
 Private, uniquely owned compile and updater snapshots narrow pathname races,
 but Node/CreateProcess cannot launch a Windows executable from an already
@@ -195,3 +200,32 @@ continues to use the repository-local `.deskcue-data/` directory unless
 
 See [Installation](./installation.md) for the exact build commands and current
 limitations, and [Recovery Notes](./recovery.md) for data recovery.
+
+## Windows and Linux Release Matrix
+
+The distribution workflow runs only for an existing tag and creates a draft
+release. It builds Windows x64 on Windows 2022, Linux x64 on Ubuntu 22.04 and
+Linux arm64 on a native Ubuntu arm64 runner. The publish job requires every
+target, combines the artifacts, creates one strict platform/architecture update
+manifest and generates `SHA256SUMS` before creating the draft. The workflow
+resolves the release tag to one immutable commit before any build starts,
+pins third-party Actions to commit SHAs and aborts if the tag moves before the
+draft is created.
+
+The update feed contains one installable artifact per runtime target:
+
+```text
+win32-x64   -> unsigned Inno Setup installer
+linux-x64   -> standalone tar.gz
+linux-arm64 -> standalone tar.gz
+```
+
+Portable Windows ZIP and Linux Debian packages are release assets but not Host
+self-update targets. Windows arm64 remains reserved in the manifest contract
+and is not advertised until its tray, payload and real-device installation have
+passed independently.
+
+Linux installed mode keeps data outside the replaceable program directory and
+uses an authenticated Unix-domain Host control socket. The standalone launcher
+delegates Host ownership to `systemd --user`; the Debian launcher does the same
+but keeps application replacement under `dpkg` ownership.

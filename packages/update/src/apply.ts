@@ -43,7 +43,12 @@ type InstallerApplySnapshot = {
 };
 
 const APPLY_SNAPSHOT_DIRECTORY_PATTERN = /^\.deskcue-apply-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-[A-Za-z0-9]{6}$/;
-const DURABLE_INSTALLER_PATTERN = /^DeskCueSetup-(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?-win-(?:x64|arm64)\.exe(?:\.part)?$/;
+const DURABLE_VERSION_PATTERN_SOURCE = "(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)" +
+  "(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?";
+const DURABLE_INSTALLER_PATTERN = new RegExp(
+  `^(?:DeskCueSetup-${DURABLE_VERSION_PATTERN_SOURCE}-win-(?:x64|arm64)\\.exe|` +
+  `deskcue-${DURABLE_VERSION_PATTERN_SOURCE}-linux-(?:x64|arm64)\\.tar\\.gz)(?:\\.part)?$`
+);
 const SNAPSHOT_MARKER_NAME = ".deskcue-update-apply-v1.json";
 const installerApplySnapshots = new WeakMap<ReturnType<typeof spawn>, InstallerApplySnapshot>();
 
@@ -103,19 +108,19 @@ export async function verifyStagedUpdateArtifact(
   artifact: UpdateArtifact
 ) {
   if (!isAbsolute(installerPath) || !existsSync(installerPath)) {
-    throw new UpdateError("missing_staged_artifact", "The staged update installer is missing.");
+    throw new UpdateError("missing_staged_artifact", "The staged update artifact is missing.");
   }
 
   const installerStats = await stat(installerPath);
 
   if (!installerStats.isFile() || installerStats.size !== artifact.sizeBytes) {
-    throw new UpdateError("staged_artifact_changed", "The staged update installer size changed.");
+    throw new UpdateError("staged_artifact_changed", "The staged update artifact size changed.");
   }
 
   const sha256 = await calculateFileSha256(installerPath);
 
   if (sha256 !== artifact.sha256) {
-    throw new UpdateError("staged_artifact_changed", "The staged update installer checksum changed.");
+    throw new UpdateError("staged_artifact_changed", "The staged update artifact checksum changed.");
   }
 
   return {

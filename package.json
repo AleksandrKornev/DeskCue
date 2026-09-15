@@ -44,12 +44,14 @@
     "verify:cli": "npm run test --workspace @deskcue/cli && npm run typecheck --workspace @deskcue/cli && npm run build --workspace @deskcue/cli",
     "verify:host": "npm run test --workspace @deskcue/host && npm run typecheck --workspace @deskcue/host && npm run build --workspace @deskcue/host",
     "verify:web": "npm run test:release --workspace @deskcue/web && npm run build --workspace @deskcue/web && npm run build:embed --workspace @deskcue/web",
-    "verify:repository": "npm run version:check && npm run audit:production && npm run audit:all && git diff --check",
+    "verify:repository": "npm run version:check && npm run test:distribution && npm run audit:production && npm run audit:all && git diff --check",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "audit:all": "npm audit --audit-level=high",
     "version:check": "node scripts/check-workspace-versions.mjs",
     "smoke:daemon": "npm run build:packages && node scripts/smoke-daemon.mjs",
     "smoke:web": "npm run build:packages && node scripts/smoke-web.mjs",
+    "test:distribution": "node --test tooling/distribution/*.test.mjs tooling/linux-package/*.test.mjs",
+    "build:linux-package": "node tooling/linux-package/build-packages.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

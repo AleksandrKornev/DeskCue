@@ -36,6 +36,24 @@ test("parses a strict manifest and selects the requested architecture", () => {
   );
 });
 
+test("selects distinct Windows and Linux artifacts", () => {
+  const manifest = parseUpdateManifest(validManifest({
+    artifacts: [
+      validManifest().artifacts[0],
+      {
+        platform: "linux",
+        architecture: "x64",
+        url: "https://github.com/AleksandrKornev/DeskCue/releases/download/v0.2.0/deskcue-linux.tar.gz",
+        sizeBytes: 5,
+        sha256: "b".repeat(64)
+      }
+    ]
+  }));
+
+  assert.equal(selectUpdateArtifact(manifest, "win32", "x64").sha256, "a".repeat(64));
+  assert.equal(selectUpdateArtifact(manifest, "linux", "x64").sha256, "b".repeat(64));
+});
+
 test("rejects missing, unknown and malformed manifest fields", () => {
   const withUnknown = validManifest({ unexpected: true });
   const withoutVersion = validManifest();

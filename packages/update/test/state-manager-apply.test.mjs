@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { EventEmitter } from "node:events";
 
 import {
   createInitialUpdateState,
@@ -47,7 +47,7 @@ async function fixture() {
   return { initial, stateStore, tempDir };
 }
 
-function createManager({ fetch, stateStore, tempDir }) {
+function createManager({ fetch, platform = "win32", stateStore, tempDir }) {
   return new UpdateManager({
     allowedHosts: [RELEASE_HOST],
     architecture: "x64",
@@ -55,6 +55,7 @@ function createManager({ fetch, stateStore, tempDir }) {
     currentVersion: "0.1.1",
     fetch,
     manifestUrl: `https://${RELEASE_HOST}/stable.json`,
+    platform,
     requestTimeoutMs: 1_000,
     stageDirectory: join(tempDir, "staged"),
     stateStore
@@ -179,6 +180,7 @@ test("reconciles stale applying state after the installed version changes", asyn
       throw new Error("not used");
     },
     manifestUrl: `https://${RELEASE_HOST}/stable.json`,
+    platform: "win32",
     requestTimeoutMs: 1_000,
     stageDirectory: join(tempDir, "staged"),
     stateStore
@@ -479,6 +481,7 @@ test("resets applying state before recovery when the update channel changes", as
       throw new Error("not used");
     },
     manifestUrl: `https://${RELEASE_HOST}/beta.json`,
+    platform: "win32",
     requestTimeoutMs: 1_000,
     stageDirectory: join(tempDir, "staged"),
     stateStore

@@ -12,7 +12,7 @@ import {
 } from "@deskcue/host-control";
 import type { HostStatus } from "@deskcue/host-control";
 
-import { ensureHostRunning } from "./hostLauncher.ts";
+import { ensureHostRunning, launchDetachedHost } from "./hostLauncher.ts";
 import { createHostRequest, readOptionalHostStatus } from "./hostClient.ts";
 
 const stoppedStatus: HostStatus = {
@@ -141,4 +141,18 @@ test("ensure host applies an absolute deadline to a stuck readiness request", as
   );
 
   assert.ok(Date.now() - startedAt < 300);
+});
+
+test("installed Linux launcher delegates Host ownership to the systemd user service", async () => {
+  let starts = 0;
+
+  await launchDetachedHost({
+    env: { DESKCUE_HOST_LAUNCH_MODE: "systemd-user" },
+    platform: "linux",
+    startSystemdService: async () => {
+      starts += 1;
+    }
+  });
+
+  assert.equal(starts, 1);
 });
