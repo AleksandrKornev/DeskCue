@@ -7,7 +7,20 @@ releases.
 
 ## Unreleased
 
+## 0.2.2 - 2026-09-15
+
+### Fixed
+
+- Made the Windows distribution build resolve license and notice files from the
+  exact NuGet runtime packs selected by the tray publish
+- Made private installer snapshot permissions work when GitHub Actions runs as
+  LocalSystem without claiming an unenforceable parent-directory rename guard
+
 ## 0.2.1 - 2026-09-15
+
+This source tag was not published as a packaged GitHub Release. The 0.2.2
+release candidate supersedes it pending successful tagged distribution
+validation.
 
 ### Added
 

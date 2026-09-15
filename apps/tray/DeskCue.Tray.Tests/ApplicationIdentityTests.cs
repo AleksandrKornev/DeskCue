@@ -18,8 +18,8 @@ public sealed class ApplicationIdentityTests
         var versionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
 
         Assert.Equal(ExpectedAssemblyVersion, assembly.GetName().Version);
-        Assert.Equal("0.2.1.0", versionInfo.FileVersion);
-        Assert.Equal("0.2.1", versionInfo.ProductVersion);
+        Assert.Equal("0.2.2.0", versionInfo.FileVersion);
+        Assert.Equal("0.2.2", versionInfo.ProductVersion);
         Assert.Equal("DeskCue", versionInfo.ProductName);
         Assert.Equal("DeskCue Tray", versionInfo.FileDescription);
     }

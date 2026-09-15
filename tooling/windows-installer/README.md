@@ -97,8 +97,8 @@ the installer, its `.sha256` file and the channel-specific update manifest.
 
 Compilation copies the payload, installer script and icon below one unique
 private session directory, recursively removes inherited write access, probes
-write, deletion and parent-level rename attempts, and verifies the exact inputs
-immediately before and after ISCC.
+directory/file writes and protected-child deletion, and verifies the exact
+inputs immediately before and after ISCC.
 The build manifest binds those consumed snapshots, the payload manifest and the
 exact ISCC binary/version to the resulting Setup hash. The staged installer is
 published only after the post-compile checks. This bounds accidental or
