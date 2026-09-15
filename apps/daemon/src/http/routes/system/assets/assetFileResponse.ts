@@ -200,7 +200,7 @@ export async function sendLocalAssetFile(
       response.status(206);
     }
 
-    response.type(normalizedPath);
+    response.type(path.extname(normalizedPath));
     const forceDownload = download ||
       shouldForceAssetDownload(normalizedPath) ||
       hasActiveAssetContentType(response.getHeader("Content-Type"));
