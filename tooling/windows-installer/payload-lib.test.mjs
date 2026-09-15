@@ -60,6 +60,31 @@ test("safe replacement guard rejects the repository root", () => {
   }
 });
 
+test("safe replacement guard accepts a canonical alias above the repository root", (context) => {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "deskcue-safe-alias-"));
+  const physicalParent = join(temporaryRoot, "physical-parent");
+  const aliasParent = join(temporaryRoot, "alias-parent");
+  const physicalRepositoryRoot = join(physicalParent, "repository");
+  const repositoryRoot = join(aliasParent, "repository");
+  const payloadPath = join(repositoryRoot, "dist", "payload");
+  mkdirSync(join(physicalRepositoryRoot, "dist"), { recursive: true });
+  try {
+    try {
+      symlinkSync(physicalParent, aliasParent, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (error?.code === "EPERM") {
+        context.skip("Platform policy does not allow creating a test directory alias.");
+        return;
+      }
+      throw error;
+    }
+
+    assert.equal(assertSafeReplaceDirectory(payloadPath, repositoryRoot), payloadPath);
+  } finally {
+    rmSync(temporaryRoot, { force: true, recursive: true });
+  }
+});
+
 test("safe replacement guard rejects a junction that escapes a custom repository root", (context) => {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "deskcue-safe-junction-"));
   const repositoryRoot = join(temporaryRoot, "repository");
