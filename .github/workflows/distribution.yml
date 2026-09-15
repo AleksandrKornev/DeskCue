@@ -69,20 +69,42 @@ jobs:
       - name: Publish tray
         run: dotnet publish apps/tray/DeskCue.Tray/DeskCue.Tray.csproj -c Release -r win-x64 --self-contained true
 
-      - name: Locate runtime notices
+      - name: Locate runtime pack notices
         id: dotnet
         shell: pwsh
         run: |
-          $runtimeLine = dotnet --list-runtimes | Where-Object { $_ -match '^Microsoft.NETCore.App 10\.' } | Select-Object -Last 1
-          $desktopLine = dotnet --list-runtimes | Where-Object { $_ -match '^Microsoft.WindowsDesktop.App 10\.' } | Select-Object -Last 1
-          if (-not $runtimeLine -or -not $desktopLine) { throw 'Required .NET 10 runtimes are missing.' }
-          $runtimeVersion = ($runtimeLine -split '\s+')[1]
-          $runtimeBase = (($runtimeLine -split '\s+')[2]).Trim('[', ']')
-          $desktopBase = (($desktopLine -split '\s+')[2]).Trim('[', ']')
+          $assets = Get-Content apps/tray/DeskCue.Tray/obj/project.assets.json -Raw | ConvertFrom-Json
+          $framework = $assets.project.frameworks.PSObject.Properties.Value | Select-Object -First 1
+          $packagesPath = $assets.project.restore.packagesPath
+          $runtimePack = @($framework.downloadDependencies | Where-Object name -eq 'Microsoft.NETCore.App.Runtime.win-x64')
+          $desktopPack = @($framework.downloadDependencies | Where-Object name -eq 'Microsoft.WindowsDesktop.App.Runtime.win-x64')
+          if (-not $packagesPath -or $runtimePack.Count -ne 1 -or $desktopPack.Count -ne 1) {
+            throw 'Required win-x64 runtime pack metadata is missing.'
+          }
+          $runtimeRange = [regex]::Match($runtimePack[0].version, '^\[(?<min>\d+\.\d+\.\d+),\s*(?<max>\d+\.\d+\.\d+)\]$')
+          $desktopRange = [regex]::Match($desktopPack[0].version, '^\[(?<min>\d+\.\d+\.\d+),\s*(?<max>\d+\.\d+\.\d+)\]$')
+          if (-not $runtimeRange.Success -or -not $desktopRange.Success) {
+            throw 'Required win-x64 runtime pack versions are malformed.'
+          }
+          $runtimeVersion = $runtimeRange.Groups['min'].Value
+          $desktopVersion = $desktopRange.Groups['min'].Value
+          if ($runtimeVersion -ne $runtimeRange.Groups['max'].Value -or
+              $desktopVersion -ne $desktopRange.Groups['max'].Value -or
+              $runtimeVersion -ne $desktopVersion) {
+            throw "Required win-x64 runtime pack versions do not match exactly: NETCore=$($runtimePack[0].version), WindowsDesktop=$($desktopPack[0].version)."
+          }
+          $runtimeBase = Join-Path (Join-Path $packagesPath $runtimePack[0].name.ToLowerInvariant()) $runtimeVersion
+          $desktopBase = Join-Path (Join-Path $packagesPath $desktopPack[0].name.ToLowerInvariant()) $desktopVersion
+          $license = Join-Path $runtimeBase 'LICENSE.TXT'
+          $notices = Join-Path $runtimeBase 'THIRD-PARTY-NOTICES.TXT'
+          $desktopLicense = Join-Path $desktopBase 'LICENSE'
+          $noticeFiles = @($license, $notices, $desktopLicense)
+          $missing = @($noticeFiles | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
+          if ($missing.Count -gt 0) { throw "Required runtime pack notice files are missing: $($missing -join ', ')." }
           "version=$runtimeVersion" >> $env:GITHUB_OUTPUT
-          "license=$(Join-Path $runtimeBase $runtimeVersion 'LICENSE.TXT')" >> $env:GITHUB_OUTPUT
-          "notices=$(Join-Path $runtimeBase $runtimeVersion 'THIRD-PARTY-NOTICES.TXT')" >> $env:GITHUB_OUTPUT
-          "desktop-license=$(Join-Path $desktopBase $runtimeVersion 'LICENSE')" >> $env:GITHUB_OUTPUT
+          "license=$license" >> $env:GITHUB_OUTPUT
+          "notices=$notices" >> $env:GITHUB_OUTPUT
+          "desktop-license=$desktopLicense" >> $env:GITHUB_OUTPUT
 
       - name: Test tray identity and behavior
         shell: pwsh
