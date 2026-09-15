@@ -18,9 +18,10 @@ import {
 test("projects an unanswered Claude user turn as active runtime state", async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-claude-turn-state-"));
   const sessionPath = path.join(tempDir, "session-active.jsonl");
+  const workspacePath = path.join(tempDir, "workspaces", "repo");
 
   await writeFile(sessionPath, JSON.stringify({
-    cwd: "D:\\work\\repo",
+    cwd: workspacePath,
     message: {
       role: "user",
       content: "Continue the active task"
@@ -49,6 +50,7 @@ test("projects an unanswered Claude user turn as active runtime state", async ()
 test("discovers Claude sessions recursively and marks missing cwd as read-only", async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-claude-discovery-"));
   const nestedDir = path.join(tempDir, "project");
+  const workspacePath = path.join(tempDir, "workspaces", "repo");
 
   await mkdir(nestedDir, { recursive: true });
   await writeFile(
@@ -56,7 +58,7 @@ test("discovers Claude sessions recursively and marks missing cwd as read-only",
     [
       JSON.stringify({
         timestamp: "2026-06-22T08:00:00.000Z",
-        cwd: "D:\\work\\repo",
+        cwd: workspacePath,
         model: "claude-sonnet",
         message: {
           role: "user",
@@ -83,6 +85,7 @@ test("discovers Claude sessions recursively and marks missing cwd as read-only",
     assert.equal(sessions.length, 2);
     assert.equal(sessions[0]?.sourceSessionId, "session-a");
     assert.equal(sessions[0]?.attachMode, "resume");
+    assert.equal(sessions[0]?.workspacePath, workspacePath);
     assert.equal(sessions[0]?.workspaceName, "repo");
     assert.equal(sessions[1]?.sourceSessionId, "session-b");
     assert.equal(sessions[1]?.attachMode, "read_only");
@@ -146,11 +149,12 @@ test("prefers Claude custom titles over generated titles and prompt fallbacks", 
 test("discovers a large Claude session from bounded windows and uses its latest timestamp", async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), "deskcue-claude-large-discovery-"));
   const sessionPath = path.join(tempDir, "session-large.jsonl");
+  const workspacePath = path.join(tempDir, "workspaces", "large-repo");
   const padding = JSON.stringify({ type: "progress", data: "x".repeat(700_000) });
 
   await writeFile(sessionPath, [
     JSON.stringify({
-      cwd: "D:\\work\\large-repo",
+      cwd: workspacePath,
       message: { role: "user", content: "Bounded discovery" },
       timestamp: "2026-06-22T08:00:00.000Z"
     }),
@@ -164,6 +168,7 @@ test("discovers a large Claude session from bounded windows and uses its latest 
     assert.equal(session?.sourceSessionId, "session-large");
 
     assert.equal(session?.title, "Bounded discovery");
+    assert.equal(session?.workspacePath, workspacePath);
     assert.equal(session?.workspaceName, "large-repo");
     assert.equal(session?.updatedAt, "2026-06-22T09:30:00.000Z");
   } finally {
