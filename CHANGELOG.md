@@ -7,7 +7,18 @@ releases.
 
 ## Unreleased
 
+## 0.2.3 - 2026-09-16
+
+### Fixed
+
+- Made the tray identity test read its expected versions from the checked tray
+  project so a release bump cannot leave a stale test-only version constant
+
 ## 0.2.2 - 2026-09-15
+
+This source tag was not published as a packaged GitHub Release. The v0.2.3
+release candidate supersedes it pending successful tagged distribution
+validation.
 
 ### Fixed
 
@@ -18,9 +29,8 @@ releases.
 
 ## 0.2.1 - 2026-09-15
 
-This source tag was not published as a packaged GitHub Release. The 0.2.2
-release candidate supersedes it pending successful tagged distribution
-validation.
+This source tag was not published as a packaged GitHub Release. It was
+superseded by the v0.2.2 source tag, which was also not packaged.
 
 ### Added
 

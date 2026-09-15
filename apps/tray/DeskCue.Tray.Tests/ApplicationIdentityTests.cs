@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
+using System.Xml.Linq;
 using DeskCue.Tray.Menu;
 using Xunit;
 
@@ -9,17 +10,18 @@ namespace DeskCue.Tray.Tests;
 public sealed class ApplicationIdentityTests
 {
     private const string ExpectedIconResourceName = "DeskCue.Tray.Assets.deskcue.ico";
-    private static readonly Version ExpectedAssemblyVersion = new(0, 2, 1, 0);
 
     [Fact]
     public void TrayAssemblyUsesDeskCueProductAndVersionIdentity()
     {
         var assembly = typeof(TrayMenuProjection).Assembly;
         var versionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
+        var projectDirectory = FindProjectDirectory();
+        var project = XDocument.Load(Path.Combine(projectDirectory, "DeskCue.Tray.csproj"));
 
-        Assert.Equal(ExpectedAssemblyVersion, assembly.GetName().Version);
-        Assert.Equal("0.2.2.0", versionInfo.FileVersion);
-        Assert.Equal("0.2.2", versionInfo.ProductVersion);
+        Assert.Equal(new Version(ReadProjectProperty(project, "AssemblyVersion")), assembly.GetName().Version);
+        Assert.Equal(ReadProjectProperty(project, "FileVersion"), versionInfo.FileVersion);
+        Assert.Equal(ReadProjectProperty(project, "InformationalVersion"), versionInfo.ProductVersion);
         Assert.Equal("DeskCue", versionInfo.ProductName);
         Assert.Equal("DeskCue Tray", versionInfo.FileDescription);
     }
@@ -118,5 +120,10 @@ public sealed class ApplicationIdentityTests
         }
 
         throw new DirectoryNotFoundException("Could not locate the DeskCue tray project.");
+    }
+
+    private static string ReadProjectProperty(XDocument project, string propertyName)
+    {
+        return project.Descendants(propertyName).Single().Value;
     }
 }
