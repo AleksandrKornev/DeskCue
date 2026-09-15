@@ -2,9 +2,10 @@
 
 The public alpha can be installed from a source checkout. Starting with
 `v0.2.0`, GitHub Releases also provides an unsigned Windows x64 installer and a
-stable feed for explicit update checks and installs. The repository also
-contains Linux x64/arm64 packaging for a future tagged release; do not claim a
-Linux package is published until its release smoke has passed.
+stable feed for explicit update checks and installs. The `v0.2.1` release
+candidate adds glibc Linux x64/arm64 standalone archives and Debian packages;
+they are not a published install path until the tagged artifacts pass the
+release smoke gates.
 
 ## Requirements
 
@@ -56,7 +57,7 @@ npm run dev
 If Git is unavailable, DeskCue can run from an extracted source archive, but
 branch and Git diff features are disabled.
 
-## Windows x64 Packaged Build Preview
+## Windows x64 Installer
 
 The checked-in packaging path currently targets Windows 10 or newer on x64. It
 contains:
@@ -260,7 +261,7 @@ User service:  ~/.config/systemd/user/deskcue-host.service
 Data:          ${XDG_DATA_HOME:-~/.local/share}/deskcue/data
 ```
 
-Install the latest release containing Linux artifacts with:
+Install `v0.2.1` or a newer release with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AleksandrKornev/DeskCue/main/install.sh | sh

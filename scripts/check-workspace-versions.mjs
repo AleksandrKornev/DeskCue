@@ -4,6 +4,13 @@ import { fileURLToPath } from "node:url";
 
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
+const trayProjectPath = join(
+  repositoryRoot,
+  "apps",
+  "tray",
+  "DeskCue.Tray",
+  "DeskCue.Tray.csproj"
+);
 
 async function readManifest(path) {
   return JSON.parse(await readFile(path, "utf8"));
@@ -27,6 +34,14 @@ async function resolveWorkspaceManifestPaths(workspacePattern) {
     }
   }
   return manifestPaths;
+}
+
+function readProjectVersion(project, property) {
+  const match = project.match(new RegExp(`<${property}>([^<]+)</${property}>`, "u"));
+
+  if (!match) throw new Error(`Tray project must declare ${property}.`);
+
+  return match[1];
 }
 
 const rootManifestPath = join(repositoryRoot, "package.json");
@@ -57,6 +72,28 @@ if (mismatches.length > 0) {
   );
 }
 
+const trayProject = await readFile(trayProjectPath, "utf8");
+const numericVersion = rootManifest.version.match(/^\d+\.\d+\.\d+/u)?.[0];
+if (!numericVersion) throw new Error("Root package version must include a numeric core version.");
+
+const trayVersions = new Map([
+  ["Version", rootManifest.version],
+  ["AssemblyVersion", `${numericVersion}.0`],
+  ["FileVersion", `${numericVersion}.0`],
+  ["InformationalVersion", rootManifest.version]
+]);
+for (const [property, expected] of trayVersions) {
+  const actual = readProjectVersion(trayProject, property);
+
+  if (actual !== expected) {
+    throw new Error(
+      `${relative(repositoryRoot, trayProjectPath)} ${property} must be ${expected}, received ${actual}.`
+    );
+  }
+}
+
 console.log(
-  `Verified DeskCue ${rootManifest.version} across ${workspaceManifestPaths.length + 1} manifests.`
+  `Verified DeskCue ${rootManifest.version} across ${
+    workspaceManifestPaths.length + 1
+  } npm manifests and tray metadata.`
 );

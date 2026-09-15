@@ -40,8 +40,8 @@ then open DeskCue from the Start menu or run `deskcue open` in a new terminal.
 
 ### Linux x64 and arm64
 
-Beginning with the next release that includes Linux assets, install the
-per-user standalone build with:
+Once `v0.2.1` or a newer release is published, install the per-user standalone
+build with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AleksandrKornev/DeskCue/main/install.sh | sh
@@ -119,9 +119,11 @@ update checks and installs; the Host verifies the exact installer size and
 SHA-256 before handoff. See [Installation](./docs/installation.md) for the
 artifact, commands and current validation boundaries.
 
-The repository now also contains native Linux x64/arm64 standalone and Debian
-package builders. These artifacts become a supported install path only after a
-tagged release has passed the Linux install, lifecycle and update smoke gates.
+The `v0.2.1` release candidate adds glibc Linux x64/arm64 standalone archives
+and Debian packages. They become a published install path only after the tagged
+artifacts pass the release smoke gates. The standalone installation includes the
+Host, CLI, browser dashboard, `systemd --user` lifecycle and explicit
+self-update; it does not include a tray.
 
 ## Requirements
 
@@ -273,8 +275,10 @@ tooling/     Distribution and workspace-only verification tools
   and the stable feed is available starting with `v0.2.0`. The beta feed is not
   published. Source-checkout Hosts intentionally report update and autostart as
   unavailable
-- Linux packages are release candidates; there is no packaged macOS or
-  container distribution yet
+- Linux packages remain release candidates until their tagged artifacts pass
+  the release smoke gates. They require glibc and a working per-user systemd
+  session; there is no Linux tray, packaged macOS build or container
+  distribution yet
 - Codex and Claude Code prompt delivery is designed to survive a graceful
   daemon restart. Ambiguous crash outcomes are reconciled from native
   transcripts and are never resent automatically

@@ -2,11 +2,10 @@
 
 DeskCue is published as a source-checkout alpha. Starting with `v0.2.0`, GitHub
 Releases also provides an unsigned Windows x64 distribution with a stable
-manual-update feed. This page distinguishes the supported public paths from
-packaging components that remain locally verified previews.
+manual-update feed. The `v0.2.1` release candidate adds glibc Linux x64/arm64
+standalone archives and Debian packages.
 
-The repository now builds glibc Linux x64/arm64 standalone archives and Debian
-packages. They remain release candidates until a tagged artifact passes clean
+Linux artifacts remain release candidates until the tagged builds pass clean
 install, Host lifecycle, update and rollback smoke on the matching architecture.
 
 ## Source-Checkout Alpha
@@ -95,12 +94,19 @@ merged, tag the resulting `main` commit as `v<version>` and publish the tag.
 Package-specific independent versions can be introduced later if DeskCue starts
 publishing npm packages separately.
 
-For a Windows release, create the GitHub Release as a draft first. Upload the
-installer, its `.sha256` file and the matching stable update manifest, then
-verify their names, sizes and hashes through the GitHub API before publishing
-the release. Do not publish a release while its `latest/download` feed is
-incomplete. The builder-local `.build-manifest.json` contains absolute paths
-and is not a public release asset.
+For a packaged release, dispatch the Distribution workflow for the existing
+tag. It creates a draft only after every Windows and Linux target succeeds.
+Verify the asset names and `SHA256SUMS`, the strict update manifest and
+`release-version.txt` through the GitHub API before publishing. Do not publish
+until the draft contains every asset required by the future `latest/download`
+feed. Builder-local `.build-manifest.json` files contain absolute paths and are
+not public assets.
+
+Publishing is a deliberate manual release-maintainer gate. Before publishing,
+complete the draft smoke checklist, resolve `v<version>` again and confirm it
+still points to the immutable source commit recorded by the Distribution run.
+If the tag differs, delete the draft and rebuild it. After publication, repeat
+clean-install and update smoke through the public `releases/latest` feed.
 
 ## Docker Compose Status
 
@@ -169,9 +175,9 @@ a beta publication mechanism must be defined before publishing that channel.
 The Windows installer is intentionally unsigned and x64-only. Signing is
 deferred. The Host updater accepts installed Windows x64 and arm64 targets, but
 no Windows arm64 payload or installer is built in this scope. Linux x64/arm64
-standalone and Debian packaging plus `install.sh` are implemented as release
-candidates. There is no WinGet package, `npx` bootstrap, packaged macOS build or
-container distribution yet.
+standalone and Debian packaging plus `install.sh` are `v0.2.1` release
+candidates. There is no WinGet package, `npx` bootstrap, packaged macOS build
+or container distribution yet.
 
 Private, uniquely owned compile and updater snapshots narrow pathname races,
 but Node/CreateProcess cannot launch a Windows executable from an already
