@@ -27,6 +27,7 @@ export type ParsedCliArguments = {
   json: boolean;
   lines: number;
   print: boolean;
+  raw: boolean;
   timeoutMs: number;
   wait: boolean;
 };
@@ -124,6 +125,7 @@ export function parseCliArguments(argv: string[]): ParsedCliArguments {
     json,
     lines: DEFAULT_LOG_LINES,
     print: false,
+    raw: false,
     timeoutMs: DEFAULT_HOST_TIMEOUT_MS,
     wait: false
   };
@@ -176,6 +178,10 @@ export function parseCliArguments(argv: string[]): ParsedCliArguments {
         assertFlagAllowed(parsed.command, value, ["logs"]);
         parsed.all = true;
         break;
+      case "--raw":
+        assertFlagAllowed(parsed.command, value, ["logs"]);
+        parsed.raw = true;
+        break;
       case "--check":
         assertFlagAllowed(parsed.command, value, ["update"]);
         parsed.check = true;
@@ -219,6 +225,14 @@ export function parseCliArguments(argv: string[]): ParsedCliArguments {
 
   if (parsed.command === "logs" && parsed.all && logLinesSpecified) {
     throw new CliUsageError("--all cannot be combined with --lines.");
+  }
+
+  if (parsed.command === "logs" && parsed.raw && !parsed.all) {
+    throw new CliUsageError("--raw requires --all because it exports the complete current log file.");
+  }
+
+  if (parsed.command === "logs" && parsed.raw && parsed.json) {
+    throw new CliUsageError("--raw cannot be combined with --json; raw selects exact byte output.");
   }
 
   return parsed;

@@ -2,11 +2,13 @@ import { createReadStream, existsSync } from "node:fs";
 import { readBoundedFileTail } from "./doctor/dataInspection.ts";
 import { followLogs } from "./logs/follower.ts";
 import {
+  LogOutputBackpressureError,
   writeFollowReady,
   writeLogLine,
   writeLogOutput,
   writeLogSummary,
   writeOversizedRecordNotice,
+  writeRawExportWarning,
   writeTruncationNotice
 } from "./logs/presentation.ts";
 import { countLogLevels, isOversizedLogRecord, parseLogLine } from "./logs/records.ts";
@@ -80,6 +82,24 @@ async function streamAllLogRecords(path: string, io: CliIo, json: boolean) {
   return counts;
 }
 
+async function streamRawLogFile(path: string, io: CliIo) {
+  if (!existsSync(path)) return;
+  if (!io.stdoutBytes) throw new Error("Raw log export requires a byte-capable output sink.");
+
+  const input = createReadStream(path);
+
+  try {
+    for await (const chunk of input) {
+      const bytes = typeof chunk === "string" ? Buffer.from(chunk, "utf8") : chunk;
+      const accepted = await io.stdoutBytes(bytes);
+
+      if (accepted === false) throw new LogOutputBackpressureError();
+    }
+  } finally {
+    input.destroy();
+  }
+}
+
 export function readLogTail(lineLimit: number) {
   const path = resolveCliDataPaths().logFile;
   const tail = existsSync(path)
@@ -100,6 +120,7 @@ export async function runLogsCommand({
   io,
   json,
   lines,
+  raw = false,
   signal
 }: {
   all?: boolean;
@@ -107,13 +128,23 @@ export async function runLogsCommand({
   io: CliIo;
   json: boolean;
   lines: number;
+  raw?: boolean;
   signal: AbortSignal;
 }) {
   const path = resolveCliDataPaths().logFile;
 
+  if (raw) {
+    writeRawExportWarning(io, path);
+    await streamRawLogFile(path, io);
+    return;
+  }
+
   if (all) {
     if (!json) {
-      writeLogOutput(io, `DeskCue daemon logs\n  File: ${sanitizeTerminalLine(path)}\n  Showing all current records\n\n`);
+      writeLogOutput(
+        io,
+        `DeskCue daemon logs\n  File: ${sanitizeTerminalLine(path)}\n  Scanning bounded, redacted records\n\n`
+      );
     }
 
     const counts = await streamAllLogRecords(path, io, json);
