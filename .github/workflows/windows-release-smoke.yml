@@ -1,0 +1,61 @@
+name: Windows release installer smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable release version without the v prefix
+        required: true
+        type: string
+      release_id:
+        description: Draft GitHub Release numeric ID
+        required: true
+        type: string
+      source_commit:
+        description: Exact 40-character commit resolved by Distribution
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    # GitHub only exposes draft releases to callers with write access.
+    permissions:
+      contents: write
+    steps:
+      - name: Require main workflow revision
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -cne 'refs/heads/main') {
+            throw 'Release smoke must be dispatched from main, not a feature branch.'
+          }
+
+      - name: Checkout smoke harness
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download and verify exact draft installer
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          pwsh -NoProfile -File tooling/windows-installer/download-release-smoke.ps1 `
+            -Version $env:RELEASE_VERSION `
+            -ReleaseId $env:RELEASE_ID `
+            -SourceCommit $env:SOURCE_COMMIT
+
+      - name: Exercise clean install and uninstall
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          pwsh -NoProfile -File tooling/windows-installer/run-release-smoke.ps1 `
+            -Version $env:RELEASE_VERSION

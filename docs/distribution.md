@@ -112,6 +112,33 @@ still points to the immutable source commit recorded by the Distribution run.
 If the tag differs, delete the draft and rebuild it. After publication, repeat
 clean-install and update smoke through the public `releases/latest` feed.
 
+### Windows clean-install release smoke
+
+After Distribution creates a draft, dispatch **Windows release installer smoke**
+from `main` with the version, numeric draft release ID and exact source commit
+recorded by Distribution. The job uses a fresh GitHub-hosted `windows-2022` VM.
+Find the draft ID in the GitHub Releases API (`gh api
+repos/AleksandrKornev/DeskCue/releases`) and use the source commit shown by the
+Distribution run, not the workflow branch commit. The workflow rejects dispatch
+from any branch other than `main`.
+
+It refuses a pre-existing DeskCue installation or data, downloads the exact
+draft installer through the authenticated GitHub API, checks its size and
+SHA-256 against release metadata and the sidecar, then runs a silent per-user
+install. It verifies installed payload hashes, CLI/Host/daemon, tray,
+autostart, dashboard availability and a data-preserving uninstall. The token
+used to read the draft is scoped to the download step, not the installer step.
+
+A successful job closes the functional clean-Windows installation gate for
+the tested artifact. It does not visually inspect the interactive installer
+wizard, SmartScreen, keyboard focus or a consumer Windows 10/11 desktop; those
+remain separate manual coverage boundaries. Keep the release as a draft if the
+smoke fails or the source tag changes.
+
+Before publishing, compare the draft installer and sidecar asset IDs and SHA-256
+with the job summary; if either asset changed, rerun the smoke against the new
+draft contents.
+
 ## Docker Compose Status
 
 Docker Compose is not the default distribution path yet. The daemon controls
