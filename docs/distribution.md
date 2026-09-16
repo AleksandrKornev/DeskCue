@@ -2,11 +2,11 @@
 
 DeskCue is published as a source-checkout alpha. Starting with `v0.2.0`, GitHub
 Releases also provides an unsigned Windows x64 distribution with a stable
-manual-update feed. The `v0.2.5` release candidate adds glibc Linux x64/arm64
+manual-update feed. The tagged `v0.2.5` build includes glibc Linux x64/arm64
 standalone archives and Debian packages.
 
-Linux artifacts remain release candidates until the tagged builds pass clean
-install, Host lifecycle, update and rollback smoke on the matching architecture.
+The tagged Linux artifacts passed clean install, Host lifecycle, update and
+rollback smoke on the matching architecture.
 
 ## Source-Checkout Alpha
 
@@ -206,8 +206,9 @@ a beta publication mechanism must be defined before publishing that channel.
 The Windows installer is intentionally unsigned and x64-only. Signing is
 deferred. The Host updater accepts installed Windows x64 and arm64 targets, but
 no Windows arm64 payload or installer is built in this scope. Linux x64/arm64
-standalone and Debian packaging plus `install.sh` are `v0.2.5` release
-candidates. There is no WinGet package, `npx` bootstrap, packaged macOS build
+standalone and Debian packaging plus `install.sh` are included in the tagged
+`v0.2.5` build.
+There is no WinGet package, `npx` bootstrap, packaged macOS build
 or container distribution yet.
 
 Private, uniquely owned compile and updater snapshots narrow pathname races,

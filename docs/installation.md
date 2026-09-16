@@ -2,10 +2,9 @@
 
 The public alpha can be installed from a source checkout. Starting with
 `v0.2.0`, GitHub Releases also provides an unsigned Windows x64 installer and a
-stable feed for explicit update checks and installs. The `v0.2.5` release
-candidate adds glibc Linux x64/arm64 standalone archives and Debian packages;
-they are not a published install path until the tagged artifacts pass the
-release smoke gates.
+stable feed for explicit update checks and installs. The tagged `v0.2.5` build
+includes glibc Linux x64/arm64 standalone archives and Debian packages. The
+artifacts passed native install, lifecycle, update and rollback smoke gates.
 
 ## Requirements
 
@@ -124,7 +123,10 @@ passing.
 The earlier 14-scenario isolated installer smoke suite has not been rerun
 against this exact dependency-only rebuild. The check did not use a separate
 clean Windows VM or visually and interactively review the native wizard and its
-accessibility. These remain boundaries of the public-alpha installer.
+accessibility. These statements describe the `v0.2.0` artifact. The exact
+`v0.2.5` installer subsequently passed silent clean-install and data-preserving
+uninstall on a fresh Windows Server 2022 runner; the interactive wizard,
+SmartScreen and consumer Windows desktop remain untested.
 
 ### Installer Behavior
 

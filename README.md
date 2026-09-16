@@ -40,7 +40,7 @@ then open DeskCue from the Start menu or run `deskcue open` in a new terminal.
 
 ### Linux x64 and arm64
 
-Once `v0.2.5` or a newer release is published, install the per-user standalone
+For a published `v0.2.5` or newer release, install the per-user standalone
 build with:
 
 ```bash
@@ -119,11 +119,10 @@ update checks and installs; the Host verifies the exact installer size and
 SHA-256 before handoff. See [Installation](./docs/installation.md) for the
 artifact, commands and current validation boundaries.
 
-The `v0.2.5` release candidate adds glibc Linux x64/arm64 standalone archives
-and Debian packages with native architecture gates for non-root install,
-`systemd --user` lifecycle, update and rollback. They become a published install
-path only after the tagged workflow and final release checks pass. The
-standalone installation includes the Host, CLI, browser dashboard and explicit
+The tagged `v0.2.5` build includes glibc Linux x64/arm64 standalone archives
+and Debian packages. The artifacts passed native architecture gates for non-root
+install, `systemd --user` lifecycle, update and rollback. The standalone
+installation includes the Host, CLI, browser dashboard and explicit
 self-update; it does not include a tray.
 
 ## Requirements
@@ -264,20 +263,19 @@ tooling/     Distribution and workspace-only verification tools
 
 ## Known limitations
 
-- The published Windows x64 installer is unsigned. Its implementation passed
-  isolated clean-install, CLI lifecycle, in-place update, rollback,
-  PATH/autostart cleanup and uninstall checks on the build workstation rather
-  than a clean VM. The exact dependency-only release rebuild additionally
-  passed payload integrity, same-version update and cold-start health checks,
-  but the complete isolated suite was not rerun against that rebuild. The
-  interactive installer wizard has not received a visual/accessibility review
+- The Windows x64 installer is unsigned. The exact `v0.2.5` installer passed
+  silent clean-install, payload integrity, CLI/Host/daemon, tray process, autostart
+  registration, dashboard response and data-preserving uninstall checks on a
+  fresh Windows Server 2022 runner. Earlier in-place update and rollback checks
+  used a build workstation. The interactive wizard, SmartScreen, consumer
+  Windows 10/11 behavior and a real sign-in/reboot remain untested
 - Installed Windows Hosts support explicit update check/apply and CLI-managed
   tray autostart. Updates are never checked or installed in the background,
   and the stable feed is available starting with `v0.2.0`. The beta feed is not
   published. Source-checkout Hosts intentionally report update and autostart as
   unavailable
-- Linux packages remain release candidates until the tagged `v0.2.5` artifacts
-  pass the native x64/arm64 gates and final release checks. They require glibc
+- The tagged `v0.2.5` Linux x64/arm64 artifacts passed native clean-install,
+  lifecycle, update/rollback and data-preservation gates. They require glibc
   and a working per-user systemd session; there is no Linux tray, packaged
   macOS build or container distribution yet
 - Codex and Claude Code prompt delivery is designed to survive a graceful
