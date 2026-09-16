@@ -16,6 +16,7 @@ test("parses command-specific options and global JSON output", () => {
     json: true,
     lines: 25,
     print: false,
+    raw: false,
     timeoutMs: 15_000,
     wait: false
   });
@@ -26,8 +27,11 @@ test("parses complete log output and rejects conflicting log modes", () => {
 
   assert.equal(parsed.all, true);
   assert.equal(parsed.lines, 8);
+  assert.equal(parseCliArguments(["logs", "--all", "--raw"]).raw, true);
   assert.throws(() => parseCliArguments(["logs", "--all", "--follow"]), CliUsageError);
   assert.throws(() => parseCliArguments(["logs", "--all", "--lines", "50"]), CliUsageError);
+  assert.throws(() => parseCliArguments(["logs", "--raw"]), CliUsageError);
+  assert.throws(() => parseCliArguments(["logs", "--all", "--raw", "--json"]), CliUsageError);
 });
 
 test("parses updater channel and autostart action", () => {

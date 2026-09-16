@@ -59,25 +59,30 @@ const commandHelp: Record<CliCommand, CommandHelp> = {
     listSummary: "Read or follow daemon logs.",
     notes: [
       "The default view shows a compact form of the latest 8 records.",
-      "Use --lines for a larger bounded tail or --all for the complete current log.",
+      "Use --lines for a larger bounded tail or --all for every bounded, redacted record.",
       "Follow mode prints the initial 8-record tail before waiting.",
-      "With --follow or --all and --json, output is NDJSON.",
+      "With --follow --json or --all --json, output is NDJSON.",
       "Each event frame is written on its own line.",
-      "Export every current record:",
-      "  deskcue logs --all --json > deskcue-logs.ndjson"
+      "Raw export is byte-complete but unredacted and may contain secrets:",
+      "  deskcue logs --all --raw > deskcue-daemon.jsonl"
     ],
     options: [
       "  -n, --lines <1-10000>",
       "      Existing records to print; default: 8",
       "  --all",
-      "      Print every current record; cannot be combined with --follow",
+      "      Scan the current log; cannot be combined with --follow",
+      "  --raw",
+      "      With --all, stream the exact unredacted log file to stdout",
       "  -f, --follow",
       "      Continue until interrupted with Ctrl+C",
       "  --json",
       "      Emit JSON; follow and --all modes emit NDJSON"
     ],
     summary: "Read recent daemon logs or continue following new records.",
-    usage: "deskcue logs [--lines <1-10000> | --all | --follow] [--json]"
+    usage: [
+      "deskcue logs [--lines <1-10000> | --all | --follow] [--json]",
+      "deskcue logs --all --raw"
+    ].join("\n")
   },
   open: {
     listSummary: "Open the local dashboard.",

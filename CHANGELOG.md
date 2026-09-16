@@ -7,6 +7,23 @@ releases.
 
 ## Unreleased
 
+## 0.2.5 - 2026-09-16
+
+### Added
+
+- Added native non-root Linux x64 and arm64 distribution gates for standalone
+  clean install, CLI/systemd lifecycle, update from the previous release,
+  induced update rollback, data preservation and Debian installation
+- Added `deskcue logs --all --raw` for an exact unredacted byte export suitable
+  for redirection, with a separate stderr warning about private data
+
+### Changed
+
+- Made the Distribution workflow resolve the immediately preceding stable tag
+  and block draft creation until both native Linux architecture gates pass
+- Clarified that formatted and JSON log views are bounded and redacted rather
+  than claiming that oversized records are part of those safe views
+
 ## 0.2.4 - 2026-09-16
 
 ### Fixed

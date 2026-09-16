@@ -40,7 +40,7 @@ then open DeskCue from the Start menu or run `deskcue open` in a new terminal.
 
 ### Linux x64 and arm64
 
-Once `v0.2.4` or a newer release is published, install the per-user standalone
+Once `v0.2.5` or a newer release is published, install the per-user standalone
 build with:
 
 ```bash
@@ -119,10 +119,11 @@ update checks and installs; the Host verifies the exact installer size and
 SHA-256 before handoff. See [Installation](./docs/installation.md) for the
 artifact, commands and current validation boundaries.
 
-The `v0.2.4` release candidate adds glibc Linux x64/arm64 standalone archives
-and Debian packages. They become a published install path only after the tagged
-artifacts pass the release smoke gates. The standalone installation includes the
-Host, CLI, browser dashboard, `systemd --user` lifecycle and explicit
+The `v0.2.5` release candidate adds glibc Linux x64/arm64 standalone archives
+and Debian packages with native architecture gates for non-root install,
+`systemd --user` lifecycle, update and rollback. They become a published install
+path only after the tagged workflow and final release checks pass. The
+standalone installation includes the Host, CLI, browser dashboard and explicit
 self-update; it does not include a tray.
 
 ## Requirements
@@ -275,10 +276,10 @@ tooling/     Distribution and workspace-only verification tools
   and the stable feed is available starting with `v0.2.0`. The beta feed is not
   published. Source-checkout Hosts intentionally report update and autostart as
   unavailable
-- Linux packages remain release candidates until their tagged artifacts pass
-  the release smoke gates. They require glibc and a working per-user systemd
-  session; there is no Linux tray, packaged macOS build or container
-  distribution yet
+- Linux packages remain release candidates until the tagged `v0.2.5` artifacts
+  pass the native x64/arm64 gates and final release checks. They require glibc
+  and a working per-user systemd session; there is no Linux tray, packaged
+  macOS build or container distribution yet
 - Codex and Claude Code prompt delivery is designed to survive a graceful
   daemon restart. Ambiguous crash outcomes are reconciled from native
   transcripts and are never resent automatically

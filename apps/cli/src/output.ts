@@ -1,8 +1,10 @@
+import { once } from "node:events";
 import { stripVTControlCharacters } from "node:util";
 
 export type CliIo = {
   stderr: (text: string) => boolean | void;
   stdout: (text: string) => boolean | void;
+  stdoutBytes?: (bytes: Uint8Array) => boolean | Promise<void> | void;
 };
 
 export type CliResult<T = unknown> = {
@@ -12,9 +14,16 @@ export type CliResult<T = unknown> = {
   ok: boolean;
 };
 
+async function writeProcessStdoutBytes(bytes: Uint8Array) {
+  if (process.stdout.write(bytes)) return;
+
+  await once(process.stdout, "drain");
+}
+
 export const processCliIo: CliIo = {
   stderr: (text) => process.stderr.write(text),
-  stdout: (text) => process.stdout.write(text)
+  stdout: (text) => process.stdout.write(text),
+  stdoutBytes: writeProcessStdoutBytes
 };
 
 export function sanitizeTerminalLine(value: string) {

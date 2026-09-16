@@ -2,7 +2,7 @@
 
 DeskCue is published as a source-checkout alpha. Starting with `v0.2.0`, GitHub
 Releases also provides an unsigned Windows x64 distribution with a stable
-manual-update feed. The `v0.2.4` release candidate adds glibc Linux x64/arm64
+manual-update feed. The `v0.2.5` release candidate adds glibc Linux x64/arm64
 standalone archives and Debian packages.
 
 Linux artifacts remain release candidates until the tagged builds pass clean
@@ -95,7 +95,11 @@ Package-specific independent versions can be introduced later if DeskCue starts
 publishing npm packages separately.
 
 For a packaged release, dispatch the Distribution workflow for the existing
-tag. It creates a draft only after every Windows and Linux target succeeds.
+tag. The workflow resolves the immediately preceding stable release tag as its
+update-smoke baseline and creates a draft only after every Windows and Linux
+target succeeds. Each native Linux target must pass non-root standalone
+install, update, induced rollback, systemd/autostart, data-preservation and
+Debian installation checks.
 Verify the asset names and `SHA256SUMS`, the strict update manifest and
 `release-version.txt` through the GitHub API before publishing. Do not publish
 until the draft contains every asset required by the future `latest/download`
@@ -175,7 +179,7 @@ a beta publication mechanism must be defined before publishing that channel.
 The Windows installer is intentionally unsigned and x64-only. Signing is
 deferred. The Host updater accepts installed Windows x64 and arm64 targets, but
 no Windows arm64 payload or installer is built in this scope. Linux x64/arm64
-standalone and Debian packaging plus `install.sh` are `v0.2.4` release
+standalone and Debian packaging plus `install.sh` are `v0.2.5` release
 candidates. There is no WinGet package, `npx` bootstrap, packaged macOS build
 or container distribution yet.
 
@@ -211,12 +215,16 @@ limitations, and [Recovery Notes](./recovery.md) for data recovery.
 
 The distribution workflow runs only for an existing tag and creates a draft
 release. It builds Windows x64 on Windows 2022, Linux x64 on Ubuntu 22.04 and
-Linux arm64 on a native Ubuntu arm64 runner. The publish job requires every
-target, combines the artifacts, creates one strict platform/architecture update
+Linux arm64 on a native Ubuntu arm64 runner. The Linux jobs also build the
+immediately preceding stable tag on the same architecture, install it as the
+runner's ordinary user, update it to the candidate, induce and verify a
+post-swap rollback, and exercise the candidate Debian package. The publish job
+requires every target,
+combines the artifacts, creates one strict platform/architecture update
 manifest and generates `SHA256SUMS` before creating the draft. The workflow
-resolves the release tag to one immutable commit before any build starts,
-pins third-party Actions to commit SHAs and aborts if the tag moves before the
-draft is created.
+resolves both tags to immutable commits before any build starts, pins
+third-party Actions to commit SHAs and aborts if the release tag moves before
+the draft is created.
 
 The update feed contains one installable artifact per runtime target:
 

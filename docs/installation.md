@@ -2,7 +2,7 @@
 
 The public alpha can be installed from a source checkout. Starting with
 `v0.2.0`, GitHub Releases also provides an unsigned Windows x64 installer and a
-stable feed for explicit update checks and installs. The `v0.2.4` release
+stable feed for explicit update checks and installs. The `v0.2.5` release
 candidate adds glibc Linux x64/arm64 standalone archives and Debian packages;
 they are not a published install path until the tagged artifacts pass the
 release smoke gates.
@@ -165,8 +165,10 @@ deskcue version
 ```
 
 Use `--json` for machine-readable output, `deskcue logs --follow` to follow the
-daemon log, and `deskcue open --print` to print the dashboard URL without
-opening a browser. `deskcue status` reports Host and daemon versions, Host start
+daemon log, and `deskcue logs --all --raw > deskcue-daemon.jsonl` only when an
+exact unredacted export is needed. Raw output may contain secrets or private
+data. Use `deskcue open --print` to print the dashboard URL without opening a
+browser. `deskcue status` reports Host and daemon versions, Host start
 time, the current update phase, autostart state and any active recovery or busy
 reason. It exits with `1` for a degraded runtime or failed update operation and
 with `3` when the Host or daemon is inactive. The Host persists whether the
@@ -261,7 +263,7 @@ User service:  ~/.config/systemd/user/deskcue-host.service
 Data:          ${XDG_DATA_HOME:-~/.local/share}/deskcue/data
 ```
 
-Install `v0.2.4` or a newer release with:
+Install `v0.2.5` or a newer release with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AleksandrKornev/DeskCue/main/install.sh | sh

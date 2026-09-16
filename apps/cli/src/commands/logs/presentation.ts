@@ -30,7 +30,8 @@ export function writeLogSummary(
   writeLogOutput(io, [
     "Next:",
     `  More recent: deskcue logs --lines ${Math.min(lines * 5, 10_000)}`,
-    "  Full export: deskcue logs --all --json > deskcue-logs.ndjson",
+    "  Redacted export: deskcue logs --all --json > deskcue-logs.ndjson",
+    "  Complete raw export: deskcue logs --all --raw > deskcue-daemon.jsonl",
     "  Live: deskcue logs --follow",
     ""
   ].join("\n"));
@@ -95,6 +96,13 @@ export function writeOversizedRecordNotice(io: CliIo, json: boolean, path: strin
   }
 
   writeLogOutput(io, "Warning: a log record exceeded 1 MiB and was omitted.\n");
+}
+
+export function writeRawExportWarning(io: CliIo, path: string) {
+  io.stderr(
+    `Warning: exporting the complete unredacted DeskCue daemon log from ${sanitizeTerminalLine(path)}; ` +
+    "the output may contain secrets or private data.\n"
+  );
 }
 
 export function writeFollowReadError(io: CliIo, json: boolean, path: string, error: unknown) {

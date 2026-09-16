@@ -309,6 +309,7 @@ async function dispatchCommand(
         io,
         json: parsed.json,
         lines: parsed.lines,
+        raw: parsed.raw,
         signal
       });
       return CLI_EXIT_CODES.success;

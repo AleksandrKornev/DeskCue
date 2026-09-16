@@ -7,7 +7,6 @@ on:
         description: Existing release tag version without the v prefix
         required: true
         type: string
-
 permissions:
   contents: read
 
@@ -15,6 +14,8 @@ jobs:
   resolve-source:
     runs-on: ubuntu-22.04
     outputs:
+      baseline_commit: ${{ steps.resolve.outputs.baseline_commit }}
+      baseline_version: ${{ steps.resolve.outputs.baseline_version }}
       commit: ${{ steps.resolve.outputs.commit }}
     steps:
       - name: Resolve release tag once
@@ -22,16 +23,42 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          case "$RELEASE_VERSION" in
-            ''|*[!0-9A-Za-z.-]*) echo 'Invalid release version.' >&2; exit 1 ;;
-          esac
-          refs="$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" \
-            "refs/tags/v$RELEASE_VERSION" "refs/tags/v$RELEASE_VERSION^{}")"
+          printf '%s\n' "$RELEASE_VERSION" | grep -Eq \
+            '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || {
+            echo 'Release version must be a stable SemVer value.' >&2
+            exit 1
+          }
+          tag_refs="$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" 'refs/tags/v*')"
+          refs="$(printf '%s\n' "$tag_refs" | awk -v tag="refs/tags/v$RELEASE_VERSION" \
+            '$2 == tag || $2 == tag "^{}"')"
           commit="$(printf '%s\n' "$refs" | awk '$2 ~ /\^\{\}$/ { print $1 }')"
           if [ -z "$commit" ]; then
             commit="$(printf '%s\n' "$refs" | awk '$2 !~ /\^\{\}$/ { print $1 }')"
           fi
           [ -n "$commit" ] || { echo "Release tag v$RELEASE_VERSION was not found." >&2; exit 1; }
+          stable_versions="$(printf '%s\n' "$tag_refs" | awk '$2 !~ /\^\{\}$/ {
+            ref = $2
+            sub("^refs/tags/v", "", ref)
+            if (ref ~ /^[0-9]+\.[0-9]+\.[0-9]+$/) print ref
+          }' | sort -V -u)"
+          baseline_version="$(printf '%s\n' "$stable_versions" | awk -v release="$RELEASE_VERSION" \
+            '$0 == release { print previous; exit } { previous = $0 }')"
+          [ -n "$baseline_version" ] || {
+            echo "No previous stable release tag exists before v$RELEASE_VERSION." >&2
+            exit 1
+          }
+          baseline_refs="$(printf '%s\n' "$tag_refs" | awk \
+            -v tag="refs/tags/v$baseline_version" '$2 == tag || $2 == tag "^{}"')"
+          baseline_commit="$(printf '%s\n' "$baseline_refs" | awk '$2 ~ /\^\{\}$/ { print $1 }')"
+          if [ -z "$baseline_commit" ]; then
+            baseline_commit="$(printf '%s\n' "$baseline_refs" | awk '$2 !~ /\^\{\}$/ { print $1 }')"
+          fi
+          [ -n "$baseline_commit" ] || {
+            echo "Baseline tag v$baseline_version was not found." >&2
+            exit 1
+          }
+          echo "baseline_commit=$baseline_commit" >> "$GITHUB_OUTPUT"
+          echo "baseline_version=$baseline_version" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
   windows-x64:
@@ -186,6 +213,36 @@ jobs:
       - name: Build Linux packages
         run: npm run build:linux-package -- --arch '${{ matrix.architecture }}'
 
+      - name: Checkout baseline source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: .release-baseline
+          ref: ${{ needs.resolve-source.outputs.baseline_commit }}
+
+      - name: Build native baseline packages
+        working-directory: .release-baseline
+        run: |
+          npm ci
+          npm run build:linux-package -- --arch '${{ matrix.architecture }}'
+
+      - name: Prepare non-root user service session
+        run: |
+          sudo loginctl enable-linger "$USER"
+          sudo systemctl start "user@$(id -u).service"
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+
+      - name: Test native install, update and rollback gates
+        env:
+          DESKCUE_RELEASE_GATE: "1"
+        run: |
+          node tooling/linux-package/release-gate.mjs \
+            --arch '${{ matrix.architecture }}' \
+            --baseline-dir '.release-baseline/tooling/linux-package/dist/packages' \
+            --baseline-version '${{ needs.resolve-source.outputs.baseline_version }}' \
+            --candidate-dir 'tooling/linux-package/dist/packages' \
+            --candidate-version '${{ inputs.version }}'
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -259,9 +316,8 @@ jobs:
           {
             echo '### Draft release validation'
             echo '- [ ] Install and exercise the Windows x64 installer on a clean Windows environment'
-            echo '- [ ] Install, update and roll back the Linux x64 standalone artifact'
-            echo '- [ ] Install, update and roll back the Linux arm64 standalone artifact on arm64 hardware'
-            echo '- [ ] Install both Debian packages and verify Host lifecycle after replacement'
+            echo '- [x] Native non-root install, update and induced rollback passed for Linux x64 and arm64'
+            echo '- [x] Both Debian packages passed native install, Host lifecycle and data-preservation smoke'
             echo '- [ ] Verify draft asset names, SHA256SUMS and update-manifest-v1.json before publishing'
             echo '- [ ] Re-resolve the release tag and confirm it still matches the recorded source commit'
           } >> "$GITHUB_STEP_SUMMARY"

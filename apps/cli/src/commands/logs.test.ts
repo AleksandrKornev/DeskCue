@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { followLogs, readLogTail, runLogsCommand } from "./logs.ts";
+
+const CLI_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function delay(durationMs: number) {
   return new Promise((resolve) => {
@@ -53,7 +58,7 @@ test("reads a bounded tail and formats daemon JSON records", async () => {
     assert.match(output, /"operationId":"update-1"/u);
     assert.match(output, /DeskCue daemon logs\n  File: .*daemon\.jsonl/u);
     assert.match(output, /Shown in this view: 1\s+\|\s+Errors: 0\s+\|\s+Warnings: 1/u);
-    assert.match(output, /Full export: deskcue logs --all --json > deskcue-logs\.ndjson/u);
+    assert.match(output, /Complete raw export: deskcue logs --all --raw > deskcue-daemon\.jsonl/u);
     assert.doesNotMatch(output, /INFO old/u);
   } finally {
     if (previousDataDir === undefined) delete process.env.DESKCUE_DATA_DIR;
@@ -62,7 +67,7 @@ test("reads a bounded tail and formats daemon JSON records", async () => {
   }
 });
 
-test("all mode streams the complete current log instead of applying the tail limit", async () => {
+test("all mode scans current records instead of applying the tail line limit", async () => {
   const directory = join(tmpdir(), `deskcue-cli-all-logs-${process.pid}-${Date.now()}`);
   const previousDataDir = process.env.DESKCUE_DATA_DIR;
 
@@ -93,7 +98,7 @@ test("all mode streams the complete current log instead of applying the tail lim
 
     assert.match(output, /INFO first/u);
     assert.match(output, /ERROR last/u);
-    assert.match(output, /Showing all current records/u);
+    assert.match(output, /Scanning bounded, redacted records/u);
     assert.match(output, /Records: 2\s+\|\s+Errors: 1/u);
     assert.doesNotMatch(output, /More recent: deskcue logs/u);
   } finally {
@@ -365,6 +370,103 @@ test("all mode omits an oversized record without buffering or echoing it", async
   } finally {
     if (previousDataDir === undefined) delete process.env.DESKCUE_DATA_DIR;
     else process.env.DESKCUE_DATA_DIR = previousDataDir;
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("raw all mode streams the exact complete file including oversized and sensitive records", async () => {
+  const directory = join(tmpdir(), `deskcue-cli-raw-logs-${process.pid}-${Date.now()}`);
+  const previousDataDir = process.env.DESKCUE_DATA_DIR;
+
+  try {
+    process.env.DESKCUE_DATA_DIR = directory;
+    const logDirectory = join(directory, "service", "logs");
+    const rawLog = [
+      JSON.stringify({ message: "x".repeat(1024 * 1024 + 128), token: "oversized-secret" }),
+      JSON.stringify({ level: "info", message: "safe-after-oversized" })
+    ].join("\n");
+    const rawBytes = Buffer.concat([Buffer.from(rawLog, "utf8"), Buffer.from([0xff])]);
+
+    await mkdir(logDirectory, { recursive: true });
+    await writeFile(join(logDirectory, "daemon.jsonl"), rawBytes);
+    let errorOutput = "";
+    const outputChunks: Uint8Array[] = [];
+
+    await runLogsCommand({
+      all: true,
+      follow: false,
+      io: {
+        stderr(text) {
+          errorOutput += text;
+        },
+        stdout() {},
+        stdoutBytes(bytes) {
+          outputChunks.push(bytes);
+        }
+      },
+      json: false,
+      lines: 1,
+      raw: true,
+      signal: new AbortController().signal
+    });
+
+    const output = Buffer.concat(outputChunks);
+
+    assert.deepEqual(output, rawBytes);
+    assert.match(output.toString("utf8"), /oversized-secret/u);
+    assert.match(errorOutput, /complete unredacted/u);
+    assert.match(errorOutput, /may contain secrets or private data/u);
+  } finally {
+    if (previousDataDir === undefined) delete process.env.DESKCUE_DATA_DIR;
+    else process.env.DESKCUE_DATA_DIR = previousDataDir;
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("raw all mode waits for a slow process stdout consumer without losing bytes", async () => {
+  const directory = join(tmpdir(), `deskcue-cli-raw-pipe-${process.pid}-${Date.now()}`);
+
+  try {
+    const logDirectory = join(directory, "service", "logs");
+    const rawBytes = Buffer.concat([
+      Buffer.alloc(8 * 1024 * 1024, 0x61),
+      Buffer.from([0x0a, 0xff, 0x00, 0x62])
+    ]);
+
+    await mkdir(logDirectory, { recursive: true });
+    await writeFile(join(logDirectory, "daemon.jsonl"), rawBytes);
+    const child = spawn(process.execPath, [
+      "--import", "tsx", "src/index.ts", "logs", "--all", "--raw"
+    ], {
+      cwd: CLI_ROOT,
+      env: { ...process.env, DESKCUE_DATA_DIR: directory },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const exited = once(child, "exit");
+    let errorOutput = "";
+    let resolveWarning: (() => void) | undefined;
+    const warningSeen = new Promise<void>((resolvePromise) => {
+      resolveWarning = resolvePromise;
+    });
+
+    child.stderr.on("data", (chunk) => {
+      errorOutput += chunk.toString("utf8");
+      if (errorOutput.includes("complete unredacted")) resolveWarning?.();
+    });
+    await Promise.race([
+      warningSeen,
+      delay(5_000).then(() => assert.fail(`Raw-export warning was not emitted: ${errorOutput}`))
+    ]);
+    await delay(100);
+    assert.equal(child.exitCode, null, "raw export should wait while the stdout pipe is backpressured");
+    const outputChunks: Buffer[] = [];
+
+    child.stdout.on("data", (chunk) => outputChunks.push(Buffer.from(chunk)));
+    const [exitCode] = await exited;
+
+    assert.equal(exitCode, 0, errorOutput);
+    assert.deepEqual(Buffer.concat(outputChunks), rawBytes);
+  } finally {
     await rm(directory, { force: true, recursive: true });
   }
 });
